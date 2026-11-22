@@ -4,7 +4,7 @@ Plugins are Lua 5.4 files. astral runs no native plugin code, so a plugin works 
 
 ## Translations
 
-A plugin's strings live in `i18n/<locale>.toml` (flat `KEY = "text"` tables) and its manifest lists them under `translations`. `astral.i18n.t(key, { name = value })` returns the string for the best of the device's preferred languages, falling back per key to English and then to the key; `astral.i18n.locale` names the table in use. Translations are part of the plugin's signature, and marketplace installs download and verify them. The two first-party plugins carry Unbound's 32 locales.
+A plugin's strings live in `i18n/<locale>.toml` (flat `KEY = "text"` tables); the loader finds them by scanning the folder, and the build writes a `files.txt` next to each catalog plugin so marketplace installs know what to download. `astral.i18n.t(key, { name = value })` returns the string for the best of the device's preferred languages, falling back per key to English and then to the key; `astral.i18n.locale` names the table in use. Translations are part of the plugin's signature, and marketplace installs download and verify them. The two first-party plugins carry Unbound's 32 locales.
 
 ## Icons
 

@@ -154,9 +154,12 @@ static NSString *InstallPlugin(NSDictionary *package)
     NSString *signature = signatureData ? [[NSString alloc] initWithData:signatureData encoding:NSUTF8StringEncoding] : nil;
     if (!signature) return failure ?: @"missing signature";
     NSMutableDictionary<NSString *, NSData *> *translations = [NSMutableDictionary dictionary];
-    for (NSString *locale in [manifest[@"translations"] isKindOfClass:NSArray.class] ? manifest[@"translations"] : @[]) {
-        if (![locale isKindOfClass:NSString.class] || [locale containsString:@"/"] || [locale containsString:@".."])
-            return @"invalid translation name";
+    NSData *listing = Fetch(Resolve([base stringByAppendingString:@"files.txt"]), &failure);
+    NSString *listingText = listing ? [[NSString alloc] initWithData:listing encoding:NSUTF8StringEncoding] : @"";
+    for (NSString *line in [listingText componentsSeparatedByCharactersInSet:NSCharacterSet.newlineCharacterSet]) {
+        if (![line hasPrefix:@"i18n/"] || ![line hasSuffix:@".toml"]) continue;
+        NSString *locale = [[line substringFromIndex:5] stringByDeletingPathExtension];
+        if (!locale.length || [locale containsString:@"/"] || [locale containsString:@".."]) return @"invalid translation name";
         NSData *data = Fetch(Resolve([NSString stringWithFormat:@"%@i18n/%@.toml", base, locale]), &failure);
         if (!data) return failure ?: @"missing translation";
         translations[locale] = data;
