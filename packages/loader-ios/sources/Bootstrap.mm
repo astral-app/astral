@@ -21,7 +21,7 @@
 #import "SettingsPages.h"
 #import "Themes.h"
 
-static NSString *const kAstralVersion = @"0.0.1";
+static NSString *const kAstralVersion = @ASTRAL_VERSION;
 
 static std::unique_ptr<loader::SettingsStore> settings;
 static std::string stateDirectory;
