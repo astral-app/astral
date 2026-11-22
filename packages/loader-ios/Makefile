@@ -23,7 +23,7 @@ Astral_FILES := $(wildcard sources/*.mm sources/*.m sources/*.c sources/*.S sour
 Astral_CFLAGS := -fobjc-arc -Isources -I$(GENERATED) -I$(CORE)/include -I$(ROOT)/vendor -I$(LUA) -DLUA_USE_POSIX -DASTRAL_VERSION=\"$(ASTRAL_VERSION)\" -DASTRAL_SIGNING_KEY=\"$(SIGNING_KEY)\" -I$(MONOCYPHER) -I$(MONOCYPHER)/optional -isystem $(ROOT)/vendor/tomlplusplus/include
 Astral_CCFLAGS := -std=c++20 -fno-cxx-modules
 Astral_FRAMEWORKS := Foundation UIKit Security MetricKit UniformTypeIdentifiers
-Astral_LIBRARIES := substrate sqlite3
+Astral_LIBRARIES := sqlite3
 
 include $(THEOS_MAKE_PATH)/tweak.mk
 

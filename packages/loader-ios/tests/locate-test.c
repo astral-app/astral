@@ -22,5 +22,9 @@ int main(int count, char **arguments)
     printf("opsArrived at 0x%llx\n", (unsigned long long)offset);
     assert(offset == 0x333ce8);
     assert(astral_locate_function_referencing(&view, "no such diagnostic anywhere") == 0);
+    uint64_t hostCall = astral_locate_host_call(&view, offset);
+    printf("host call at 0x%llx\n", (unsigned long long)hostCall);
+    assert(hostCall == 0x7cf00);
+    assert(astral_locate_unique_caller(&view, 0) == 0);
     return 0;
 }

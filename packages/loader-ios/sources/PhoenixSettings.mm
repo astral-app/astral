@@ -1,22 +1,27 @@
 #import "PhoenixSettings.h"
 
 #import <UIKit/UIKit.h>
-#import <dlfcn.h>
 #import <mach-o/dyld.h>
 #import <objc/runtime.h>
 #import <pthread.h>
 #import <string>
-#import <substrate.h>
 #import <vector>
 
 #import "AstralState.h"
+#import "DevServer.h"
+#import "PhoenixHostCall.h"
 #import "PhoenixImage.h"
 #import "PhoenixLocate.h"
 #import "PhoenixWire.h"
 
 static const char kOpsArrivedNeedle[] = "ops batch dropped";
 
-static uint64_t LocateOpsArrived(const struct mach_header *image)
+typedef struct {
+    uint64_t opsArrived;
+    uint64_t hostCall;
+} HookPoints;
+
+static HookPoints LocateHookPoints(const struct mach_header *image)
 {
     NSString *uuid = AstralPhoenixUUID();
     NSString *cachePath = [AstralStateDirectory() stringByAppendingPathComponent:@"hooks.json"];
@@ -24,43 +29,29 @@ static uint64_t LocateOpsArrived(const struct mach_header *image)
     NSData *stored = [NSData dataWithContentsOfFile:cachePath];
     id parsed = stored ? [NSJSONSerialization JSONObjectWithData:stored options:0 error:nil] : nil;
     if ([parsed isKindOfClass:NSDictionary.class]) cache = parsed;
-    NSNumber *cached = cache[uuid];
-    if ([cached isKindOfClass:NSNumber.class] && cached.unsignedLongLongValue) return cached.unsignedLongLongValue;
+    NSDictionary *cached = [cache[uuid] isKindOfClass:NSDictionary.class] ? cache[uuid] : nil;
+    if ([cached[@"opsArrived"] unsignedLongLongValue] && [cached[@"hostCall"] unsignedLongLongValue])
+        return {[cached[@"opsArrived"] unsignedLongLongValue], [cached[@"hostCall"] unsignedLongLongValue]};
     AstralImageView view = {(const uint8_t *)image, 0, 0, 0};
-    uint64_t offset = astral_locate_function_referencing(&view, kOpsArrivedNeedle);
-    if (offset && uuid.length) {
+    HookPoints points = {astral_locate_function_referencing(&view, kOpsArrivedNeedle), 0};
+    points.hostCall = astral_locate_host_call(&view, points.opsArrived);
+    if (points.opsArrived && uuid.length) {
         NSMutableDictionary *next = [cache mutableCopy];
-        next[uuid] = @(offset);
+        next[uuid] = @{@"opsArrived" : @(points.opsArrived), @"hostCall" : @(points.hostCall)};
         [[NSJSONSerialization dataWithJSONObject:next options:0 error:nil] writeToFile:cachePath atomically:YES];
     }
-    return offset;
+    return points;
 }
+
 static NSString *const kOverviewRow = @"settings.row.astral";
 static NSString *const kOverviewRowPrefix = @"settings.row.astral.";
 static NSString *const kBack = @"astral.back";
 static NSString *const kRowPrefix = @"astral.row.";
 static NSString *const kSwitchPrefix = @"astral.switch.";
 
-typedef struct {
-    uint64_t first;
-    uint64_t second;
-} SwiftData;
-
-typedef void *(*DataToObjC)(uint64_t, uint64_t);
-typedef SwiftData (*DataFromObjC)(void *);
-
-extern "C" {
-void *astral_wire_original;
-void astral_wire_trampoline(void);
-void astral_wire_call(uint64_t first, uint64_t second, void *context, void *function);
-void astral_wire_unlock(void);
-SwiftData astral_wire_intercept(uint64_t first, uint64_t second, void *context);
-}
-
-static DataToObjC gToObjC;
-static DataFromObjC gFromObjC;
 static pthread_mutex_t gLock = PTHREAD_MUTEX_INITIALIZER;
-static void *gContext;
+static AstralHostCall gHostOriginal;
+static void *gHostContext;
 static dispatch_queue_t gQueue;
 static AstralSettingsPage gPageModel;
 static AstralSettingsAction gAction;
@@ -96,25 +87,71 @@ static void StartCapture(void)
     gCaptureDirectory = directory;
 }
 
-void astral_wire_unlock(void)
+static bool InterceptHostCall(void *context, const uint8_t *frame, size_t length, void *result)
 {
+    if (length < 4 || frame[0] || frame[1] || frame[2] || frame[3]) return gHostOriginal(context, frame, length, result);
+    pthread_mutex_lock(&gLock);
+    gHostContext = context;
+    bool handled;
+    @autoreleasepool {
+        Capture([NSData dataWithBytesNoCopy:(void *)(frame + 4) length:length - 4 freeWhenDone:NO]);
+        AstralWireBuffer rewritten;
+        if (astral_settings_rewrite(frame + 4, length - 4, &rewritten)) {
+            std::vector<uint8_t> replacement(4 + rewritten.length, 0);
+            memcpy(replacement.data() + 4, rewritten.bytes, rewritten.length);
+            astral_wire_buffer_free(&rewritten);
+            handled = gHostOriginal(context, replacement.data(), replacement.size(), result);
+        } else {
+            handled = gHostOriginal(context, frame, length, result);
+        }
+    }
     pthread_mutex_unlock(&gLock);
+    return handled;
 }
 
-SwiftData astral_wire_intercept(uint64_t first, uint64_t second, void *context)
+static NSString *gRoute = @"none";
+
+static void Log(NSString *line)
 {
-    pthread_mutex_lock(&gLock);
-    gContext = context;
-    SwiftData original = {first, second};
-    @autoreleasepool {
-        NSData *data = CFBridgingRelease(gToObjC(first, second));
-        if (![data isKindOfClass:NSData.class]) return original;
-        Capture(data);
-        AstralWireBuffer rewritten;
-        if (!astral_settings_rewrite((const uint8_t *)data.bytes, data.length, &rewritten)) return original;
-        NSData *replacement = [NSData dataWithBytesNoCopy:rewritten.bytes length:rewritten.length freeWhenDone:YES];
-        return gFromObjC((__bridge void *)replacement);
+    NSLog(@"astral %@", line);
+    AstralDevAppendLog(line);
+}
+
+NSString *AstralPhoenixRoute(void)
+{
+    return gRoute;
+}
+
+static void InstallHostCall(const struct mach_header *image, uint64_t hostCall)
+{
+    uintptr_t base = (uintptr_t)image;
+    uintptr_t textSize = 0;
+    const uint8_t *cursor = (const uint8_t *)((const struct mach_header_64 *)image + 1);
+    for (uint32_t index = 0; index < ((const struct mach_header_64 *)image)->ncmds; index++) {
+        const struct segment_command_64 *segment = (const struct segment_command_64 *)cursor;
+        if (segment->cmd == LC_SEGMENT_64 && strcmp(segment->segname, "__TEXT") == 0) textSize = (uintptr_t)segment->vmsize;
+        cursor += segment->cmdsize;
     }
+    AstralHostCallImage target = {base, base + textSize, base + (uintptr_t)hostCall};
+    gHostOriginal = (AstralHostCall)target.call;
+    gRoute = @"host-call-pending";
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        for (int attempt = 0; attempt < 400; attempt++) {
+            void *context = NULL;
+            size_t swapped = astral_host_call_swap(&target, InterceptHostCall, &context);
+            if (swapped) {
+                pthread_mutex_lock(&gLock);
+                if (!gHostContext) gHostContext = context;
+                pthread_mutex_unlock(&gLock);
+                gRoute = @"host-call";
+                Log([NSString stringWithFormat:@"phoenix: host call route installed (%zu record(s), attempt %d)", swapped, attempt + 1]);
+                return;
+            }
+            usleep(attempt < 100 ? 20000 : 100000);
+        }
+        gRoute = @"host-call-missing";
+        Log(@"phoenix: host call record not found");
+    });
 }
 
 static const char *Text(NSDictionary *row, NSString *key)
@@ -175,9 +212,10 @@ typedef enum { kPush, kRefresh, kPop } Delivery;
 
 static void Send(AstralWireBuffer *buffer)
 {
-    NSData *data = [NSData dataWithBytesNoCopy:buffer->bytes length:buffer->length freeWhenDone:YES];
-    SwiftData swift = gFromObjC((__bridge void *)data);
-    astral_wire_call(swift.first, swift.second, gContext, astral_wire_original);
+    std::vector<uint8_t> frame(4 + buffer->length, 0);
+    memcpy(frame.data() + 4, buffer->bytes, buffer->length);
+    astral_wire_buffer_free(buffer);
+    gHostOriginal(gHostContext, frame.data(), frame.size(), NULL);
 }
 
 static void Deliver(Delivery delivery, NSDictionary *model, void (^failed)(void))
@@ -193,7 +231,7 @@ static void Deliver(Delivery delivery, NSDictionary *model, void (^failed)(void)
                 built = delivery == kPush ? astral_page_push(page, &buffer) : astral_page_refresh(page, &buffer);
             });
         }
-        if (built && gContext)
+        if (built && gHostOriginal && gHostContext)
             Send(&buffer);
         else if (built)
             astral_wire_buffer_free(&buffer);
@@ -306,12 +344,9 @@ NSString *AstralInstallPhoenixSettings(NSDictionary *category, AstralSettingsPag
     if (gPageModel) return nil;
     const struct mach_header *image = AstralPhoenixImage();
     if (!image) return @"unsupported-image";
-    uint64_t opsArrived = LocateOpsArrived(image);
-    if (!opsArrived) return @"ops-entry-not-found";
-    const uint32_t *entry = (const uint32_t *)((const uint8_t *)image + opsArrived);
-    gToObjC = (DataToObjC)dlsym(RTLD_DEFAULT, "$s10Foundation4DataV19_bridgeToObjectiveCSo6NSDataCyF");
-    gFromObjC = (DataFromObjC)dlsym(RTLD_DEFAULT, "$s10Foundation4DataV36_unconditionallyBridgeFromObjectiveCyACSo6NSDataCSgFZ");
-    if (!gToObjC || !gFromObjC) return @"data-bridge-unavailable";
+    HookPoints points = LocateHookPoints(image);
+    if (!points.opsArrived) return @"ops-entry-not-found";
+    if (!points.hostCall) return @"host-call-not-found";
     gGuestTap = NSClassFromString(@"LibdiscordHost.GuestTapRecognizer");
     if (!gGuestTap) return @"tap-recognizer-unavailable";
     Class navigator = NSClassFromString(@"LibdiscordHost.NavigatorBox");
@@ -328,8 +363,8 @@ NSString *AstralInstallPhoenixSettings(NSDictionary *category, AstralSettingsPag
     originalShouldReceive = (BOOL (*)(id, SEL, UIGestureRecognizer *, UITouch *))method_setImplementation(receive, (IMP)ShouldReceive);
     Method identifier = class_getInstanceMethod(UIView.class, @selector(setAccessibilityIdentifier:));
     originalSetIdentifier = (void (*)(UIView *, SEL, NSString *))method_setImplementation(identifier, (IMP)SetIdentifier);
-    MSHookFunction((void *)entry, (void *)astral_wire_trampoline, &astral_wire_original);
-    return astral_wire_original ? nil : @"hook-failed";
+    InstallHostCall(image, points.hostCall);
+    return nil;
 }
 
 void AstralRefreshPhoenixSettings(void)

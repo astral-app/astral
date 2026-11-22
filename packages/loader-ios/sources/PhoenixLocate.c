@@ -72,43 +72,91 @@ static uint64_t functionStart(const Image *image, const struct linkedit_data_com
     return best;
 }
 
-uint64_t astral_locate_function_referencing(const AstralImageView *view, const char *needle)
+typedef struct {
+    Image image;
+    const struct section_64 *text;
+    const struct section_64 *strings[4];
+    size_t stringCount;
+    const struct linkedit_data_command *starts;
+} Parsed;
+
+static int parse(const AstralImageView *view, Parsed *parsed)
 {
-    Image image = {view, {{0}}, 0, 0, 0, 0, 0};
+    memset(parsed, 0, sizeof(*parsed));
+    parsed->image.view = view;
+    Image *image = &parsed->image;
     const struct mach_header_64 *header = (const struct mach_header_64 *)view->image;
     if (!header || header->magic != MH_MAGIC_64) return 0;
-    const struct section_64 *text = NULL;
-    const struct section_64 *strings[4] = {0};
-    size_t stringCount = 0;
-    const struct linkedit_data_command *starts = NULL;
     const uint8_t *cursor = (const uint8_t *)(header + 1);
     for (uint32_t index = 0; index < header->ncmds; index++) {
         const struct load_command *command = (const struct load_command *)cursor;
         if (command->cmd == LC_SEGMENT_64) {
             const struct segment_command_64 *segment = (const struct segment_command_64 *)command;
-            if (image.segmentCount < kMaxSegments)
-                image.segments[image.segmentCount++] = (Segment){segment->vmaddr, segment->vmsize, segment->fileoff};
-            if (strcmp(segment->segname, "__TEXT") == 0) image.textBase = segment->vmaddr;
+            if (image->segmentCount < kMaxSegments)
+                image->segments[image->segmentCount++] = (Segment){segment->vmaddr, segment->vmsize, segment->fileoff};
+            if (strcmp(segment->segname, "__TEXT") == 0) image->textBase = segment->vmaddr;
             if (strcmp(segment->segname, "__LINKEDIT") == 0) {
-                image.linkeditVm = segment->vmaddr;
-                image.linkeditFile = segment->fileoff;
+                image->linkeditVm = segment->vmaddr;
+                image->linkeditFile = segment->fileoff;
             }
             const struct section_64 *section = (const struct section_64 *)(segment + 1);
             for (uint32_t sectionIndex = 0; sectionIndex < segment->nsects; sectionIndex++, section++) {
                 if (strcmp(section->segname, "__TEXT") != 0) continue;
                 if (strcmp(section->sectname, "__text") == 0)
-                    text = section;
+                    parsed->text = section;
                 else if ((strcmp(section->sectname, "__oslogstring") == 0 || strcmp(section->sectname, "__cstring") == 0) &&
-                         stringCount < 4)
-                    strings[stringCount++] = section;
+                         parsed->stringCount < 4)
+                    parsed->strings[parsed->stringCount++] = section;
             }
         } else if (command->cmd == LC_FUNCTION_STARTS) {
-            starts = (const struct linkedit_data_command *)command;
+            parsed->starts = (const struct linkedit_data_command *)command;
         }
         cursor += command->cmdsize;
     }
-    if (!text || !starts) return 0;
-    image.slide = (int64_t)(uintptr_t)view->image - (int64_t)image.textBase;
+    if (!parsed->text || !parsed->starts) return 0;
+    image->slide = (int64_t)(uintptr_t)view->image - (int64_t)image->textBase;
+    return 1;
+}
+
+uint64_t astral_locate_unique_caller(const AstralImageView *view, uint64_t callee)
+{
+    Parsed parsed;
+    if (!callee || !parse(view, &parsed)) return 0;
+    const struct section_64 *text = parsed.text;
+    const uint32_t *words = (const uint32_t *)pointerAt(&parsed.image, text->addr, text->size);
+    if (!words) return 0;
+    uint64_t target = parsed.image.textBase + callee, found = 0;
+    size_t count = text->size / 4;
+    for (size_t index = 0; index < count; index++) {
+        uint32_t word = words[index];
+        if ((word & 0xfc000000) != 0x94000000) continue;
+        int64_t immediate = (int64_t)(word & 0x3ffffff);
+        if (immediate & (1 << 25)) immediate -= 1 << 26;
+        uint64_t pc = text->addr + index * 4;
+        if (pc + (uint64_t)(immediate * 4) != target) continue;
+        uint64_t function = functionStart(&parsed.image, parsed.starts, pc);
+        if (!function || (found && found != function)) return 0;
+        found = function;
+    }
+    return found ? found - parsed.image.textBase : 0;
+}
+
+uint64_t astral_locate_host_call(const AstralImageView *view, uint64_t opsArrived)
+{
+    uint64_t dispatcher = astral_locate_unique_caller(view, opsArrived);
+    uint64_t frame = astral_locate_unique_caller(view, dispatcher);
+    return astral_locate_unique_caller(view, frame);
+}
+
+uint64_t astral_locate_function_referencing(const AstralImageView *view, const char *needle)
+{
+    Parsed parsed;
+    if (!parse(view, &parsed)) return 0;
+    Image image = parsed.image;
+    const struct section_64 *text = parsed.text;
+    const struct section_64 *const *strings = parsed.strings;
+    size_t stringCount = parsed.stringCount;
+    const struct linkedit_data_command *starts = parsed.starts;
     uint64_t targets[kMaxTargets];
     size_t targetCount = 0;
     for (size_t index = 0; index < stringCount && targetCount + 2 <= kMaxTargets; index++) {

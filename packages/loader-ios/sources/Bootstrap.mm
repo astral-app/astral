@@ -72,6 +72,7 @@ static void Status(NSString *stage)
         @"engine" : engineSelection ?: @{},
         @"settings" : settingsIntegration ?: @"",
         @"settingsRefusal" : settingsRefusal ?: @"",
+        @"route" : AstralPhoenixRoute(),
         @"plugins" : PluginSummaries()
     };
     NSData *data = [NSJSONSerialization dataWithJSONObject:report options:0 error:nullptr];
