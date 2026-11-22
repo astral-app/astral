@@ -19,6 +19,7 @@ void AstralLuaRemove(NSString *pluginID);
 void AstralLuaReload(NSString *pluginID);
 NSString *AstralLuaEval(NSString *pluginID, NSString *code);
 void AstralLuaResetSettings(NSString *pluginID);
+int AstralLuaTyping(const AstralNameContext *context, AstralMentionDecoration *decoration);
 int AstralLuaNameColor(const AstralNameContext *context, uint32_t *color);
 int AstralLuaMessageTextColor(uint64_t messageID, uint64_t channelID, uint32_t *color);
 int AstralLuaMention(const AstralMentionContext *context, AstralMentionDecoration *decoration);

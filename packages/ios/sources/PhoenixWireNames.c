@@ -5,6 +5,12 @@
 enum { kMaxNameText = 128 };
 
 static AstralNameColorizer gNameColorizer;
+static AstralTypingDecorator gTypingDecorator;
+
+void astral_wire_set_typing_decorator(AstralTypingDecorator decorator)
+{
+    gTypingDecorator = decorator;
+}
 static const char kHeaderRole[] = "header";
 static const char kCountSeparator[] = " \xE2\x80\x94 ";
 
@@ -210,19 +216,47 @@ static void putColoredSpan(Out *out, const uint8_t *bytes, const NameSpan *item,
     wirePropLong(out, P(color), (int64_t)color);
 }
 
+static void putTypingAvatar(Out *out, const char *image, int round)
+{
+    wirePut8(out, 8);
+    wirePut32(out, 2);
+    wirePropString(out, P(text), "avatar");
+    wirePut16(out, P(image));
+    wirePut8(out, 8);
+    wirePut32(out, round ? 4 : 3);
+    wirePropString(out, P(uri), image);
+    wirePropNumber(out, P(size), 14);
+    wirePropString(out, P(pool), "small");
+    if (round) wirePropNumber(out, P(radius), 7);
+}
+
+static void putSpacer(Out *out)
+{
+    wirePut8(out, 8);
+    wirePut32(out, 1);
+    wirePropString(out, P(text), " ");
+}
+
 static int colorTyping(const uint8_t *bytes, const Span *span, Out *out)
 {
     NameSpan items[kMaxNameSpans];
     uint32_t colors[kMaxNameSpans] = {0};
+    AstralMentionDecoration avatars[kMaxNameSpans];
+    memset(avatars, 0, sizeof(avatars));
     size_t count = readNameSpans(bytes, span, items);
     int any = 0;
+    uint32_t added = 0;
     for (size_t item = 0; item < count; item++) {
         if (!items[item].bold || !items[item].textLength || items[item].textLength >= kMaxNameText) continue;
         char name[kMaxNameText];
         memcpy(name, bytes + items[item].textAt, items[item].textLength);
         name[items[item].textLength] = 0;
         AstralNameContext context = {kAstralNameTyping, name, 0, astral_wire_current_channel()};
-        if (gNameColorizer(&context, &colors[item]) && colors[item]) any = 1;
+        if (gNameColorizer && gNameColorizer(&context, &colors[item]) && colors[item]) any = 1;
+        if (gTypingDecorator && gTypingDecorator(&context, &avatars[item]) && avatars[item].image[0]) {
+            any = 1;
+            added += 2;
+        }
     }
     if (!any) return 0;
     wirePut8(out, 2);
@@ -230,8 +264,14 @@ static int colorTyping(const uint8_t *bytes, const Span *span, Out *out)
     wirePut16(out, 1);
     wirePut16(out, P(spans));
     wirePut8(out, 7);
-    wirePut32(out, (uint32_t)count);
-    for (size_t item = 0; item < count; item++) putColoredSpan(out, bytes, &items[item], colors[item]);
+    wirePut32(out, (uint32_t)count + added);
+    for (size_t item = 0; item < count; item++) {
+        if (avatars[item].image[0]) {
+            putTypingAvatar(out, avatars[item].image, avatars[item].round);
+            putSpacer(out);
+        }
+        putColoredSpan(out, bytes, &items[item], colors[item]);
+    }
     return 1;
 }
 
@@ -245,7 +285,7 @@ static void putColor(Out *out, int32_t id, uint32_t color)
 
 void wireColorNames(const uint8_t *bytes, const Span *spans, size_t count, Out *out, int *changed, size_t length)
 {
-    if (!gNameColorizer) return;
+    if (!gNameColorizer && !gTypingDecorator) return;
     for (size_t index = 0; index < count; index++) {
         const Span *span = &spans[index];
         int typing = span->op == 2 && gTypingNode && span->id == gTypingNode;
@@ -263,6 +303,7 @@ void wireColorNames(const uint8_t *bytes, const Span *spans, size_t count, Out *
             free(update.bytes);
             continue;
         }
+        if (!gNameColorizer) continue;
         const uint8_t *text;
         uint32_t textLength;
         if (span->op != 1 || !wireTypeIs(bytes, span, "text") || !stringProperty(bytes, span, P(text), &text, &textLength) ||

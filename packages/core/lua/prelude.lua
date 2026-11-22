@@ -8,6 +8,7 @@ local native = {
 	mention = astral.ui.mention,
 	message_color = astral.ui.message_color,
 	name_color = astral.ui.name_color,
+	typing = astral.ui.typing,
 	permission = astral.discord.permission,
 }
 
@@ -502,6 +503,12 @@ function astral.ui.name_color(colorizer)
 			return nil
 		end
 		return astral.Color.from(color).value
+	end)
+end
+
+function astral.ui.typing(decorator)
+	return native.typing(function(node)
+		return decorator(wrapNode(node))
 	end)
 end
 

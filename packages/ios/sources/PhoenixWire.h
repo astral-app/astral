@@ -188,6 +188,10 @@ typedef int (*AstralNameColorizer)(const AstralNameContext *context, uint32_t *c
 
 void astral_wire_set_name_colorizer(AstralNameColorizer colorizer);
 
+typedef int (*AstralTypingDecorator)(const AstralNameContext *context, AstralMentionDecoration *decoration);
+
+void astral_wire_set_typing_decorator(AstralTypingDecorator decorator);
+
 typedef int (*AstralEmojiResolver)(const char *codepoints, char *url, size_t capacity);
 
 void astral_wire_set_emoji_resolver(AstralEmojiResolver resolver);

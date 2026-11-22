@@ -39,6 +39,13 @@ version = "0.0.1"
 description = "Colors mentions, message text, role headers and names beside avatars with members' role colors."
 base = "plugins/astral.role-color-everywhere/"
 
+[[plugins]]
+id = "astral.typing-avatars"
+name = "Typing Avatars"
+version = "0.0.1"
+description = "Shows the avatar of each person typing in front of their name."
+base = "plugins/astral.typing-avatars/"
+
 [[themes]]
 id = "mana"
 name = "Mana"

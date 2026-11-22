@@ -353,6 +353,8 @@ function astral.ui.mention(decorator) end
 function astral.ui.message_color(colorizer) end
 ---@param colorizer fun(node: astral.Node): astral.Color|integer|string|nil
 function astral.ui.name_color(colorizer) end
+---@param decorator fun(node: astral.Node): { image: string, round?: boolean }?
+function astral.ui.typing(decorator) end
 ---@param options? { dim: number }
 function astral.ui.settings_backdrop(options) end
 

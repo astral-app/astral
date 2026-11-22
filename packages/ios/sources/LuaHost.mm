@@ -77,6 +77,7 @@ struct LuaPlugin : astral::PluginPackage, astral::PluginHealth {
     std::vector<int> mentioners;
     std::vector<int> colorizers;
     std::vector<int> nameColorizers;
+    std::vector<int> typingDecorators;
 };
 
 static int Translate(lua_State *state);
@@ -353,6 +354,15 @@ static int NameColor(lua_State *state)
     luaL_checktype(state, 1, LUA_TFUNCTION);
     lua_pushvalue(state, 1);
     plugin->nameColorizers.push_back(luaL_ref(state, LUA_REGISTRYINDEX));
+    return 0;
+}
+
+static int TypingDecorator(lua_State *state)
+{
+    LuaPlugin *plugin = Self(state);
+    luaL_checktype(state, 1, LUA_TFUNCTION);
+    lua_pushvalue(state, 1);
+    plugin->typingDecorators.push_back(luaL_ref(state, LUA_REGISTRYINDEX));
     return 0;
 }
 
@@ -646,6 +656,7 @@ static void InstallAPI(LuaPlugin *plugin)
     Function(state, plugin, "mention", Mention);
     Function(state, plugin, "message_color", MessageColor);
     Function(state, plugin, "name_color", NameColor);
+    Function(state, plugin, "typing", TypingDecorator);
     lua_setfield(state, -2, "ui");
 
     lua_newtable(state);
@@ -704,6 +715,7 @@ static void Stop(LuaPlugin *plugin)
     plugin->mentioners.clear();
     plugin->colorizers.clear();
     plugin->nameColorizers.clear();
+    plugin->typingDecorators.clear();
     ApplySettingsBackdrop();
 }
 
@@ -1294,6 +1306,52 @@ int AstralLuaMessageTextColor(uint64_t messageID, uint64_t channelID, uint32_t *
                 if (found) *color = (uint32_t)lua_tointeger(state, -1);
                 lua_pop(state, 1);
                 if (found) return 1;
+            }
+            if (plugin->failed) break;
+        }
+        if (plugin->failed) Stop(plugin);
+    }
+    return 0;
+}
+
+int AstralLuaTyping(const AstralNameContext *context, AstralMentionDecoration *decoration)
+{
+    std::unique_lock<std::recursive_mutex> lock(gMutex, std::try_to_lock);
+    if (!lock.owns_lock()) return 0;
+    bool wanted = false;
+    for (auto *plugin : gPlugins) wanted = wanted || (plugin->state && !plugin->failed && !plugin->typingDecorators.empty());
+    if (!wanted) return 0;
+    std::string channel = Snowflake(context->channel_id);
+    NSString *guild = channel.empty() ? nil : AstralDiscordChannelGuild(Native(channel));
+    NSString *user = guild ? AstralDiscordMemberNamed(guild, Native(context->text)) : nil;
+    if (!user) return 0;
+    for (auto *plugin : gPlugins) {
+        if (!plugin->state || plugin->failed) continue;
+        for (int decorator : plugin->typingDecorators) {
+            lua_State *state = plugin->state;
+            lua_rawgeti(state, LUA_REGISTRYINDEX, decorator);
+            lua_createtable(state, 0, 4);
+            lua_pushstring(state, context->text);
+            lua_setfield(state, -2, "text");
+            lua_pushstring(state, user.UTF8String);
+            lua_setfield(state, -2, "user_id");
+            lua_pushstring(state, channel.c_str());
+            lua_setfield(state, -2, "channel_id");
+            lua_pushstring(state, guild.UTF8String);
+            lua_setfield(state, -2, "guild_id");
+            if (Call(plugin, 1, 1, "typing")) {
+                if (lua_istable(state, -1)) {
+                    lua_getfield(state, -1, "image");
+                    lua_getfield(state, -2, "round");
+                    const char *image = lua_tostring(state, -2);
+                    if (image && strncmp(image, "https://", 8) == 0) {
+                        snprintf(decoration->image, sizeof(decoration->image), "%s", image);
+                        decoration->round = lua_isnil(state, -1) ? 1 : lua_toboolean(state, -1);
+                    }
+                    lua_pop(state, 2);
+                }
+                lua_pop(state, 1);
+                if (decoration->image[0]) return 1;
             }
             if (plugin->failed) break;
         }
