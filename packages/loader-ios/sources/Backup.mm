@@ -11,6 +11,7 @@
 
 #include "LoaderSettings.h"
 #import "AstralState.h"
+#import "FilePicker.h"
 #import "LuaHost.h"
 #import "Marketplace.h"
 #import "PhoenixImage.h"
@@ -197,35 +198,11 @@ void AstralExportBackup(void)
     [top presentViewController:sheet animated:YES completion:nil];
 }
 
-@interface AstralBackupPicker : NSObject <UIDocumentPickerDelegate>
-@property (nonatomic, copy) void (^changed)(void);
-@end
-
-@implementation AstralBackupPicker
-- (void)documentPicker:(UIDocumentPickerViewController *)controller didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls
-{
-    NSURL *url = urls.firstObject;
-    BOOL scoped = [url startAccessingSecurityScopedResource];
-    NSData *data = [NSData dataWithContentsOfURL:url];
-    if (scoped) [url stopAccessingSecurityScopedResource];
-    NSString *failure = data ? AstralApplyBackup(data, self.changed) : @"could not read the file";
-    UIAlertController *alert =
-        [UIAlertController alertControllerWithTitle:failure ? @"Import failed" : @"Settings imported"
-                                            message:failure ?: @"Missing marketplace plugins and themes are being installed."
-                                     preferredStyle:UIAlertControllerStyleAlert];
-    [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
-    [TopController() presentViewController:alert animated:YES completion:nil];
-}
-@end
-
 void AstralImportBackup(void (^changed)(void))
 {
-    static AstralBackupPicker *delegate;
-    delegate = [AstralBackupPicker new];
-    delegate.changed = changed;
-    UTType *toml = [UTType typeWithFilenameExtension:@"toml"] ?: UTTypeData;
-    UIDocumentPickerViewController *picker =
-        [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:@[ toml, UTTypePlainText, UTTypeData ]];
-    picker.delegate = delegate;
-    [TopController() presentViewController:picker animated:YES completion:nil];
+    AstralPickFile(@[ @"toml" ], ^(NSData *data, NSString *name) {
+        NSString *failure = data ? AstralApplyBackup(data, changed) : @"could not read the file";
+        AstralShowAlert(failure ? @"Import failed" : @"Settings imported",
+                        failure ?: @"Missing marketplace plugins and themes are being installed.");
+    });
 }

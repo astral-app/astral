@@ -1783,6 +1783,27 @@ static int paletteColor(uint32_t color, uint32_t *mapped)
     return 0;
 }
 
+static double gRadiusScale = 1, gFontScale = 1;
+
+void astral_wire_set_scales(double radius, double font)
+{
+    gRadiusScale = radius > 0 ? radius : 1;
+    gFontScale = font > 0 ? font : 1;
+}
+
+static int scaledProperty(uint16_t property, double *scale)
+{
+    if (property == 388 || property == 389 || property == 390 || property == 391 || property == 392) {
+        *scale = gRadiusScale;
+        return gRadiusScale != 1;
+    }
+    if (property == 207 || property == 278) {
+        *scale = gFontScale;
+        return gFontScale != 1;
+    }
+    return 0;
+}
+
 static int colorProperty(uint16_t property)
 {
     return property == 90 || property == 129 || property == 104 || property == 21 || property == 25 || property == 201 || property == 355 ||
@@ -1803,6 +1824,17 @@ static int patchColors(uint8_t *bytes, const Span *spans, size_t count)
             uint8_t tag = read8(&cursor);
             size_t at = cursor.offset;
             skipValue(&cursor, tag, 0);
+            double scale = 1;
+            if (!cursor.failed && tag == 5 && scaledProperty(property, &scale)) {
+                double value;
+                memcpy(&value, bytes + at, 8);
+                if (value > 0 && value < 9000) {
+                    value *= scale;
+                    memcpy(bytes + at, &value, 8);
+                    patched = 1;
+                }
+                continue;
+            }
             if (cursor.failed || !colorProperty(property) || (tag != 3 && tag != 4)) continue;
             uint32_t color, mapped;
             memcpy(&color, bytes + at, 4);
@@ -2037,7 +2069,7 @@ int astral_settings_rewrite(const uint8_t *bytes, size_t length, AstralWireBuffe
         }
     }
     uint8_t *themed = NULL;
-    if (gPaletteCount) {
+    if (gPaletteCount || gRadiusScale != 1 || gFontScale != 1) {
         themed = malloc(length);
         if (themed) {
             memcpy(themed, bytes, length);

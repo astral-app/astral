@@ -120,6 +120,7 @@ void astral_wire_set_category(const char *title, const AstralRowSpec *rows, size
 void astral_wire_set_decorator(AstralDecorator decorator);
 void astral_wire_set_relabeler(AstralRelabeler relabeler);
 void astral_wire_set_palette(const uint32_t *from, const uint32_t *to, size_t count);
+void astral_wire_set_scales(double radius, double font);
 AstralWireStats astral_wire_stats(void);
 uint64_t astral_wire_current_channel(void);
 int astral_settings_rewrite(const uint8_t *bytes, size_t length, AstralWireBuffer *out);

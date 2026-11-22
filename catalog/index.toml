@@ -28,3 +28,10 @@ name = "Ember"
 version = "0.0.1"
 description = "Warm amber accents"
 base = "themes/ember.toml"
+
+[[themes]]
+id = "soft"
+name = "Soft"
+version = "0.0.1"
+description = "Rounder corners and slightly larger text"
+base = "themes/soft.toml"

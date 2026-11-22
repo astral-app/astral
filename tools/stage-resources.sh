@@ -13,6 +13,8 @@ for plugin in "$root"/plugins/*/; do
   done
 done
 cp "$root"/themes/*.toml "$target/themes/"
+mkdir -p "$target/palettes"
+cp "$root"/themes/palettes/*.toml "$target/palettes/"
 cp "$root"/catalog/index.toml "$root"/catalog/index.toml.sig "$target/catalog/"
 cp "$root"/catalog/themes/*.toml "$target/catalog/themes/"
 cp "$root"/assets/*.svg "$target/assets/"

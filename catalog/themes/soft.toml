@@ -1,0 +1,13 @@
+id = "soft"
+name = "Soft"
+version = "0.0.1"
+description = "Rounder corners and slightly larger text"
+
+[colors]
+FF5865F2 = "FF7C83F7"
+
+[radius]
+scale = 1.6
+
+[font]
+scale = 1.06

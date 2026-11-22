@@ -7,6 +7,7 @@
 
 #import "AstralState.h"
 #import "Backup.h"
+#import "Themes.h"
 #import "LuaHost.h"
 #import "TomlDocument.h"
 
@@ -118,6 +119,14 @@ static NSData *HandleRequest(NSString *method, NSString *path, NSData *bodyData)
             failure = AstralApplyBackup([body[@"backup"] dataUsingEncoding:NSUTF8StringEncoding], gChanged
                                                                                                       ?: ^{
                                                                                                          });
+        });
+        return failure ? Response(400, @{@"error" : failure}) : Response(200, @{@"imported" : @YES});
+    }
+    if ([method isEqualToString:@"POST"] && [route isEqualToString:@"/unbound-theme"] && bodyData.length) {
+        __block NSString *failure = nil;
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            failure = AstralImportUnboundTheme(bodyData, @"Imported");
+            if (gChanged) gChanged();
         });
         return failure ? Response(400, @{@"error" : failure}) : Response(200, @{@"imported" : @YES});
     }

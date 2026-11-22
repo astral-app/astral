@@ -4,6 +4,7 @@
 #import "AstralState.h"
 #import "AuthorAvatars.h"
 #import "Backup.h"
+#import "FilePicker.h"
 #import "CrashReports.h"
 #import <UIKit/UIKit.h>
 #import "ImageAssets.h"
@@ -346,7 +347,12 @@ static NSDictionary *DesignPage(void)
         Section(@"How themes apply",
                 @[ With(Row(@"theme-note", @"Recolours Phoenix views as they draw", @"res://ic_mana_circle_information", kAstralRowInfo),
                         @{@"subtitle" : @"Screens already on display update when Discord redraws them"}) ]),
-        Section(@"Get more", @[ Row(@"browse", @"Browse themes", @"res://ic_mana_shop", kAstralRowLink) ]),
+        Section(@"Get more",
+                @[
+                    With(Row(@"import-unbound-theme", @"Import Unbound theme", @"res://ic_mana_download", kAstralRowLink),
+                         @{@"subtitle" : @"Convert an Unbound theme file into an astral theme"}),
+                    Row(@"browse", @"Browse themes", @"res://ic_mana_shop", kAstralRowLink)
+                ]),
     ]);
 }
 
@@ -536,6 +542,14 @@ NSString *AstralSettingsPageAction(NSString *route, NSString *key, void (^change
     if ([key hasPrefix:@"more.plugin."]) return [kPluginRoute stringByAppendingString:[key substringFromIndex:@"more.plugin.".length]];
     if ([key hasPrefix:@"filter."]) {
         gPluginFilter = [key substringFromIndex:@"filter.".length];
+        return nil;
+    }
+    if ([key isEqualToString:@"import-unbound-theme"]) {
+        AstralPickFile(@[ @"json" ], ^(NSData *data, NSString *name) {
+            NSString *failure = data ? AstralImportUnboundTheme(data, name ?: @"Imported") : @"could not read the file";
+            AstralShowAlert(failure ? @"Import failed" : @"Theme imported", failure ?: @"The theme is selected on the Design page.");
+            changed();
+        });
         return nil;
     }
     if ([key isEqualToString:@"export-backup"]) {

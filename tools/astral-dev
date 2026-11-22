@@ -11,6 +11,7 @@ usage: astral-dev <command>
   watch <plugin folder>  push the plugin every time a file in it changes
   eval <plugin id> <lua> run Lua inside a running plugin and print the result
   logs [-f]              print astral's log, following it with -f
+  theme import <file>    convert an Unbound theme (JSON) into an astral theme and select it
   backup export [file]   write the device's settings backup (TOML) to a file or stdout
   backup import <file>   restore a settings backup on the device
 Needs Developer mode on and DEVICE set to the device UDID (the port is forwarded over USB).
@@ -71,6 +72,11 @@ case "$command" in
       [ "${1:-}" = "-f" ] || break
       sleep 1
     done
+    ;;
+  theme)
+    [ "${1:-}" = "import" ] || usage
+    curl -sS --max-time 20 -X POST -H 'Content-Type: application/json' --data-binary "@${2:?theme file}" "$url/unbound-theme"
+    echo
     ;;
   backup)
     case "${1:-}" in

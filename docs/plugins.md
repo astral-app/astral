@@ -69,4 +69,6 @@ The astral category in Discord's settings has astral, Plugins, Design, Marketpla
 
 ## Themes
 
-A theme maps ARGB colours to ARGB colours. The rewriter replaces matching colour properties in each batch before Discord's host decodes it, so Discord draws its own views in the theme's colours.
+A theme (TOML) maps ARGB colours to ARGB colours under `[colors]`, and can scale corner radii (`[radius] scale`) and font sizes and line heights (`[font] scale`). The rewriter applies all of it in place in each batch before Discord's host decodes it, so Discord draws its own views with the theme; astral's own cards are built separately and keep their sizes.
+
+"Import Unbound theme" on the Design page converts an Unbound theme's `raw` palette overrides into colour mappings, using Discord's raw palette (`themes/palettes/discord-raw.toml`, from Discord 356.0). Phoenix mostly draws with semantic and translucent colours, so an imported theme only changes what uses raw palette values until Phoenix's semantic token table is mapped too.
