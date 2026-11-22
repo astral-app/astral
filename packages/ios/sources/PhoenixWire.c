@@ -37,6 +37,7 @@ int astral_settings_rewrite(const uint8_t *bytes, size_t length, AstralWireBuffe
         changed = 1;
     }
     wireTrackColors(bytes, spans, count);
+    const uint8_t *raw = bytes;
     uint8_t *themed = NULL;
     if (wireThemeActive()) {
         themed = malloc(length);
@@ -50,7 +51,9 @@ int astral_settings_rewrite(const uint8_t *bytes, size_t length, AstralWireBuffe
     }
     if (changed) wirePut(&out, bytes, length);
     wireObserve(bytes, spans, count);
+    wireSetTemplateSource(raw);
     wireRewritePages(bytes, spans, count, &out, &changed, length);
+    wireSetTemplateSource(NULL);
     wireDecorate(bytes, spans, count, &out, &changed, length);
     wireSettingsBackdrop(bytes, spans, count, &out, &changed, length);
     wireObserveRemovals(bytes, spans, count, &out, &changed, length);
@@ -76,4 +79,29 @@ void astral_wire_buffer_free(AstralWireBuffer *buffer)
     free(buffer->bytes);
     buffer->bytes = NULL;
     buffer->length = 0;
+}
+
+int astral_wire_theme_page(AstralWireBuffer *buffer)
+{
+    static Span spans[kMaxSpans];
+    size_t count = 0;
+    if (!buffer->bytes || wireScan(buffer->bytes, buffer->length, spans, &count) != 0) return 0;
+    wireTrackColors(buffer->bytes, spans, count);
+    int changed = wireThemeActive() && wirePatchColors(buffer->bytes, spans, count);
+    Out out = {0};
+    int appended = 0;
+    wireSettingsBackdrop(buffer->bytes, spans, count, &out, &appended, buffer->length);
+    if (!appended || out.failed) {
+        free(out.bytes);
+        return changed;
+    }
+    size_t checked = 0;
+    if (wireScan(out.bytes, out.length, spans, &checked) != 0) {
+        free(out.bytes);
+        return changed;
+    }
+    free(buffer->bytes);
+    buffer->bytes = out.bytes;
+    buffer->length = out.length;
+    return 1;
 }

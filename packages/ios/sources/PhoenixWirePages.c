@@ -335,8 +335,16 @@ static int32_t firstChild(const uint8_t *bytes, const Span *spans, size_t count,
     return list && list->childCount > position ? wireChild(bytes, list, position) : 0;
 }
 
+static const uint8_t *gTemplateSource;
+
+void wireSetTemplateSource(const uint8_t *raw)
+{
+    gTemplateSource = raw;
+}
+
 static int storeTemplate(const uint8_t *bytes, const Span *spans, size_t count, int role, int32_t id)
 {
+    if (gTemplateSource) bytes = gTemplateSource;
     const Span *span = id ? wireCreation(spans, count, id) : NULL;
     if (!span) return 0;
     free(gTemplates[role].bytes);

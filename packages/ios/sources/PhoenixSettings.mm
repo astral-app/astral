@@ -364,9 +364,10 @@ static void Deliver(Delivery delivery, NSDictionary *model, void (^failed)(void)
         int unsupported = astral_wire_unsupported_version();
         if (unsupported && ![gRoute hasPrefix:@"unsupported-wire"])
             SetRoute([NSString stringWithFormat:@"unsupported-wire-v%d", unsupported]);
-        if (built && gHostOriginal && gHostContext && !unsupported)
+        if (built && gHostOriginal && gHostContext && !unsupported) {
+            if (delivery != kPop) astral_wire_theme_page(&buffer);
             Send(&buffer);
-        else if (built)
+        } else if (built)
             astral_wire_buffer_free(&buffer);
         pthread_mutex_unlock(&gLock);
         if (!built && failed) dispatch_async(dispatch_get_main_queue(), failed);
