@@ -198,6 +198,23 @@ static void DisableRewriting(void)
     Log(@"phoenix: rewritten batches failed to parse; rewriting is off for this Phoenix build until astral updates");
 }
 
+static void Send(AstralWireBuffer *buffer);
+static std::atomic<bool> gMentionRetryScheduled;
+
+static void ScheduleMentionRetry(void)
+{
+    if (!gQueue || !astral_wire_pending_mentions() || gMentionRetryScheduled.exchange(true)) return;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC), gQueue, ^{
+        pthread_mutex_lock(&gLock);
+        AstralWireBuffer buffer = {};
+        bool live = gHostOriginal && gHostContext && !astral_wire_unsupported_version() && !gRewriteDisabled.load();
+        if (live && astral_wire_retry_mentions(&buffer)) Send(&buffer);
+        pthread_mutex_unlock(&gLock);
+        gMentionRetryScheduled = false;
+        ScheduleMentionRetry();
+    });
+}
+
 static bool InterceptHostCall(void *context, const uint8_t *frame, size_t length, void *result)
 {
     if (length < 4 || frame[0] || frame[1] || frame[2] || frame[3] || gRewriteDisabled.load())
@@ -223,6 +240,7 @@ static bool InterceptHostCall(void *context, const uint8_t *frame, size_t length
         if (unsupported && !unsupportedBefore) SetRoute([NSString stringWithFormat:@"unsupported-wire-v%d", unsupported]);
     }
     pthread_mutex_unlock(&gLock);
+    ScheduleMentionRetry();
     return handled;
 }
 
@@ -392,6 +410,22 @@ void AstralPhoenixUpdateTheme(void (^apply)(void))
         void (^changed)(void) = gRouteChanged;
         if (changed) dispatch_async(dispatch_get_main_queue(), changed);
     });
+}
+
+int AstralPhoenixRefreshImages(void)
+{
+    static unsigned generation;
+    __block int updates = 0;
+    if (!gQueue) return 0;
+    dispatch_sync(gQueue, ^{
+        pthread_mutex_lock(&gLock);
+        AstralWireBuffer buffer = {};
+        bool live = gHostOriginal && gHostContext && !astral_wire_unsupported_version() && !gRewriteDisabled.load();
+        updates = live ? astral_wire_refresh_images(&buffer, ++generation) : 0;
+        if (updates) Send(&buffer);
+        pthread_mutex_unlock(&gLock);
+    });
+    return updates;
 }
 
 static void Push(NSString *route)

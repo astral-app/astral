@@ -1206,11 +1206,15 @@ int AstralLuaMention(const AstralMentionContext *context, AstralMentionDecoratio
             }
             if (Call(plugin, 1, 1, "mention")) {
                 if (lua_istable(state, -1)) {
+                    lua_getfield(state, -1, "after");
+                    if (lua_toboolean(state, -1)) decoration->after = 1;
+                    lua_pop(state, 1);
                     lua_getfield(state, -1, "image");
                     lua_getfield(state, -2, "round");
                     lua_getfield(state, -3, "hide_at");
                     const char *image = lua_tostring(state, -3);
-                    if (image && *image && !decoration->image[0] && strncmp(image, "https://", 8) == 0) {
+                    if (image && *image && !decoration->image[0] &&
+                        (strncmp(image, "https://", 8) == 0 || strncmp(image, "res://astral_tinted_", 20) == 0)) {
                         snprintf(decoration->image, sizeof(decoration->image), "%s", image);
                         decoration->round = lua_isnil(state, -2) ? 1 : lua_toboolean(state, -2);
                     }

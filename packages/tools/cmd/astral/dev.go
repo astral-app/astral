@@ -24,6 +24,8 @@ const devUsage = `usage: astral dev <command>
   watch <plugin folder>  push the plugin every time a file in it changes
   eval <plugin id> <lua> run Lua inside a running plugin and print the result
   logs [-f]              print astral's log, following it with -f
+  restart                soft restart: reload plugins, the theme and icons in place without relaunching Discord
+  icons use <id>         switch icon pack (discord for Discord's own) and refresh icons in place
   theme list             the installed themes and the active one
   theme use <id>         switch to a theme; on-screen views recolour at once
   theme import <file>    convert an Unbound theme (JSON) into an astral theme and select it
@@ -75,7 +77,11 @@ func vphonePairing() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("read the pairing code: %w", err)
 	}
-	return strings.ToUpper(strings.TrimSpace(output)), nil
+	code := strings.ToUpper(strings.TrimSpace(output))
+	if len(code) != 8 || strings.Trim(code, "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789") != "" {
+		return "", errors.New("the pairing code is not ready yet")
+	}
+	return code, nil
 }
 
 func newDevClient() devClient {
@@ -401,6 +407,23 @@ func runDev(args []string) error {
 		return nil
 	case "logs":
 		return d.logs(len(args) > 1 && args[1] == "-f")
+	case "icons":
+		if len(args) != 3 || args[1] != "use" {
+			return errors.New(devUsage)
+		}
+		reply, err := d.request(http.MethodPost, "/icon-pack", map[string]any{"id": args[2]})
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(reply))
+		return nil
+	case "restart":
+		reply, err := d.request(http.MethodPost, "/reload", map[string]any{})
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(reply))
+		return nil
 	case "theme":
 		if len(args) == 2 && args[1] == "list" {
 			reply, err := d.request(http.MethodGet, "/themes", nil)

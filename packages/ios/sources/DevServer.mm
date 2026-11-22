@@ -1,3 +1,5 @@
+#import "IconPacks.h"
+#import "SoftRestart.h"
 #import "NetworkFilter.h"
 #import "DevServer.h"
 
@@ -191,18 +193,26 @@ static NSData *HandleRequest(NSString *method, NSString *path, NSData *bodyData,
         });
         return Response(200, @{@"active" : AstralActiveThemeID()});
     }
-    if ([method isEqualToString:@"POST"] && [route isEqualToString:@"/reload"]) {
-        __block NSUInteger plugins = 0;
+    if ([method isEqualToString:@"POST"] && [route isEqualToString:@"/icon-pack"] && [body isKindOfClass:NSDictionary.class] &&
+        [body[@"id"] isKindOfClass:NSString.class]) {
+        __block NSDictionary *result = nil;
         dispatch_sync(dispatch_get_main_queue(), ^{
-            AstralApplyTheme(AstralActiveThemeID());
-            for (NSDictionary *plugin in AstralLuaPlugins()) {
-                if (![plugin[@"enabled"] boolValue]) continue;
-                AstralLuaReload(plugin[@"id"]);
-                plugins++;
-            }
+            AstralSelectIconPack(body[@"id"]);
+            result = AstralSoftRestart();
+        });
+        NSMutableDictionary *reply = [result mutableCopy];
+        reply[@"active"] = AstralActiveIconPackID();
+        return Response(200, reply);
+    }
+    if ([method isEqualToString:@"POST"] && [route isEqualToString:@"/reload"]) {
+        __block NSDictionary *result = nil;
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            result = AstralSoftRestart();
             if (gChanged) gChanged();
         });
-        return Response(200, @{@"theme" : AstralActiveThemeID(), @"plugins" : @(plugins)});
+        NSMutableDictionary *reply = [result mutableCopy];
+        reply[@"theme"] = AstralActiveThemeID();
+        return Response(200, reply);
     }
     if ([method isEqualToString:@"POST"] && [route isEqualToString:@"/unbound-theme"] && bodyData.length) {
         __block NSString *failure = nil;

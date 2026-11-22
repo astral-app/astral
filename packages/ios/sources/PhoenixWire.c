@@ -37,6 +37,7 @@ int astral_settings_rewrite(const uint8_t *bytes, size_t length, AstralWireBuffe
         changed = 1;
     }
     wireTrackColors(bytes, spans, count);
+    wireTrackImages(bytes, spans, count);
     const uint8_t *raw = bytes;
     uint8_t *themed = NULL;
     if (wireThemeActive()) {

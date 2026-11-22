@@ -4,6 +4,7 @@
 #import <objc/runtime.h>
 
 #import "AstralState.h"
+#import "IconPacks.h"
 #import "SvgRaster.h"
 
 static NSString *const kAssetPrefix = @"astral_";
@@ -24,9 +25,61 @@ static NSString *BundledSVG(NSString *file)
                                         error:nil];
 }
 
+static NSString *const kTintedPrefix = @"astral_tinted_";
+
+static UITraitCollection *gAppTraits;
+
+static UITraitCollection *AppTraits(void)
+{
+    if (NSThread.isMainThread) {
+        for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
+            if (![scene isKindOfClass:UIWindowScene.class]) continue;
+            for (UIWindow *window in ((UIWindowScene *)scene).windows) {
+                if (window.isKeyWindow || !gAppTraits) gAppTraits = window.traitCollection;
+            }
+        }
+    }
+    return gAppTraits ?: [UITraitCollection traitCollectionWithUserInterfaceStyle:UIUserInterfaceStyleDark];
+}
+
+static UIColor *TintColor(NSString *code)
+{
+    if ([code isEqualToString:@"label"]) return [UIColor.labelColor resolvedColorWithTraitCollection:AppTraits()];
+    unsigned value = 0;
+    if (code.length != 6 || ![[NSScanner scannerWithString:code] scanHexInt:&value]) return nil;
+    return [UIColor colorWithRed:((value >> 16) & 0xFF) / 255.0 green:((value >> 8) & 0xFF) / 255.0 blue:(value & 0xFF) / 255.0 alpha:1];
+}
+
+static UIImage *TintedImage(NSString *name)
+{
+    NSString *rest = [name substringFromIndex:kTintedPrefix.length];
+    NSRange separator = [rest rangeOfString:@"_"];
+    if (separator.location == NSNotFound) return nil;
+    UIColor *color = TintColor([rest substringToIndex:separator.location]);
+    NSString *svg = BundledSVG([rest substringFromIndex:separator.location + 1]);
+    UIImage *symbol = color && svg ? AstralRenderSVG(svg, kIconPoints) : nil;
+    if (!symbol) return nil;
+    UIGraphicsImageRendererFormat *format = [UIGraphicsImageRendererFormat preferredFormat];
+    format.scale = symbol.scale;
+    UIGraphicsImageRenderer *renderer = [[UIGraphicsImageRenderer alloc] initWithSize:symbol.size format:format];
+    UIImage *tinted = [renderer imageWithActions:^(__unused UIGraphicsImageRendererContext *context) {
+        [color setFill];
+        [[symbol imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate] drawInRect:(CGRect){CGPointZero, symbol.size}];
+        UIRectFillUsingBlendMode((CGRect){CGPointZero, symbol.size}, kCGBlendModeSourceIn);
+    }];
+    return [tinted imageWithRenderingMode:UIImageRenderingModeAlwaysOriginal];
+}
+
 static UIImage *AstralImage(NSString *name)
 {
-    if (![name hasPrefix:kAssetPrefix]) return nil;
+    if (![name hasPrefix:kAssetPrefix]) return AstralIconPackImage(name);
+    if ([name hasPrefix:kTintedPrefix]) {
+        UIImage *cached = [gImages objectForKey:name];
+        if (cached) return cached;
+        UIImage *tinted = TintedImage(name);
+        if (tinted) [gImages setObject:tinted forKey:name];
+        return tinted;
+    }
     UIImage *cached = [gImages objectForKey:name];
     if (cached) return cached;
     [gLock lock];
@@ -50,13 +103,21 @@ NSString *AstralRegisterIconSVG(NSString *name, NSString *svg)
     return [@"res://" stringByAppendingString:asset];
 }
 
+static NSString *WithoutGeneration(NSString *name)
+{
+    NSRange mark = [name rangeOfString:@"#"];
+    return mark.location == NSNotFound ? name : [name substringToIndex:mark.location];
+}
+
 static UIImage *NamedInBundleTraits(id self, SEL selector, NSString *name, NSBundle *bundle, UITraitCollection *traits)
 {
+    name = WithoutGeneration(name);
     return AstralImage(name) ?: originalNamedInBundleTraits(self, selector, name, bundle, traits);
 }
 
 static UIImage *NamedInBundleConfiguration(id self, SEL selector, NSString *name, NSBundle *bundle, UIImageConfiguration *configuration)
 {
+    name = WithoutGeneration(name);
     return AstralImage(name) ?: originalNamedInBundleConfiguration(self, selector, name, bundle, configuration);
 }
 

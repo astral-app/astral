@@ -345,6 +345,7 @@ function astral.ui.relabel(target, relabeler) end
 ---@field image? string
 ---@field round? boolean
 ---@field hide_at? boolean
+---@field after? boolean
 ---@param decorator fun(node: astral.Node): astral.MentionDecoration?
 function astral.ui.mention(decorator) end
 ---@param options? { dim: number }

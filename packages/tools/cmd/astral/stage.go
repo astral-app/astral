@@ -80,6 +80,16 @@ func stageResources(target string) error {
 		{repoPath("packages", "catalog", "themes", "*.toml"), filepath.Join(target, "catalog", "themes")},
 		{repoPath("packages", "assets", "*.svg"), filepath.Join(target, "assets")},
 	}
+	packs, err := filepath.Glob(repoPath("packages", "icon-packs", "*"))
+	if err != nil {
+		return err
+	}
+	for _, pack := range packs {
+		name := filepath.Base(pack)
+		copies = append(copies,
+			[2]string{filepath.Join(pack, "manifest.toml"), filepath.Join(target, "icon-packs", name)},
+			[2]string{filepath.Join(pack, "icons", "*.png"), filepath.Join(target, "icon-packs", name, "icons")})
+	}
 	for _, entry := range copies {
 		if err := copyGlob(entry[0], entry[1]); err != nil {
 			return err

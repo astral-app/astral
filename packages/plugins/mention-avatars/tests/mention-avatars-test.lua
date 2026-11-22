@@ -5,10 +5,18 @@ local messages = {
 			{ id = "224617799434108928", username = "adrian", global_name = "심심한 개발자", avatar = "ae6071" },
 			{ id = "263689920210534400", username = "eternal" },
 		},
-		mention_roles = { "r1" },
+		mention_roles = { "r1", "r2", "r3" },
 	},
 }
-local guilds = { g = { roles = { r1 = { id = "r1", name = "Mods", icon = "i1" } } } }
+local guilds = {
+	g = {
+		roles = {
+			r1 = { id = "r1", name = "Mods", icon = "i1", color = 0 },
+			r2 = { id = "r2", name = "Helpers", color = 0x1ABC9C },
+			r3 = { id = "r3", name = "Members", color = 0 },
+		},
+	},
+}
 
 astral = {
 	log = function() end,
@@ -57,7 +65,9 @@ local fallback = call("@eternal")
 assert(fallback.image == "https://cdn.discordapp.com/embed/avatars/" .. ((263689920210534400 >> 22) % 6) .. ".png")
 
 local role = call("@Mods")
-assert(role.image == "https://cdn.discordapp.com/role-icons/r1/i1.png?size=64" and role.round == false)
+assert(role.image == "https://cdn.discordapp.com/role-icons/r1/i1.png?size=32&quality=lossless" and role.round == false)
+assert(call("@Helpers").image == "res://astral_tinted_1ABC9C_people" and role.after == true)
+assert(call("@Members").image == "res://astral_tinted_label_people")
 
 assert(call("@nobody") == nil)
 

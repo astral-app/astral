@@ -16,6 +16,7 @@ NSString *_Nullable AstralInstallPhoenixSettings(NSDictionary *_Nonnull category
                                                  AstralSettingsAction _Nonnull action);
 void AstralRefreshPhoenixSettings(void);
 void AstralPhoenixUpdateTheme(void (^_Nonnull apply)(void));
+int AstralPhoenixRefreshImages(void);
 
 #ifdef __cplusplus
 }

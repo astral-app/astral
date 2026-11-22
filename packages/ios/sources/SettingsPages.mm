@@ -1,3 +1,5 @@
+#import "IconPacks.h"
+#import "SoftRestart.h"
 #import "NetworkFilter.h"
 #import "SettingsPages.h"
 #import "DevServer.h"
@@ -151,6 +153,8 @@ static NSDictionary *GeneralPage(AstralPageContext context)
                     }),
                     With(Row(@"reload", @"Reload plugins", @"res://ic_mana_refresh", kAstralRowLink),
                          @{@"subtitle" : @"Restart every enabled plugin"}),
+                    With(Row(@"soft-restart", @"Soft restart", @"res://ic_mana_refresh", kAstralRowLink),
+                         @{@"subtitle" : @"Restart astral's runtime, theme and icons without relaunching Discord"}),
                 ]),
     ]);
 }
@@ -400,8 +404,21 @@ static NSDictionary *DesignPage(void)
         if ([theme[@"description"] isKindOfClass:NSString.class]) row[@"subtitle"] = theme[@"description"];
         [rows addObject:row];
     }
+    NSString *activePack = AstralActiveIconPackID();
+    NSMutableArray *packRows = [NSMutableArray array];
+    for (NSDictionary *pack in AstralIconPacks()) {
+        BOOL selected = [pack[@"id"] isEqualToString:activePack];
+        NSMutableDictionary *row = [With(Row([@"icon-pack." stringByAppendingString:pack[@"id"]], pack[@"name"], @"res://ic_mana_image",
+                                             selected ? kAstralRowSelected : kAstralRowChoice),
+                                         @{}) mutableCopy];
+        NSString *description = [pack[@"description"] isKindOfClass:NSString.class] ? pack[@"description"] : @"";
+        row[@"subtitle"] =
+            [pack[@"count"] integerValue] ? [NSString stringWithFormat:@"%@ · %@ icons", description, pack[@"count"]] : description;
+        [packRows addObject:row];
+    }
     return Page(@"Design", @[
         Section(@"Themes", rows),
+        Section(@"Icon packs", packRows),
         Section(@"How themes apply",
                 @[ With(Row(@"theme-note", @"Recolours Phoenix views right away", @"res://ic_mana_circle_information", kAstralRowInfo),
                         @{@"subtitle" : @"Colours change on screen as soon as you pick a theme"}) ]),
@@ -651,10 +668,19 @@ NSString *AstralSettingsPageAction(NSString *route, NSString *key, void (^change
         if (AstralSettings()->set("astral", "safe-mode", !SafeMode())) AstralSettings()->save();
         return nil;
     }
+    if ([key isEqualToString:@"soft-restart"]) {
+        AstralSoftRestart();
+        return nil;
+    }
     if ([key isEqualToString:@"reload"]) {
         for (NSDictionary *plugin in AstralLuaPlugins()) {
             if ([plugin[@"enabled"] boolValue]) AstralLuaSetEnabled(plugin[@"id"], YES);
         }
+        return nil;
+    }
+    if ([key hasPrefix:@"icon-pack."] && [route isEqualToString:@"design"]) {
+        AstralSelectIconPack([key substringFromIndex:@"icon-pack.".length]);
+        AstralSoftRestart();
         return nil;
     }
     if ([key hasPrefix:@"theme."] && [route isEqualToString:@"design"]) {

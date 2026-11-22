@@ -158,11 +158,15 @@ typedef struct {
     char image[512];
     int round;
     int hide_at;
+    int after;
 } AstralMentionDecoration;
 
 typedef int (*AstralMentionDecorator)(const AstralMentionContext *context, AstralMentionDecoration *decoration);
 
 void astral_wire_set_mention_decorator(AstralMentionDecorator decorator);
+int astral_wire_refresh_images(AstralWireBuffer *buffer, unsigned generation);
+int astral_wire_pending_mentions(void);
+int astral_wire_retry_mentions(AstralWireBuffer *buffer);
 int astral_wire_unsupported_version(void);
 unsigned astral_wire_rewrite_failures(void);
 int astral_settings_rewrite(const uint8_t *bytes, size_t length, AstralWireBuffer *out);

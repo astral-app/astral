@@ -213,7 +213,7 @@ NSDictionary *AstralDiscordMessage(NSString *channelID, NSString *messageID)
     if (cached) return cached == NSNull.null ? nil : cached;
     NSDictionary *record =
         JSONObject(Column(@"SELECT v FROM messages WHERE k = ?", [NSString stringWithFormat:@"%@:%@", Key(channelID), Key(messageID)], 0));
-    if (!record) return Remember(key, nil);
+    if (!record) return nil;
     NSDictionary *author = [record[@"author"] isKindOfClass:NSDictionary.class] ? record[@"author"] : @{};
     NSMutableDictionary *message = [NSMutableDictionary dictionaryWithDictionary:@{@"id" : messageID, @"channel_id" : channelID}];
     if ([record[@"webhook_id"] isKindOfClass:NSString.class]) message[@"webhook_id"] = record[@"webhook_id"];

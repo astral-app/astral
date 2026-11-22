@@ -2,7 +2,17 @@
 
 #include <stdlib.h>
 
-enum { kMaxMentionSpans = 64, kMaxMentionText = 256 };
+enum { kMaxMentionSpans = 64, kMaxMentionText = 256, kMaxPending = 64, kMaxRetries = 30 };
+
+typedef struct {
+    int32_t id;
+    uint64_t message;
+    uint8_t *creation;
+    size_t length;
+    int tries;
+} PendingMention;
+
+static PendingMention gPending[kMaxPending];
 
 static AstralMentionDecorator gMentionDecorator;
 static const char kContentPrefix[] = "message.content:";
@@ -114,7 +124,7 @@ static void putAvatarSpan(Out *out, const uint8_t *bytes, const SpanItem *chip, 
     if (decoration->round) wirePropNumber(out, P(radius), 8);
 }
 
-static int decorateText(const uint8_t *bytes, const Span *span, uint64_t message, Out *out)
+static int decorateText(const uint8_t *bytes, const Span *span, uint64_t message, Out *out, int *unresolved)
 {
     Cursor cursor = {bytes, span->end, span->start + 1 + 4, 0};
     wireSkip(&cursor, wireRead16(&cursor));
@@ -139,7 +149,10 @@ static int decorateText(const uint8_t *bytes, const Span *span, uint64_t message
             memcpy(text, bytes + items[item].textAt, length);
             text[length] = 0;
             AstralMentionContext context = {message, astral_wire_current_channel(), text, mention++};
-            if (gMentionDecorator(&context, &decorations[item]) && (decorations[item].image[0] || decorations[item].hide_at)) any = 1;
+            if (gMentionDecorator(&context, &decorations[item]) && (decorations[item].image[0] || decorations[item].hide_at))
+                any = 1;
+            else if (unresolved)
+                *unresolved = 1;
         }
         if (!any) return 0;
         uint32_t added = 0;
@@ -151,12 +164,77 @@ static int decorateText(const uint8_t *bytes, const Span *span, uint64_t message
         wirePut8(out, 7);
         wirePut32(out, (uint32_t)count + added);
         for (size_t item = 0; item < count; item++) {
-            if (decorations[item].image[0]) putAvatarSpan(out, bytes, &items[item], &decorations[item]);
+            int image = decorations[item].image[0] != 0;
+            if (image && !decorations[item].after) putAvatarSpan(out, bytes, &items[item], &decorations[item]);
             putSpanCopy(out, bytes, &items[item], decorations[item].hide_at);
+            if (image && decorations[item].after) putAvatarSpan(out, bytes, &items[item], &decorations[item]);
         }
         return 1;
     }
     return 0;
+}
+
+static void dropPending(PendingMention *pending)
+{
+    free(pending->creation);
+    memset(pending, 0, sizeof(*pending));
+}
+
+static void remember(const uint8_t *bytes, const Span *span, uint64_t message)
+{
+    PendingMention *free_slot = NULL;
+    for (size_t index = 0; index < kMaxPending; index++) {
+        if (gPending[index].id == span->id) return;
+        if (!gPending[index].id && !free_slot) free_slot = &gPending[index];
+    }
+    if (!free_slot) return;
+    free_slot->creation = malloc(span->end - span->start);
+    if (!free_slot->creation) return;
+    memcpy(free_slot->creation, bytes + span->start, span->end - span->start);
+    free_slot->length = span->end - span->start;
+    free_slot->id = span->id;
+    free_slot->message = message;
+    free_slot->tries = 0;
+}
+
+static int retryPending(Out *out)
+{
+    int sent = 0;
+    for (size_t index = 0; index < kMaxPending; index++) {
+        PendingMention *pending = &gPending[index];
+        if (!pending->id) continue;
+        Span span = {1, pending->id, 0, pending->length, 0, 0};
+        int unresolved = 0;
+        if (decorateText(pending->creation, &span, pending->message, out, &unresolved)) {
+            sent = 1;
+            dropPending(pending);
+        } else if (++pending->tries >= kMaxRetries) {
+            dropPending(pending);
+        }
+    }
+    return sent;
+}
+
+int astral_wire_pending_mentions(void)
+{
+    int count = 0;
+    for (size_t index = 0; index < kMaxPending; index++) count += gPending[index].id != 0;
+    return count;
+}
+
+int astral_wire_retry_mentions(AstralWireBuffer *buffer)
+{
+    memset(buffer, 0, sizeof(*buffer));
+    if (!gMentionDecorator || !astral_wire_pending_mentions()) return 0;
+    Out out = {0};
+    wirePut8(&out, kWireVersion);
+    if (!retryPending(&out) || out.failed) {
+        free(out.bytes);
+        return 0;
+    }
+    buffer->bytes = out.bytes;
+    buffer->length = out.length;
+    return 1;
 }
 
 void wireDecorateMentions(const uint8_t *bytes, const Span *spans, size_t count, Out *out, int *changed, size_t length)
@@ -164,13 +242,25 @@ void wireDecorateMentions(const uint8_t *bytes, const Span *spans, size_t count,
     if (!gMentionDecorator) return;
     for (size_t index = 0; index < count; index++) {
         const Span *span = &spans[index];
+        if (span->op == 4) {
+            for (uint32_t position = 0; position < span->childCount; position++) {
+                int32_t removed = wireChildAt(bytes, span, position);
+                for (size_t slot = 0; slot < kMaxPending; slot++) {
+                    if (gPending[slot].id == removed) dropPending(&gPending[slot]);
+                }
+            }
+            continue;
+        }
         uint64_t message = 0;
         if (span->op != 1 || !wireTypeIs(bytes, span, "text") || !contentMessage(bytes, spans, count, span->id, &message)) continue;
         Out update = {0};
-        if (decorateText(bytes, span, message, &update) && !update.failed) {
+        int unresolved = 0;
+        if (decorateText(bytes, span, message, &update, &unresolved) && !update.failed) {
             if (!*changed) wirePut(out, bytes, length);
             *changed = 1;
             wirePut(out, update.bytes, update.length);
+        } else if (unresolved) {
+            remember(bytes, span, message);
         }
         free(update.bytes);
     }
