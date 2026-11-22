@@ -27,6 +27,8 @@ jobs:
           chmod +x "$HOME/.local/bin/stylua"
           curl -fsSL https://github.com/mvdan/sh/releases/download/v3.14.1/shfmt_v3.14.1_linux_amd64 -o "$HOME/.local/bin/shfmt"
           chmod +x "$HOME/.local/bin/shfmt"
+          curl -fsSL https://github.com/tamasfe/taplo/releases/download/0.10.0/taplo-linux-x86_64.gz | gunzip > "$HOME/.local/bin/taplo"
+          chmod +x "$HOME/.local/bin/taplo"
           sudo apt-get update -qq
           sudo apt-get install -y -qq lua-check shellcheck clang
       - run: tools/lint.sh

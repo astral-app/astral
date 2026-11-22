@@ -17,7 +17,7 @@ include $(THEOS)/makefiles/common.mk
 
 TWEAK_NAME := Astral
 Astral_FILES := $(wildcard sources/*.mm sources/*.m sources/*.c sources/*.S sources/*.cpp) $(addprefix $(CORE)/src/,$(addsuffix .cpp,$(CORE_SOURCES))) $(addprefix $(LUA)/,$(addsuffix .c,$(LUA_SOURCES))) $(MONOCYPHER)/monocypher.c $(MONOCYPHER)/optional/monocypher-ed25519.c
-Astral_CFLAGS := -fobjc-arc -Isources -I$(CORE)/include -I$(ROOT)/vendor -I$(LUA) -DLUA_USE_POSIX -DASTRAL_VERSION=\"$(ASTRAL_VERSION)\" -DASTRAL_SIGNING_KEY=\"$(SIGNING_KEY)\" -I$(MONOCYPHER) -I$(MONOCYPHER)/optional
+Astral_CFLAGS := -fobjc-arc -Isources -I$(CORE)/include -I$(ROOT)/vendor -I$(LUA) -DLUA_USE_POSIX -DASTRAL_VERSION=\"$(ASTRAL_VERSION)\" -DASTRAL_SIGNING_KEY=\"$(SIGNING_KEY)\" -I$(MONOCYPHER) -I$(MONOCYPHER)/optional -isystem $(ROOT)/vendor/tomlplusplus/include
 Astral_CCFLAGS := -std=c++20 -fno-cxx-modules
 Astral_FRAMEWORKS := Foundation UIKit Security
 Astral_LIBRARIES := substrate sqlite3

@@ -1,5 +1,7 @@
 #import "Marketplace.h"
 
+#import "TomlDocument.h"
+
 #include "LoaderLog.h"
 #include "LoaderSettings.h"
 #import "AstralState.h"
@@ -17,7 +19,7 @@ static NSMutableDictionary<NSString *, NSString *> *gInstalls;
 NSString *AstralCatalogURL(void)
 {
     NSString *fallback =
-        [NSURL fileURLWithPath:[AstralResourceDirectory() stringByAppendingPathComponent:@"catalog/index.json"]].absoluteString;
+        [NSURL fileURLWithPath:[AstralResourceDirectory() stringByAppendingPathComponent:@"catalog/index.toml"]].absoluteString;
     std::string url = AstralSettings()->getString("astral", "catalog", fallback.UTF8String);
     return [NSString stringWithUTF8String:url.c_str()] ?: fallback;
 }
@@ -115,7 +117,7 @@ void AstralCatalogRefresh(void (^changed)(void))
             data = nil;
             failure = @"catalog signature does not match";
         }
-        id parsed = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
+        id parsed = AstralParseTOML(data);
         NSDictionary *catalog = nil;
         if ([parsed isKindOfClass:NSDictionary.class]) {
             catalog = @{
@@ -141,8 +143,8 @@ static NSString *InstallPlugin(NSDictionary *package)
     NSString *identifier = package[@"id"];
     NSString *base = [package[@"base"] hasSuffix:@"/"] ? package[@"base"] : [package[@"base"] stringByAppendingString:@"/"];
     NSString *failure = nil;
-    NSData *manifestData = Fetch(Resolve([base stringByAppendingString:@"manifest.json"]), &failure);
-    NSDictionary *manifest = manifestData ? [NSJSONSerialization JSONObjectWithData:manifestData options:0 error:nil] : nil;
+    NSData *manifestData = Fetch(Resolve([base stringByAppendingString:@"manifest.toml"]), &failure);
+    NSDictionary *manifest = AstralParseTOML(manifestData);
     if (![manifest isKindOfClass:NSDictionary.class] || ![manifest[@"id"] isEqual:identifier]) return failure ?: @"manifest does not match";
     NSString *main = [manifest[@"main"] isKindOfClass:NSString.class] ? manifest[@"main"] : @"main.lua";
     if ([main containsString:@"/"]) return @"invalid main file";
@@ -157,7 +159,7 @@ static NSString *InstallPlugin(NSDictionary *package)
     NSFileManager *files = NSFileManager.defaultManager;
     [files removeItemAtPath:staging error:nil];
     if (![files createDirectoryAtPath:staging withIntermediateDirectories:YES attributes:nil error:nil] ||
-        ![manifestData writeToFile:[staging stringByAppendingPathComponent:@"manifest.json"] atomically:YES] ||
+        ![manifestData writeToFile:[staging stringByAppendingPathComponent:@"manifest.toml"] atomically:YES] ||
         ![source writeToFile:[staging stringByAppendingPathComponent:main] atomically:YES] ||
         ![signatureData writeToFile:[staging stringByAppendingPathComponent:@"signature"] atomically:YES])
         return @"could not write files";
@@ -170,11 +172,11 @@ static NSString *InstallTheme(NSDictionary *package)
 {
     NSString *failure = nil;
     NSData *data = Fetch(Resolve(package[@"base"]), &failure);
-    NSDictionary *theme = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
+    NSDictionary *theme = AstralParseTOML(data);
     if (![theme isKindOfClass:NSDictionary.class] || ![theme[@"id"] isEqual:package[@"id"]]) return failure ?: @"theme does not match";
     NSString *directory = AstralLocalThemesDirectory();
     [NSFileManager.defaultManager createDirectoryAtPath:directory withIntermediateDirectories:YES attributes:nil error:nil];
-    NSString *path = [directory stringByAppendingPathComponent:[package[@"id"] stringByAppendingPathExtension:@"json"]];
+    NSString *path = [directory stringByAppendingPathComponent:[package[@"id"] stringByAppendingPathExtension:@"toml"]];
     return [data writeToFile:path atomically:YES] ? nil : @"could not write theme";
 }
 

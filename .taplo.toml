@@ -1,0 +1,10 @@
+include = ["**/*.toml"]
+exclude = ["vendor/**", ".theos/**", "packages/loader-ios/.theos/**"]
+
+[formatting]
+indent_string = "\t"
+column_width = 120
+array_auto_expand = true
+array_auto_collapse = true
+reorder_keys = false
+trailing_newline = true

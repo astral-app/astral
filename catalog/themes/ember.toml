@@ -1,0 +1,15 @@
+id = "ember"
+name = "Ember"
+version = "0.0.1"
+description = "Warm amber accents"
+
+[colors]
+FF5865F2 = "FFF97316"
+FFFBFBFB = "FFFFF4E6"
+FFEFEFF1 = "FFFFE8D1"
+FF96979E = "FFC2A68C"
+FFABACB2 = "FFD1B59A"
+1AD6EDFF = "22F97316"
+1FD6EDFF = "2AF97316"
+FF277ECD = "FFFB923C"
+FF4D96EE = "FFFDBA74"

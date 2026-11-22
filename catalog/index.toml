@@ -1,0 +1,30 @@
+[loader]
+version = "0.0.1"
+
+[[plugins]]
+id = "astral.more-user-tags"
+name = "More User Tags"
+version = "0.0.1"
+description = "Adds tags for webhooks and moderative roles, and can show each member's top coloured role."
+base = "plugins/astral.more-user-tags/"
+
+[[plugins]]
+id = "astral.show-me-your-name"
+name = "Show Me Your Name"
+version = "0.0.1"
+description = "Display usernames next to display names, or show usernames only."
+base = "plugins/astral.show-me-your-name/"
+
+[[themes]]
+id = "mana"
+name = "Mana"
+version = "0.0.1"
+description = "Teal accents and cool text"
+base = "themes/mana.toml"
+
+[[themes]]
+id = "ember"
+name = "Ember"
+version = "0.0.1"
+description = "Warm amber accents"
+base = "themes/ember.toml"

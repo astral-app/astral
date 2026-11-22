@@ -1,5 +1,7 @@
 #import "LuaHost.h"
 
+#import "TomlDocument.h"
+
 #include <mutex>
 #include <string>
 #include <vector>
@@ -504,8 +506,8 @@ static bool ValidIdentifier(NSString *identifier)
 
 static LuaPlugin *Load(NSString *directory)
 {
-    NSData *manifestData = [NSData dataWithContentsOfFile:[directory stringByAppendingPathComponent:@"manifest.json"]];
-    NSDictionary *manifest = manifestData ? [NSJSONSerialization JSONObjectWithData:manifestData options:0 error:nil] : nil;
+    NSData *manifestData = [NSData dataWithContentsOfFile:[directory stringByAppendingPathComponent:@"manifest.toml"]];
+    NSDictionary *manifest = AstralParseTOML(manifestData);
     if (![manifest isKindOfClass:NSDictionary.class] || ![manifest[@"runtime"] isEqual:@"lua"]) return nullptr;
     NSString *identifier = manifest[@"id"], *name = manifest[@"name"], *main = manifest[@"main"] ?: @"main.lua";
     if (![identifier isKindOfClass:NSString.class] || !ValidIdentifier(identifier) || ![name isKindOfClass:NSString.class] ||

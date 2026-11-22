@@ -20,7 +20,7 @@ cc -O1 -w -I"$root/vendor/monocypher/src" -I"$root/vendor/monocypher/src/optiona
   "$root/vendor/monocypher/src/optional/monocypher-ed25519.c"
 key="$(cat "$root/keys/plugin-signing.pub")"
 for plugin in "$root"/plugins/*/; do
-  manifest_digest="$(sha256sum "$plugin/manifest.json" 2>/dev/null || shasum -a 256 "$plugin/manifest.json")"
+  manifest_digest="$(sha256sum "$plugin/manifest.toml" 2>/dev/null || shasum -a 256 "$plugin/manifest.toml")"
   source_digest="$(sha256sum "$plugin/main.lua" 2>/dev/null || shasum -a 256 "$plugin/main.lua")"
   printf 'astral-plugin-v1\n%s\n%s\n' "${manifest_digest%% *}" "${source_digest%% *}" >"$work/message"
   "$work/verify-signature" "$work/message" "$plugin/signature" "$key" || {
@@ -28,7 +28,7 @@ for plugin in "$root"/plugins/*/; do
     exit 1
   }
 done
-"$work/verify-signature" "$root/catalog/index.json" "$root/catalog/index.json.sig" "$key" || {
+"$work/verify-signature" "$root/catalog/index.toml" "$root/catalog/index.toml.sig" "$key" || {
   echo "stale or invalid catalog signature (run tools/sign-plugins.sh)" >&2
   exit 1
 }

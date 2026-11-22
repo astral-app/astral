@@ -13,7 +13,7 @@ Cards show each author's avatar the way Unbound does: Discord's local user cache
 ## Package
 
 ```
-plugins/<name>/manifest.json   {"id", "name", "description", "authors": [{"name", "id"}], "version", "runtime": "lua", "main": "main.lua"}
+plugins/<name>/manifest.toml   {"id", "name", "description", "authors": [{"name", "id"}], "version", "runtime": "lua", "main": "main.lua"}
 plugins/<name>/main.lua        at most 256 KB
 plugins/<name>/tests/*.lua     run by tools/test.sh against a mocked `astral` table
 ```
@@ -22,7 +22,7 @@ Bundled plugins ship in the package's resource directory (`/var/jb/usr/lib/astra
 
 ## Signing
 
-Marketplace plugins and the catalog are signed with astral's Ed25519 key (`keys/plugin-signing.pub`, compiled into the loader and checked with Monocypher). A plugin's `signature` covers `astral-plugin-v1`, the SHA-256 of `manifest.json` and the SHA-256 of `main.lua`; the catalog's `index.json.sig` covers the file. `tools/sign-plugins.sh` signs everything and `tools/test.sh` fails on a stale signature. Bundled plugins ship inside the package; anything else that is unsigned stays off, marked "unsigned", unless Developer mode is on. Downloads are verified before they are written.
+Marketplace plugins and the catalog are signed with astral's Ed25519 key (`keys/plugin-signing.pub`, compiled into the loader and checked with Monocypher). A plugin's `signature` covers `astral-plugin-v1`, the SHA-256 of `manifest.toml` and the SHA-256 of `main.lua`; the catalog's `index.toml.sig` covers the file. `tools/sign-plugins.sh` signs everything and `tools/test.sh` fails on a stale signature. Bundled plugins ship inside the package; anything else that is unsigned stays off, marked "unsigned", unless Developer mode is on. Downloads are verified before they are written.
 
 ## Sandbox
 

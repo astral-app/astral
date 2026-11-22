@@ -1,0 +1,17 @@
+id = "astral"
+name = "astral"
+version = "0.0.1"
+description = "Violet and cyan, like mana seen from the astral"
+
+[colors]
+FF5865F2 = "FF8B5CF6"
+FFFBFBFB = "FFEDE9FE"
+FFEFEFF1 = "FFE4E0FF"
+FF96979E = "FFA5A0C8"
+FFABACB2 = "FFB4AEDC"
+1AD6EDFF = "2A8B5CF6"
+1FD6EDFF = "338B5CF6"
+1F97979F = "2E8B5CF6"
+FF277ECD = "FF22D3EE"
+FF4D96EE = "FF67E8F9"
+FF0C0E27 = "FF0B0820"

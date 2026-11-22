@@ -1,5 +1,7 @@
 #import "Themes.h"
 
+#import "TomlDocument.h"
+
 #include <vector>
 
 #include "LoaderSettings.h"
@@ -25,7 +27,7 @@ static uint32_t ParseColor(NSString *text)
 static NSDictionary *LoadTheme(NSString *path, BOOL bundled)
 {
     NSData *data = [NSData dataWithContentsOfFile:path];
-    NSDictionary *theme = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
+    NSDictionary *theme = data ? AstralParseTOML(data) : nil;
     if (![theme isKindOfClass:NSDictionary.class] || ![theme[@"id"] isKindOfClass:NSString.class] ||
         ![theme[@"name"] isKindOfClass:NSString.class] || ![theme[@"colors"] isKindOfClass:NSDictionary.class])
         return nil;
@@ -49,7 +51,7 @@ NSArray<NSDictionary *> *AstralThemes(void)
     for (NSString *root in @[ AstralLocalThemesDirectory(), bundled ]) {
         for (NSString *entry in
              [[NSFileManager.defaultManager contentsOfDirectoryAtPath:root error:nil] sortedArrayUsingSelector:@selector(compare:)]) {
-            if (![entry.pathExtension isEqualToString:@"json"]) continue;
+            if (![entry.pathExtension isEqualToString:@"toml"]) continue;
             NSDictionary *theme = LoadTheme([root stringByAppendingPathComponent:entry], root == bundled);
             if (!theme || [seen containsObject:theme[@"id"]]) continue;
             [seen addObject:theme[@"id"]];
