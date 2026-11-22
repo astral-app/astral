@@ -63,10 +63,17 @@ NSString *AstralPhoenixUUID(void)
     return AstralImageUUID(AstralPhoenixImage());
 }
 
-NSString *AstralPhoenixCompatibility(void)
+BOOL AstralIsDiscordApp(void)
 {
     NSBundle *bundle = NSBundle.mainBundle;
-    if (![bundle.bundleIdentifier hasPrefix:@"com.hammerandchisel.discord"]) return @"unsupported-build";
+    if (![bundle.bundlePath.pathExtension isEqualToString:@"app"]) return NO;
+    NSString *phoenix = [bundle.privateFrameworksPath stringByAppendingPathComponent:@"PhoenixFatClient.framework"];
+    return [NSFileManager.defaultManager fileExistsAtPath:phoenix];
+}
+
+NSString *AstralPhoenixCompatibility(void)
+{
+    if (!AstralIsDiscordApp()) return @"unsupported-build";
     Class text = NSClassFromString(@"LibdiscordHost.TextBox");
     if (!text) return @"phoenix-image-unavailable";
     if (!PhoenixClass(text)) return @"unsupported-image";

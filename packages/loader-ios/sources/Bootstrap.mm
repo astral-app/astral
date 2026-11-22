@@ -105,7 +105,7 @@ NSString *AstralResourceDirectory(void)
     dispatch_once(&once, ^{
         NSString *jailbroken = @"/var/jb/usr/lib/astral";
         BOOL exists = [NSFileManager.defaultManager fileExistsAtPath:jailbroken];
-        directory = exists ? jailbroken : [NSBundle.mainBundle.bundlePath stringByAppendingPathComponent:@"Astral.bundle"];
+        directory = exists ? jailbroken : [NSBundle.mainBundle.bundlePath stringByAppendingPathComponent:@"astral.bundle"];
     });
     return directory;
 }
@@ -230,7 +230,7 @@ static void CheckReadiness(void)
 
 __attribute__((constructor)) static void AstralBootstrap(void)
 {
-    if (![NSBundle.mainBundle.bundleIdentifier isEqualToString:@"com.hammerandchisel.discord"]) return;
+    if (!AstralIsDiscordApp()) return;
     engineSelection = AstralForcePhoenix();
     AstralInstallImageAssets();
     dispatch_async(dispatch_get_main_queue(), ^{

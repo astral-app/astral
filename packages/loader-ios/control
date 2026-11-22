@@ -6,4 +6,4 @@ Description: Native Phoenix client mod with Lua plugins
 Maintainer: astral
 Author: astral
 Section: Tweaks
-Depends: firmware (>= 18.0)
+Depends: ellekit | mobilesubstrate, firmware (>= 18.0)

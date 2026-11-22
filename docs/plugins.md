@@ -22,7 +22,7 @@ plugins/<name>/main.lua        at most 256 KB
 plugins/<name>/tests/*.lua     run by tools/test.sh against a mocked `astral` table and the prelude
 ```
 
-Bundled plugins ship in the package's resource directory (`/var/jb/usr/lib/astral` when jailbroken, `Astral.bundle` inside the app when sideloaded). Plugins installed from the marketplace live in `Documents/astral/plugins` and take precedence over bundled ones with the same id.
+Bundled plugins ship in the package's resource directory (`/var/jb/usr/lib/astral` when jailbroken, `astral.bundle` inside the app when sideloaded). Plugins installed from the marketplace live in `Documents/astral/plugins` and take precedence over bundled ones with the same id.
 
 ## Signing
 

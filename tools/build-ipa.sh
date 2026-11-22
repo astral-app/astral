@@ -57,12 +57,12 @@ unzip -q -o "$ipa" 'Payload/*.app/Info.plist' -d "$work"
 info="$(ls "$work"/Payload/*.app/Info.plist)"
 executable="$(plutil -extract CFBundleExecutable raw "$info")"
 unzip -q -o "$ipa" "Payload/*.app/$executable" -d "$work"
-if otool -L "$work"/Payload/*.app/"$executable" | grep -q "Astral.dylib"; then
-  echo "the IPA already loads Astral.dylib; use a clean Discord IPA" >&2
+if otool -L "$work"/Payload/*.app/"$executable" | grep -q "astral.dylib"; then
+  echo "the IPA already loads astral.dylib; use a clean Discord IPA" >&2
   exit 1
 fi
 
-"$root/tools/stage-resources.sh" "$work/Astral.bundle"
-"$cyan" -duwsgq -i "$ipa" -o "$work/astral.ipa" -f "$deb" "$work/Astral.bundle"
+"$root/tools/stage-resources.sh" "$work/astral.bundle"
+"$cyan" -duwsgq -i "$ipa" -o "$work/astral.ipa" -f "$deb" "$work/astral.bundle"
 mv "$work/astral.ipa" "$output"
 echo "created $output"
