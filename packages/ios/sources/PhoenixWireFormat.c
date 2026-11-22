@@ -305,3 +305,48 @@ int wireTypeIs(const uint8_t *bytes, const Span *span, const char *type)
     uint16_t length = wireRead16(&cursor);
     return wireNeed(&cursor, length) && length == strlen(type) && memcmp(bytes + cursor.offset, type, length) == 0;
 }
+
+void wirePropGradient(Out *out, uint16_t property, double angle, const uint32_t *colors, uint32_t count)
+{
+    wirePut16(out, property);
+    wirePut8(out, 8);
+    wirePut32(out, 3);
+    wirePut16(out, P(angle));
+    wirePut8(out, 5);
+    wirePut(out, &angle, 8);
+    wirePut16(out, P(colors));
+    wirePut8(out, 7);
+    wirePut32(out, count);
+    for (uint32_t index = 0; index < count; index++) {
+        wirePut8(out, 4);
+        int64_t color = colors[index];
+        wirePut(out, &color, 8);
+    }
+    wirePut16(out, P(positions));
+    wirePut8(out, 7);
+    wirePut32(out, count);
+    for (uint32_t index = 0; index < count; index++) {
+        wirePut8(out, 5);
+        double position = count > 1 ? (double)index / (count - 1) : 0;
+        wirePut(out, &position, 8);
+    }
+}
+
+int wireColorProperty(const uint8_t *bytes, const Span *span, uint16_t wanted, uint32_t *color)
+{
+    Cursor cursor = {bytes, span->end, span->start + 1 + 4, 0};
+    wireSkip(&cursor, wireRead16(&cursor));
+    uint16_t count = wireRead16(&cursor);
+    for (uint16_t index = 0; index < count && !cursor.failed; index++) {
+        uint16_t property = wireRead16(&cursor);
+        uint8_t tag = wireRead8(&cursor);
+        if (property == wanted && (tag == 3 || tag == 4)) {
+            uint32_t value = wireRead32(&cursor);
+            if (cursor.failed) return 0;
+            *color = value;
+            return 1;
+        }
+        wireSkipValue(&cursor, tag, 0);
+    }
+    return 0;
+}

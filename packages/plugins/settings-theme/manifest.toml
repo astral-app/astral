@@ -1,0 +1,10 @@
+id = "astral.settings-theme"
+name = "Settings Theme"
+description = "Shows your theme behind User Settings and every page in it, which Discord leaves plain."
+version = "0.0.1"
+icon = "PaintPaletteIcon"
+main = "main.lua"
+
+[[authors]]
+name = "adrian"
+id = "224617799434108928"

@@ -46,7 +46,7 @@ func testWire(work string) error {
 	return run(ios, binary)
 }
 
-var wireSourceFiles = []string{"PhoenixWire.c", "PhoenixWireFormat.c", "PhoenixWirePages.c", "PhoenixWireDecorate.c", "PhoenixWireTheme.c", "PhoenixWireLabels.c", "PhoenixProperties.c"}
+var wireSourceFiles = []string{"PhoenixWire.c", "PhoenixWireFormat.c", "PhoenixWirePages.c", "PhoenixWireDecorate.c", "PhoenixWireTheme.c", "PhoenixWireLabels.c", "PhoenixWireBackdrop.c", "PhoenixProperties.c"}
 
 func wireSources(prefix string) []string {
 	paths := make([]string, len(wireSourceFiles))

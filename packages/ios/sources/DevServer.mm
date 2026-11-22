@@ -80,8 +80,9 @@ static NSData *PutPlugin(NSDictionary *body)
     NSDictionary *modules = [body[@"modules"] isKindOfClass:NSDictionary.class] ? body[@"modules"] : @{};
     for (NSString *path in modules) {
         NSString *text = modules[path];
-        if (![path isKindOfClass:NSString.class] || ![text isKindOfClass:NSString.class] || ![path.pathExtension isEqualToString:@"lua"] ||
-            [path hasPrefix:@"/"] || [path containsString:@".."])
+        BOOL translation = [path hasPrefix:@"i18n/"] && [path.pathExtension isEqualToString:@"toml"];
+        if (![path isKindOfClass:NSString.class] || ![text isKindOfClass:NSString.class] ||
+            !([path.pathExtension isEqualToString:@"lua"] || translation) || [path hasPrefix:@"/"] || [path containsString:@".."])
             continue;
         NSString *destination = [directory stringByAppendingPathComponent:path];
         [NSFileManager.defaultManager createDirectoryAtPath:destination.stringByDeletingLastPathComponent

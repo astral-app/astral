@@ -324,6 +324,25 @@ static NSDictionary *PluginPage(NSString *identifier)
     return Page(plugin[@"name"], sections);
 }
 
+static NSString *NumberText(double value)
+{
+    return value == floor(value) ? [NSString stringWithFormat:@"%.0f", value] : [NSString stringWithFormat:@"%g", value];
+}
+
+static NSDictionary *NumberRow(NSDictionary *entry)
+{
+    double minimum = [entry[@"min"] doubleValue];
+    double step = [entry[@"step"] doubleValue];
+    double value = [entry[@"value"] doubleValue];
+    int steps = (int)llround(([entry[@"max"] doubleValue] - minimum) / step);
+    int position = (int)llround((value - minimum) / step);
+    return With(
+        Row([@"number." stringByAppendingString:entry[@"key"]], entry[@"title"], @"res://ic_mana_settings", kAstralRowNumber),
+        @{@"detail" : NumberText(value),
+          @"steps" : @(steps),
+          @"position" : @(position)});
+}
+
 static NSDictionary *PluginSettingsPage(NSString *identifier)
 {
     NSDictionary *plugin = PluginWithID(identifier);
@@ -355,9 +374,10 @@ static NSDictionary *PluginSettingsPage(NSString *identifier)
             grouped[section] = [NSMutableArray array];
             [order addObject:section];
         }
-        NSMutableDictionary *row =
-            [With(Row([@"setting." stringByAppendingString:entry[@"key"]], entry[@"title"], @"res://ic_mana_settings", kAstralRowSwitch),
-                  @{@"on" : entry[@"on"]}) mutableCopy];
+        NSMutableDictionary *row = [entry[@"number"] boolValue] ? NumberRow(entry).mutableCopy
+                                                                : [With(Row([@"setting." stringByAppendingString:entry[@"key"]],
+                                                                            entry[@"title"], @"res://ic_mana_settings", kAstralRowSwitch),
+                                                                        @{@"on" : entry[@"on"]}) mutableCopy];
         if ([entry[@"subtitle"] length]) row[@"subtitle"] = entry[@"subtitle"];
         [grouped[section] addObject:row];
     }
@@ -545,6 +565,17 @@ static NSString *PluginAction(NSString *identifier, NSString *key, void (^change
         NSString *settingKey = [key substringFromIndex:@"switch.setting.".length];
         for (NSDictionary *entry in plugin[@"switches"]) {
             if ([entry[@"key"] isEqualToString:settingKey]) AstralLuaSetSwitch(identifier, settingKey, ![entry[@"on"] boolValue]);
+        }
+    } else if ([key hasPrefix:@"number."]) {
+        NSString *rest = [key substringFromIndex:@"number.".length];
+        NSRange equals = [rest rangeOfString:@"=" options:NSBackwardsSearch];
+        if (equals.location != NSNotFound) {
+            NSString *settingKey = [rest substringToIndex:equals.location];
+            int position = [[rest substringFromIndex:equals.location + 1] intValue];
+            for (NSDictionary *entry in plugin[@"switches"]) {
+                if (![entry[@"number"] boolValue] || ![entry[@"key"] isEqualToString:settingKey]) continue;
+                AstralLuaSetNumber(identifier, settingKey, [entry[@"min"] doubleValue] + position * [entry[@"step"] doubleValue]);
+            }
         }
     } else if ([key hasPrefix:@"choice."]) {
         NSString *rest = [key substringFromIndex:@"choice.".length];

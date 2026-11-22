@@ -215,6 +215,14 @@ func (d devClient) push(folder string) error {
 		}
 		modules[path] = string(text)
 	}
+	translations, _ := filepath.Glob(filepath.Join(folder, "i18n", "*.toml"))
+	for _, file := range translations {
+		text, err := os.ReadFile(file)
+		if err != nil {
+			return err
+		}
+		modules["i18n/"+filepath.Base(file)] = string(text)
+	}
 	reply, err := d.request(http.MethodPut, "/plugin", map[string]any{"manifest": string(manifestText), "main": string(main), "modules": modules})
 	if err != nil {
 		return err

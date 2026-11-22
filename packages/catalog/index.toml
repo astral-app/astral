@@ -18,6 +18,13 @@ version = "0.0.1"
 description = "Display usernames next to display names, or show usernames only."
 base = "plugins/astral.show-me-your-name/"
 
+[[plugins]]
+id = "astral.settings-theme"
+name = "Settings Theme"
+version = "0.0.1"
+description = "Shows your theme behind User Settings and every page in it, which Discord leaves plain."
+base = "plugins/astral.settings-theme/"
+
 [[themes]]
 id = "mana"
 name = "Mana"

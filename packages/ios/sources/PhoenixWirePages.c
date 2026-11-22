@@ -516,6 +516,32 @@ static int32_t buildSwitch(Out *out, const char *key, int on)
     return track;
 }
 
+static const int64_t kSliderActive = 0xFF5865F2;
+static const int64_t kSliderInactive = 0xFF4E5058;
+
+static int32_t buildSlider(Out *out, const AstralRowSpec *row)
+{
+    char identifier[128];
+    snprintf(identifier, sizeof(identifier), "astral.slider.%d.%s", row->steps > 0 ? row->steps : 1, row->key);
+    int32_t wrap = newNode(out, "view");
+    wirePropCount(out, 2);
+    wirePropString(out, P(align), "stretch");
+    wirePropQuad(out, P(padding), 16, 0, 16, 12);
+    int32_t slider = newNode(out, "slider");
+    wirePropCount(out, 9);
+    wirePropString(out, P(accessibilityId), identifier);
+    wirePropString(out, P(accessibilityLabel), row->title);
+    wirePropNumber(out, P(height), 40);
+    wirePropNumber(out, P(flex), 1);
+    wirePropInt(out, P(value), row->position);
+    wirePropInt(out, P(steps), row->steps > 0 ? row->steps : 1);
+    wirePropLong(out, P(minTrackTint), kSliderActive);
+    wirePropLong(out, P(maxTrackTint), kSliderInactive);
+    wirePropEvents(out, P(on), "change");
+    wirePutChildren(out, wrap, (int32_t[]){slider}, 1);
+    return wrap;
+}
+
 static int32_t buildSpecRow(Out *out, const AstralRowSpec *row, int first, int last)
 {
     char identifier[128];
@@ -528,7 +554,7 @@ static int32_t buildSpecRow(Out *out, const AstralRowSpec *row, int first, int l
     rowChanges[used++] = first ? (Change){P(radiusTopRight), kNumber, NULL, 12} : (Change){P(radiusTopRight), kDrop, NULL, 0};
     rowChanges[used++] = last ? (Change){P(radiusBottomLeft), kNumber, NULL, 12} : (Change){P(radiusBottomLeft), kDrop, NULL, 0};
     rowChanges[used++] = last ? (Change){P(radiusBottomRight), kNumber, NULL, 12} : (Change){P(radiusBottomRight), kDrop, NULL, 0};
-    if (row->kind == kAstralRowInfo) rowChanges[used++] = (Change){P(on), kDrop, NULL, 0};
+    if (row->kind == kAstralRowInfo || row->kind == kAstralRowNumber) rowChanges[used++] = (Change){P(on), kDrop, NULL, 0};
     if (row->kind == kAstralRowSwitch) {
         rowChanges[used++] = (Change){P(on), kDrop, NULL, 0};
         rowChanges[used++] = (Change){P(role), kString, "switch", 0};
@@ -582,8 +608,17 @@ static int32_t buildSpecRow(Out *out, const AstralRowSpec *row, int first, int l
         wirePutChildren(out, trailing, (int32_t[]){buildSwitch(out, row->key, row->on)}, 1);
         children[childCount++] = trailing;
     }
-    wirePutChildren(out, rowId, (int32_t[]){content}, 1);
     wirePutChildren(out, content, children, childCount);
+    if (row->kind == kAstralRowNumber) {
+        int32_t column = newNode(out, "view");
+        wirePropCount(out, 2);
+        wirePropString(out, P(direction), "column");
+        wirePropNumber(out, P(flex), 1);
+        wirePutChildren(out, column, (int32_t[]){content, buildSlider(out, row)}, 2);
+        wirePutChildren(out, rowId, (int32_t[]){column}, 1);
+        return rowId;
+    }
+    wirePutChildren(out, rowId, (int32_t[]){content}, 1);
     return rowId;
 }
 

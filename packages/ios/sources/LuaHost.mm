@@ -1,5 +1,9 @@
 #import "LuaHost.h"
 
+#include <algorithm>
+#include <cmath>
+
+#import "PhoenixWire.h"
 #import "TomlDocument.h"
 
 #include <map>
@@ -53,6 +57,11 @@ struct LuaSwitch {
     bool fallback;
     std::vector<LuaOption> options;
     std::string fallbackChoice;
+    bool number = false;
+    double minimum = 0;
+    double maximum = 100;
+    double step = 1;
+    double fallbackNumber = 0;
 };
 
 struct LuaPlugin : astral::PluginPackage, astral::PluginHealth {
@@ -64,6 +73,7 @@ struct LuaPlugin : astral::PluginPackage, astral::PluginHealth {
     std::vector<LuaSwitch> switches;
     std::vector<std::pair<std::string, int>> decorators;
     std::vector<std::pair<std::string, int>> relabelers;
+    std::optional<double> settingsBackdrop;
 };
 
 static int Translate(lua_State *state);
@@ -94,6 +104,19 @@ static bool StoredBool(const std::string &key, bool fallback)
 {
     auto value = gStore->get("plugins", key);
     return value && value->is_boolean() ? value->get<bool>() : fallback;
+}
+
+static double StoredNumber(const std::string &key, double fallback)
+{
+    auto value = gStore->get("plugins", key);
+    return value && value->is_number() ? value->get<double>() : fallback;
+}
+
+static double SteppedNumber(const LuaSwitch &entry, double value)
+{
+    double clamped = std::min(entry.maximum, std::max(entry.minimum, value));
+    double steps = std::round((clamped - entry.minimum) / entry.step);
+    return std::min(entry.maximum, entry.minimum + steps * entry.step);
 }
 
 static void Store(const std::string &key, const nlohmann::json &value)
@@ -207,6 +230,47 @@ static int SettingsChoice(lua_State *state)
     return 1;
 }
 
+static double FieldNumber(lua_State *state, int index, const char *name, double fallback)
+{
+    lua_getfield(state, index, name);
+    double value = lua_isnumber(state, -1) ? lua_tonumber(state, -1) : fallback;
+    lua_pop(state, 1);
+    return value;
+}
+
+static void PushNumber(lua_State *state, double value)
+{
+    if (value == std::floor(value) && std::fabs(value) < 9.0e15)
+        lua_pushinteger(state, (lua_Integer)value);
+    else
+        lua_pushnumber(state, value);
+}
+
+static int SettingsNumber(lua_State *state)
+{
+    LuaPlugin *plugin = Self(state);
+    std::string key = luaL_checkstring(state, 1);
+    std::string title = luaL_checkstring(state, 2);
+    luaL_checktype(state, 3, LUA_TTABLE);
+    LuaSwitch entry{key, title.substr(0, 64), "", "", false, {}, ""};
+    entry.number = true;
+    entry.minimum = FieldNumber(state, 3, "min", 0);
+    entry.maximum = FieldNumber(state, 3, "max", 100);
+    entry.step = FieldNumber(state, 3, "step", 1);
+    entry.subtitle = FieldString(state, 3, "subtitle").substr(0, 120);
+    entry.section = FieldString(state, 3, "section").substr(0, 48);
+    bool valid = !key.empty() && key.size() <= 48 && plugin->switches.size() < 32 && std::isfinite(entry.minimum) &&
+                 std::isfinite(entry.maximum) && entry.maximum > entry.minimum && entry.step > 0 &&
+                 (entry.maximum - entry.minimum) / entry.step <= 1000;
+    if (!valid) return luaL_error(state, "astral.settings.number: invalid number");
+    entry.fallbackNumber = SteppedNumber(entry, FieldNumber(state, 3, "default", entry.minimum));
+    bool known = false;
+    for (auto &existing : plugin->switches) known = known || existing.key == key;
+    if (!known) plugin->switches.push_back(entry);
+    PushNumber(state, SteppedNumber(entry, StoredNumber(SettingKey(plugin, key), entry.fallbackNumber)));
+    return 1;
+}
+
 static int SettingsGet(lua_State *state)
 {
     LuaPlugin *plugin = Self(state);
@@ -259,6 +323,31 @@ static int Decorate(lua_State *state)
     if (prefix != "message.author") return luaL_error(state, "astral.ui.decorate: unsupported target '%s'", prefix.c_str());
     lua_pushvalue(state, 2);
     plugin->decorators.push_back({prefix, luaL_ref(state, LUA_REGISTRYINDEX)});
+    return 0;
+}
+
+static void ApplySettingsBackdrop(void)
+{
+    std::optional<double> dim;
+    for (auto &entry : gPlugins) {
+        if (entry->state && entry->settingsBackdrop) dim = std::max(dim.value_or(0), *entry->settingsBackdrop);
+    }
+    astral_wire_set_settings_backdrop(dim.has_value(), dim.value_or(0));
+}
+
+static int SettingsBackdrop(lua_State *state)
+{
+    LuaPlugin *plugin = Self(state);
+    if (lua_isnoneornil(state, 1)) {
+        plugin->settingsBackdrop.reset();
+    } else {
+        luaL_checktype(state, 1, LUA_TTABLE);
+        double dim = FieldNumber(state, 1, "dim", 55);
+        if (!std::isfinite(dim) || dim < 0 || dim > 90)
+            return luaL_error(state, "astral.ui.settings_backdrop: dim is a percentage from 0 to 90");
+        plugin->settingsBackdrop = dim / 100;
+    }
+    ApplySettingsBackdrop();
     return 0;
 }
 
@@ -503,6 +592,7 @@ static void InstallAPI(LuaPlugin *plugin)
     lua_newtable(state);
     Function(state, plugin, "switch", SettingsSwitch);
     Function(state, plugin, "choice", SettingsChoice);
+    Function(state, plugin, "number", SettingsNumber);
     Function(state, plugin, "get", SettingsGet);
     Function(state, plugin, "set", SettingsSet);
     lua_setfield(state, -2, "settings");
@@ -516,6 +606,7 @@ static void InstallAPI(LuaPlugin *plugin)
     lua_newtable(state);
     Function(state, plugin, "decorate", Decorate);
     Function(state, plugin, "relabel", Relabel);
+    Function(state, plugin, "settings_backdrop", SettingsBackdrop);
     lua_setfield(state, -2, "ui");
 
     lua_newtable(state);
@@ -570,6 +661,8 @@ static void Stop(LuaPlugin *plugin)
     plugin->switches.clear();
     plugin->decorators.clear();
     plugin->relabelers.clear();
+    plugin->settingsBackdrop.reset();
+    ApplySettingsBackdrop();
 }
 
 static bool Runnable(LuaPlugin *plugin)
@@ -709,7 +802,12 @@ NSArray<NSDictionary *> *AstralLuaPlugins(void)
                 @"section" : Native(entry.section),
                 @"on" : @(StoredBool(SettingKey(plugin, entry.key), entry.fallback)),
                 @"options" : options,
-                @"value" : Native(StoredString(SettingKey(plugin, entry.key), entry.fallbackChoice))
+                @"value" : entry.number ? (id) @(SteppedNumber(entry, StoredNumber(SettingKey(plugin, entry.key), entry.fallbackNumber)))
+                                        : (id)Native(StoredString(SettingKey(plugin, entry.key), entry.fallbackChoice)),
+                @"number" : @(entry.number),
+                @"min" : @(entry.minimum),
+                @"max" : @(entry.maximum),
+                @"step" : @(entry.step)
             }];
         }
         NSMutableArray *authors = [NSMutableArray array];
@@ -869,6 +967,32 @@ void AstralLuaSetChoice(NSString *pluginID, NSString *key, NSString *value)
     if (lua_isfunction(plugin->state, -1)) {
         lua_pushstring(plugin->state, key.UTF8String);
         lua_pushstring(plugin->state, value.UTF8String);
+        Call(plugin, 2, 0, "on_setting");
+    } else {
+        lua_pop(plugin->state, 1);
+    }
+}
+
+void AstralLuaSetNumber(NSString *pluginID, NSString *key, double value)
+{
+    std::lock_guard<std::recursive_mutex> lock(gMutex);
+    LuaPlugin *plugin = Find(pluginID);
+    if (!plugin) return;
+    const LuaSwitch *entry = nullptr;
+    for (auto &candidate : plugin->switches) {
+        if (candidate.number && candidate.key == key.UTF8String) entry = &candidate;
+    }
+    if (!entry) return;
+    double stepped = SteppedNumber(*entry, value);
+    if (StoredNumber(SettingKey(plugin, key.UTF8String), entry->fallbackNumber) == stepped) return;
+    Store(SettingKey(plugin, key.UTF8String), stepped);
+    if (!plugin->state) return;
+    lua_getglobal(plugin->state, "astral");
+    lua_getfield(plugin->state, -1, "on_setting");
+    lua_remove(plugin->state, -2);
+    if (lua_isfunction(plugin->state, -1)) {
+        lua_pushstring(plugin->state, key.UTF8String);
+        PushNumber(plugin->state, stepped);
         Call(plugin, 2, 0, "on_setting");
     } else {
         lua_pop(plugin->state, 1);

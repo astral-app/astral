@@ -211,6 +211,14 @@ function Pill:build() end
 ---@field is fun(value: any): boolean
 ---@field super? astral.Class
 
+---@class astral.NumberOptions
+---@field min number
+---@field max number
+---@field step? number
+---@field default? number
+---@field subtitle? string
+---@field section? string
+
 ---@class astral.SettingOptions
 ---@field subtitle? string
 ---@field section? string
@@ -229,6 +237,11 @@ local Section = {}
 ---@param subtitle? string
 ---@return boolean
 function Section:switch(key, title, default, subtitle) end
+---@param key string
+---@param title string
+---@param options astral.NumberOptions
+---@return number
+function Section:number(key, title, options) end
 ---@param key string
 ---@param title string
 ---@param choices astral.ChoiceOption[]
@@ -291,6 +304,11 @@ function astral.settings.switch(key, title, default, options) end
 ---@param options? astral.SettingOptions
 ---@return string
 function astral.settings.choice(key, title, choices, default, options) end
+---@param key string
+---@param title string
+---@param options astral.NumberOptions
+---@return number
+function astral.settings.number(key, title, options) end
 ---@param key string
 ---@return astral.SettingValue?
 function astral.settings.get(key) end

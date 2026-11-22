@@ -62,6 +62,13 @@ void astral_wire_set_background_gradient(const uint32_t *colors, size_t count)
     for (size_t index = 0; index < gBackgroundStopCount; index++) gBackgroundStops[index] = colors[index];
 }
 
+size_t wireBackgroundStops(uint32_t *colors, size_t capacity)
+{
+    size_t count = gBackgroundStopCount < capacity ? gBackgroundStopCount : capacity;
+    for (size_t index = 0; index < count; index++) colors[index] = gBackgroundStops[index];
+    return count;
+}
+
 static uint32_t backgroundStop(uint32_t index, uint32_t count)
 {
     if (gBackgroundStopCount == 1 || count <= 1) return gBackgroundStops[0];

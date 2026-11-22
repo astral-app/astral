@@ -53,6 +53,7 @@ static NSString *const kOverviewRowPrefix = @"settings.row.astral.";
 static NSString *const kBack = @"astral.back";
 static NSString *const kRowPrefix = @"astral.row.";
 static NSString *const kSwitchPrefix = @"astral.switch.";
+static NSString *const kSliderPrefix = @"astral.slider.";
 
 static pthread_mutex_t gLock = PTHREAD_MUTEX_INITIALIZER;
 static AstralHostCall gHostOriginal;
@@ -302,6 +303,8 @@ static void WithSpec(NSDictionary *model, void (^body)(const AstralPageSpec *pag
                 Text(row, @"icon"),
                 (AstralRowKind)[row[@"kind"] intValue],
                 [row[@"on"] boolValue],
+                [row[@"steps"] intValue],
+                [row[@"position"] intValue],
             });
         }
         specs.push_back({Text(sections[index], @"title") ?: "", rows[index].data(), rows[index].size()});
@@ -446,6 +449,69 @@ static void Pop(void)
 
 static AstralSettingsTarget *gTarget;
 
+static UISlider *FindSlider(UIView *view)
+{
+    if ([view isKindOfClass:UISlider.class]) return (UISlider *)view;
+    for (UIView *child in view.subviews) {
+        UISlider *found = FindSlider(child);
+        if (found) return found;
+    }
+    return nil;
+}
+
+static NSString *Hierarchy(UIView *view, NSUInteger depth)
+{
+    NSMutableString *text = [NSMutableString
+        stringWithFormat:@"%@%@", [@"" stringByPaddingToLength:depth * 2 withString:@" " startingAtIndex:0], NSStringFromClass(view.class)];
+    if (depth < 4) {
+        for (UIView *child in view.subviews) [text appendFormat:@"\n%@", Hierarchy(child, depth + 1)];
+    }
+    return text;
+}
+
+@interface AstralSliderTarget : NSObject
+- (void)changed:(UISlider *)slider;
+@end
+
+static const char gSliderKeyKey = 0;
+static const char gSliderStepsKey = 0;
+
+@implementation AstralSliderTarget
+- (void)changed:(UISlider *)slider
+{
+    NSString *key = objc_getAssociatedObject(slider, &gSliderKeyKey);
+    int steps = [objc_getAssociatedObject(slider, &gSliderStepsKey) intValue];
+    if (!key || steps <= 0 || !gRoutes.count) return;
+    float span = slider.maximumValue - slider.minimumValue;
+    float fraction = span > 0 ? (slider.value - slider.minimumValue) / span : 0;
+    long position = lroundf(fraction * steps);
+    gAction(gRoutes.lastObject, [NSString stringWithFormat:@"number.%@=%ld", key, position]);
+    RefreshTop();
+}
+@end
+
+static AstralSliderTarget *gSliderTarget;
+
+static void RouteSlider(UIView *view, NSString *identifier)
+{
+    NSString *rest = [identifier substringFromIndex:kSliderPrefix.length];
+    NSRange dot = [rest rangeOfString:@"."];
+    if (dot.location == NSNotFound) return;
+    UISlider *slider = FindSlider(view);
+    if (!slider) {
+        Log([NSString stringWithFormat:@"phoenix: no UISlider under %@:\n%@", identifier, Hierarchy(view, 0)]);
+        return;
+    }
+    if (objc_getAssociatedObject(slider, &gSliderKeyKey)) return;
+    Log([NSString stringWithFormat:@"phoenix: routed %@ (%@ in %@, %.0f to %.0f)", identifier, NSStringFromClass(slider.class),
+                                   NSStringFromClass(view.class), slider.minimumValue, slider.maximumValue]);
+    if (!gSliderTarget) gSliderTarget = [AstralSliderTarget new];
+    objc_setAssociatedObject(slider, &gSliderKeyKey, [rest substringFromIndex:dot.location + 1], OBJC_ASSOCIATION_COPY_NONATOMIC);
+    objc_setAssociatedObject(slider, &gSliderStepsKey, @([[rest substringToIndex:dot.location] intValue]),
+                             OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    [slider addTarget:gSliderTarget action:@selector(changed:) forControlEvents:UIControlEventTouchUpInside | UIControlEventTouchUpOutside];
+}
+
 static BOOL Routed(NSString *identifier)
 {
     return [identifier hasPrefix:kOverviewRow] || [identifier isEqualToString:kBack] || [identifier hasPrefix:kRowPrefix] ||
@@ -465,6 +531,14 @@ static void Route(UIView *view)
 static void SetIdentifier(UIView *view, SEL selector, NSString *identifier)
 {
     originalSetIdentifier(view, selector, identifier);
+    if ([identifier hasPrefix:kSliderPrefix]) {
+        __weak UIView *weakSlider = view;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            UIView *strongView = weakSlider;
+            if (strongView && [strongView.accessibilityIdentifier isEqualToString:identifier]) RouteSlider(strongView, identifier);
+        });
+        return;
+    }
     if (!Routed(identifier)) return;
     __weak UIView *weakView = view;
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -484,7 +558,7 @@ static void InstallCategory(NSDictionary *category)
     NSArray<NSDictionary *> *entries = category[@"rows"];
     std::vector<AstralRowSpec> rows;
     for (NSDictionary *entry in entries) {
-        rows.push_back({Text(entry, @"key") ?: "", Text(entry, @"title") ?: "", NULL, NULL, Text(entry, @"icon"), kAstralRowLink, 0});
+        rows.push_back({Text(entry, @"key") ?: "", Text(entry, @"title") ?: "", NULL, NULL, Text(entry, @"icon"), kAstralRowLink, 0, 0, 0});
     }
     astral_wire_set_category(Text(category, @"title") ?: "astral", rows.data(), rows.size());
 }

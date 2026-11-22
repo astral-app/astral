@@ -2,6 +2,7 @@ local astral = astral
 local native = {
 	switch = astral.settings.switch,
 	choice = astral.settings.choice,
+	number = astral.settings.number,
 	decorate = astral.ui.decorate,
 	relabel = astral.ui.relabel,
 	permission = astral.discord.permission,
@@ -345,6 +346,11 @@ function astral.settings.choice(key, title, choices, default, options)
 	return values[key]
 end
 
+function astral.settings.number(key, title, options)
+	values[key] = native.number(key, title, options)
+	return values[key]
+end
+
 function astral.settings.on_change(key, listener)
 	listeners[key] = listeners[key] or {}
 	table.insert(listeners[key], listener)
@@ -362,6 +368,14 @@ end
 
 function Section:choice(key, title, choices, default, subtitle)
 	return astral.settings.choice(key, title, choices, default, { subtitle = subtitle, section = self.title })
+end
+
+function Section:number(key, title, options)
+	local merged = { section = self.title }
+	for name, value in pairs(options or {}) do
+		merged[name] = value
+	end
+	return astral.settings.number(key, title, merged)
 end
 
 function Section:describe()

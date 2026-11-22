@@ -18,6 +18,7 @@ typedef enum {
     kAstralRowSwitchLink,
     kAstralRowSelected,
     kAstralRowChoice,
+    kAstralRowNumber,
 } AstralRowKind;
 
 typedef struct {
@@ -28,6 +29,8 @@ typedef struct {
     const char *icon;
     AstralRowKind kind;
     int on;
+    int32_t steps;
+    int32_t position;
 } AstralRowSpec;
 
 typedef struct {
@@ -141,6 +144,9 @@ int astral_page_push(const AstralPageSpec *page, AstralWireBuffer *buffer);
 int astral_page_refresh(const AstralPageSpec *page, AstralWireBuffer *buffer);
 int astral_page_pop(AstralWireBuffer *buffer);
 int astral_page_depth(void);
+
+void astral_wire_set_settings_backdrop(int enabled, double dim);
+int astral_wire_settings_backdrop_enabled(void);
 
 #ifdef __cplusplus
 }

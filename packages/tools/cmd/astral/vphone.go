@@ -25,6 +25,8 @@ const vphoneUsage = `usage: astral vphone <command>
   snapshot <save|revert|list> [name]      stop, snapshot or revert, and boot again
   watch                            rebuild and deploy astral on every source change
   crashes [--process Discord]      the newest crash report, with astral frames symbolicated
+  capture [--seconds 30] <dir>     record Phoenix's ViewWire batches while you use Discord, decoded to <dir>/wire.jsonl
+  screenshot [file]                save the screen as a JPEG (vphone-screenshot.jpg by default)
   boot [--name vphone]              restart the VM with its guest API on, using a stored token
   status                           bootstrap state and the frontmost app
   call <method> [json params]      call any guest API method
@@ -384,6 +386,10 @@ func runVphone(args []string) error {
 		return runVphoneWatch(client)
 	case "crashes":
 		return runVphoneCrashes(client, args[1:])
+	case "capture":
+		return runVphoneCapture(client, args[1:])
+	case "screenshot":
+		return runVphoneScreenshot(client, args[1:])
 	case "setup":
 		return runVphoneSetup(args[1:])
 	case "discord":

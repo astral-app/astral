@@ -40,6 +40,8 @@ extern "C" {
     X(lineHeight, 278)                                                                                                                     \
     X(margin, 287)                                                                                                                         \
     X(maxLines, 293)                                                                                                                       \
+    X(maxTrackTint, 295)                                                                                                                   \
+    X(minTrackTint, 300)                                                                                                                   \
     X(minWidth, 301)                                                                                                                       \
     X(on, 320)                                                                                                                             \
     X(opacity, 322)                                                                                                                        \
@@ -56,11 +58,13 @@ extern "C" {
     X(scale, 428)                                                                                                                          \
     X(shrink, 460)                                                                                                                         \
     X(spans, 468)                                                                                                                          \
+    X(steps, 481)                                                                                                                          \
     X(text, 499)                                                                                                                           \
     X(textTransform, 508)                                                                                                                  \
     X(tint, 522)                                                                                                                           \
     X(translateX, 535)                                                                                                                     \
     X(uri, 542)                                                                                                                            \
+    X(value, 543)                                                                                                                          \
     X(width, 553)                                                                                                                          \
     X(colors, 577)                                                                                                                         \
     X(positions, 613)                                                                                                                      \
