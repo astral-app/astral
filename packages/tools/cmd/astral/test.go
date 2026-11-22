@@ -39,7 +39,7 @@ func testWire(work string) error {
 	ios := repoPath("packages", "ios")
 	binary := filepath.Join(work, "phoenix-wire-test")
 	arguments := []string{"-Wall", "-Wextra", "-Werror", "-g", "-fsanitize=address,undefined", "tests/phoenix-wire-test.c", "tests/support/wire-parser.c"}
-	arguments = append(append(arguments, wireSources("sources/")...), "-o", binary)
+	arguments = append(append(arguments, wireSources("sources/")...), "-lm", "-o", binary)
 	if err := run(ios, "clang", arguments...); err != nil {
 		return err
 	}
