@@ -55,6 +55,7 @@ int astral_settings_rewrite(const uint8_t *bytes, size_t length, AstralWireBuffe
     wireRewritePages(bytes, spans, count, &out, &changed, length);
     wireSetTemplateSource(NULL);
     wireDecorate(bytes, spans, count, &out, &changed, length);
+    wireDecorateMentions(bytes, spans, count, &out, &changed, length);
     wireSettingsBackdrop(bytes, spans, count, &out, &changed, length);
     wireObserveRemovals(bytes, spans, count, &out, &changed, length);
     free(themed);

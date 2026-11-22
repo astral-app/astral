@@ -193,6 +193,7 @@ static void StartPlugins(void)
                        !recovering && !safeMode);
     astral_wire_set_decorator(AstralLuaDecorate);
     astral_wire_set_relabeler(AstralLuaRelabel);
+    astral_wire_set_mention_decorator(AstralLuaMention);
     AstralCatalogRefresh(^{
         AstralRefreshPhoenixSettings();
     });

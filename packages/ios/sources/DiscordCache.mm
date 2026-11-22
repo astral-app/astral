@@ -120,14 +120,17 @@ NSDictionary *AstralDiscordGuild(NSString *guildID)
     NSMutableDictionary *roles = [NSMutableDictionary dictionary];
     for (NSDictionary *role in record[@"roles"]) {
         if (![role isKindOfClass:NSDictionary.class] || ![role[@"id"] isKindOfClass:NSString.class]) continue;
-        roles[role[@"id"]] = @{
+        NSMutableDictionary *entry = [NSMutableDictionary dictionaryWithDictionary:@{
             @"id" : role[@"id"],
             @"name" : [role[@"name"] isKindOfClass:NSString.class] ? role[@"name"] : @"",
             @"permissions" : [role[@"permissions"] isKindOfClass:NSString.class] ? role[@"permissions"] : @"0",
             @"color" : [role[@"color"] isKindOfClass:NSNumber.class] ? role[@"color"] : @0,
             @"position" : [role[@"position"] isKindOfClass:NSNumber.class] ? role[@"position"] : @0,
             @"colors" : RoleColors(role),
-        };
+        }];
+        if ([role[@"icon"] isKindOfClass:NSString.class]) entry[@"icon"] = role[@"icon"];
+        if ([role[@"unicode_emoji"] isKindOfClass:NSString.class]) entry[@"unicode_emoji"] = role[@"unicode_emoji"];
+        roles[role[@"id"]] = entry;
     }
     NSDictionary *guild = @{
         @"id" : guildID,
@@ -223,6 +226,23 @@ NSDictionary *AstralDiscordMessage(NSString *channelID, NSString *messageID)
     }
     message[@"author"] = authorRecord;
     if ([record[@"type"] isKindOfClass:NSNumber.class]) message[@"type"] = record[@"type"];
+    NSMutableArray *mentions = [NSMutableArray array];
+    for (NSDictionary *mentioned in [record[@"mentions"] isKindOfClass:NSArray.class] ? record[@"mentions"] : @[]) {
+        if (![mentioned isKindOfClass:NSDictionary.class] || ![mentioned[@"id"] isKindOfClass:NSString.class]) continue;
+        NSMutableDictionary *user = [NSMutableDictionary dictionaryWithObject:mentioned[@"id"] forKey:@"id"];
+        for (NSString *field in @[ @"username", @"global_name", @"avatar" ]) {
+            if ([mentioned[field] isKindOfClass:NSString.class]) user[field] = mentioned[field];
+        }
+        NSDictionary *member = [mentioned[@"member"] isKindOfClass:NSDictionary.class] ? mentioned[@"member"] : nil;
+        if ([member[@"nick"] isKindOfClass:NSString.class]) user[@"nick"] = member[@"nick"];
+        [mentions addObject:user];
+    }
+    message[@"mentions"] = mentions;
+    NSMutableArray *roles = [NSMutableArray array];
+    for (id role in [record[@"mention_roles"] isKindOfClass:NSArray.class] ? record[@"mention_roles"] : @[]) {
+        if ([role isKindOfClass:NSString.class]) [roles addObject:role];
+    }
+    message[@"mention_roles"] = roles;
     NSDictionary *reference = [record[@"message_reference"] isKindOfClass:NSDictionary.class] ? record[@"message_reference"] : nil;
     if ([reference[@"message_id"] isKindOfClass:NSString.class] && [reference[@"channel_id"] isKindOfClass:NSString.class]) {
         message[@"reference"] = @{@"message_id" : reference[@"message_id"], @"channel_id" : reference[@"channel_id"]};

@@ -22,10 +22,11 @@ struct Plugin {
     std::unique_ptr<astral::lua::Sandbox> sandbox;
     std::vector<int> decorators;
     std::vector<std::pair<std::string, int>> relabelers;
+    std::vector<int> mentioners;
 };
 
 std::vector<Plugin *> gPlugins;
-unsigned long gDecorations, gRelabels, gErrors;
+unsigned long gDecorations, gRelabels, gMentions, gErrors;
 
 Plugin *Self(lua_State *state)
 {
@@ -101,6 +102,14 @@ int Relabel(lua_State *state)
     return 0;
 }
 
+int Mention(lua_State *state)
+{
+    luaL_checktype(state, 1, LUA_TFUNCTION);
+    lua_pushvalue(state, 1);
+    Self(state)->mentioners.push_back(luaL_ref(state, LUA_REGISTRYINDEX));
+    return 0;
+}
+
 int Require(lua_State *state)
 {
     Plugin *plugin = Self(state);
@@ -159,6 +168,7 @@ void Install(Plugin *plugin)
     Function(state, plugin, "decorate", Decorate);
     Function(state, plugin, "relabel", Relabel);
     Function(state, plugin, "settings_backdrop", Nothing);
+    Function(state, plugin, "mention", Mention);
     lua_setfield(state, -2, "ui");
     lua_newtable(state);
     for (const char *name : {"get", "set", "remove", "keys"}) Function(state, plugin, name, Nothing);
@@ -236,6 +246,38 @@ size_t ReplayDecorate(const AstralDecorationContext *context, AstralTag *tags, s
         }
     }
     return count;
+}
+
+int ReplayMention(const AstralMentionContext *context, AstralMentionDecoration *decoration)
+{
+    int decorated = 0;
+    for (Plugin *plugin : gPlugins) {
+        lua_State *state = plugin->sandbox->state();
+        for (int mentioner : plugin->mentioners) {
+            lua_rawgeti(state, LUA_REGISTRYINDEX, mentioner);
+            lua_createtable(state, 0, 4);
+            SetField(state, "text", context->text);
+            SetField(state, "message_id", Snowflake(context->message_id));
+            SetField(state, "channel_id", Snowflake(context->channel_id));
+            if (!Report(plugin, "mention", plugin->sandbox->call(1, 1))) continue;
+            gMentions++;
+            std::string image;
+            if (lua_istable(state, -1)) {
+                lua_getfield(state, -1, "image");
+                if (const char *text = lua_tostring(state, -1)) {
+                    image = text;
+                    std::snprintf(decoration->image, sizeof(decoration->image), "%s", text);
+                    decoration->round = 1;
+                    decorated = 1;
+                }
+                lua_pop(state, 1);
+            }
+            lua_pop(state, 1);
+            std::printf("mention %s message=%s \"%s\" -> %s\n", plugin->package.identifier.c_str(), Snowflake(context->message_id).c_str(),
+                        context->text, image.empty() ? "nothing" : image.c_str());
+        }
+    }
+    return decorated;
 }
 
 const char *LabelTarget(AstralLabelKind kind)
@@ -316,6 +358,7 @@ int main(int argc, char **argv)
     }
     astral_wire_set_decorator(ReplayDecorate);
     astral_wire_set_relabeler(ReplayRelabel);
+    astral_wire_set_mention_decorator(ReplayMention);
     unsigned long batches = 0, rewritten = 0;
     for (index++; index < argc; index++) {
         std::string batch = ReadFile(argv[index]);
@@ -327,7 +370,7 @@ int main(int argc, char **argv)
             astral_wire_buffer_free(&out);
         }
     }
-    std::printf("replayed %lu batches (%lu rewritten): %lu decorations, %lu relabels, %lu errors\n", batches, rewritten, gDecorations,
-                gRelabels, gErrors);
+    std::printf("replayed %lu batches (%lu rewritten): %lu decorations, %lu relabels, %lu mentions, %lu errors\n", batches, rewritten,
+                gDecorations, gRelabels, gMentions, gErrors);
     return gErrors ? 1 : 0;
 }

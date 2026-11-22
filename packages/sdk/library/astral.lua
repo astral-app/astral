@@ -341,6 +341,14 @@ function astral.ui.decorate(target, decorator) end
 ---@param target astral.Target
 ---@param relabeler fun(node: astral.Node): string?
 function astral.ui.relabel(target, relabeler) end
+---@class astral.MentionDecoration
+---@field image? string
+---@field round? boolean
+---@field hide_at? boolean
+---@param decorator fun(node: astral.Node): astral.MentionDecoration?
+function astral.ui.mention(decorator) end
+---@param options? { dim: number }
+function astral.ui.settings_backdrop(options) end
 
 astral.discord = {}
 ---@param id astral.Snowflake

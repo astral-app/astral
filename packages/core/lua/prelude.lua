@@ -5,6 +5,7 @@ local native = {
 	number = astral.settings.number,
 	decorate = astral.ui.decorate,
 	relabel = astral.ui.relabel,
+	mention = astral.ui.mention,
 	permission = astral.discord.permission,
 }
 
@@ -473,6 +474,12 @@ end
 function astral.ui.decorate(target, decorator)
 	return native.decorate(target, function(node)
 		return buildPills(decorator(wrapNode(node)))
+	end)
+end
+
+function astral.ui.mention(decorator)
+	return native.mention(function(node)
+		return decorator(wrapNode(node))
 	end)
 end
 

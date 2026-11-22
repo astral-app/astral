@@ -146,6 +146,23 @@ void astral_wire_forget_colors(void);
 unsigned astral_wire_colors_dropped(void);
 AstralWireStats astral_wire_stats(void);
 uint64_t astral_wire_current_channel(void);
+
+typedef struct {
+    uint64_t message_id;
+    uint64_t channel_id;
+    const char *text;
+    uint32_t index;
+} AstralMentionContext;
+
+typedef struct {
+    char image[512];
+    int round;
+    int hide_at;
+} AstralMentionDecoration;
+
+typedef int (*AstralMentionDecorator)(const AstralMentionContext *context, AstralMentionDecoration *decoration);
+
+void astral_wire_set_mention_decorator(AstralMentionDecorator decorator);
 int astral_wire_unsupported_version(void);
 unsigned astral_wire_rewrite_failures(void);
 int astral_settings_rewrite(const uint8_t *bytes, size_t length, AstralWireBuffer *out);

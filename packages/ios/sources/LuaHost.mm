@@ -74,6 +74,7 @@ struct LuaPlugin : astral::PluginPackage, astral::PluginHealth {
     std::vector<std::pair<std::string, int>> decorators;
     std::vector<std::pair<std::string, int>> relabelers;
     std::optional<double> settingsBackdrop;
+    std::vector<int> mentioners;
 };
 
 static int Translate(lua_State *state);
@@ -323,6 +324,15 @@ static int Decorate(lua_State *state)
     if (prefix != "message.author") return luaL_error(state, "astral.ui.decorate: unsupported target '%s'", prefix.c_str());
     lua_pushvalue(state, 2);
     plugin->decorators.push_back({prefix, luaL_ref(state, LUA_REGISTRYINDEX)});
+    return 0;
+}
+
+static int Mention(lua_State *state)
+{
+    LuaPlugin *plugin = Self(state);
+    luaL_checktype(state, 1, LUA_TFUNCTION);
+    lua_pushvalue(state, 1);
+    plugin->mentioners.push_back(luaL_ref(state, LUA_REGISTRYINDEX));
     return 0;
 }
 
@@ -607,6 +617,7 @@ static void InstallAPI(LuaPlugin *plugin)
     Function(state, plugin, "decorate", Decorate);
     Function(state, plugin, "relabel", Relabel);
     Function(state, plugin, "settings_backdrop", SettingsBackdrop);
+    Function(state, plugin, "mention", Mention);
     lua_setfield(state, -2, "ui");
 
     lua_newtable(state);
@@ -662,6 +673,7 @@ static void Stop(LuaPlugin *plugin)
     plugin->decorators.clear();
     plugin->relabelers.clear();
     plugin->settingsBackdrop.reset();
+    plugin->mentioners.clear();
     ApplySettingsBackdrop();
 }
 
@@ -1162,6 +1174,57 @@ int AstralLuaRelabel(const AstralLabelContext *context, const char *text, size_t
     }
     if (!changed) return -1;
     return snprintf(out, capacity, "%s", current.c_str());
+}
+
+int AstralLuaMention(const AstralMentionContext *context, AstralMentionDecoration *decoration)
+{
+    std::unique_lock<std::recursive_mutex> lock(gMutex, std::try_to_lock);
+    if (!lock.owns_lock()) return 0;
+    std::string message = Snowflake(context->message_id);
+    std::string channel = ResolveChannel(context->channel_id, message);
+    NSString *guild = channel.empty() ? nil : AstralDiscordChannelGuild(Native(channel));
+    int decorated = 0;
+    for (auto *plugin : gPlugins) {
+        if (!plugin->state || plugin->failed) continue;
+        for (int mentioner : plugin->mentioners) {
+            lua_State *state = plugin->state;
+            lua_rawgeti(state, LUA_REGISTRYINDEX, mentioner);
+            lua_createtable(state, 0, 5);
+            lua_pushstring(state, context->text);
+            lua_setfield(state, -2, "text");
+            lua_pushinteger(state, context->index + 1);
+            lua_setfield(state, -2, "index");
+            lua_pushstring(state, message.c_str());
+            lua_setfield(state, -2, "message_id");
+            if (!channel.empty()) {
+                lua_pushstring(state, channel.c_str());
+                lua_setfield(state, -2, "channel_id");
+            }
+            if (guild) {
+                lua_pushstring(state, guild.UTF8String);
+                lua_setfield(state, -2, "guild_id");
+            }
+            if (Call(plugin, 1, 1, "mention")) {
+                if (lua_istable(state, -1)) {
+                    lua_getfield(state, -1, "image");
+                    lua_getfield(state, -2, "round");
+                    lua_getfield(state, -3, "hide_at");
+                    const char *image = lua_tostring(state, -3);
+                    if (image && *image && !decoration->image[0] && strncmp(image, "https://", 8) == 0) {
+                        snprintf(decoration->image, sizeof(decoration->image), "%s", image);
+                        decoration->round = lua_isnil(state, -2) ? 1 : lua_toboolean(state, -2);
+                    }
+                    if (lua_toboolean(state, -1)) decoration->hide_at = 1;
+                    lua_pop(state, 3);
+                    decorated = 1;
+                }
+                lua_pop(state, 1);
+            }
+            if (plugin->failed) break;
+        }
+        if (plugin->failed) Stop(plugin);
+    }
+    return decorated;
 }
 
 size_t AstralLuaDecorate(const AstralDecorationContext *context, AstralTag *tags, size_t capacity)

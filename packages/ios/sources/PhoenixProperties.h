@@ -21,10 +21,14 @@ extern "C" {
     X(accessibilityTapLabel, 14)                                                                                                           \
     X(activeBackground, 21)                                                                                                                \
     X(activeBorderColor, 25)                                                                                                               \
+    X(advance, 61)                                                                                                                         \
     X(align, 63)                                                                                                                           \
     X(angle, 70)                                                                                                                           \
     X(background, 90)                                                                                                                      \
     X(backgroundGradient, 91)                                                                                                              \
+    X(bg, 94)                                                                                                                              \
+    X(bgFitText, 97)                                                                                                                       \
+    X(bgRadius, 98)                                                                                                                        \
     X(borderColor, 104)                                                                                                                    \
     X(borderWidth, 107)                                                                                                                    \
     X(color, 129)                                                                                                                          \
@@ -35,6 +39,7 @@ extern "C" {
     X(fontWeight, 208)                                                                                                                     \
     X(gap, 220)                                                                                                                            \
     X(height, 235)                                                                                                                         \
+    X(image, 249)                                                                                                                          \
     X(index, 252)                                                                                                                          \
     X(justify, 260)                                                                                                                        \
     X(lineHeight, 278)                                                                                                                     \
@@ -48,6 +53,7 @@ extern "C" {
     X(padding, 332)                                                                                                                        \
     X(placeholder, 354)                                                                                                                    \
     X(placeholderColor, 355)                                                                                                               \
+    X(pool, 366)                                                                                                                           \
     X(pressFeedback, 376)                                                                                                                  \
     X(radius, 388)                                                                                                                         \
     X(radiusBottomLeft, 389)                                                                                                               \
@@ -55,8 +61,10 @@ extern "C" {
     X(radiusTopLeft, 391)                                                                                                                  \
     X(radiusTopRight, 392)                                                                                                                 \
     X(role, 414)                                                                                                                           \
+    X(round, 418)                                                                                                                          \
     X(scale, 428)                                                                                                                          \
     X(shrink, 460)                                                                                                                         \
+    X(size, 463)                                                                                                                           \
     X(spans, 468)                                                                                                                          \
     X(steps, 481)                                                                                                                          \
     X(text, 499)                                                                                                                           \
@@ -66,7 +74,9 @@ extern "C" {
     X(uri, 542)                                                                                                                            \
     X(value, 543)                                                                                                                          \
     X(width, 553)                                                                                                                          \
+    X(baseline, 572)                                                                                                                       \
     X(colors, 577)                                                                                                                         \
+    X(link, 598)                                                                                                                           \
     X(positions, 613)                                                                                                                      \
     X(exactHitArea, 805)                                                                                                                   \
     X(notoFallback, 835)

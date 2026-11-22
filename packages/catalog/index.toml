@@ -25,6 +25,13 @@ version = "0.0.1"
 description = "Shows your theme behind User Settings and every page in it, which Discord leaves plain."
 base = "plugins/astral.settings-theme/"
 
+[[plugins]]
+id = "astral.mention-avatars"
+name = "Mention Avatars"
+version = "0.0.1"
+description = "Shows user avatars and role icons inside mentions."
+base = "plugins/astral.mention-avatars/"
+
 [[themes]]
 id = "mana"
 name = "Mana"
