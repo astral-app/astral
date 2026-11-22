@@ -38,11 +38,22 @@ func testTools(work string) error {
 func testWire(work string) error {
 	ios := repoPath("packages", "ios")
 	binary := filepath.Join(work, "phoenix-wire-test")
-	if err := run(ios, "clang", "-Wall", "-Wextra", "-Werror", "-g", "-fsanitize=address,undefined",
-		"tests/phoenix-wire-test.c", "tests/support/wire-parser.c", "sources/PhoenixProperties.c", "-o", binary); err != nil {
+	arguments := []string{"-Wall", "-Wextra", "-Werror", "-g", "-fsanitize=address,undefined", "tests/phoenix-wire-test.c", "tests/support/wire-parser.c"}
+	arguments = append(append(arguments, wireSources("sources/")...), "-o", binary)
+	if err := run(ios, "clang", arguments...); err != nil {
 		return err
 	}
 	return run(ios, binary)
+}
+
+var wireSourceFiles = []string{"PhoenixWire.c", "PhoenixWireFormat.c", "PhoenixWirePages.c", "PhoenixWireDecorate.c", "PhoenixWireTheme.c", "PhoenixWireLabels.c", "PhoenixProperties.c"}
+
+func wireSources(prefix string) []string {
+	paths := make([]string, len(wireSourceFiles))
+	for index, file := range wireSourceFiles {
+		paths[index] = prefix + file
+	}
+	return paths
 }
 
 var coreLuaSources = []string{"LuaSandbox", "LuaJSON", "LuaLocale", "PluginPackage", "PluginStorage"}

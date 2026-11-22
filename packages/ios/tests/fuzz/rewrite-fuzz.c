@@ -1,7 +1,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#include "../../sources/PhoenixWire.c"
+#include "../../sources/PhoenixWireInternal.h"
 #include "../support/rewriter-setup.h"
 
 int LLVMFuzzerInitialize(int *count, char ***arguments)

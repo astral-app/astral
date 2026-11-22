@@ -4,7 +4,7 @@
 #include <string.h>
 
 #include "support/wire-parser.h"
-#include "../sources/PhoenixWire.c"
+#include "../sources/PhoenixWireInternal.h"
 #include "support/batch-builder.h"
 
 static char line[1 << 20];
@@ -157,8 +157,8 @@ static void gradientTagTest(void)
     AstralTag tag = {.text = "ADMIN", .foreground = 0xFF000000, .gradient = {0xFF4CAD50, 0xFFB2F8FF}, .gradientCount = 2};
     Out out = {0};
     Decorated slot = {.parent = 1};
-    put8(&out, 1);
-    buildTag(&out, &tag, &slot);
+    wirePut8(&out, 1);
+    wireBuildTag(&out, &tag, &slot);
     assert(astral_wire_summarise(out.bytes, out.length, sink, NULL) > 0);
     assert(strstr(line, "\"complete\":true"));
     assert(strstr(line, "[91,8,"));

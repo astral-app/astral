@@ -37,7 +37,7 @@ func fuzzClang() (string, error) {
 func generateSeeds(work string, corpus string) error {
 	generator := filepath.Join(work, "seeds")
 	tests := repoPath("packages", "ios", "tests")
-	if err := run(tests, "cc", "-O1", "-w", "-o", generator, "fuzz/seeds.c", "../sources/PhoenixProperties.c"); err != nil {
+	if err := run(tests, "cc", append([]string{"-O1", "-w", "-o", generator, "fuzz/seeds.c"}, wireSources("../sources/")...)...); err != nil {
 		return err
 	}
 	if err := os.MkdirAll(corpus, 0o755); err != nil {
@@ -70,7 +70,7 @@ func runFuzz(args []string) error {
 	}
 	target := filepath.Join(work, "rewrite-fuzz")
 	tests := repoPath("packages", "ios", "tests")
-	if err := run(tests, clang, "-g", "-O1", "-fsanitize=fuzzer,address,undefined", "-fno-sanitize-recover=all", "-o", target, "fuzz/rewrite-fuzz.c", "../sources/PhoenixProperties.c"); err != nil {
+	if err := run(tests, clang, append([]string{"-g", "-O1", "-fsanitize=fuzzer,address,undefined", "-fno-sanitize-recover=all", "-o", target, "fuzz/rewrite-fuzz.c"}, wireSources("../sources/")...)...); err != nil {
 		return err
 	}
 	artifacts := filepath.Join(work, "artifacts") + string(os.PathSeparator)
@@ -104,7 +104,7 @@ func runBench(args []string) error {
 	defer cleanup()
 	binary := filepath.Join(work, "rewrite-bench")
 	tests := repoPath("packages", "ios", "tests")
-	if err := run(tests, "cc", "-O2", "-w", "-o", binary, "bench/rewrite-bench.c", "../sources/PhoenixProperties.c"); err != nil {
+	if err := run(tests, "cc", append([]string{"-O2", "-flto=thin", "-w", "-o", binary, "bench/rewrite-bench.c"}, wireSources("../sources/")...)...); err != nil {
 		return err
 	}
 	return run(repoPath(), binary, flags.Args()...)
