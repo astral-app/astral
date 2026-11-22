@@ -84,4 +84,6 @@ local Dog = astral.class("Dog", Animal)
 local dog = Dog("Rex")
 assert(Dog.is(dog) and Animal.is(dog) and tostring(dog) == "Dog(Rex)")
 
+assert(type(astral.state) == "table" and next(astral.state) == nil)
+
 print("prelude ok")

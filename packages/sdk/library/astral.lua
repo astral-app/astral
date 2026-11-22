@@ -269,6 +269,12 @@ function astral.class(name, parent) end
 ---@param value astral.SettingValue
 function astral.on_setting(key, value) end
 
+---@type table<string, any>
+astral.state = {}
+
+---@param previous table<string, any>
+function astral.on_reload(previous) end
+
 astral.settings = {}
 ---@type table<string, astral.SettingValue>
 astral.settings.values = {}

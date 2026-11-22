@@ -87,9 +87,7 @@ static NSData *PutPlugin(NSDictionary *body)
     }
     [NSFileManager.defaultManager removeItemAtPath:[directory stringByAppendingPathComponent:@"signature"] error:nil];
     dispatch_sync(dispatch_get_main_queue(), ^{
-        AstralLuaRemove(identifier);
-        AstralLuaRescan();
-        AstralLuaSetEnabled(identifier, YES);
+        AstralLuaReload(identifier);
         if (gChanged) gChanged();
     });
     for (NSDictionary *plugin in AstralLuaPlugins()) {

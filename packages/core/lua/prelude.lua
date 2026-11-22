@@ -376,6 +376,8 @@ function astral.settings.option(value, title, subtitle)
 	return { value = value, title = title, subtitle = subtitle }
 end
 
+astral.state = {}
+
 function astral.on_setting(key, value)
 	values[key] = value
 	for _, listener in ipairs(listeners[key] or {}) do

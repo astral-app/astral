@@ -5,6 +5,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <set>
 #include <string>
 #include <vector>
@@ -901,6 +902,54 @@ NSString *AstralLuaEval(NSString *pluginID, NSString *code)
     }
     lua_settop(state, top);
     return [parts componentsJoinedByString:@"\t"];
+}
+
+static std::optional<nlohmann::json> KeptState(LuaPlugin *plugin)
+{
+    if (!plugin || !plugin->state) return std::nullopt;
+    lua_State *state = plugin->state;
+    int top = lua_gettop(state);
+    lua_getglobal(state, "astral");
+    if (lua_istable(state, -1)) lua_getfield(state, -1, "state");
+    nlohmann::json kept;
+    bool converted = lua_istable(state, -1) && loader::lua::toJSON(state, -1, kept);
+    lua_settop(state, top);
+    if (!converted) {
+        AstralDevAppendLog(Native(plugin->identifier + ": astral.state holds values that cannot be kept; reloading without it"));
+        return std::nullopt;
+    }
+    return kept;
+}
+
+static void RestoreState(LuaPlugin *plugin, const nlohmann::json &kept)
+{
+    if (!plugin->state) return;
+    lua_State *state = plugin->state;
+    int top = lua_gettop(state);
+    lua_getglobal(state, "astral");
+    if (!lua_istable(state, -1)) {
+        lua_settop(state, top);
+        return;
+    }
+    loader::lua::pushJSON(state, kept);
+    lua_setfield(state, -2, "state");
+    lua_getfield(state, -1, "on_reload");
+    if (lua_isfunction(state, -1)) {
+        lua_getfield(state, -2, "state");
+        Call(plugin, 1, 0, "on_reload");
+    }
+    lua_settop(state, top);
+}
+
+void AstralLuaReload(NSString *pluginID)
+{
+    std::lock_guard<std::recursive_mutex> lock(gMutex);
+    std::optional<nlohmann::json> kept = KeptState(Find(pluginID));
+    AstralLuaRemove(pluginID);
+    AstralLuaRescan();
+    AstralLuaSetEnabled(pluginID, YES);
+    LuaPlugin *plugin = Find(pluginID);
+    if (plugin && kept) RestoreState(plugin, *kept);
 }
 
 void AstralLuaRemove(NSString *pluginID)
