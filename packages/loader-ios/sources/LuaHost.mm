@@ -67,7 +67,7 @@ struct LuaPlugin {
     std::map<std::string, std::string> strings;
     std::map<std::string, std::string> fallbackStrings;
     std::string locale;
-    std::vector<int> relabelers;
+    std::vector<std::pair<std::string, int>> relabelers;
 };
 
 static int Translate(lua_State *state);
@@ -295,9 +295,11 @@ static int Relabel(lua_State *state)
     LuaPlugin *plugin = Self(state);
     std::string target = luaL_checkstring(state, 1);
     luaL_checktype(state, 2, LUA_TFUNCTION);
-    if (target != "message.author") return luaL_error(state, "astral.ui.relabel: unsupported target '%s'", target.c_str());
+    if (target != "message.author" && target != "channel.name" && target != "member.name" && target != "composer.placeholder") {
+        return luaL_error(state, "astral.ui.relabel: unsupported target '%s'", target.c_str());
+    }
     lua_pushvalue(state, 2);
-    plugin->relabelers.push_back(luaL_ref(state, LUA_REGISTRYINDEX));
+    plugin->relabelers.push_back({target, luaL_ref(state, LUA_REGISTRYINDEX)});
     return 0;
 }
 
@@ -891,30 +893,69 @@ static std::string ResolveChannel(uint64_t channelID, const std::string &message
     return channel;
 }
 
+static const char *LabelTarget(AstralLabelKind kind)
+{
+    switch (kind) {
+    case kAstralLabelChannel:
+        return "channel.name";
+    case kAstralLabelMember:
+        return "member.name";
+    case kAstralLabelComposer:
+        return "composer.placeholder";
+    default:
+        return "message.author";
+    }
+}
+
+static const char *LabelKindName(AstralLabelKind kind)
+{
+    switch (kind) {
+    case kAstralLabelReply:
+        return "reply";
+    case kAstralLabelChannel:
+        return "channel";
+    case kAstralLabelMember:
+        return "member";
+    case kAstralLabelComposer:
+        return "composer";
+    default:
+        return "author";
+    }
+}
+
 int AstralLuaRelabel(const AstralLabelContext *context, const char *text, size_t length, char *out, size_t capacity)
 {
     std::unique_lock<std::recursive_mutex> lock(gMutex, std::try_to_lock);
     if (!lock.owns_lock()) return -1;
     std::string message = Snowflake(context->message_id);
     std::string channel = ResolveChannel(context->channel_id, message);
+    std::string target = Snowflake(context->target_id);
     NSString *guild = channel.empty() ? nil : AstralDiscordChannelGuild(Native(channel));
+    std::string wanted = LabelTarget(context->kind);
     std::string current(text, length);
     bool changed = false;
     for (auto *plugin : gPlugins) {
         if (!plugin->state || plugin->failed) continue;
-        for (int relabeler : plugin->relabelers) {
+        for (auto &relabeler : plugin->relabelers) {
+            if (relabeler.first != wanted) continue;
             lua_State *state = plugin->state;
-            lua_rawgeti(state, LUA_REGISTRYINDEX, relabeler);
-            lua_createtable(state, 0, 5);
-            lua_pushstring(state, context->kind == kAstralLabelReply ? "reply" : "author");
+            lua_rawgeti(state, LUA_REGISTRYINDEX, relabeler.second);
+            lua_createtable(state, 0, 6);
+            lua_pushstring(state, LabelKindName(context->kind));
             lua_setfield(state, -2, "kind");
             lua_pushlstring(state, current.data(), current.size());
             lua_setfield(state, -2, "text");
-            lua_pushstring(state, message.c_str());
-            lua_setfield(state, -2, "message_id");
+            if (!message.empty()) {
+                lua_pushstring(state, message.c_str());
+                lua_setfield(state, -2, "message_id");
+            }
             if (!channel.empty()) {
                 lua_pushstring(state, channel.c_str());
                 lua_setfield(state, -2, "channel_id");
+            }
+            if (context->kind == kAstralLabelMember && !target.empty()) {
+                lua_pushstring(state, target.c_str());
+                lua_setfield(state, -2, "user_id");
             }
             if (guild) {
                 lua_pushstring(state, guild.UTF8String);

@@ -41,7 +41,7 @@ Each plugin gets its own `lua_State` with `base`, `table`, `string`, `math`, `ut
 | `astral.settings.choice(key, title, options, default, { section })` | Radio rows; `options` are `{ value, title, subtitle }` |
 | `astral.settings.get/set`, `astral.on_setting(key, value)` | Persisted values |
 | `astral.ui.decorate("message.author", fn)` | `fn(node)` returns pills `{ text, color, text_color, colors, shape }` shown after the guild tag |
-| `astral.ui.relabel("message.author", fn)` | `fn(node)` returns new text for a message author (`node.kind == "author"`) or a reply preview's author (`"reply"`); plugins chain |
+| `astral.ui.relabel(target, fn)` | `fn(node)` returns new text; plugins chain. Targets: `message.author` (authors and reply previews, `node.kind` `"author"`/`"reply"`), `channel.name` (channel list rows, `node.channel_id`), `member.name` (member list rows, `node.user_id`), `composer.placeholder` |
 | `astral.discord.guild/member/message/user/nickname/channel_guild/permissions` | Read-only views of Discord's own cache; messages carry `type`, `author` and `reference`, permissions apply channel overwrites |
 | `astral.discord.permission.*` | Permission bits |
 

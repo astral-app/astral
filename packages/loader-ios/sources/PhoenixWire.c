@@ -1972,6 +1972,73 @@ static int compareEdits(const void *left, const void *right)
     return a < b ? -1 : a > b;
 }
 
+typedef struct {
+    const char *prefix;
+    AstralLabelKind kind;
+} LabelRowKind;
+
+static const LabelRowKind kLabelRows[] = {
+    {"navigation.channel:", kAstralLabelChannel},
+    {"channel.details.member:", kAstralLabelMember},
+};
+
+static void labelRows(const uint8_t *bytes, const Span *spans, size_t count, const LabelLink *links, size_t linkCount, LabelEdit *edits,
+                      size_t *editCount)
+{
+    enum { kMaxRows = 512 };
+    int32_t rowIds[kMaxRows];
+    uint64_t rowTargets[kMaxRows];
+    AstralLabelKind rowKinds[kMaxRows];
+    int rowLabelled[kMaxRows];
+    size_t rowCount = 0;
+    for (size_t index = 0; index < count && rowCount < kMaxRows; index++) {
+        const Span *span = &spans[index];
+        if (span->op != 1) continue;
+        size_t offset;
+        uint32_t size;
+        if (!stringAt(bytes, span, 9, &offset, &size)) continue;
+        if (size == 8 && memcmp(bytes + offset + 4, "composer", 8) == 0 && stringAt(bytes, span, 354, &offset, &size)) {
+            AstralLabelContext context = {kAstralLabelComposer, 0, gCurrentChannel, 0};
+            addLabelEdit(edits, editCount, bytes, offset, size, &context);
+            continue;
+        }
+        for (size_t kind = 0; kind < sizeof(kLabelRows) / sizeof(*kLabelRows); kind++) {
+            uint64_t target = 0;
+            if (!prefixed(bytes + offset + 4, size, kLabelRows[kind].prefix, &target)) continue;
+            rowIds[rowCount] = span->id;
+            rowTargets[rowCount] = target;
+            rowKinds[rowCount] = kLabelRows[kind].kind;
+            rowLabelled[rowCount] = 0;
+            rowCount++;
+            break;
+        }
+    }
+    if (!rowCount) return;
+    for (size_t index = 0; index < count; index++) {
+        const Span *span = &spans[index];
+        if (span->op != 1 || !typeIs(bytes, span, "text")) continue;
+        size_t offset;
+        uint32_t size;
+        if (!stringAt(bytes, span, 499, &offset, &size)) continue;
+        int32_t node = span->id;
+        for (int depth = 0; depth < 8 && node; depth++) {
+            node = labelParent(links, linkCount, node);
+            size_t row = rowCount;
+            for (size_t candidate = 0; candidate < rowCount; candidate++) {
+                if (rowIds[candidate] == node) row = candidate;
+            }
+            if (row == rowCount) continue;
+            if (!rowLabelled[row]) {
+                rowLabelled[row] = 1;
+                uint64_t channel = rowKinds[row] == kAstralLabelChannel ? rowTargets[row] : gCurrentChannel;
+                AstralLabelContext context = {rowKinds[row], 0, channel, rowTargets[row]};
+                addLabelEdit(edits, editCount, bytes, offset, size, &context);
+            }
+            break;
+        }
+    }
+}
+
 static uint8_t *relabel(const uint8_t *bytes, size_t length, const Span *spans, size_t count, size_t *newLength)
 {
     if (!gRelabeler) return NULL;
@@ -2011,7 +2078,7 @@ static uint8_t *relabel(const uint8_t *bytes, size_t length, const Span *spans, 
         Tracked *tracked = message ? NULL : trackSlot(span->id, 0);
         if (!message && tracked && tracked->kind == kTrackAuthor) message = tracked->value;
         if (message && stringAt(bytes, span, 499, &offset, &size)) {
-            AstralLabelContext context = {kAstralLabelAuthor, message, gCurrentChannel};
+            AstralLabelContext context = {kAstralLabelAuthor, message, gCurrentChannel, 0};
             addLabelEdit(edits, &editCount, bytes, offset, size, &context);
             continue;
         }
@@ -2022,9 +2089,10 @@ static uint8_t *relabel(const uint8_t *bytes, size_t length, const Span *spans, 
             if (rowOf(links, linkCount, rows, rowCount, authorNodes[author]) == row) replying = authorMessages[author];
         }
         if (!replying) continue;
-        AstralLabelContext context = {kAstralLabelReply, replying, gCurrentChannel};
+        AstralLabelContext context = {kAstralLabelReply, replying, gCurrentChannel, 0};
         addLabelEdit(edits, &editCount, bytes, offset, size, &context);
     }
+    labelRows(bytes, spans, count, links, linkCount, edits, &editCount);
     if (!editCount) return NULL;
     qsort(edits, editCount, sizeof(*edits), compareEdits);
     size_t total = length;

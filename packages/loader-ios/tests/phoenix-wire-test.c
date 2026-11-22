@@ -344,7 +344,7 @@ static void paletteTest(void)
 static int labelWithUser(const AstralLabelContext *context, const char *text, size_t length, char *out, size_t capacity)
 {
     (void)length;
-    const char *user = context->kind == kAstralLabelReply ? "@replied" : "@author";
+    const char *user = context->kind == kAstralLabelReply ? "@replied" : context->kind == kAstralLabelChannel ? "#chan" : "@author";
     return snprintf(out, capacity, "%s (%s)", text, user);
 }
 
@@ -409,6 +409,25 @@ static void relabelTest(void)
     assert(strstr(line, "[129,3,-15658735]") || strstr(line, "[129,3,4279308561]"));
     astral_wire_buffer_free(&out);
     astral_wire_set_palette(NULL, NULL, 0);
+
+    Batch channels = {.length = 0};
+    b8(&channels, 1);
+    create(&channels, 990, "view", 1);
+    b16(&channels, 9);
+    b8(&channels, 6);
+    bstr(&channels, "navigation.channel:100000000000000002");
+    create(&channels, 991, "view", 0);
+    create(&channels, 992, "text", 1);
+    b16(&channels, 499);
+    b8(&channels, 6);
+    bstr(&channels, "dev");
+    children(&channels, 991, 1, (int[]){992});
+    children(&channels, 990, 1, (int[]){991});
+    assert(astral_settings_rewrite(channels.bytes, channels.length, &out));
+    astral_wire_summarise(out.bytes, out.length, sink, NULL);
+    assert(strstr(line, "\"complete\":true"));
+    assert(strstr(line, "[499,6,{\"n\":11"));
+    astral_wire_buffer_free(&out);
     astral_wire_set_relabeler(NULL);
 }
 

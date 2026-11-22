@@ -99,12 +99,16 @@ typedef size_t (*AstralDecorator)(const AstralDecorationContext *context, Astral
 typedef enum {
     kAstralLabelAuthor,
     kAstralLabelReply,
+    kAstralLabelChannel,
+    kAstralLabelMember,
+    kAstralLabelComposer,
 } AstralLabelKind;
 
 typedef struct {
     AstralLabelKind kind;
     uint64_t message_id;
     uint64_t channel_id;
+    uint64_t target_id;
 } AstralLabelContext;
 
 typedef int (*AstralRelabeler)(const AstralLabelContext *context, const char *text, size_t length, char *out, size_t capacity);
