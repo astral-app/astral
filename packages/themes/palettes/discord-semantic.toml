@@ -1,0 +1,5605 @@
+name = "Discord semantic colours"
+source = "Discord 355.0 generated-definitions"
+
+[colors]
+ACTIVITY_TIMEBAR_PROGRESS_BACKGROUND = { ash = [
+	"BLURPLE_50",
+	1,
+], dark = [
+	"BLURPLE_50",
+	1,
+], light = [
+	"BLURPLE_50",
+	1,
+], onyx = [
+	"BLURPLE_50",
+	1,
+] }
+ANDROID_NAVIGATION_BAR_BACKGROUND = { ash = [
+	"PRIMARY_830",
+	1,
+], dark = [
+	"PLUM_24",
+	1,
+], light = [
+	"PRIMARY_100",
+	1,
+], onyx = [
+	"PLUM_24",
+	1,
+] }
+ANDROID_NAVIGATION_SCRIM_BACKGROUND = { ash = [
+	"PRIMARY_830",
+	0.5,
+], dark = [
+	"PLUM_24",
+	0.5,
+], light = [
+	"PRIMARY_100",
+	0.5,
+], onyx = [
+	"PLUM_24",
+	0.5,
+] }
+APP_FRAME_BORDER = { ash = [
+	"OPACITY_12",
+	0.12156862745098039,
+], dark = [
+	"OPACITY_12",
+	0.12156862745098039,
+], light = [
+	"OPACITY_28",
+	0.2784313725490196,
+], onyx = [
+	"OPACITY_20",
+	0.2,
+] }
+APP_MESSAGE_EMBED_SECONDARY_TEXT = { ash = [
+	"WHITE",
+	0.7,
+], dark = [
+	"WHITE",
+	0.7,
+], light = [
+	"WHITE",
+	0.7,
+], onyx = [
+	"WHITE",
+	0.7,
+] }
+BACKGROUND_ACCENT = { ash = [
+	"PRIMARY_530",
+	1,
+], dark = [
+	"PLUM_15",
+	1,
+], light = [
+	"PRIMARY_430",
+	1,
+], onyx = [
+	"PLUM_17",
+	1,
+] }
+BACKGROUND_APP_LAUNCHER_CARD_DEFAULT = { ash = [
+	"OPACITY_8",
+	0.0784313725490196,
+], dark = [
+	"OPACITY_8",
+	0.0784313725490196,
+], light = [
+	"OPACITY_12",
+	0.12156862745098039,
+], onyx = [
+	"OPACITY_8",
+	0.0784313725490196,
+] }
+BACKGROUND_APP_LAUNCHER_ROW_DEFAULT = { ash = [
+	"OPACITY_8",
+	0.0784313725490196,
+], dark = [
+	"OPACITY_8",
+	0.0784313725490196,
+], light = [
+	"OPACITY_12",
+	0.12156862745098039,
+], onyx = [
+	"OPACITY_8",
+	0.0784313725490196,
+] }
+BACKGROUND_BASE_LOW = { ash = [
+	"NEUTRAL_66",
+	1,
+], dark = [
+	"NEUTRAL_82",
+	1,
+], light = [
+	"NEUTRAL_2",
+	1,
+], onyx = [
+	"NEUTRAL_100",
+	1,
+] }
+BACKGROUND_BASE_LOWER = { ash = [
+	"NEUTRAL_69",
+	1,
+], dark = [
+	"NEUTRAL_86",
+	1,
+], light = [
+	"NEUTRAL_2",
+	1,
+], onyx = [
+	"NEUTRAL_100",
+	1,
+] }
+BACKGROUND_BASE_LOWEST = { ash = [
+	"NEUTRAL_73",
+	1,
+], dark = [
+	"NEUTRAL_92",
+	1,
+], light = [
+	"NEUTRAL_4",
+	1,
+], onyx = [
+	"NEUTRAL_100",
+	1,
+] }
+BACKGROUND_BRAND = { ash = [
+	"BLURPLE_50",
+	1,
+], dark = [
+	"BLURPLE_50",
+	1,
+], light = [
+	"BLURPLE_50",
+	1,
+], onyx = [
+	"BLURPLE_50",
+	1,
+] }
+BACKGROUND_CODE = { ash = [
+	"OPACITY_BLURPLE_8",
+	0.0784313725490196,
+], dark = [
+	"OPACITY_BLURPLE_8",
+	0.0784313725490196,
+], light = [
+	"OPACITY_BLURPLE_4",
+	0.0392156862745098,
+], onyx = [
+	"OPACITY_BLURPLE_8",
+	0.0784313725490196,
+] }
+BACKGROUND_FEEDBACK_CRITICAL = { ash = [
+	"RED_NEW_80",
+	1,
+], dark = [
+	"RED_NEW_80",
+	1,
+], light = [
+	"RED_NEW_80",
+	1,
+], onyx = [
+	"RED_NEW_80",
+	1,
+] }
+BACKGROUND_FEEDBACK_INFO = { ash = [
+	"BLUE_NEW_80",
+	1,
+], dark = [
+	"BLUE_NEW_80",
+	1,
+], light = [
+	"BLUE_NEW_80",
+	1,
+], onyx = [
+	"BLUE_NEW_80",
+	1,
+] }
+BACKGROUND_FEEDBACK_MOD_CRITICAL = { ash = [
+	"OPACITY_RED_8",
+	0.0784313725490196,
+], dark = [
+	"OPACITY_RED_8",
+	0.0784313725490196,
+], light = [
+	"OPACITY_RED_8",
+	0.0784313725490196,
+], onyx = [
+	"OPACITY_RED_8",
+	0.0784313725490196,
+] }
+BACKGROUND_FEEDBACK_MOD_INFO = { ash = [
+	"OPACITY_BLUE_8",
+	0.0784313725490196,
+], dark = [
+	"OPACITY_BLUE_8",
+	0.0784313725490196,
+], light = [
+	"OPACITY_BLUE_8",
+	0.0784313725490196,
+], onyx = [
+	"OPACITY_BLUE_8",
+	0.0784313725490196,
+] }
+BACKGROUND_FEEDBACK_MOD_POSITIVE = { ash = [
+	"OPACITY_GREEN_8",
+	0.0784313725490196,
+], dark = [
+	"OPACITY_GREEN_8",
+	0.0784313725490196,
+], light = [
+	"OPACITY_GREEN_8",
+	0.0784313725490196,
+], onyx = [
+	"OPACITY_GREEN_8",
+	0.0784313725490196,
+] }
+BACKGROUND_FEEDBACK_MOD_WARNING = { ash = [
+	"OPACITY_YELLOW_8",
+	0.0784313725490196,
+], dark = [
+	"OPACITY_YELLOW_8",
+	0.0784313725490196,
+], light = [
+	"OPACITY_YELLOW_8",
+	0.0784313725490196,
+], onyx = [
+	"OPACITY_YELLOW_8",
+	0.0784313725490196,
+] }
+BACKGROUND_FEEDBACK_NOTIFICATION = { ash = [
+	"RED_NEW_50",
+	1,
+], dark = [
+	"RED_NEW_50",
+	1,
+], light = [
+	"RED_NEW_50",
+	1,
+], onyx = [
+	"RED_NEW_50",
+	1,
+] }
+BACKGROUND_FEEDBACK_POSITIVE = { ash = [
+	"GREEN_NEW_80",
+	1,
+], dark = [
+	"GREEN_NEW_80",
+	1,
+], light = [
+	"GREEN_NEW_80",
+	1,
+], onyx = [
+	"GREEN_NEW_80",
+	1,
+] }
+BACKGROUND_FEEDBACK_WARNING = { ash = [
+	"YELLOW_NEW_55",
+	1,
+], dark = [
+	"YELLOW_NEW_55",
+	1,
+], light = [
+	"YELLOW_NEW_55",
+	1,
+], onyx = [
+	"YELLOW_NEW_55",
+	1,
+] }
+BACKGROUND_MOD_MUTED = { ash = [
+	"OPACITY_8",
+	0.0784313725490196,
+], dark = [
+	"OPACITY_8",
+	0.0784313725490196,
+], light = [
+	"OPACITY_8",
+	0.0784313725490196,
+], onyx = [
+	"OPACITY_8",
+	0.0784313725490196,
+] }
+BACKGROUND_MOD_NORMAL = { ash = [
+	"OPACITY_16",
+	0.1607843137254902,
+], dark = [
+	"OPACITY_16",
+	0.1607843137254902,
+], light = [
+	"OPACITY_16",
+	0.1607843137254902,
+], onyx = [
+	"OPACITY_20",
+	0.2,
+] }
+BACKGROUND_MOD_STRONG = { ash = [
+	"OPACITY_20",
+	0.2,
+], dark = [
+	"OPACITY_20",
+	0.2,
+], light = [
+	"OPACITY_24",
+	0.23921568627450981,
+], onyx = [
+	"OPACITY_24",
+	0.23921568627450981,
+] }
+BACKGROUND_MOD_SUBTLE = { ash = [
+	"OPACITY_12",
+	0.12156862745098039,
+], dark = [
+	"OPACITY_12",
+	0.12156862745098039,
+], light = [
+	"OPACITY_12",
+	0.12156862745098039,
+], onyx = [
+	"OPACITY_12",
+	0.12156862745098039,
+] }
+BACKGROUND_SCRIM = { ash = [
+	"OPACITY_BLACK_80",
+	0.8,
+], dark = [
+	"OPACITY_BLACK_80",
+	0.8,
+], light = [
+	"OPACITY_BLACK_64",
+	0.6392156862745098,
+], onyx = [
+	"OPACITY_BLACK_80",
+	0.8,
+] }
+BACKGROUND_SCRIM_LIGHTBOX = { ash = [
+	"OPACITY_BLACK_92",
+	0.9215686274509803,
+], dark = [
+	"OPACITY_BLACK_92",
+	0.9215686274509803,
+], light = [
+	"OPACITY_BLACK_92",
+	0.9215686274509803,
+], onyx = [
+	"OPACITY_BLACK_92",
+	0.9215686274509803,
+] }
+BACKGROUND_SECONDARY_ALT = { ash = [
+	"PRIMARY_660",
+	1,
+], dark = [
+	"PLUM_15",
+	1,
+], light = [
+	"PRIMARY_160",
+	1,
+], onyx = [
+	"PLUM_17",
+	1,
+] }
+BACKGROUND_SURFACE_HIGH = { ash = [
+	"NEUTRAL_64",
+	1,
+], dark = [
+	"NEUTRAL_79",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_96",
+	1,
+] }
+BACKGROUND_SURFACE_HIGHEST = { ash = [
+	"NEUTRAL_60",
+	1,
+], dark = [
+	"NEUTRAL_73",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_88",
+	1,
+] }
+BACKGROUND_TILE_GRADIENT_PINK_END = { ash = [
+	"ILLO_PINK_70",
+	0.3,
+], dark = [
+	"ILLO_PINK_70",
+	0.3,
+], light = [
+	"ILLO_PINK_30",
+	0.3,
+], onyx = [
+	"ILLO_PINK_70",
+	0.3,
+] }
+BACKGROUND_TILE_GRADIENT_PINK_START = { ash = [
+	"ILLO_PINK_50",
+	0.3,
+], dark = [
+	"ILLO_PINK_50",
+	0.3,
+], light = [
+	"ILLO_PINK_10",
+	0.3,
+], onyx = [
+	"ILLO_PINK_50",
+	0.3,
+] }
+BACKGROUND_VOICE_MUTED = { ash = [
+	"OPACITY_RED_12",
+	0.12156862745098039,
+], dark = [
+	"OPACITY_RED_12",
+	0.12156862745098039,
+], light = [
+	"OPACITY_RED_12",
+	0.12156862745098039,
+], onyx = [
+	"OPACITY_RED_12",
+	0.12156862745098039,
+] }
+BADGE_COMMON_BACKGROUND = { ash = [
+	"OPACITY_24",
+	0.23921568627450981,
+], dark = [
+	"OPACITY_24",
+	0.23921568627450981,
+], light = [
+	"OPACITY_24",
+	0.23921568627450981,
+], onyx = [
+	"OPACITY_24",
+	0.23921568627450981,
+] }
+BADGE_COMMON_BORDER = { ash = [
+	"NEUTRAL_35",
+	1,
+], dark = [
+	"NEUTRAL_35",
+	1,
+], light = [
+	"NEUTRAL_35",
+	1,
+], onyx = [
+	"NEUTRAL_35",
+	1,
+] }
+BADGE_COMMON_TEXT = { ash = [
+	"NEUTRAL_15",
+	1,
+], dark = [
+	"NEUTRAL_15",
+	1,
+], light = [
+	"NEUTRAL_45",
+	1,
+], onyx = [
+	"NEUTRAL_15",
+	1,
+] }
+BADGE_CRITICAL_BACKGROUND = { ash = [
+	"RED_NEW_50",
+	1,
+], dark = [
+	"RED_NEW_50",
+	1,
+], light = [
+	"RED_NEW_50",
+	1,
+], onyx = [
+	"RED_NEW_50",
+	1,
+] }
+BADGE_CRITICAL_BORDER = { ash = [
+	"OPACITY_WHITE_8",
+	0.0784313725490196,
+], dark = [
+	"OPACITY_WHITE_8",
+	0.0784313725490196,
+], light = [
+	"OPACITY_WHITE_8",
+	0.0784313725490196,
+], onyx = [
+	"OPACITY_WHITE_8",
+	0.0784313725490196,
+] }
+BADGE_CRITICAL_TEXT = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_1",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_1",
+	1,
+] }
+BADGE_EPIC_BACKGROUND = { ash = [
+	"ILLO_PURPLE_40",
+	0.24,
+], dark = [
+	"ILLO_PURPLE_40",
+	0.24,
+], light = [
+	"ILLO_PURPLE_40",
+	0.24,
+], onyx = [
+	"ILLO_PURPLE_40",
+	0.24,
+] }
+BADGE_EPIC_BORDER_GRADIENT_START = { ash = [
+	"ILLO_PINK_40",
+	1,
+], dark = [
+	"ILLO_PINK_40",
+	1,
+], light = [
+	"ILLO_PINK_40",
+	1,
+], onyx = [
+	"ILLO_PINK_40",
+	1,
+] }
+BADGE_EPIC_TEXT = { ash = [
+	"ILLO_PURPLE_30",
+	1,
+], dark = [
+	"ILLO_PURPLE_30",
+	1,
+], light = [
+	"ILLO_PURPLE_50",
+	1,
+], onyx = [
+	"ILLO_PURPLE_30",
+	1,
+] }
+BADGE_EXPRESSIVE_BACKGROUND = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_1",
+	1,
+], light = [
+	"BLURPLE_50",
+	1,
+], onyx = [
+	"NEUTRAL_1",
+	1,
+] }
+BADGE_EXPRESSIVE_BORDER = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_1",
+	1,
+], light = [
+	"BLURPLE_50",
+	1,
+], onyx = [
+	"NEUTRAL_1",
+	1,
+] }
+BADGE_EXPRESSIVE_TEXT = { ash = [
+	"NEUTRAL_71",
+	1,
+], dark = [
+	"NEUTRAL_71",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_71",
+	1,
+] }
+BADGE_INVERTED_BACKGROUND = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_1",
+	1,
+], light = [
+	"NEUTRAL_100",
+	1,
+], onyx = [
+	"NEUTRAL_1",
+	1,
+] }
+BADGE_INVERTED_BORDER = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_1",
+	1,
+], light = [
+	"NEUTRAL_100",
+	1,
+], onyx = [
+	"NEUTRAL_1",
+	1,
+] }
+BADGE_INVERTED_TEXT = { ash = [
+	"NEUTRAL_100",
+	1,
+], dark = [
+	"NEUTRAL_100",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_100",
+	1,
+] }
+BADGE_MYTHIC_BACKGROUND = { ash = [
+	"ILLO_ORANGE_40",
+	0.24,
+], dark = [
+	"ILLO_ORANGE_40",
+	0.24,
+], light = [
+	"ILLO_ORANGE_40",
+	0.24,
+], onyx = [
+	"ILLO_ORANGE_40",
+	0.24,
+] }
+BADGE_MYTHIC_BORDER_GRADIENT_START = { ash = [
+	"ILLO_YELLOW_40",
+	1,
+], dark = [
+	"ILLO_YELLOW_40",
+	1,
+], light = [
+	"ILLO_YELLOW_40",
+	1,
+], onyx = [
+	"ILLO_YELLOW_40",
+	1,
+] }
+BADGE_MYTHIC_TEXT = { ash = [
+	"ILLO_ORANGE_30",
+	1,
+], dark = [
+	"ILLO_ORANGE_30",
+	1,
+], light = [
+	"ILLO_ORANGE_50",
+	1,
+], onyx = [
+	"ILLO_ORANGE_30",
+	1,
+] }
+BADGE_NOTIFICATION_BACKGROUND = { ash = [
+	"RED_NEW_50",
+	1,
+], dark = [
+	"RED_NEW_50",
+	1,
+], light = [
+	"RED_NEW_50",
+	1,
+], onyx = [
+	"RED_NEW_50",
+	1,
+] }
+BADGE_NOTIFICATION_BORDER = { ash = [
+	"OPACITY_WHITE_8",
+	0.0784313725490196,
+], dark = [
+	"OPACITY_WHITE_8",
+	0.0784313725490196,
+], light = [
+	"OPACITY_WHITE_8",
+	0.0784313725490196,
+], onyx = [
+	"OPACITY_WHITE_8",
+	0.0784313725490196,
+] }
+BADGE_NOTIFICATION_TEXT = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_1",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_1",
+	1,
+] }
+BADGE_PREMIUM_BACKGROUND_GRADIENT_END = { ash = [
+	"PREMIUM_TIER_2_PINK_FOR_GRADIENTS",
+	1,
+], dark = [
+	"PREMIUM_TIER_2_PINK_FOR_GRADIENTS",
+	1,
+], light = [
+	"PREMIUM_TIER_2_PINK_FOR_GRADIENTS",
+	1,
+], onyx = [
+	"PREMIUM_TIER_2_PINK_FOR_GRADIENTS",
+	1,
+] }
+BADGE_PREMIUM_BACKGROUND_GRADIENT_MID = { ash = [
+	"PREMIUM_TIER_2_PURPLE_FOR_GRADIENTS_2",
+	1,
+], dark = [
+	"PREMIUM_TIER_2_PURPLE_FOR_GRADIENTS_2",
+	1,
+], light = [
+	"PREMIUM_TIER_2_PURPLE_FOR_GRADIENTS_2",
+	1,
+], onyx = [
+	"PREMIUM_TIER_2_PURPLE_FOR_GRADIENTS_2",
+	1,
+] }
+BADGE_PREMIUM_BACKGROUND_GRADIENT_START = { ash = [
+	"PREMIUM_TIER_2_PURPLE_FOR_GRADIENTS",
+	1,
+], dark = [
+	"PREMIUM_TIER_2_PURPLE_FOR_GRADIENTS",
+	1,
+], light = [
+	"PREMIUM_TIER_2_PURPLE_FOR_GRADIENTS",
+	1,
+], onyx = [
+	"PREMIUM_TIER_2_PURPLE_FOR_GRADIENTS",
+	1,
+] }
+BADGE_PREMIUM_TEXT = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_1",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_1",
+	1,
+] }
+BADGE_PRIMARY_BACKGROUND = { ash = [
+	"BLURPLE_50",
+	1,
+], dark = [
+	"BLURPLE_50",
+	1,
+], light = [
+	"BLURPLE_50",
+	1,
+], onyx = [
+	"BLURPLE_50",
+	1,
+] }
+BADGE_PRIMARY_BORDER = { ash = [
+	"BLURPLE_50",
+	1,
+], dark = [
+	"BLURPLE_50",
+	1,
+], light = [
+	"BLURPLE_50",
+	1,
+], onyx = [
+	"BLURPLE_50",
+	1,
+] }
+BADGE_PRIMARY_TEXT = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_1",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_1",
+	1,
+] }
+BADGE_RARE_BACKGROUND = { ash = [
+	"ILLO_BLUE_40",
+	0.24,
+], dark = [
+	"ILLO_BLUE_40",
+	0.24,
+], light = [
+	"ILLO_BLUE_40",
+	0.24,
+], onyx = [
+	"ILLO_BLUE_40",
+	0.24,
+] }
+BADGE_RARE_BORDER_GRADIENT_START = { ash = [
+	"ILLO_BLUE_40",
+	1,
+], dark = [
+	"ILLO_BLUE_40",
+	1,
+], light = [
+	"ILLO_BLUE_40",
+	1,
+], onyx = [
+	"ILLO_BLUE_40",
+	1,
+] }
+BADGE_RARE_TEXT = { ash = [
+	"ILLO_BLUE_30",
+	1,
+], dark = [
+	"ILLO_BLUE_30",
+	1,
+], light = [
+	"ILLO_BLUE_50",
+	1,
+], onyx = [
+	"ILLO_BLUE_30",
+	1,
+] }
+BADGE_SECONDARY_BACKGROUND = { ash = [
+	"OPACITY_16",
+	0.1607843137254902,
+], dark = [
+	"OPACITY_16",
+	0.1607843137254902,
+], light = [
+	"OPACITY_16",
+	0.1607843137254902,
+], onyx = [
+	"OPACITY_20",
+	0.2,
+] }
+BADGE_SECONDARY_BORDER = { ash = [
+	"OPACITY_16",
+	0.1607843137254902,
+], dark = [
+	"OPACITY_16",
+	0.1607843137254902,
+], light = [
+	"OPACITY_16",
+	0.1607843137254902,
+], onyx = [
+	"OPACITY_20",
+	0.2,
+] }
+BADGE_SECONDARY_TEXT = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_2",
+	1,
+], light = [
+	"NEUTRAL_76",
+	1,
+], onyx = [
+	"NEUTRAL_10",
+	1,
+] }
+BADGE_SUCCESS_BACKGROUND = { ash = [
+	"GREEN_NEW_50",
+	1,
+], dark = [
+	"GREEN_NEW_50",
+	1,
+], light = [
+	"GREEN_NEW_50",
+	1,
+], onyx = [
+	"GREEN_NEW_50",
+	1,
+] }
+BADGE_SUCCESS_BORDER = { ash = [
+	"OPACITY_WHITE_8",
+	0.0784313725490196,
+], dark = [
+	"OPACITY_WHITE_8",
+	0.0784313725490196,
+], light = [
+	"OPACITY_WHITE_8",
+	0.0784313725490196,
+], onyx = [
+	"OPACITY_WHITE_8",
+	0.0784313725490196,
+] }
+BADGE_SUCCESS_TEXT = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_1",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_1",
+	1,
+] }
+BADGE_WARNING_BACKGROUND = { ash = [
+	"YELLOW_NEW_45",
+	1,
+], dark = [
+	"YELLOW_NEW_45",
+	1,
+], light = [
+	"YELLOW_NEW_45",
+	1,
+], onyx = [
+	"YELLOW_NEW_45",
+	1,
+] }
+BADGE_WARNING_BORDER = { ash = [
+	"OPACITY_BLACK_8",
+	0.0784313725490196,
+], dark = [
+	"OPACITY_BLACK_8",
+	0.0784313725490196,
+], light = [
+	"OPACITY_BLACK_8",
+	0.0784313725490196,
+], onyx = [
+	"OPACITY_BLACK_8",
+	0.0784313725490196,
+] }
+BADGE_WARNING_TEXT = { ash = [
+	"NEUTRAL_100",
+	1,
+], dark = [
+	"NEUTRAL_100",
+	1,
+], light = [
+	"NEUTRAL_100",
+	1,
+], onyx = [
+	"NEUTRAL_100",
+	1,
+] }
+BG_SURFACE_RAISED = { ash = ["PRIMARY_560", 1], dark = ["PLUM_18", 1], light = ["WHITE", 1], onyx = ["PLUM_23", 1] }
+BLACK = { ash = ["BLACK", 1], dark = ["BLACK", 1], light = ["BLACK", 1], onyx = ["BLACK", 1] }
+BLUR_FALLBACK = { ash = [
+	"PRIMARY_700",
+	0.96,
+], dark = [
+	"PLUM_17",
+	0.96,
+], light = [
+	"PRIMARY_530",
+	0.96,
+], onyx = [
+	"PLUM_19",
+	0.96,
+] }
+BLUR_FALLBACK_PRESSED = { ash = [
+	"PRIMARY_730",
+	0.96,
+], dark = [
+	"PLUM_18",
+	0.96,
+], light = [
+	"PRIMARY_560",
+	0.96,
+], onyx = [
+	"PLUM_20",
+	0.96,
+] }
+BORDER_FEEDBACK_CRITICAL = { ash = [
+	"RED_NEW_18",
+	1,
+], dark = [
+	"RED_NEW_28",
+	1,
+], light = [
+	"RED_NEW_56",
+	1,
+], onyx = [
+	"RED_NEW_37",
+	1,
+] }
+BORDER_FEEDBACK_INFO = { ash = [
+	"BLUE_NEW_21",
+	1,
+], dark = [
+	"BLUE_NEW_31",
+	1,
+], light = [
+	"BLUE_NEW_58",
+	1,
+], onyx = [
+	"BLUE_NEW_39",
+	1,
+] }
+BORDER_FEEDBACK_POSITIVE = { ash = [
+	"GREEN_NEW_22",
+	1,
+], dark = [
+	"GREEN_NEW_31",
+	1,
+], light = [
+	"GREEN_NEW_58",
+	1,
+], onyx = [
+	"GREEN_NEW_39",
+	1,
+] }
+BORDER_FEEDBACK_WARNING = { ash = [
+	"YELLOW_NEW_38",
+	1,
+], dark = [
+	"YELLOW_NEW_53",
+	1,
+], light = [
+	"YELLOW_NEW_72",
+	1,
+], onyx = [
+	"YELLOW_NEW_59",
+	1,
+] }
+BORDER_FOCUS = { ash = [
+	"BLUE_NEW_30",
+	1,
+], dark = [
+	"BLUE_NEW_30",
+	1,
+], light = [
+	"BLUE_NEW_40",
+	1,
+], onyx = [
+	"BLUE_NEW_30",
+	1,
+] }
+BORDER_MUTED = { ash = [
+	"OPACITY_4",
+	0.0392156862745098,
+], dark = [
+	"OPACITY_4",
+	0.0392156862745098,
+], light = [
+	"OPACITY_20",
+	0.2,
+], onyx = [
+	"OPACITY_16",
+	0.1607843137254902,
+] }
+BORDER_NORMAL = { ash = [
+	"OPACITY_20",
+	0.2,
+], dark = [
+	"OPACITY_20",
+	0.2,
+], light = [
+	"OPACITY_40",
+	0.4,
+], onyx = [
+	"OPACITY_24",
+	0.23921568627450981,
+] }
+BORDER_STRONG = { ash = [
+	"OPACITY_44",
+	0.4392156862745098,
+], dark = [
+	"OPACITY_44",
+	0.4392156862745098,
+], light = [
+	"OPACITY_52",
+	0.5215686274509804,
+], onyx = [
+	"OPACITY_44",
+	0.4392156862745098,
+] }
+BORDER_SUBTLE = { ash = [
+	"OPACITY_12",
+	0.12156862745098039,
+], dark = [
+	"OPACITY_12",
+	0.12156862745098039,
+], light = [
+	"OPACITY_28",
+	0.2784313725490196,
+], onyx = [
+	"OPACITY_20",
+	0.2,
+] }
+BORDER_VOICE_MUTED = { ash = [
+	"OPACITY_RED_12",
+	0.12156862745098039,
+], dark = [
+	"OPACITY_RED_12",
+	0.12156862745098039,
+], light = [
+	"OPACITY_RED_12",
+	0.12156862745098039,
+], onyx = [
+	"OPACITY_RED_12",
+	0.12156862745098039,
+] }
+BUTTON_DANGER_BACKGROUND_DISABLED = { ash = [
+	"RED_NEW_50",
+	1,
+], dark = [
+	"RED_NEW_50",
+	1,
+], light = [
+	"RED_NEW_50",
+	1,
+], onyx = [
+	"RED_NEW_50",
+	1,
+] }
+BUTTON_OUTLINE_BRAND_BACKGROUND_HOVER = { ash = [
+	"BRAND_500",
+	1,
+], dark = [
+	"BRAND_500",
+	1,
+], light = [
+	"BRAND_500",
+	1,
+], onyx = [
+	"BRAND_500",
+	1,
+] }
+BUTTON_OUTLINE_BRAND_BORDER_ACTIVE = { ash = [
+	"BRAND_560",
+	1,
+], dark = [
+	"BRAND_560",
+	1,
+], light = [
+	"BRAND_560",
+	1,
+], onyx = [
+	"BRAND_560",
+	1,
+] }
+BUTTON_OUTLINE_PRIMARY_TEXT = { ash = ["WHITE", 1], dark = ["WHITE", 1], light = ["BLACK", 1], onyx = ["WHITE", 1] }
+CARD_BACKGROUND_DEFAULT = { ash = [
+	"NEUTRAL_64",
+	1,
+], dark = [
+	"NEUTRAL_79",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_96",
+	1,
+] }
+CARD_BORDER_DEFAULT = { ash = [
+	"OPACITY_12",
+	0.12156862745098039,
+], dark = [
+	"OPACITY_12",
+	0.12156862745098039,
+], light = [
+	"OPACITY_28",
+	0.2784313725490196,
+], onyx = [
+	"OPACITY_20",
+	0.2,
+] }
+CARD_MUTED_BG = { ash = [
+	"OPACITY_8",
+	0.0784313725490196,
+], dark = [
+	"OPACITY_8",
+	0.0784313725490196,
+], light = [
+	"OPACITY_8",
+	0.0784313725490196,
+], onyx = [
+	"OPACITY_8",
+	0.0784313725490196,
+] }
+CARD_MUTED_PRESSED_BG = { ash = [
+	"OPACITY_12",
+	0.12156862745098039,
+], dark = [
+	"OPACITY_12",
+	0.12156862745098039,
+], light = [
+	"OPACITY_12",
+	0.12156862745098039,
+], onyx = [
+	"OPACITY_12",
+	0.12156862745098039,
+] }
+CARD_PRIMARY_PRESSED_BG = { ash = [
+	"PRIMARY_645",
+	1,
+], dark = [
+	"PLUM_19",
+	1,
+], light = [
+	"PRIMARY_160",
+	1,
+], onyx = [
+	"PLUM_25",
+	1,
+] }
+CARD_SECONDARY_BACKGROUND_ACTIVE = { ash = [
+	"OPACITY_20",
+	0.2,
+], dark = [
+	"OPACITY_20",
+	0.2,
+], light = [
+	"OPACITY_24",
+	0.23921568627450981,
+], onyx = [
+	"OPACITY_24",
+	0.23921568627450981,
+] }
+CARD_SECONDARY_BACKGROUND_DEFAULT = { ash = [
+	"OPACITY_12",
+	0.12156862745098039,
+], dark = [
+	"OPACITY_12",
+	0.12156862745098039,
+], light = [
+	"OPACITY_12",
+	0.12156862745098039,
+], onyx = [
+	"OPACITY_12",
+	0.12156862745098039,
+] }
+CARD_SECONDARY_BG = { ash = [
+	"OPACITY_12",
+	0.12156862745098039,
+], dark = [
+	"OPACITY_12",
+	0.12156862745098039,
+], light = [
+	"OPACITY_12",
+	0.12156862745098039,
+], onyx = [
+	"OPACITY_12",
+	0.12156862745098039,
+] }
+CARD_SECONDARY_PRESSED_BG = { ash = [
+	"PRIMARY_645",
+	1,
+], dark = [
+	"PLUM_21",
+	1,
+], light = [
+	"PRIMARY_160",
+	1,
+], onyx = [
+	"PLUM_26",
+	1,
+] }
+CHANNELS_DEFAULT = { ash = [
+	"NEUTRAL_28",
+	1,
+], dark = [
+	"NEUTRAL_35",
+	1,
+], light = [
+	"NEUTRAL_43",
+	1,
+], onyx = [
+	"NEUTRAL_37",
+	1,
+] }
+CHANNELTEXTAREA_BACKGROUND = { ash = [
+	"PRIMARY_560",
+	1,
+], dark = [
+	"PLUM_15",
+	1,
+], light = [
+	"PRIMARY_160",
+	1,
+], onyx = [
+	"PLUM_23",
+	1,
+] }
+CHANNEL_BACKGROUND_DEFAULT = { ash = [
+	"NEUTRAL_69",
+	1,
+], dark = [
+	"NEUTRAL_86",
+	1,
+], light = [
+	"NEUTRAL_2",
+	1,
+], onyx = [
+	"NEUTRAL_100",
+	1,
+] }
+CHANNEL_ICON = { ash = [
+	"NEUTRAL_28",
+	1,
+], dark = [
+	"NEUTRAL_35",
+	1,
+], light = [
+	"NEUTRAL_43",
+	1,
+], onyx = [
+	"NEUTRAL_37",
+	1,
+] }
+CHAT_BANNER_BG = { ash = [
+	"NEUTRAL_64",
+	1,
+], dark = [
+	"NEUTRAL_79",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_96",
+	1,
+] }
+CHAT_BORDER = { ash = [
+	"OPACITY_12",
+	0.12156862745098039,
+], dark = [
+	"OPACITY_12",
+	0.12156862745098039,
+], light = [
+	"OPACITY_28",
+	0.2784313725490196,
+], onyx = [
+	"OPACITY_20",
+	0.2,
+] }
+CHAT_INPUT_ACTION_BUTTON_BACKGROUND = { ash = [
+	"TRANSPARENT",
+	0,
+], dark = [
+	"TRANSPARENT",
+	0,
+], light = [
+	"TRANSPARENT",
+	0,
+], onyx = [
+	"TRANSPARENT",
+	0,
+] }
+CHAT_INPUT_ACTION_BUTTON_ICON_DEFAULT_TINT = { ash = [
+	"NEUTRAL_16",
+	1,
+], dark = [
+	"NEUTRAL_23",
+	1,
+], light = [
+	"NEUTRAL_47",
+	1,
+], onyx = [
+	"NEUTRAL_29",
+	1,
+] }
+CHAT_INPUT_ACTION_ICON_ACTIVE_TINT = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_2",
+	1,
+], light = [
+	"NEUTRAL_76",
+	1,
+], onyx = [
+	"NEUTRAL_10",
+	1,
+] }
+CHAT_INPUT_BACKGROUND = { ash = [
+	"OPACITY_BLACK_8",
+	0.0784313725490196,
+], dark = [
+	"OPACITY_BLACK_12",
+	0.12156862745098039,
+], light = [
+	"OPACITY_BLACK_1",
+	0.0196078431372549,
+], onyx = [
+	"OPACITY_BLACK_12",
+	0.12156862745098039,
+] }
+CHAT_INPUT_ICON_DEFAULT_TINT = { ash = [
+	"NEUTRAL_16",
+	1,
+], dark = [
+	"NEUTRAL_23",
+	1,
+], light = [
+	"NEUTRAL_47",
+	1,
+], onyx = [
+	"NEUTRAL_29",
+	1,
+] }
+CHAT_INPUT_SEND_BUTTON_ACTIVE_BACKGROUND = { ash = [
+	"BLURPLE_50",
+	1,
+], dark = [
+	"BLURPLE_50",
+	1,
+], light = [
+	"BLURPLE_50",
+	1,
+], onyx = [
+	"BLURPLE_50",
+	1,
+] }
+CHAT_INPUT_SEND_BUTTON_ICON_ACTIVE_TINT = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_1",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_1",
+	1,
+] }
+CHECKBOX_BACKGROUND_DEFAULT = { ash = [
+	"OPACITY_BLACK_8",
+	0.0784313725490196,
+], dark = [
+	"OPACITY_BLACK_8",
+	0.0784313725490196,
+], light = [
+	"OPACITY_BLACK_4",
+	0.0392156862745098,
+], onyx = [
+	"OPACITY_BLACK_8",
+	0.0784313725490196,
+] }
+CHECKBOX_BACKGROUND_SELECTED_DEFAULT = { ash = [
+	"BLURPLE_50",
+	1,
+], dark = [
+	"BLURPLE_50",
+	1,
+], light = [
+	"BLURPLE_50",
+	1,
+], onyx = [
+	"BLURPLE_50",
+	1,
+] }
+CHECKBOX_BORDER_DEFAULT = { ash = [
+	"OPACITY_64",
+	0.6392156862745098,
+], dark = [
+	"OPACITY_64",
+	0.6392156862745098,
+], light = [
+	"NEUTRAL_34",
+	1,
+], onyx = [
+	"OPACITY_64",
+	0.6392156862745098,
+] }
+CHECKBOX_BORDER_SELECTED_DEFAULT = { ash = [
+	"OPACITY_12",
+	0.12156862745098039,
+], dark = [
+	"OPACITY_12",
+	0.12156862745098039,
+], light = [
+	"OPACITY_28",
+	0.2784313725490196,
+], onyx = [
+	"OPACITY_20",
+	0.2,
+] }
+CHECKBOX_ICON_ACTIVE = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_1",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_1",
+	1,
+] }
+CONTENT_INVENTORY_OVERLAY_TEXT_PRIMARY = { ash = [
+	"WHITE",
+	0.85,
+], dark = [
+	"WHITE",
+	0.85,
+], light = [
+	"WHITE",
+	0.85,
+], onyx = [
+	"WHITE",
+	0.85,
+] }
+CONTENT_INVENTORY_OVERLAY_TEXT_SECONDARY = { ash = [
+	"WHITE",
+	0.7,
+], dark = [
+	"WHITE",
+	0.7,
+], light = [
+	"WHITE",
+	0.7,
+], onyx = [
+	"WHITE",
+	0.7,
+] }
+CONTEXT_MENU_BACKDROP_BACKGROUND = { ash = [
+	"OPACITY_BLACK_80",
+	0.8,
+], dark = [
+	"OPACITY_BLACK_80",
+	0.8,
+], light = [
+	"OPACITY_BLACK_64",
+	0.6392156862745098,
+], onyx = [
+	"BLACK",
+	0.7,
+] }
+CONTROL_BRAND_FOREGROUND = { ash = [
+	"BRAND_360",
+	1,
+], dark = [
+	"BRAND_360",
+	1,
+], light = [
+	"BRAND_500",
+	1,
+], onyx = [
+	"BRAND_360",
+	1,
+] }
+CONTROL_BRAND_FOREGROUND_NEW = { ash = [
+	"BRAND_360",
+	1,
+], dark = [
+	"BRAND_360",
+	1,
+], light = [
+	"BRAND_500",
+	1,
+], onyx = [
+	"BRAND_360",
+	1,
+] }
+CONTROL_CONNECTED_BACKGROUND_ACTIVE = { ash = [
+	"GREEN_NEW_65",
+	1,
+], dark = [
+	"GREEN_NEW_65",
+	1,
+], light = [
+	"GREEN_NEW_65",
+	1,
+], onyx = [
+	"GREEN_NEW_65",
+	1,
+] }
+CONTROL_CONNECTED_BACKGROUND_DEFAULT = { ash = [
+	"GREEN_NEW_50",
+	1,
+], dark = [
+	"GREEN_NEW_50",
+	1,
+], light = [
+	"GREEN_NEW_50",
+	1,
+], onyx = [
+	"GREEN_NEW_50",
+	1,
+] }
+CONTROL_CONNECTED_BORDER_ACTIVE = { ash = [
+	"OPACITY_WHITE_8",
+	0.0784313725490196,
+], dark = [
+	"OPACITY_WHITE_8",
+	0.0784313725490196,
+], light = [
+	"OPACITY_WHITE_8",
+	0.0784313725490196,
+], onyx = [
+	"OPACITY_WHITE_8",
+	0.0784313725490196,
+] }
+CONTROL_CONNECTED_BORDER_DEFAULT = { ash = [
+	"OPACITY_WHITE_8",
+	0.0784313725490196,
+], dark = [
+	"OPACITY_WHITE_8",
+	0.0784313725490196,
+], light = [
+	"OPACITY_WHITE_8",
+	0.0784313725490196,
+], onyx = [
+	"OPACITY_WHITE_8",
+	0.0784313725490196,
+] }
+CONTROL_CONNECTED_TEXT_DEFAULT = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_1",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_1",
+	1,
+] }
+CONTROL_CRITICAL_PRIMARY_BACKGROUND_ACTIVE = { ash = [
+	"RED_NEW_65",
+	1,
+], dark = [
+	"RED_NEW_65",
+	1,
+], light = [
+	"RED_NEW_65",
+	1,
+], onyx = [
+	"RED_NEW_65",
+	1,
+] }
+CONTROL_CRITICAL_PRIMARY_BACKGROUND_DEFAULT = { ash = [
+	"RED_NEW_50",
+	1,
+], dark = [
+	"RED_NEW_50",
+	1,
+], light = [
+	"RED_NEW_50",
+	1,
+], onyx = [
+	"RED_NEW_50",
+	1,
+] }
+CONTROL_CRITICAL_PRIMARY_BORDER_ACTIVE = { ash = [
+	"OPACITY_WHITE_8",
+	0.0784313725490196,
+], dark = [
+	"OPACITY_WHITE_8",
+	0.0784313725490196,
+], light = [
+	"OPACITY_WHITE_8",
+	0.0784313725490196,
+], onyx = [
+	"OPACITY_WHITE_8",
+	0.0784313725490196,
+] }
+CONTROL_CRITICAL_PRIMARY_BORDER_DEFAULT = { ash = [
+	"OPACITY_WHITE_8",
+	0.0784313725490196,
+], dark = [
+	"OPACITY_WHITE_8",
+	0.0784313725490196,
+], light = [
+	"OPACITY_WHITE_8",
+	0.0784313725490196,
+], onyx = [
+	"OPACITY_WHITE_8",
+	0.0784313725490196,
+] }
+CONTROL_CRITICAL_PRIMARY_TEXT_DEFAULT = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_1",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_1",
+	1,
+] }
+CONTROL_CRITICAL_SECONDARY_BACKGROUND_ACTIVE = { ash = [
+	"OPACITY_20",
+	0.2,
+], dark = [
+	"OPACITY_20",
+	0.2,
+], light = [
+	"OPACITY_24",
+	0.23921568627450981,
+], onyx = [
+	"OPACITY_24",
+	0.23921568627450981,
+] }
+CONTROL_CRITICAL_SECONDARY_BACKGROUND_DEFAULT = { ash = [
+	"OPACITY_12",
+	0.12156862745098039,
+], dark = [
+	"OPACITY_12",
+	0.12156862745098039,
+], light = [
+	"OPACITY_12",
+	0.12156862745098039,
+], onyx = [
+	"OPACITY_12",
+	0.12156862745098039,
+] }
+CONTROL_CRITICAL_SECONDARY_BORDER_ACTIVE = { ash = [
+	"OPACITY_4",
+	0.0392156862745098,
+], dark = [
+	"OPACITY_4",
+	0.0392156862745098,
+], light = [
+	"OPACITY_20",
+	0.2,
+], onyx = [
+	"OPACITY_16",
+	0.1607843137254902,
+] }
+CONTROL_CRITICAL_SECONDARY_BORDER_DEFAULT = { ash = [
+	"OPACITY_4",
+	0.0392156862745098,
+], dark = [
+	"OPACITY_4",
+	0.0392156862745098,
+], light = [
+	"OPACITY_20",
+	0.2,
+], onyx = [
+	"OPACITY_16",
+	0.1607843137254902,
+] }
+CONTROL_CRITICAL_SECONDARY_TEXT_DEFAULT = { ash = [
+	"RED_NEW_18",
+	1,
+], dark = [
+	"RED_NEW_28",
+	1,
+], light = [
+	"RED_NEW_56",
+	1,
+], onyx = [
+	"RED_NEW_37",
+	1,
+] }
+CONTROL_EXPRESSIVE_BACKGROUND_DEFAULT = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_1",
+	1,
+], light = [
+	"BLURPLE_50",
+	1,
+], onyx = [
+	"NEUTRAL_1",
+	1,
+] }
+CONTROL_EXPRESSIVE_TEXT_DEFAULT = { ash = [
+	"NEUTRAL_100",
+	1,
+], dark = [
+	"NEUTRAL_100",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_100",
+	1,
+] }
+CONTROL_ICON_ONLY_BACKGROUND_ACTIVE = { ash = [
+	"OPACITY_20",
+	0.2,
+], dark = [
+	"OPACITY_20",
+	0.2,
+], light = [
+	"OPACITY_24",
+	0.23921568627450981,
+], onyx = [
+	"OPACITY_24",
+	0.23921568627450981,
+] }
+CONTROL_ICON_ONLY_BORDER_ACTIVE = { ash = [
+	"OPACITY_4",
+	0.0392156862745098,
+], dark = [
+	"OPACITY_4",
+	0.0392156862745098,
+], light = [
+	"OPACITY_20",
+	0.2,
+], onyx = [
+	"OPACITY_16",
+	0.1607843137254902,
+] }
+CONTROL_ICON_ONLY_ICON_ACTIVE = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_2",
+	1,
+], light = [
+	"NEUTRAL_76",
+	1,
+], onyx = [
+	"NEUTRAL_10",
+	1,
+] }
+CONTROL_ICON_ONLY_ICON_DEFAULT = { ash = [
+	"NEUTRAL_16",
+	1,
+], dark = [
+	"NEUTRAL_23",
+	1,
+], light = [
+	"NEUTRAL_47",
+	1,
+], onyx = [
+	"NEUTRAL_29",
+	1,
+] }
+CONTROL_OVERLAY_PRIMARY_BACKGROUND_ACTIVE = { ash = [
+	"NEUTRAL_17",
+	1,
+], dark = [
+	"NEUTRAL_17",
+	1,
+], light = [
+	"NEUTRAL_17",
+	1,
+], onyx = [
+	"NEUTRAL_17",
+	1,
+] }
+CONTROL_OVERLAY_PRIMARY_BACKGROUND_DEFAULT = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_1",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_1",
+	1,
+] }
+CONTROL_OVERLAY_PRIMARY_BORDER_DEFAULT = { ash = [
+	"OPACITY_12",
+	0.12156862745098039,
+], dark = [
+	"OPACITY_12",
+	0.12156862745098039,
+], light = [
+	"OPACITY_WHITE_8",
+	0.0784313725490196,
+], onyx = [
+	"OPACITY_20",
+	0.2,
+] }
+CONTROL_OVERLAY_PRIMARY_TEXT_DEFAULT = { ash = [
+	"NEUTRAL_100",
+	1,
+], dark = [
+	"NEUTRAL_100",
+	1,
+], light = [
+	"NEUTRAL_100",
+	1,
+], onyx = [
+	"NEUTRAL_100",
+	1,
+] }
+CONTROL_OVERLAY_SECONDARY_BACKGROUND_ACTIVE = { ash = [
+	"OPACITY_BLACK_56",
+	0.5607843137254902,
+], dark = [
+	"OPACITY_BLACK_56",
+	0.5607843137254902,
+], light = [
+	"OPACITY_BLACK_56",
+	0.5607843137254902,
+], onyx = [
+	"OPACITY_BLACK_56",
+	0.5607843137254902,
+] }
+CONTROL_OVERLAY_SECONDARY_BACKGROUND_DEFAULT = { ash = [
+	"OPACITY_BLACK_56",
+	0.5607843137254902,
+], dark = [
+	"OPACITY_BLACK_56",
+	0.5607843137254902,
+], light = [
+	"OPACITY_BLACK_56",
+	0.5607843137254902,
+], onyx = [
+	"OPACITY_BLACK_56",
+	0.5607843137254902,
+] }
+CONTROL_OVERLAY_SECONDARY_BORDER_DEFAULT = { ash = [
+	"OPACITY_4",
+	0.0392156862745098,
+], dark = [
+	"OPACITY_4",
+	0.0392156862745098,
+], light = [
+	"OPACITY_20",
+	0.2,
+], onyx = [
+	"OPACITY_16",
+	0.1607843137254902,
+] }
+CONTROL_OVERLAY_SECONDARY_TEXT_DEFAULT = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_1",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_1",
+	1,
+] }
+CONTROL_PRIMARY_BACKGROUND_ACTIVE = { ash = [
+	"BLURPLE_65",
+	1,
+], dark = [
+	"BLURPLE_65",
+	1,
+], light = [
+	"BLURPLE_65",
+	1,
+], onyx = [
+	"BLURPLE_65",
+	1,
+] }
+CONTROL_PRIMARY_BACKGROUND_DEFAULT = { ash = [
+	"BLURPLE_50",
+	1,
+], dark = [
+	"BLURPLE_50",
+	1,
+], light = [
+	"BLURPLE_50",
+	1,
+], onyx = [
+	"BLURPLE_50",
+	1,
+] }
+CONTROL_PRIMARY_BORDER_ACTIVE = { ash = [
+	"OPACITY_WHITE_8",
+	0.0784313725490196,
+], dark = [
+	"OPACITY_WHITE_8",
+	0.0784313725490196,
+], light = [
+	"OPACITY_WHITE_8",
+	0.0784313725490196,
+], onyx = [
+	"OPACITY_WHITE_8",
+	0.0784313725490196,
+] }
+CONTROL_PRIMARY_BORDER_DEFAULT = { ash = [
+	"OPACITY_WHITE_8",
+	0.0784313725490196,
+], dark = [
+	"OPACITY_WHITE_8",
+	0.0784313725490196,
+], light = [
+	"OPACITY_WHITE_8",
+	0.0784313725490196,
+], onyx = [
+	"OPACITY_WHITE_8",
+	0.0784313725490196,
+] }
+CONTROL_PRIMARY_TEXT_DEFAULT = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_1",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_1",
+	1,
+] }
+CONTROL_SECONDARY_BACKGROUND_ACTIVE = { ash = [
+	"OPACITY_20",
+	0.2,
+], dark = [
+	"OPACITY_20",
+	0.2,
+], light = [
+	"OPACITY_24",
+	0.23921568627450981,
+], onyx = [
+	"OPACITY_24",
+	0.23921568627450981,
+] }
+CONTROL_SECONDARY_BACKGROUND_DEFAULT = { ash = [
+	"OPACITY_12",
+	0.12156862745098039,
+], dark = [
+	"OPACITY_12",
+	0.12156862745098039,
+], light = [
+	"OPACITY_12",
+	0.12156862745098039,
+], onyx = [
+	"OPACITY_12",
+	0.12156862745098039,
+] }
+CONTROL_SECONDARY_BORDER_ACTIVE = { ash = [
+	"OPACITY_4",
+	0.0392156862745098,
+], dark = [
+	"OPACITY_4",
+	0.0392156862745098,
+], light = [
+	"OPACITY_20",
+	0.2,
+], onyx = [
+	"OPACITY_16",
+	0.1607843137254902,
+] }
+CONTROL_SECONDARY_BORDER_DEFAULT = { ash = [
+	"OPACITY_4",
+	0.0392156862745098,
+], dark = [
+	"OPACITY_4",
+	0.0392156862745098,
+], light = [
+	"OPACITY_20",
+	0.2,
+], onyx = [
+	"OPACITY_16",
+	0.1607843137254902,
+] }
+CONTROL_SECONDARY_TEXT_DEFAULT = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_2",
+	1,
+], light = [
+	"NEUTRAL_76",
+	1,
+], onyx = [
+	"NEUTRAL_10",
+	1,
+] }
+CUSTOM_STATUS_BUBBLE_BG = { ash = [
+	"NEUTRAL_60",
+	1,
+], dark = [
+	"NEUTRAL_73",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_88",
+	1,
+] }
+DATEPICKER_RANGE_BACKGROUND_DEFAULT = { ash = [
+	"OPACITY_BLURPLE_40",
+	0.4,
+], dark = [
+	"OPACITY_BLURPLE_40",
+	0.4,
+], light = [
+	"OPACITY_BLURPLE_40",
+	0.4,
+], onyx = [
+	"OPACITY_BLURPLE_40",
+	0.4,
+] }
+DATEPICKER_RANGE_BACKGROUND_HOVER = { ash = [
+	"OPACITY_BLURPLE_60",
+	0.6,
+], dark = [
+	"OPACITY_BLURPLE_60",
+	0.6,
+], light = [
+	"OPACITY_BLURPLE_60",
+	0.6,
+], onyx = [
+	"OPACITY_BLURPLE_60",
+	0.6,
+] }
+EMBED_BACKGROUND = { ash = [
+	"NEUTRAL_64",
+	1,
+], dark = [
+	"NEUTRAL_79",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_96",
+	1,
+] }
+EMBED_BACKGROUND_ALTERNATE = { ash = [
+	"NEUTRAL_64",
+	1,
+], dark = [
+	"NEUTRAL_79",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_96",
+	1,
+] }
+EXPRESSIVE_GRADIENT_BLUE_END = { ash = [
+	"ILLO_BLUE_60",
+	0.45,
+], dark = [
+	"ILLO_BLUE_60",
+	0.3,
+], light = [
+	"ILLO_BLUE_30",
+	0.8,
+], onyx = [
+	"ILLO_BLUE_60",
+	0.25,
+] }
+EXPRESSIVE_GRADIENT_BLUE_START = { ash = [
+	"ILLO_BLUE_40",
+	0.45,
+], dark = [
+	"ILLO_BLUE_40",
+	0.3,
+], light = [
+	"ILLO_BLUE_10",
+	0.8,
+], onyx = [
+	"ILLO_BLUE_40",
+	0.25,
+] }
+EXPRESSIVE_GRADIENT_GREEN_END = { ash = [
+	"ILLO_GREEN_70",
+	0.45,
+], dark = [
+	"ILLO_GREEN_70",
+	0.3,
+], light = [
+	"ILLO_GREEN_30",
+	0.8,
+], onyx = [
+	"ILLO_GREEN_70",
+	0.25,
+] }
+EXPRESSIVE_GRADIENT_GREEN_START = { ash = [
+	"ILLO_GREEN_50",
+	0.45,
+], dark = [
+	"ILLO_GREEN_50",
+	0.3,
+], light = [
+	"ILLO_GREEN_10",
+	0.8,
+], onyx = [
+	"ILLO_GREEN_50",
+	0.25,
+] }
+EXPRESSIVE_GRADIENT_NITRO_GREEN_END = { ash = [
+	"ILLO_NITRO_BLUE",
+	0.5,
+], dark = [
+	"ILLO_NITRO_BLUE",
+	0.4,
+], light = [
+	"ILLO_BLUE_40",
+	0.9,
+], onyx = [
+	"ILLO_NITRO_BLUE",
+	0.3,
+] }
+EXPRESSIVE_GRADIENT_NITRO_GREEN_START = { ash = [
+	"ILLO_GREEN_50",
+	0.5,
+], dark = [
+	"ILLO_GREEN_50",
+	0.4,
+], light = [
+	"ILLO_GREEN_10",
+	0.9,
+], onyx = [
+	"ILLO_GREEN_50",
+	0.3,
+] }
+EXPRESSIVE_GRADIENT_NITRO_PINK_END = { ash = [
+	"ILLO_NITRO_BLUE",
+	0.5,
+], dark = [
+	"ILLO_NITRO_BLUE",
+	0.4,
+], light = [
+	"ILLO_BLUE_40",
+	0.9,
+], onyx = [
+	"ILLO_NITRO_BLUE",
+	0.3,
+] }
+EXPRESSIVE_GRADIENT_NITRO_PINK_START = { ash = [
+	"ILLO_PINK_60",
+	0.5,
+], dark = [
+	"ILLO_PINK_60",
+	0.4,
+], light = [
+	"ILLO_PINK_30",
+	0.9,
+], onyx = [
+	"ILLO_PINK_60",
+	0.3,
+] }
+EXPRESSIVE_GRADIENT_PINK_END = { ash = [
+	"ILLO_PINK_70",
+	0.45,
+], dark = [
+	"ILLO_PINK_70",
+	0.3,
+], light = [
+	"ILLO_PINK_30",
+	0.8,
+], onyx = [
+	"ILLO_PINK_70",
+	0.25,
+] }
+EXPRESSIVE_GRADIENT_PINK_START = { ash = [
+	"ILLO_PINK_50",
+	0.45,
+], dark = [
+	"ILLO_PINK_50",
+	0.3,
+], light = [
+	"ILLO_PINK_10",
+	0.8,
+], onyx = [
+	"ILLO_PINK_50",
+	0.25,
+] }
+EXPRESSIVE_GRADIENT_PURPLE_END = { ash = [
+	"ILLO_PURPLE_60",
+	0.45,
+], dark = [
+	"ILLO_PURPLE_60",
+	0.3,
+], light = [
+	"ILLO_PURPLE_30",
+	0.8,
+], onyx = [
+	"ILLO_PURPLE_60",
+	0.25,
+] }
+EXPRESSIVE_GRADIENT_PURPLE_START = { ash = [
+	"ILLO_PURPLE_40",
+	0.45,
+], dark = [
+	"ILLO_PURPLE_40",
+	0.3,
+], light = [
+	"ILLO_PURPLE_10",
+	0.8,
+], onyx = [
+	"ILLO_PURPLE_40",
+	0.25,
+] }
+EXPRESSIVE_GRADIENT_TENURE_BADGE_BRONZE_END = { ash = [
+	"ILLO_ORANGE_70",
+	0.3,
+], dark = [
+	"ILLO_ORANGE_70",
+	0.3,
+], light = [
+	"ILLO_ORANGE_70",
+	0.3,
+], onyx = [
+	"ILLO_ORANGE_70",
+	0.3,
+] }
+EXPRESSIVE_GRADIENT_TENURE_BADGE_BRONZE_START = { ash = [
+	"ILLO_ORANGE_30",
+	0.3,
+], dark = [
+	"ILLO_ORANGE_30",
+	0.3,
+], light = [
+	"ILLO_ORANGE_30",
+	0.3,
+], onyx = [
+	"ILLO_ORANGE_30",
+	0.3,
+] }
+EXPRESSIVE_GRADIENT_TENURE_BADGE_DIAMOND_END = { ash = [
+	"ILLO_PURPLE_50",
+	0.3,
+], dark = [
+	"ILLO_PURPLE_50",
+	0.3,
+], light = [
+	"ILLO_PURPLE_50",
+	0.3,
+], onyx = [
+	"ILLO_PURPLE_50",
+	0.3,
+] }
+EXPRESSIVE_GRADIENT_TENURE_BADGE_DIAMOND_START = { ash = [
+	"ILLO_PURPLE_40",
+	0.3,
+], dark = [
+	"ILLO_PURPLE_40",
+	0.3,
+], light = [
+	"ILLO_PURPLE_40",
+	0.3,
+], onyx = [
+	"ILLO_PURPLE_40",
+	0.3,
+] }
+EXPRESSIVE_GRADIENT_TENURE_BADGE_EMERALD_END = { ash = [
+	"ILLO_GREEN_60",
+	0.3,
+], dark = [
+	"ILLO_GREEN_60",
+	0.3,
+], light = [
+	"ILLO_GREEN_60",
+	0.3,
+], onyx = [
+	"ILLO_GREEN_60",
+	0.3,
+] }
+EXPRESSIVE_GRADIENT_TENURE_BADGE_EMERALD_START = { ash = [
+	"ILLO_GREEN_40",
+	0.3,
+], dark = [
+	"ILLO_GREEN_40",
+	0.3,
+], light = [
+	"ILLO_GREEN_40",
+	0.3,
+], onyx = [
+	"ILLO_GREEN_40",
+	0.3,
+] }
+EXPRESSIVE_GRADIENT_TENURE_BADGE_GOLD_END = { ash = [
+	"YELLOW_NEW_41",
+	0.3,
+], dark = [
+	"YELLOW_NEW_41",
+	0.3,
+], light = [
+	"YELLOW_NEW_41",
+	0.3,
+], onyx = [
+	"YELLOW_NEW_41",
+	0.3,
+] }
+EXPRESSIVE_GRADIENT_TENURE_BADGE_GOLD_START = { ash = [
+	"ILLO_YELLOW_50",
+	0.3,
+], dark = [
+	"ILLO_YELLOW_50",
+	0.3,
+], light = [
+	"ILLO_YELLOW_50",
+	0.3,
+], onyx = [
+	"ILLO_YELLOW_50",
+	0.3,
+] }
+EXPRESSIVE_GRADIENT_TENURE_BADGE_OPAL_END = { ash = [
+	"BLUE_NEW_50",
+	0.3,
+], dark = [
+	"BLUE_NEW_50",
+	0.3,
+], light = [
+	"BLUE_NEW_50",
+	0.3,
+], onyx = [
+	"BLUE_NEW_50",
+	0.3,
+] }
+EXPRESSIVE_GRADIENT_TENURE_BADGE_OPAL_START = { ash = [
+	"TEAL_NEW_30",
+	0.3,
+], dark = [
+	"TEAL_NEW_30",
+	0.3,
+], light = [
+	"TEAL_NEW_30",
+	0.3,
+], onyx = [
+	"TEAL_NEW_30",
+	0.3,
+] }
+EXPRESSIVE_GRADIENT_TENURE_BADGE_PLATINUM_END = { ash = [
+	"TEAL_NEW_60",
+	0.3,
+], dark = [
+	"TEAL_NEW_60",
+	0.3,
+], light = [
+	"TEAL_NEW_60",
+	0.3,
+], onyx = [
+	"TEAL_NEW_60",
+	0.3,
+] }
+EXPRESSIVE_GRADIENT_TENURE_BADGE_PLATINUM_START = { ash = [
+	"TEAL_NEW_20",
+	0.3,
+], dark = [
+	"TEAL_NEW_20",
+	0.3,
+], light = [
+	"TEAL_NEW_20",
+	0.3,
+], onyx = [
+	"TEAL_NEW_20",
+	0.3,
+] }
+EXPRESSIVE_GRADIENT_TENURE_BADGE_RUBY_END = { ash = [
+	"RED_NEW_80",
+	0.3,
+], dark = [
+	"RED_NEW_80",
+	0.3,
+], light = [
+	"RED_NEW_80",
+	0.3,
+], onyx = [
+	"RED_NEW_80",
+	0.3,
+] }
+EXPRESSIVE_GRADIENT_TENURE_BADGE_RUBY_START = { ash = [
+	"RED_NEW_44",
+	0.3,
+], dark = [
+	"RED_NEW_44",
+	0.3,
+], light = [
+	"RED_NEW_44",
+	0.3,
+], onyx = [
+	"RED_NEW_44",
+	0.3,
+] }
+EXPRESSIVE_GRADIENT_TENURE_BADGE_SILVER_END = { ash = [
+	"NEUTRAL_58",
+	0.3,
+], dark = [
+	"NEUTRAL_58",
+	0.3,
+], light = [
+	"NEUTRAL_58",
+	0.3,
+], onyx = [
+	"NEUTRAL_58",
+	0.3,
+] }
+EXPRESSIVE_GRADIENT_TENURE_BADGE_SILVER_START = { ash = [
+	"NEUTRAL_12",
+	0.3,
+], dark = [
+	"NEUTRAL_12",
+	0.3,
+], light = [
+	"NEUTRAL_12",
+	0.3,
+], onyx = [
+	"NEUTRAL_12",
+	0.3,
+] }
+GRADIENT_PROGRESS_PILL_BACKGROUND = { ash = [
+	"NEUTRAL_46",
+	1,
+], dark = [
+	"NEUTRAL_56",
+	1,
+], light = [
+	"NEUTRAL_18",
+	1,
+], onyx = [
+	"NEUTRAL_66",
+	1,
+] }
+GUILD_FOLDER_BACKGROUND = { ash = [
+	"OPACITY_12",
+	0.12156862745098039,
+], dark = [
+	"OPACITY_12",
+	0.12156862745098039,
+], light = [
+	"OPACITY_12",
+	0.12156862745098039,
+], onyx = [
+	"OPACITY_12",
+	0.12156862745098039,
+] }
+GUILD_NOTIFICATIONS_BOTTOM_SHEET_PILL_BACKGROUND = { ash = [
+	"PRIMARY_700",
+	1,
+], dark = [
+	"PRIMARY_700",
+	1,
+], light = [
+	"WHITE",
+	1,
+], onyx = [
+	"PRIMARY_700",
+	1,
+] }
+GUILD_PROFILE_BANNER_BACKGROUND_DEFAULT = { ash = [
+	"NEUTRAL_73",
+	1,
+], dark = [
+	"NEUTRAL_92",
+	1,
+], light = [
+	"NEUTRAL_40",
+	1,
+], onyx = [
+	"NEUTRAL_100",
+	1,
+] }
+HEXAGON_CAMPAIGN_PROMO_GRADIENT_1 = { ash = [
+	"BG_GRADIENT_HEXAGON_PROMO_1",
+	0.6,
+], dark = [
+	"BG_GRADIENT_HEXAGON_PROMO_1",
+	0.6,
+], light = [
+	"BG_GRADIENT_HEXAGON_PROMO_1",
+	0.6,
+], onyx = [
+	"BG_GRADIENT_HEXAGON_PROMO_1",
+	0.6,
+] }
+HEXAGON_CAMPAIGN_PROMO_GRADIENT_2 = { ash = [
+	"BG_GRADIENT_HEXAGON_PROMO_2",
+	0.6,
+], dark = [
+	"BG_GRADIENT_HEXAGON_PROMO_2",
+	0.6,
+], light = [
+	"BG_GRADIENT_HEXAGON_PROMO_2",
+	0.6,
+], onyx = [
+	"BG_GRADIENT_HEXAGON_PROMO_2",
+	0.6,
+] }
+HEXAGON_CAMPAIGN_PROMO_GRADIENT_3 = { ash = [
+	"BG_GRADIENT_HEXAGON_PROMO_3",
+	0.6,
+], dark = [
+	"BG_GRADIENT_HEXAGON_PROMO_3",
+	0.6,
+], light = [
+	"BG_GRADIENT_HEXAGON_PROMO_3",
+	0.6,
+], onyx = [
+	"BG_GRADIENT_HEXAGON_PROMO_3",
+	0.6,
+] }
+HEXAGON_CAMPAIGN_PROMO_GRADIENT_4 = { ash = [
+	"BG_GRADIENT_HEXAGON_PROMO_4",
+	0.6,
+], dark = [
+	"BG_GRADIENT_HEXAGON_PROMO_4",
+	0.6,
+], light = [
+	"BG_GRADIENT_HEXAGON_PROMO_4",
+	0.6,
+], onyx = [
+	"BG_GRADIENT_HEXAGON_PROMO_4",
+	0.6,
+] }
+HEXAGON_CAMPAIGN_PROMO_GRADIENT_SHADE = { ash = [
+	"BLACK",
+	0.52,
+], dark = [
+	"BLACK",
+	0.52,
+], light = [
+	"BLACK",
+	0.52,
+], onyx = [
+	"BLACK",
+	0.52,
+] }
+ICON_BRAND = { ash = ["BLURPLE_26", 1], dark = ["BLURPLE_36", 1], light = ["BLURPLE_53", 1], onyx = ["BLURPLE_45", 1] }
+ICON_DEFAULT = { ash = ["NEUTRAL_4", 1], dark = ["NEUTRAL_5", 1], light = ["NEUTRAL_72", 1], onyx = ["NEUTRAL_12", 1] }
+ICON_FEEDBACK_CRITICAL = { ash = [
+	"RED_NEW_18",
+	1,
+], dark = [
+	"RED_NEW_28",
+	1,
+], light = [
+	"RED_NEW_56",
+	1,
+], onyx = [
+	"RED_NEW_37",
+	1,
+] }
+ICON_FEEDBACK_INFO = { ash = [
+	"BLUE_NEW_21",
+	1,
+], dark = [
+	"BLUE_NEW_31",
+	1,
+], light = [
+	"BLUE_NEW_58",
+	1,
+], onyx = [
+	"BLUE_NEW_39",
+	1,
+] }
+ICON_FEEDBACK_NOTIFICATION = { ash = [
+	"RED_NEW_50",
+	1,
+], dark = [
+	"RED_NEW_50",
+	1,
+], light = [
+	"RED_NEW_50",
+	1,
+], onyx = [
+	"RED_NEW_50",
+	1,
+] }
+ICON_FEEDBACK_POSITIVE = { ash = [
+	"GREEN_NEW_22",
+	1,
+], dark = [
+	"GREEN_NEW_31",
+	1,
+], light = [
+	"GREEN_NEW_58",
+	1,
+], onyx = [
+	"GREEN_NEW_39",
+	1,
+] }
+ICON_FEEDBACK_WARNING = { ash = [
+	"YELLOW_NEW_38",
+	1,
+], dark = [
+	"YELLOW_NEW_53",
+	1,
+], light = [
+	"YELLOW_NEW_72",
+	1,
+], onyx = [
+	"YELLOW_NEW_59",
+	1,
+] }
+ICON_MUTED = { ash = ["NEUTRAL_23", 1], dark = ["NEUTRAL_29", 1], light = ["NEUTRAL_41", 1], onyx = ["NEUTRAL_35", 1] }
+ICON_OVERLAY_DARK = { ash = [
+	"NEUTRAL_100",
+	1,
+], dark = [
+	"NEUTRAL_100",
+	1,
+], light = [
+	"NEUTRAL_100",
+	1,
+], onyx = [
+	"NEUTRAL_100",
+	1,
+] }
+ICON_OVERLAY_LIGHT = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_1",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_1",
+	1,
+] }
+ICON_STATUS_DND = { ash = [
+	"RED_NEW_45",
+	1,
+], dark = [
+	"RED_NEW_45",
+	1,
+], light = [
+	"RED_NEW_50",
+	1,
+], onyx = [
+	"RED_NEW_45",
+	1,
+] }
+ICON_STATUS_IDLE = { ash = [
+	"YELLOW_NEW_22",
+	1,
+], dark = [
+	"YELLOW_NEW_22",
+	1,
+], light = [
+	"YELLOW_NEW_45",
+	1,
+], onyx = [
+	"YELLOW_NEW_22",
+	1,
+] }
+ICON_STATUS_OFFLINE = { ash = [
+	"NEUTRAL_27",
+	1,
+], dark = [
+	"NEUTRAL_27",
+	1,
+], light = [
+	"NEUTRAL_45",
+	1,
+], onyx = [
+	"NEUTRAL_27",
+	1,
+] }
+ICON_STATUS_ONLINE = { ash = [
+	"GREEN_NEW_40",
+	1,
+], dark = [
+	"GREEN_NEW_40",
+	1,
+], light = [
+	"GREEN_NEW_55",
+	1,
+], onyx = [
+	"GREEN_NEW_40",
+	1,
+] }
+ICON_STRONG = { ash = ["NEUTRAL_1", 1], dark = ["NEUTRAL_2", 1], light = ["NEUTRAL_76", 1], onyx = ["NEUTRAL_10", 1] }
+ICON_SUBTLE = { ash = ["NEUTRAL_16", 1], dark = ["NEUTRAL_23", 1], light = ["NEUTRAL_47", 1], onyx = ["NEUTRAL_29", 1] }
+ICON_TRANSPARENT = { ash = [
+	"TRANSPARENT",
+	0,
+], dark = [
+	"TRANSPARENT",
+	0,
+], light = [
+	"TRANSPARENT",
+	0,
+], onyx = [
+	"TRANSPARENT",
+	0,
+] }
+ICON_VOICE_CONNECTED = { ash = [
+	"GREEN_NEW_25",
+	1,
+], dark = [
+	"GREEN_NEW_34",
+	1,
+], light = [
+	"GREEN_NEW_55",
+	1,
+], onyx = [
+	"GREEN_NEW_40",
+	1,
+] }
+ICON_VOICE_DISCONNECTED = { ash = [
+	"RED_NEW_18",
+	1,
+], dark = [
+	"RED_NEW_28",
+	1,
+], light = [
+	"RED_NEW_56",
+	1,
+], onyx = [
+	"RED_NEW_37",
+	1,
+] }
+ICON_VOICE_MUTED = { ash = [
+	"RED_NEW_46",
+	1,
+], dark = [
+	"RED_NEW_46",
+	1,
+], light = [
+	"RED_NEW_50",
+	1,
+], onyx = [
+	"RED_NEW_46",
+	1,
+] }
+ICON_VOICE_SPEAKING = { ash = [
+	"GREEN_NEW_40",
+	1,
+], dark = [
+	"GREEN_NEW_40",
+	1,
+], light = [
+	"GREEN_NEW_45",
+	1,
+], onyx = [
+	"GREEN_NEW_40",
+	1,
+] }
+INLINENOTICE_BORDER_CRITICAL = { ash = [
+	"OPACITY_RED_52",
+	0.5215686274509804,
+], dark = [
+	"OPACITY_RED_52",
+	0.5215686274509804,
+], light = [
+	"OPACITY_RED_60",
+	0.6,
+], onyx = [
+	"OPACITY_RED_60",
+	0.6,
+] }
+INLINENOTICE_BORDER_INFO = { ash = [
+	"OPACITY_BLUE_52",
+	0.5215686274509804,
+], dark = [
+	"OPACITY_BLUE_52",
+	0.5215686274509804,
+], light = [
+	"OPACITY_BLUE_60",
+	0.6,
+], onyx = [
+	"OPACITY_BLUE_60",
+	0.6,
+] }
+INLINENOTICE_BORDER_POSITIVE = { ash = [
+	"OPACITY_GREEN_52",
+	0.5215686274509804,
+], dark = [
+	"OPACITY_GREEN_52",
+	0.5215686274509804,
+], light = [
+	"OPACITY_GREEN_60",
+	0.6,
+], onyx = [
+	"OPACITY_GREEN_60",
+	0.6,
+] }
+INLINENOTICE_BORDER_WARNING = { ash = [
+	"OPACITY_YELLOW_32",
+	0.3215686274509804,
+], dark = [
+	"OPACITY_YELLOW_32",
+	0.3215686274509804,
+], light = [
+	"OPACITY_YELLOW_36",
+	0.3607843137254902,
+], onyx = [
+	"OPACITY_YELLOW_72",
+	0.7215686274509804,
+] }
+INPUT_BACKGROUND_DEFAULT = { ash = [
+	"OPACITY_BLACK_8",
+	0.0784313725490196,
+], dark = [
+	"OPACITY_BLACK_12",
+	0.12156862745098039,
+], light = [
+	"OPACITY_BLACK_1",
+	0.0196078431372549,
+], onyx = [
+	"OPACITY_BLACK_12",
+	0.12156862745098039,
+] }
+INPUT_BORDER_ACTIVE = { ash = [
+	"BLURPLE_50",
+	1,
+], dark = [
+	"BLURPLE_50",
+	1,
+], light = [
+	"BLURPLE_50",
+	1,
+], onyx = [
+	"BLURPLE_50",
+	1,
+] }
+INPUT_BORDER_DEFAULT = { ash = [
+	"OPACITY_20",
+	0.2,
+], dark = [
+	"OPACITY_20",
+	0.2,
+], light = [
+	"OPACITY_40",
+	0.4,
+], onyx = [
+	"OPACITY_24",
+	0.23921568627450981,
+] }
+INPUT_BORDER_ERROR_DEFAULT = { ash = [
+	"RED_NEW_18",
+	1,
+], dark = [
+	"RED_NEW_28",
+	1,
+], light = [
+	"RED_NEW_56",
+	1,
+], onyx = [
+	"RED_NEW_37",
+	1,
+] }
+INPUT_ICON_DEFAULT = { ash = [
+	"NEUTRAL_16",
+	1,
+], dark = [
+	"NEUTRAL_23",
+	1,
+], light = [
+	"NEUTRAL_47",
+	1,
+], onyx = [
+	"NEUTRAL_29",
+	1,
+] }
+INPUT_PLACEHOLDER_TEXT_DEFAULT = { ash = [
+	"NEUTRAL_25",
+	1,
+], dark = [
+	"NEUTRAL_31",
+	1,
+], light = [
+	"NEUTRAL_42",
+	1,
+], onyx = [
+	"NEUTRAL_36",
+	1,
+] }
+INPUT_TEXT_DEFAULT = { ash = [
+	"NEUTRAL_4",
+	1,
+], dark = [
+	"NEUTRAL_5",
+	1,
+], light = [
+	"NEUTRAL_72",
+	1,
+], onyx = [
+	"NEUTRAL_12",
+	1,
+] }
+INPUT_TEXT_ERROR_DEFAULT = { ash = [
+	"NEUTRAL_4",
+	1,
+], dark = [
+	"NEUTRAL_5",
+	1,
+], light = [
+	"NEUTRAL_72",
+	1,
+], onyx = [
+	"NEUTRAL_12",
+	1,
+] }
+INTERACTIVE_ACCENT_BACKGROUND_ACTIVE = { ash = [
+	"BLURPLE_65",
+	1,
+], dark = [
+	"BLURPLE_65",
+	1,
+], light = [
+	"BLURPLE_65",
+	1,
+], onyx = [
+	"BLURPLE_65",
+	1,
+] }
+INTERACTIVE_ACCENT_BACKGROUND_DEFAULT = { ash = [
+	"OPACITY_12",
+	0.12156862745098039,
+], dark = [
+	"OPACITY_12",
+	0.12156862745098039,
+], light = [
+	"OPACITY_12",
+	0.12156862745098039,
+], onyx = [
+	"OPACITY_12",
+	0.12156862745098039,
+] }
+INTERACTIVE_ACCENT_BACKGROUND_SELECTED = { ash = [
+	"BLURPLE_50",
+	1,
+], dark = [
+	"BLURPLE_50",
+	1,
+], light = [
+	"BLURPLE_50",
+	1,
+], onyx = [
+	"BLURPLE_50",
+	1,
+] }
+INTERACTIVE_BACKGROUND_ACTIVE = { ash = [
+	"OPACITY_16",
+	0.1607843137254902,
+], dark = [
+	"OPACITY_16",
+	0.1607843137254902,
+], light = [
+	"OPACITY_16",
+	0.1607843137254902,
+], onyx = [
+	"OPACITY_20",
+	0.2,
+] }
+INTERACTIVE_BACKGROUND_DEFAULT = { ash = [
+	"OPACITY_8",
+	0.0784313725490196,
+], dark = [
+	"OPACITY_8",
+	0.0784313725490196,
+], light = [
+	"OPACITY_8",
+	0.0784313725490196,
+], onyx = [
+	"OPACITY_8",
+	0.0784313725490196,
+] }
+INTERACTIVE_BACKGROUND_HOVER = { ash = [
+	"OPACITY_12",
+	0.12156862745098039,
+], dark = [
+	"OPACITY_12",
+	0.12156862745098039,
+], light = [
+	"OPACITY_12",
+	0.12156862745098039,
+], onyx = [
+	"OPACITY_12",
+	0.12156862745098039,
+] }
+INTERACTIVE_BACKGROUND_SELECTED = { ash = [
+	"OPACITY_20",
+	0.2,
+], dark = [
+	"OPACITY_20",
+	0.2,
+], light = [
+	"OPACITY_24",
+	0.23921568627450981,
+], onyx = [
+	"OPACITY_24",
+	0.23921568627450981,
+] }
+INTERACTIVE_ICON_ACTIVE = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_2",
+	1,
+], light = [
+	"NEUTRAL_76",
+	1,
+], onyx = [
+	"NEUTRAL_10",
+	1,
+] }
+INTERACTIVE_ICON_DEFAULT = { ash = [
+	"NEUTRAL_16",
+	1,
+], dark = [
+	"NEUTRAL_23",
+	1,
+], light = [
+	"NEUTRAL_47",
+	1,
+], onyx = [
+	"NEUTRAL_29",
+	1,
+] }
+INTERACTIVE_ICON_HOVER = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_2",
+	1,
+], light = [
+	"NEUTRAL_76",
+	1,
+], onyx = [
+	"NEUTRAL_10",
+	1,
+] }
+INTERACTIVE_MUTED = { ash = [
+	"PRIMARY_500",
+	1,
+], dark = [
+	"PLUM_13",
+	1,
+], light = [
+	"PRIMARY_300",
+	1,
+], onyx = [
+	"PLUM_13",
+	1,
+] }
+INTERACTIVE_TEXT_ACTIVE = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_2",
+	1,
+], light = [
+	"NEUTRAL_76",
+	1,
+], onyx = [
+	"NEUTRAL_10",
+	1,
+] }
+INTERACTIVE_TEXT_DEFAULT = { ash = [
+	"NEUTRAL_16",
+	1,
+], dark = [
+	"NEUTRAL_23",
+	1,
+], light = [
+	"NEUTRAL_47",
+	1,
+], onyx = [
+	"NEUTRAL_29",
+	1,
+] }
+INTERACTIVE_TEXT_HOVER = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_2",
+	1,
+], light = [
+	"NEUTRAL_76",
+	1,
+], onyx = [
+	"NEUTRAL_10",
+	1,
+] }
+KEYWORD_HIGHLIGHT_BACKGROUND = { ash = [
+	"OPACITY_20",
+	0.2,
+], dark = [
+	"OPACITY_20",
+	0.2,
+], light = [
+	"OPACITY_24",
+	0.23921568627450981,
+], onyx = [
+	"OPACITY_24",
+	0.23921568627450981,
+] }
+LEGACY_ANDROID_BLUR_OVERLAY_DEFAULT = { ash = [
+	"PRIMARY_660",
+	0.5,
+], dark = [
+	"PRIMARY_660",
+	0.5,
+], light = [
+	"PRIMARY_130",
+	0.1,
+], onyx = [
+	"PRIMARY_660",
+	0.5,
+] }
+LEGACY_ANDROID_BLUR_OVERLAY_ULTRA_THIN = { ash = [
+	"BLACK",
+	0.025,
+], dark = [
+	"BLACK",
+	0.025,
+], light = [
+	"WHITE",
+	0.25,
+], onyx = [
+	"BLACK",
+	0.025,
+] }
+LEGACY_BLUR_FALLBACK_DEFAULT = { ash = [
+	"PRIMARY_660",
+	0.975,
+], dark = [
+	"PRIMARY_660",
+	0.975,
+], light = [
+	"PRIMARY_230",
+	0.975,
+], onyx = [
+	"PRIMARY_660",
+	0.975,
+] }
+LEGACY_BLUR_FALLBACK_ULTRA_THIN = { ash = [
+	"BLACK",
+	0.95,
+], dark = [
+	"BLACK",
+	0.95,
+], light = [
+	"WHITE",
+	0.95,
+], onyx = [
+	"BLACK",
+	0.95,
+] }
+MENTION_BACKGROUND = { ash = [
+	"OPACITY_BLURPLE_24",
+	0.23921568627450981,
+], dark = [
+	"OPACITY_BLURPLE_24",
+	0.23921568627450981,
+], light = [
+	"OPACITY_BLURPLE_24",
+	0.23921568627450981,
+], onyx = [
+	"OPACITY_BLURPLE_24",
+	0.23921568627450981,
+] }
+MENTION_FOREGROUND = { ash = [
+	"BLURPLE_8",
+	1,
+], dark = [
+	"BLURPLE_19",
+	1,
+], light = [
+	"BLURPLE_71",
+	1,
+], onyx = [
+	"BLURPLE_29",
+	1,
+] }
+MESSAGES_ITEM_CHANNEL_TEXT_DEFAULT = { ash = [
+	"NEUTRAL_16",
+	1,
+], dark = [
+	"NEUTRAL_23",
+	1,
+], light = [
+	"NEUTRAL_47",
+	1,
+], onyx = [
+	"NEUTRAL_29",
+	1,
+] }
+MESSAGE_AUTOMOD_BACKGROUND_DEFAULT = { ash = [
+	"RED_400",
+	0.05,
+], dark = [
+	"RED_345",
+	0.08,
+], light = [
+	"RED_400",
+	0.05,
+], onyx = [
+	"RED_345",
+	0.08,
+] }
+MESSAGE_AUTOMOD_BACKGROUND_HOVER = { ash = [
+	"RED_400",
+	0.1,
+], dark = [
+	"RED_400",
+	0.1,
+], light = [
+	"RED_400",
+	0.1,
+], onyx = [
+	"RED_400",
+	0.1,
+] }
+MESSAGE_BACKGROUND_HOVER = { ash = [
+	"OPACITY_12",
+	0.12156862745098039,
+], dark = [
+	"OPACITY_12",
+	0.12156862745098039,
+], light = [
+	"OPACITY_12",
+	0.12156862745098039,
+], onyx = [
+	"OPACITY_12",
+	0.12156862745098039,
+] }
+MESSAGE_HIGHLIGHT_BACKGROUND_DEFAULT = { ash = [
+	"OPACITY_BLURPLE_16",
+	0.1607843137254902,
+], dark = [
+	"OPACITY_BLURPLE_16",
+	0.1607843137254902,
+], light = [
+	"OPACITY_BLURPLE_16",
+	0.1607843137254902,
+], onyx = [
+	"OPACITY_BLURPLE_16",
+	0.1607843137254902,
+] }
+MESSAGE_HIGHLIGHT_BACKGROUND_HOVER = { ash = [
+	"OPACITY_BLURPLE_12",
+	0.12156862745098039,
+], dark = [
+	"OPACITY_BLURPLE_12",
+	0.12156862745098039,
+], light = [
+	"OPACITY_BLURPLE_20",
+	0.2,
+], onyx = [
+	"OPACITY_BLURPLE_12",
+	0.12156862745098039,
+] }
+MESSAGE_MENTIONED_BACKGROUND_DEFAULT = { ash = [
+	"OPACITY_YELLOW_8",
+	0.0784313725490196,
+], dark = [
+	"OPACITY_YELLOW_8",
+	0.0784313725490196,
+], light = [
+	"OPACITY_YELLOW_8",
+	0.0784313725490196,
+], onyx = [
+	"OPACITY_YELLOW_8",
+	0.0784313725490196,
+] }
+MESSAGE_MENTIONED_BACKGROUND_HOVER = { ash = [
+	"OPACITY_YELLOW_4",
+	0.0392156862745098,
+], dark = [
+	"OPACITY_YELLOW_4",
+	0.0392156862745098,
+], light = [
+	"OPACITY_YELLOW_12",
+	0.12156862745098039,
+], onyx = [
+	"OPACITY_YELLOW_4",
+	0.0392156862745098,
+] }
+MOBILE_ACTIONSHEET_BACKGROUND = { ash = [
+	"NEUTRAL_64",
+	1,
+], dark = [
+	"NEUTRAL_79",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_96",
+	1,
+] }
+MOBILE_ACTIONSHEET_GRADIENT_BACKGROUND_DEFAULT = { ash = [
+	"NEUTRAL_64",
+	1,
+], dark = [
+	"NEUTRAL_79",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_96",
+	1,
+] }
+MOBILE_ALERT_BACKGROUND_DEFAULT = { ash = [
+	"NEUTRAL_64",
+	1,
+], dark = [
+	"NEUTRAL_79",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_96",
+	1,
+] }
+MOBILE_ANDROID_BUTTON_BACKGROUND_RIPPLE = { ash = [
+	"WHITE",
+	0.07,
+], dark = [
+	"WHITE",
+	0.07,
+], light = [
+	"BLACK",
+	0.12,
+], onyx = [
+	"WHITE",
+	0.07,
+] }
+MOBILE_BACKGROUND_SCRIM_OPAQUE = { ash = [
+	"BLACK",
+	1,
+], dark = [
+	"BLACK",
+	1,
+], light = [
+	"BLACK",
+	1,
+], onyx = [
+	"PLUM_19",
+	1,
+] }
+MOBILE_CHANNEL_ITEM_BACKGROUND_SELECTED = { ash = [
+	"OPACITY_20",
+	0.2,
+], dark = [
+	"OPACITY_20",
+	0.2,
+], light = [
+	"OPACITY_24",
+	0.23921568627450981,
+], onyx = [
+	"OPACITY_24",
+	0.23921568627450981,
+] }
+MOBILE_CHATINPUT_BACKGROUND_ACTIVE = { ash = [
+	"NEUTRAL_63",
+	1,
+], dark = [
+	"NEUTRAL_79",
+	1,
+], light = [
+	"NEUTRAL_5",
+	1,
+], onyx = [
+	"NEUTRAL_87",
+	1,
+] }
+MOBILE_CHATINPUT_BACKGROUND_DEFAULT = { ash = [
+	"NEUTRAL_63",
+	1,
+], dark = [
+	"NEUTRAL_79",
+	1,
+], light = [
+	"NEUTRAL_5",
+	1,
+], onyx = [
+	"NEUTRAL_87",
+	1,
+] }
+MOBILE_CHATINPUT_BORDER_ACTIVE = { ash = [
+	"OPACITY_12",
+	0.12156862745098039,
+], dark = [
+	"OPACITY_12",
+	0.12156862745098039,
+], light = [
+	"OPACITY_28",
+	0.2784313725490196,
+], onyx = [
+	"OPACITY_20",
+	0.2,
+] }
+MOBILE_CHATINPUT_BORDER_DEFAULT = { ash = [
+	"OPACITY_4",
+	0.0392156862745098,
+], dark = [
+	"OPACITY_4",
+	0.0392156862745098,
+], light = [
+	"OPACITY_20",
+	0.2,
+], onyx = [
+	"OPACITY_16",
+	0.1607843137254902,
+] }
+MOBILE_CHAT_NEW_MESSAGE_BORDER = { ash = [
+	"RED_NEW_46",
+	0.44,
+], dark = [
+	"RED_NEW_46",
+	0.44,
+], light = [
+	"RED_NEW_50",
+	0.44,
+], onyx = [
+	"RED_NEW_46",
+	0.44,
+] }
+MOBILE_CHAT_NEW_MESSAGE_TEXT = { ash = [
+	"RED_NEW_18",
+	1,
+], dark = [
+	"RED_NEW_28",
+	1,
+], light = [
+	"RED_NEW_56",
+	1,
+], onyx = [
+	"RED_NEW_34",
+	1,
+] }
+MOBILE_COACHMARK_BACKGROUND_DEFAULT = { ash = [
+	"NEUTRAL_64",
+	1,
+], dark = [
+	"NEUTRAL_79",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_96",
+	1,
+] }
+MOBILE_COACHMARK_BORDER_DEFAULT = { ash = [
+	"OPACITY_12",
+	0.12156862745098039,
+], dark = [
+	"OPACITY_12",
+	0.12156862745098039,
+], light = [
+	"OPACITY_28",
+	0.2784313725490196,
+], onyx = [
+	"OPACITY_20",
+	0.2,
+] }
+MOBILE_COMMAND_BAR_BACKGROUND = { ash = [
+	"NEUTRAL_66",
+	1,
+], dark = [
+	"NEUTRAL_82",
+	1,
+], light = [
+	"NEUTRAL_2",
+	1,
+], onyx = [
+	"NEUTRAL_100",
+	1,
+] }
+MOBILE_COMMAND_BAR_DIVIDER = { ash = [
+	"OPACITY_4",
+	0.0392156862745098,
+], dark = [
+	"OPACITY_4",
+	0.0392156862745098,
+], light = [
+	"OPACITY_20",
+	0.2,
+], onyx = [
+	"OPACITY_16",
+	0.1607843137254902,
+] }
+MOBILE_COMMAND_CATEGORIES_BACKGROUND = { ash = [
+	"NEUTRAL_64",
+	1,
+], dark = [
+	"NEUTRAL_79",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_96",
+	1,
+] }
+MOBILE_EMBED_BACKGROUND_DEFAULT = { ash = [
+	"NEUTRAL_64",
+	1,
+], dark = [
+	"NEUTRAL_79",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_96",
+	1,
+] }
+MOBILE_EMOJI_BUTTON_BACKGROUND = { ash = [
+	"OPACITY_12",
+	0.12156862745098039,
+], dark = [
+	"OPACITY_12",
+	0.12156862745098039,
+], light = [
+	"OPACITY_12",
+	0.12156862745098039,
+], onyx = [
+	"OPACITY_12",
+	0.12156862745098039,
+] }
+MOBILE_EXPRESSION_PICKER_BACKGROUND_DEFAULT = { ash = [
+	"NEUTRAL_64",
+	1,
+], dark = [
+	"NEUTRAL_79",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_96",
+	1,
+] }
+MOBILE_FLOATINGBAR_BACKGROUND = { ash = [
+	"NEUTRAL_64",
+	1,
+], dark = [
+	"NEUTRAL_79",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_96",
+	1,
+] }
+MOBILE_FLOATINGBAR_BACKGROUND_HIGHER = { ash = [
+	"NEUTRAL_62",
+	1,
+], dark = [
+	"NEUTRAL_76",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_92",
+	1,
+] }
+MOBILE_FLOATINGBAR_BACKGROUND_NAMEPLATE = { ash = [
+	"NEUTRAL_60",
+	1,
+], dark = [
+	"NEUTRAL_73",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_88",
+	1,
+] }
+MOBILE_FLOATINGBAR_BACKGROUND_SCRIM = { ash = [
+	"NEUTRAL_66",
+	1,
+], dark = [
+	"NEUTRAL_82",
+	1,
+], light = [
+	"NEUTRAL_2",
+	1,
+], onyx = [
+	"NEUTRAL_100",
+	1,
+] }
+MOBILE_FLOATING_ACCESSORY_BACKGROUND = { ash = [
+	"NEUTRAL_64",
+	1,
+], dark = [
+	"NEUTRAL_79",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_96",
+	1,
+] }
+MOBILE_FLOATING_ACCESSORY_BORDER = { ash = [
+	"OPACITY_12",
+	0.12156862745098039,
+], dark = [
+	"OPACITY_12",
+	0.12156862745098039,
+], light = [
+	"OPACITY_28",
+	0.2784313725490196,
+], onyx = [
+	"OPACITY_20",
+	0.2,
+] }
+MOBILE_GUILDBAR_ICON_BACKGROUND_DEFAULT = { ash = [
+	"OPACITY_12",
+	0.12156862745098039,
+], dark = [
+	"OPACITY_12",
+	0.12156862745098039,
+], light = [
+	"OPACITY_12",
+	0.12156862745098039,
+], onyx = [
+	"OPACITY_12",
+	0.12156862745098039,
+] }
+MOBILE_GUILDBAR_ICON_DEFAULT = { ash = [
+	"NEUTRAL_16",
+	1,
+], dark = [
+	"NEUTRAL_23",
+	1,
+], light = [
+	"NEUTRAL_47",
+	1,
+], onyx = [
+	"NEUTRAL_29",
+	1,
+] }
+MOBILE_HEADER_BORDER = { ash = [
+	"OPACITY_44",
+	0.4392156862745098,
+], dark = [
+	"OPACITY_44",
+	0.4392156862745098,
+], light = [
+	"OPACITY_52",
+	0.5215686274509804,
+], onyx = [
+	"OPACITY_44",
+	0.4392156862745098,
+] }
+MOBILE_HEADER_ICON_DEFAULT = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_2",
+	1,
+], light = [
+	"NEUTRAL_76",
+	1,
+], onyx = [
+	"NEUTRAL_10",
+	1,
+] }
+MOBILE_KEYBOARD_GAP_BACKGROUND = { ash = [
+	"NEUTRAL_69",
+	1,
+], dark = [
+	"NEUTRAL_86",
+	1,
+], light = [
+	"NEUTRAL_2",
+	1,
+], onyx = [
+	"NEUTRAL_100",
+	1,
+] }
+MOBILE_KEYBOARD_PANEL_BACKGROUND = { ash = [
+	"NEUTRAL_64",
+	1,
+], dark = [
+	"NEUTRAL_79",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_96",
+	1,
+] }
+MOBILE_LEGACY_BUTTON_SECONDARY_BACKGROUND_DEFAULT = { ash = [
+	"PRIMARY_460",
+	1,
+], dark = [
+	"PLUM_15",
+	1,
+], light = [
+	"PRIMARY_430",
+	1,
+], onyx = [
+	"PLUM_17",
+	1,
+] }
+MOBILE_LEGACY_BUTTON_SECONDARY_BORDER_DEFAULT = { ash = [
+	"BRAND_500",
+	1,
+], dark = [
+	"BRAND_500",
+	1,
+], light = [
+	"BRAND_500",
+	1,
+], onyx = [
+	"BRAND_500",
+	1,
+] }
+MOBILE_LEGACY_BUTTON_SECONDARY_TEXT_DEFAULT = { ash = [
+	"WHITE",
+	1,
+], dark = [
+	"WHITE",
+	1,
+], light = [
+	"WHITE",
+	1,
+], onyx = [
+	"WHITE",
+	1,
+] }
+MOBILE_SEARCHBAR_GRADIENT_BACKGROUND = { ash = [
+	"NEUTRAL_69",
+	1,
+], dark = [
+	"NEUTRAL_86",
+	1,
+], light = [
+	"NEUTRAL_2",
+	1,
+], onyx = [
+	"NEUTRAL_100",
+	1,
+] }
+MOBILE_SEGMENTED_CONTROL_BACKGROUND = { ash = [
+	"OPACITY_12",
+	0.12156862745098039,
+], dark = [
+	"OPACITY_12",
+	0.12156862745098039,
+], light = [
+	"OPACITY_12",
+	0.12156862745098039,
+], onyx = [
+	"OPACITY_12",
+	0.12156862745098039,
+] }
+MOBILE_SEGMENTED_CONTROL_INDICATOR_BACKGROUND = { ash = [
+	"OPACITY_20",
+	0.2,
+], dark = [
+	"OPACITY_20",
+	0.2,
+], light = [
+	"OPACITY_24",
+	0.23921568627450981,
+], onyx = [
+	"OPACITY_24",
+	0.23921568627450981,
+] }
+MOBILE_TEXT_HEADING_PRIMARY = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_2",
+	1,
+], light = [
+	"NEUTRAL_76",
+	1,
+], onyx = [
+	"NEUTRAL_10",
+	1,
+] }
+MOBILE_THREAD_EMBED_BACKGROUND = { ash = [
+	"NEUTRAL_64",
+	1,
+], dark = [
+	"NEUTRAL_79",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_96",
+	1,
+] }
+MOBILE_TOAST_BACKGROUND_DEFAULT = { ash = [
+	"NEUTRAL_60",
+	1,
+], dark = [
+	"NEUTRAL_73",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_88",
+	1,
+] }
+MOBILE_TYPING_INDICATOR_BACKGROUND_DEFAULT = { ash = [
+	"NEUTRAL_69",
+	1,
+], dark = [
+	"NEUTRAL_86",
+	1,
+], light = [
+	"NEUTRAL_2",
+	1,
+], onyx = [
+	"NEUTRAL_100",
+	1,
+] }
+MOBILE_UNREADBAR_TEXT_DEFAULT = { ash = [
+	"NEUTRAL_16",
+	1,
+], dark = [
+	"NEUTRAL_23",
+	1,
+], light = [
+	"NEUTRAL_47",
+	1,
+], onyx = [
+	"NEUTRAL_29",
+	1,
+] }
+MOBILE_VOICE_MESSAGE_RECORDING_LOCK_BACKGROUND_ACTIVE = { ash = [
+	"BLURPLE_50",
+	1,
+], dark = [
+	"BLURPLE_50",
+	1,
+], light = [
+	"BLURPLE_50",
+	1,
+], onyx = [
+	"BLURPLE_50",
+	1,
+] }
+MOBILE_VOICE_MESSAGE_RECORDING_LOCK_BACKGROUND_DEFAULT = { ash = [
+	"NEUTRAL_64",
+	1,
+], dark = [
+	"NEUTRAL_79",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_96",
+	1,
+] }
+MOBILE_VOICE_MESSAGE_RECORDING_LOCK_ICON_ACTIVE = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_1",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_1",
+	1,
+] }
+MOBILE_VOICE_MESSAGE_RECORDING_LOCK_ICON_DEFAULT = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_2",
+	1,
+], light = [
+	"NEUTRAL_76",
+	1,
+], onyx = [
+	"NEUTRAL_10",
+	1,
+] }
+MOBILE_VOICE_MESSAGE_RECORDING_SPINNER_COLOR = { ash = [
+	"NEUTRAL_4",
+	1,
+], dark = [
+	"NEUTRAL_5",
+	1,
+], light = [
+	"NEUTRAL_72",
+	1,
+], onyx = [
+	"NEUTRAL_12",
+	1,
+] }
+MOBILE_VOICE_MESSAGE_RECORDING_WAVEFORM_BAR_BACKGROUND = { ash = [
+	"NEUTRAL_4",
+	1,
+], dark = [
+	"NEUTRAL_5",
+	1,
+], light = [
+	"NEUTRAL_72",
+	1,
+], onyx = [
+	"NEUTRAL_12",
+	1,
+] }
+MOBILE_VOICE_PANEL_BACKGROUND = { ash = [
+	"NEUTRAL_73",
+	1,
+], dark = [
+	"NEUTRAL_92",
+	1,
+], light = [
+	"NEUTRAL_4",
+	1,
+], onyx = [
+	"NEUTRAL_100",
+	1,
+] }
+MOBILE_VOICE_PANEL_BADGE_BACKGROUND = { ash = [
+	"TRANSPARENT",
+	0,
+], dark = [
+	"TRANSPARENT",
+	0,
+], light = [
+	"TRANSPARENT",
+	0,
+], onyx = [
+	"TRANSPARENT",
+	0,
+] }
+MODAL_BACKGROUND = { ash = [
+	"NEUTRAL_64",
+	1,
+], dark = [
+	"NEUTRAL_79",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_96",
+	1,
+] }
+MODAL_FOOTER_BACKGROUND = { ash = [
+	"NEUTRAL_64",
+	1,
+], dark = [
+	"NEUTRAL_79",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_96",
+	1,
+] }
+NAVIGATOR_HEADER_TINT = { ash = ["WHITE", 1], dark = ["WHITE", 1], light = ["PRIMARY_500", 1], onyx = ["WHITE", 1] }
+NOTICE_BACKGROUND_POSITIVE = { ash = [
+	"GREEN_NEW_77",
+	1,
+], dark = [
+	"GREEN_NEW_88",
+	1,
+], light = [
+	"GREEN_NEW_1",
+	1,
+], onyx = [
+	"GREEN_NEW_100",
+	1,
+] }
+OVERLAY_BACKDROP_LIGHTBOX = { ash = [
+	"OPACITY_BLACK_92",
+	0.9215686274509803,
+], dark = [
+	"OPACITY_BLACK_92",
+	0.9215686274509803,
+], light = [
+	"OPACITY_BLACK_92",
+	0.9215686274509803,
+], onyx = [
+	"OPACITY_BLACK_92",
+	0.9215686274509803,
+] }
+PANEL_BG = { ash = ["NEUTRAL_69", 1], dark = ["NEUTRAL_86", 1], light = ["NEUTRAL_2", 1], onyx = ["NEUTRAL_100", 1] }
+POLLS_NORMAL_IMAGE_BACKGROUND = { ash = [
+	"PRIMARY_660",
+	1,
+], dark = [
+	"PRIMARY_660",
+	1,
+], light = [
+	"WHITE",
+	1,
+], onyx = [
+	"PRIMARY_660",
+	1,
+] }
+POLLS_VICTOR_FILL = { ash = [
+	"GREEN_360",
+	0.2,
+], dark = [
+	"GREEN_360",
+	0.2,
+], light = [
+	"GREEN_400",
+	0.2,
+], onyx = [
+	"GREEN_360",
+	0.2,
+] }
+POLLS_VOTED_FILL = { ash = [
+	"BRAND_500",
+	0.2,
+], dark = [
+	"BRAND_500",
+	0.2,
+], light = [
+	"BRAND_500",
+	0.2,
+], onyx = [
+	"BRAND_500",
+	0.2,
+] }
+PREMIUM_NITRO_PINK_TEXT = { ash = ["PINK_34", 1], dark = ["PINK_51", 1], light = ["PINK_61", 1], onyx = ["PINK_57", 1] }
+PROFILE_GRADIENT_NOTE_BACKGROUND = { ash = [
+	"BLACK",
+	0.3,
+], dark = [
+	"BLACK",
+	0.3,
+], light = [
+	"WHITE",
+	0.3,
+], onyx = [
+	"BLACK",
+	0.3,
+] }
+PROFILE_GRADIENT_OVERLAY = { ash = [
+	"BLACK",
+	0.6,
+], dark = [
+	"BLACK",
+	0.6,
+], light = [
+	"WHITE",
+	0.6,
+], onyx = [
+	"BLACK",
+	0.6,
+] }
+PROFILE_GRADIENT_OVERLAY_SYNCED_WITH_USER_THEME = { ash = [
+	"BLACK",
+	0.8,
+], dark = [
+	"BLACK",
+	0.8,
+], light = [
+	"WHITE",
+	0.8,
+], onyx = [
+	"BLACK",
+	0.8,
+] }
+PROFILE_GRADIENT_ROLE_PILL_BACKGROUND = { ash = [
+	"PRIMARY_660",
+	0.5,
+], dark = [
+	"PRIMARY_660",
+	0.5,
+], light = [
+	"WHITE",
+	0.5,
+], onyx = [
+	"PRIMARY_660",
+	0.5,
+] }
+PROFILE_GRADIENT_ROLE_PILL_BORDER = { ash = [
+	"WHITE",
+	0.2,
+], dark = [
+	"WHITE",
+	0.2,
+], light = [
+	"PRIMARY_660",
+	0.2,
+], onyx = [
+	"WHITE",
+	0.2,
+] }
+PROFILE_GRADIENT_SECTION_BOX = { ash = [
+	"BLACK",
+	0.45,
+], dark = [
+	"BLACK",
+	0.45,
+], light = [
+	"WHITE",
+	0.45,
+], onyx = [
+	"BLACK",
+	0.45,
+] }
+PROGRESSBAR_INDICATOR_BACKGROUND = { ash = [
+	"BLURPLE_50",
+	1,
+], dark = [
+	"BLURPLE_50",
+	1,
+], light = [
+	"BLURPLE_50",
+	1,
+], onyx = [
+	"BLURPLE_50",
+	1,
+] }
+PROGRESSBAR_TRACK_BACKGROUND = { ash = [
+	"OPACITY_20",
+	0.2,
+], dark = [
+	"OPACITY_20",
+	0.2,
+], light = [
+	"OPACITY_24",
+	0.23921568627450981,
+], onyx = [
+	"OPACITY_24",
+	0.23921568627450981,
+] }
+RADIO_BORDER_DEFAULT = { ash = [
+	"OPACITY_64",
+	0.6392156862745098,
+], dark = [
+	"OPACITY_64",
+	0.6392156862745098,
+], light = [
+	"NEUTRAL_34",
+	1,
+], onyx = [
+	"OPACITY_64",
+	0.6392156862745098,
+] }
+REACTION_BACKGROUND_DEFAULT = { ash = [
+	"OPACITY_12",
+	0.12156862745098039,
+], dark = [
+	"OPACITY_12",
+	0.12156862745098039,
+], light = [
+	"OPACITY_12",
+	0.12156862745098039,
+], onyx = [
+	"OPACITY_12",
+	0.12156862745098039,
+] }
+REACTION_BACKGROUND_REACTED_DEFAULT = { ash = [
+	"OPACITY_BLURPLE_24",
+	0.23921568627450981,
+], dark = [
+	"OPACITY_BLURPLE_24",
+	0.23921568627450981,
+], light = [
+	"OPACITY_BLURPLE_24",
+	0.23921568627450981,
+], onyx = [
+	"OPACITY_BLURPLE_24",
+	0.23921568627450981,
+] }
+REACTION_BORDER_DEFAULT = { ash = [
+	"OPACITY_12",
+	0.12156862745098039,
+], dark = [
+	"OPACITY_12",
+	0.12156862745098039,
+], light = [
+	"OPACITY_28",
+	0.2784313725490196,
+], onyx = [
+	"OPACITY_20",
+	0.2,
+] }
+REACTION_BORDER_REACTED_DEFAULT = { ash = [
+	"BLURPLE_50",
+	1,
+], dark = [
+	"BLURPLE_50",
+	1,
+], light = [
+	"BLURPLE_50",
+	1,
+], onyx = [
+	"BLURPLE_50",
+	1,
+] }
+REACTION_TEXT_ACTIVE = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_2",
+	1,
+], light = [
+	"NEUTRAL_76",
+	1,
+], onyx = [
+	"NEUTRAL_10",
+	1,
+] }
+REACTION_TEXT_DEFAULT = { ash = [
+	"NEUTRAL_16",
+	1,
+], dark = [
+	"NEUTRAL_23",
+	1,
+], light = [
+	"NEUTRAL_47",
+	1,
+], onyx = [
+	"NEUTRAL_29",
+	1,
+] }
+REACTION_TEXT_HOVER = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_2",
+	1,
+], light = [
+	"NEUTRAL_76",
+	1,
+], onyx = [
+	"NEUTRAL_10",
+	1,
+] }
+REACTION_TEXT_REACTED_DEFAULT = { ash = [
+	"BLURPLE_3",
+	1,
+], dark = [
+	"BLURPLE_14",
+	1,
+], light = [
+	"BLURPLE_75",
+	1,
+], onyx = [
+	"BLURPLE_24",
+	1,
+] }
+REDESIGN_ACTIVITY_CARD_BADGE_ICON = { ash = [
+	"PRIMARY_360",
+	1,
+], dark = [
+	"PLUM_10",
+	1,
+], light = [
+	"PRIMARY_400",
+	1,
+], onyx = [
+	"PLUM_11",
+	1,
+] }
+REDESIGN_BUTTON_PREMIUM_PRIMARY_PINK_FOR_GRADIENT = { ash = [
+	"PREMIUM_TIER_2_PINK_FOR_GRADIENTS",
+	1,
+], dark = [
+	"PREMIUM_TIER_2_PINK_FOR_GRADIENTS",
+	1,
+], light = [
+	"PREMIUM_TIER_2_PINK_FOR_GRADIENTS",
+	1,
+], onyx = [
+	"PREMIUM_TIER_2_PINK_FOR_GRADIENTS",
+	1,
+] }
+REDESIGN_BUTTON_PREMIUM_PRIMARY_PRESSED_BACKGROUND = { ash = [
+	"BLACK",
+	0.1,
+], dark = [
+	"BLACK",
+	0.1,
+], light = [
+	"BLACK",
+	0.1,
+], onyx = [
+	"BLACK",
+	0.1,
+] }
+REDESIGN_BUTTON_PREMIUM_PRIMARY_PURPLE_FOR_GRADIENT = { ash = [
+	"PREMIUM_TIER_2_PURPLE_FOR_GRADIENTS",
+	1,
+], dark = [
+	"PREMIUM_TIER_2_PURPLE_FOR_GRADIENTS",
+	1,
+], light = [
+	"PREMIUM_TIER_2_PURPLE_FOR_GRADIENTS",
+	1,
+], onyx = [
+	"PREMIUM_TIER_2_PURPLE_FOR_GRADIENTS",
+	1,
+] }
+REDESIGN_BUTTON_PREMIUM_PRIMARY_PURPLE_FOR_GRADIENT_2 = { ash = [
+	"PREMIUM_TIER_2_PURPLE_FOR_GRADIENTS_2",
+	1,
+], dark = [
+	"PREMIUM_TIER_2_PURPLE_FOR_GRADIENTS_2",
+	1,
+], light = [
+	"PREMIUM_TIER_2_PURPLE_FOR_GRADIENTS_2",
+	1,
+], onyx = [
+	"PREMIUM_TIER_2_PURPLE_FOR_GRADIENTS_2",
+	1,
+] }
+REDESIGN_BUTTON_TERTIARY_BACKGROUND = { ash = [
+	"OPACITY_1",
+	0.000196078431372549,
+], dark = [
+	"OPACITY_1",
+	0.000196078431372549,
+], light = [
+	"OPACITY_1",
+	0.000196078431372549,
+], onyx = [
+	"OPACITY_1",
+	0.000196078431372549,
+] }
+REDESIGN_BUTTON_TERTIARY_PRESSED_BACKGROUND = { ash = [
+	"OPACITY_20",
+	0.2,
+], dark = [
+	"OPACITY_20",
+	0.2,
+], light = [
+	"OPACITY_24",
+	0.23921568627450981,
+], onyx = [
+	"OPACITY_24",
+	0.23921568627450981,
+] }
+REDESIGN_BUTTON_TERTIARY_PRESSED_TEXT = { ash = [
+	"PRIMARY_330",
+	1,
+], dark = [
+	"PLUM_5",
+	1,
+], light = [
+	"PRIMARY_500",
+	1,
+], onyx = [
+	"PLUM_6",
+	1,
+] }
+REDESIGN_BUTTON_TERTIARY_TEXT = { ash = [
+	"NEUTRAL_4",
+	1,
+], dark = [
+	"NEUTRAL_5",
+	1,
+], light = [
+	"NEUTRAL_72",
+	1,
+], onyx = [
+	"NEUTRAL_12",
+	1,
+] }
+REDESIGN_CHANNEL_NAME_MUTED_TEXT = { ash = [
+	"NEUTRAL_23",
+	1,
+], dark = [
+	"NEUTRAL_29",
+	1,
+], light = [
+	"NEUTRAL_41",
+	1,
+], onyx = [
+	"NEUTRAL_35",
+	1,
+] }
+REDESIGN_CHANNEL_NAME_TEXT = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_2",
+	1,
+], light = [
+	"NEUTRAL_76",
+	1,
+], onyx = [
+	"NEUTRAL_10",
+	1,
+] }
+REDESIGN_CHAT_INPUT_BACKGROUND = { ash = [
+	"PRIMARY_700",
+	1,
+], dark = [
+	"PLUM_11",
+	0.12,
+], light = [
+	"BLACK",
+	0.08,
+], onyx = [
+	"OPACITY_BLACK_12",
+	0.12156862745098039,
+] }
+REDESIGN_IMAGE_BUTTON_PRESSED_BACKGROUND = { ash = [
+	"BLACK",
+	0.08,
+], dark = [
+	"BLACK",
+	0.08,
+], light = [
+	"BLACK",
+	0.08,
+], onyx = [
+	"BLACK",
+	0.08,
+] }
+REDESIGN_INPUT_CONTROL_ACTIVE_BG = { ash = [
+	"PRIMARY_645",
+	1,
+], dark = [
+	"PLUM_16",
+	1,
+], light = [
+	"WHITE",
+	1,
+], onyx = [
+	"PLUM_17",
+	1,
+] }
+REDESIGN_INPUT_CONTROL_SELECTED = { ash = [
+	"BRAND_500",
+	1,
+], dark = [
+	"BRAND_500",
+	1,
+], light = [
+	"BRAND_500",
+	1,
+], onyx = [
+	"BRAND_500",
+	1,
+] }
+SHARE_CHAT_INPUT_BACKGROUND = { ash = [
+	"NEUTRAL_67",
+	1,
+], dark = [
+	"NEUTRAL_81",
+	1,
+], light = [
+	"NEUTRAL_5",
+	1,
+], onyx = [
+	"NEUTRAL_93",
+	1,
+] }
+SLIDER_TRACK_BACKGROUND = { ash = [
+	"NEUTRAL_47",
+	1,
+], dark = [
+	"NEUTRAL_55",
+	1,
+], light = [
+	"NEUTRAL_16",
+	1,
+], onyx = [
+	"NEUTRAL_65",
+	1,
+] }
+SPINE_DEFAULT = { ash = [
+	"NEUTRAL_47",
+	1,
+], dark = [
+	"NEUTRAL_55",
+	1,
+], light = [
+	"NEUTRAL_16",
+	1,
+], onyx = [
+	"NEUTRAL_65",
+	1,
+] }
+SPOILER_HIDDEN_BACKGROUND = { ash = [
+	"NEUTRAL_36",
+	1,
+], dark = [
+	"NEUTRAL_43",
+	1,
+], light = [
+	"NEUTRAL_31",
+	1,
+], onyx = [
+	"NEUTRAL_47",
+	1,
+] }
+SPOILER_REVEALED_BACKGROUND = { ash = [
+	"PRIMARY_660",
+	1,
+], dark = [
+	"PLUM_11",
+	0.16,
+], light = [
+	"PRIMARY_160",
+	1,
+], onyx = [
+	"PLUM_11",
+	0.16,
+] }
+STAGE_CARD_PILL_BG = { ash = [
+	"OPACITY_12",
+	0.12156862745098039,
+], dark = [
+	"OPACITY_12",
+	0.12156862745098039,
+], light = [
+	"OPACITY_12",
+	0.12156862745098039,
+], onyx = [
+	"OPACITY_12",
+	0.12156862745098039,
+] }
+STANDALONE_CHANNEL_CONTENT_BACKGROUND = { ash = [
+	"NEUTRAL_69",
+	1,
+], dark = [
+	"NEUTRAL_86",
+	1,
+], light = [
+	"NEUTRAL_2",
+	1,
+], onyx = [
+	"NEUTRAL_100",
+	1,
+] }
+STANDALONE_CHANNEL_HEADER_BORDER = { ash = [
+	"OPACITY_12",
+	0.12156862745098039,
+], dark = [
+	"OPACITY_12",
+	0.12156862745098039,
+], light = [
+	"OPACITY_28",
+	0.2784313725490196,
+], onyx = [
+	"OPACITY_20",
+	0.2,
+] }
+STATUS_DANGER = { ash = ["RED_400", 1], dark = ["RED_400", 1], light = ["RED_430", 1], onyx = ["RED_400", 1] }
+STATUS_ONLINE = { ash = ["GREEN_360", 1], dark = ["GREEN_360", 1], light = ["GREEN_400", 1], onyx = ["GREEN_360", 1] }
+STATUS_POSITIVE = { ash = ["GREEN_360", 1], dark = ["GREEN_360", 1], light = ["GREEN_400", 1], onyx = ["GREEN_360", 1] }
+STATUS_POSITIVE_BACKGROUND = { ash = [
+	"GREEN_430",
+	1,
+], dark = [
+	"GREEN_430",
+	1,
+], light = [
+	"GREEN_430",
+	1,
+], onyx = [
+	"GREEN_430",
+	1,
+] }
+STATUS_POSITIVE_TEXT = { ash = ["WHITE", 1], dark = ["WHITE", 1], light = ["WHITE", 1], onyx = ["WHITE", 1] }
+STATUS_SPEAKING = { ash = ["GREEN_360", 1], dark = ["GREEN_360", 1], light = ["GREEN_360", 1], onyx = ["GREEN_360", 1] }
+STATUS_WARNING = { ash = [
+	"YELLOW_300",
+	1,
+], dark = [
+	"YELLOW_300",
+	1,
+], light = [
+	"YELLOW_400",
+	1,
+], onyx = [
+	"YELLOW_300",
+	1,
+] }
+STATUS_WARNING_BACKGROUND = { ash = [
+	"YELLOW_300",
+	1,
+], dark = [
+	"YELLOW_300",
+	1,
+], light = [
+	"YELLOW_400",
+	1,
+], onyx = [
+	"YELLOW_300",
+	1,
+] }
+STATUS_WARNING_TEXT = { ash = ["BLACK", 1], dark = ["BLACK", 1], light = ["WHITE", 1], onyx = ["BLACK", 1] }
+STEAM_REVIEW_TEXT_MIXED = { ash = [
+	"YELLOW_NEW_29",
+	1,
+], dark = [
+	"YELLOW_NEW_51",
+	1,
+], light = [
+	"YELLOW_NEW_75",
+	1,
+], onyx = [
+	"YELLOW_NEW_57",
+	1,
+] }
+STEAM_REVIEW_TEXT_NEGATIVE = { ash = [
+	"RED_NEW_24",
+	1,
+], dark = [
+	"RED_NEW_34",
+	1,
+], light = [
+	"RED_NEW_50",
+	1,
+], onyx = [
+	"RED_NEW_42",
+	1,
+] }
+STEAM_REVIEW_TEXT_POSITIVE = { ash = [
+	"BLUE_NEW_26",
+	1,
+], dark = [
+	"BLUE_NEW_37",
+	1,
+], light = [
+	"BLUE_NEW_53",
+	1,
+], onyx = [
+	"BLUE_NEW_45",
+	1,
+] }
+SWITCH_BACKGROUND_DEFAULT = { ash = [
+	"OPACITY_BLACK_12",
+	0.12156862745098039,
+], dark = [
+	"OPACITY_BLACK_12",
+	0.12156862745098039,
+], light = [
+	"OPACITY_BLACK_1",
+	0.0196078431372549,
+], onyx = [
+	"OPACITY_BLACK_12",
+	0.12156862745098039,
+] }
+SWITCH_BACKGROUND_SELECTED_DEFAULT = { ash = [
+	"BLURPLE_50",
+	1,
+], dark = [
+	"BLURPLE_50",
+	1,
+], light = [
+	"BLURPLE_50",
+	1,
+], onyx = [
+	"BLURPLE_50",
+	1,
+] }
+SWITCH_BORDER_DEFAULT = { ash = [
+	"OPACITY_20",
+	0.2,
+], dark = [
+	"OPACITY_20",
+	0.2,
+], light = [
+	"OPACITY_BLACK_16",
+	0.1607843137254902,
+], onyx = [
+	"OPACITY_20",
+	0.2,
+] }
+SWITCH_BORDER_SELECTED_DEFAULT = { ash = [
+	"OPACITY_12",
+	0.12156862745098039,
+], dark = [
+	"OPACITY_12",
+	0.12156862745098039,
+], light = [
+	"OPACITY_28",
+	0.2784313725490196,
+], onyx = [
+	"OPACITY_20",
+	0.2,
+] }
+SWITCH_THUMB_BACKGROUND_DEFAULT = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_1",
+	1,
+], light = [
+	"NEUTRAL_44",
+	1,
+], onyx = [
+	"NEUTRAL_1",
+	1,
+] }
+SWITCH_THUMB_BACKGROUND_SELECTED_DEFAULT = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_1",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_1",
+	1,
+] }
+SWITCH_THUMB_ICON_ACTIVE = { ash = [
+	"BLURPLE_50",
+	1,
+], dark = [
+	"BLURPLE_50",
+	1,
+], light = [
+	"BLURPLE_50",
+	1,
+], onyx = [
+	"BLURPLE_50",
+	1,
+] }
+SWITCH_THUMB_ICON_DEFAULT = { ash = [
+	"NEUTRAL_71",
+	1,
+], dark = [
+	"NEUTRAL_71",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_71",
+	1,
+] }
+TABLEROW_BACKGROUND_DEFAULT = { ash = [
+	"OPACITY_8",
+	0.0784313725490196,
+], dark = [
+	"OPACITY_8",
+	0.0784313725490196,
+], light = [
+	"OPACITY_12",
+	0.12156862745098039,
+], onyx = [
+	"OPACITY_8",
+	0.0784313725490196,
+] }
+TABLEROW_BACKGROUND_PRESSED = { ash = [
+	"OPACITY_16",
+	0.1607843137254902,
+], dark = [
+	"OPACITY_16",
+	0.1607843137254902,
+], light = [
+	"OPACITY_24",
+	0.23921568627450981,
+], onyx = [
+	"OPACITY_20",
+	0.2,
+] }
+TABLEROW_ICON_COLOR_DEFAULT = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_2",
+	1,
+], light = [
+	"NEUTRAL_76",
+	1,
+], onyx = [
+	"NEUTRAL_10",
+	1,
+] }
+TAB_BAR_BACKGROUND = { ash = [
+	"NEUTRAL_66",
+	1,
+], dark = [
+	"NEUTRAL_82",
+	1,
+], light = [
+	"NEUTRAL_2",
+	1,
+], onyx = [
+	"NEUTRAL_100",
+	1,
+] }
+TAB_LABEL_TEXT_DEFAULT = { ash = [
+	"NEUTRAL_16",
+	1,
+], dark = [
+	"NEUTRAL_23",
+	1,
+], light = [
+	"NEUTRAL_47",
+	1,
+], onyx = [
+	"NEUTRAL_29",
+	1,
+] }
+TAB_LABEL_TEXT_FOCUSED = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_2",
+	1,
+], light = [
+	"NEUTRAL_76",
+	1,
+], onyx = [
+	"NEUTRAL_10",
+	1,
+] }
+TEXT_BRAND = { ash = ["BLURPLE_26", 1], dark = ["BLURPLE_36", 1], light = ["BLURPLE_53", 1], onyx = ["BLURPLE_45", 1] }
+TEXT_CODE = { ash = ["NEUTRAL_1", 1], dark = ["NEUTRAL_8", 1], light = ["NEUTRAL_66", 1], onyx = ["NEUTRAL_15", 1] }
+TEXT_DEFAULT = { ash = ["NEUTRAL_4", 1], dark = ["NEUTRAL_5", 1], light = ["NEUTRAL_72", 1], onyx = ["NEUTRAL_12", 1] }
+TEXT_FEEDBACK_CRITICAL = { ash = [
+	"RED_NEW_18",
+	1,
+], dark = [
+	"RED_NEW_28",
+	1,
+], light = [
+	"RED_NEW_56",
+	1,
+], onyx = [
+	"RED_NEW_37",
+	1,
+] }
+TEXT_FEEDBACK_INFO = { ash = [
+	"BLUE_NEW_21",
+	1,
+], dark = [
+	"BLUE_NEW_31",
+	1,
+], light = [
+	"BLUE_NEW_58",
+	1,
+], onyx = [
+	"BLUE_NEW_39",
+	1,
+] }
+TEXT_FEEDBACK_POSITIVE = { ash = [
+	"GREEN_NEW_22",
+	1,
+], dark = [
+	"GREEN_NEW_31",
+	1,
+], light = [
+	"GREEN_NEW_58",
+	1,
+], onyx = [
+	"GREEN_NEW_39",
+	1,
+] }
+TEXT_FEEDBACK_WARNING = { ash = [
+	"YELLOW_NEW_38",
+	1,
+], dark = [
+	"YELLOW_NEW_53",
+	1,
+], light = [
+	"YELLOW_NEW_72",
+	1,
+], onyx = [
+	"YELLOW_NEW_59",
+	1,
+] }
+TEXT_LINK = { ash = [
+	"BLUE_NEW_27",
+	1,
+], dark = [
+	"BLUE_NEW_37",
+	1,
+], light = [
+	"BLUE_NEW_53",
+	1,
+], onyx = [
+	"BLUE_NEW_45",
+	1,
+] }
+TEXT_MUTED = { ash = ["NEUTRAL_23", 1], dark = ["NEUTRAL_29", 1], light = ["NEUTRAL_41", 1], onyx = ["NEUTRAL_35", 1] }
+TEXT_OVERLAY_DARK = { ash = [
+	"NEUTRAL_100",
+	1,
+], dark = [
+	"NEUTRAL_100",
+	1,
+], light = [
+	"NEUTRAL_100",
+	1,
+], onyx = [
+	"NEUTRAL_100",
+	1,
+] }
+TEXT_OVERLAY_LIGHT = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_1",
+	1,
+], light = [
+	"NEUTRAL_1",
+	1,
+], onyx = [
+	"NEUTRAL_1",
+	1,
+] }
+TEXT_STATUS_DND = { ash = [
+	"RED_NEW_45",
+	1,
+], dark = [
+	"RED_NEW_45",
+	1,
+], light = [
+	"RED_NEW_50",
+	1,
+], onyx = [
+	"RED_NEW_45",
+	1,
+] }
+TEXT_STATUS_IDLE = { ash = [
+	"YELLOW_NEW_22",
+	1,
+], dark = [
+	"YELLOW_NEW_22",
+	1,
+], light = [
+	"YELLOW_NEW_45",
+	1,
+], onyx = [
+	"YELLOW_NEW_22",
+	1,
+] }
+TEXT_STATUS_OFFLINE = { ash = [
+	"NEUTRAL_27",
+	1,
+], dark = [
+	"NEUTRAL_27",
+	1,
+], light = [
+	"NEUTRAL_45",
+	1,
+], onyx = [
+	"NEUTRAL_27",
+	1,
+] }
+TEXT_STATUS_ONLINE = { ash = [
+	"GREEN_NEW_40",
+	1,
+], dark = [
+	"GREEN_NEW_40",
+	1,
+], light = [
+	"GREEN_NEW_55",
+	1,
+], onyx = [
+	"GREEN_NEW_40",
+	1,
+] }
+TEXT_STRONG = { ash = ["NEUTRAL_1", 1], dark = ["NEUTRAL_2", 1], light = ["NEUTRAL_76", 1], onyx = ["NEUTRAL_10", 1] }
+TEXT_SUBTLE = { ash = ["NEUTRAL_16", 1], dark = ["NEUTRAL_23", 1], light = ["NEUTRAL_47", 1], onyx = ["NEUTRAL_29", 1] }
+TEXT_VOICE_CONNECTED = { ash = [
+	"GREEN_NEW_25",
+	1,
+], dark = [
+	"GREEN_NEW_34",
+	1,
+], light = [
+	"GREEN_NEW_55",
+	1,
+], onyx = [
+	"GREEN_NEW_40",
+	1,
+] }
+TEXT_VOICE_DISCONNECTED = { ash = [
+	"RED_NEW_18",
+	1,
+], dark = [
+	"RED_NEW_28",
+	1,
+], light = [
+	"RED_NEW_56",
+	1,
+], onyx = [
+	"RED_NEW_37",
+	1,
+] }
+TEXT_VOICE_SPEAKING = { ash = [
+	"GREEN_NEW_40",
+	1,
+], dark = [
+	"GREEN_NEW_40",
+	1,
+], light = [
+	"GREEN_NEW_45",
+	1,
+], onyx = [
+	"GREEN_NEW_40",
+	1,
+] }
+THEME_LOCKED_BLUR_FALLBACK = { ash = [
+	"PRIMARY_700",
+	0.96,
+], dark = [
+	"PRIMARY_700",
+	0.96,
+], light = [
+	"PRIMARY_700",
+	0.96,
+], onyx = [
+	"PRIMARY_700",
+	0.96,
+] }
+THREAD_CHANNEL_SPINE = { ash = [
+	"PRIMARY_500",
+	1,
+], dark = [
+	"PLUM_13",
+	1,
+], light = [
+	"PRIMARY_300",
+	1,
+], onyx = [
+	"PLUM_13",
+	1,
+] }
+TOAST_CRITICAL_BACKGROUND = { ash = [
+	"OPACITY_RED_20",
+	0.2,
+], dark = [
+	"OPACITY_RED_12",
+	0.12156862745098039,
+], light = [
+	"OPACITY_RED_12",
+	0.12156862745098039,
+], onyx = [
+	"OPACITY_RED_12",
+	0.12156862745098039,
+] }
+TOAST_CRITICAL_BORDER = { ash = [
+	"RED_NEW_42",
+	1,
+], dark = [
+	"RED_NEW_42",
+	1,
+], light = [
+	"RED_NEW_42",
+	1,
+], onyx = [
+	"RED_NEW_42",
+	1,
+] }
+TOAST_SUCCESS_BACKGROUND = { ash = [
+	"OPACITY_GREEN_20",
+	0.2,
+], dark = [
+	"OPACITY_GREEN_12",
+	0.12156862745098039,
+], light = [
+	"OPACITY_GREEN_12",
+	0.12156862745098039,
+], onyx = [
+	"OPACITY_GREEN_12",
+	0.12156862745098039,
+] }
+TOAST_SUCCESS_BORDER = { ash = [
+	"GREEN_NEW_42",
+	1,
+], dark = [
+	"GREEN_NEW_42",
+	1,
+], light = [
+	"GREEN_NEW_42",
+	1,
+], onyx = [
+	"GREEN_NEW_42",
+	1,
+] }
+TOGGLEBUTTON_BACKGROUND_SELECTED = { ash = [
+	"OPACITY_BLURPLE_16",
+	0.1607843137254902,
+], dark = [
+	"OPACITY_BLURPLE_16",
+	0.1607843137254902,
+], light = [
+	"OPACITY_BLURPLE_16",
+	0.1607843137254902,
+], onyx = [
+	"OPACITY_BLURPLE_16",
+	0.1607843137254902,
+] }
+TOGGLEBUTTON_BACKGROUND_SELECTED_ACTIVE = { ash = [
+	"OPACITY_20",
+	0.2,
+], dark = [
+	"OPACITY_20",
+	0.2,
+], light = [
+	"OPACITY_24",
+	0.23921568627450981,
+], onyx = [
+	"OPACITY_24",
+	0.23921568627450981,
+] }
+TOGGLEBUTTON_BACKGROUND_SELECTED_HOVER = { ash = [
+	"OPACITY_BLURPLE_24",
+	0.23921568627450981,
+], dark = [
+	"OPACITY_BLURPLE_24",
+	0.23921568627450981,
+], light = [
+	"OPACITY_BLURPLE_24",
+	0.23921568627450981,
+], onyx = [
+	"OPACITY_BLURPLE_24",
+	0.23921568627450981,
+] }
+TOGGLEBUTTON_BORDER_ACTIVE = { ash = [
+	"OPACITY_BLURPLE_84",
+	0.8392156862745098,
+], dark = [
+	"OPACITY_BLURPLE_84",
+	0.8392156862745098,
+], light = [
+	"OPACITY_BLURPLE_84",
+	0.8392156862745098,
+], onyx = [
+	"OPACITY_BLURPLE_84",
+	0.8392156862745098,
+] }
+TOGGLEBUTTON_BORDER_SELECTED = { ash = [
+	"BLURPLE_50",
+	1,
+], dark = [
+	"BLURPLE_50",
+	1,
+], light = [
+	"BLURPLE_50",
+	1,
+], onyx = [
+	"BLURPLE_50",
+	1,
+] }
+TOGGLEBUTTON_CRITICAL_BACKGROUND_SELECTED = { ash = [
+	"OPACITY_RED_12",
+	0.12156862745098039,
+], dark = [
+	"OPACITY_RED_12",
+	0.12156862745098039,
+], light = [
+	"OPACITY_RED_12",
+	0.12156862745098039,
+], onyx = [
+	"OPACITY_RED_12",
+	0.12156862745098039,
+] }
+TOGGLEBUTTON_CRITICAL_BACKGROUND_SELECTED_HOVER = { ash = [
+	"OPACITY_RED_16",
+	0.1607843137254902,
+], dark = [
+	"OPACITY_RED_16",
+	0.1607843137254902,
+], light = [
+	"OPACITY_RED_16",
+	0.1607843137254902,
+], onyx = [
+	"OPACITY_RED_16",
+	0.1607843137254902,
+] }
+TOGGLEBUTTON_CRITICAL_BORDER_ACTIVE = { ash = [
+	"OPACITY_RED_32",
+	0.3215686274509804,
+], dark = [
+	"OPACITY_RED_32",
+	0.3215686274509804,
+], light = [
+	"OPACITY_RED_32",
+	0.3215686274509804,
+], onyx = [
+	"OPACITY_RED_32",
+	0.3215686274509804,
+] }
+TOGGLEBUTTON_CRITICAL_ICON_ACTIVE = { ash = [
+	"RED_NEW_46",
+	1,
+], dark = [
+	"RED_NEW_46",
+	1,
+], light = [
+	"RED_NEW_50",
+	1,
+], onyx = [
+	"RED_NEW_46",
+	1,
+] }
+TOGGLEBUTTON_CRITICAL_ICON_DEFAULT = { ash = [
+	"NEUTRAL_4",
+	1,
+], dark = [
+	"NEUTRAL_5",
+	1,
+], light = [
+	"NEUTRAL_72",
+	1,
+], onyx = [
+	"NEUTRAL_12",
+	1,
+] }
+TOGGLEBUTTON_CRITICAL_ICON_HOVER = { ash = [
+	"NEUTRAL_4",
+	1,
+], dark = [
+	"NEUTRAL_5",
+	1,
+], light = [
+	"NEUTRAL_72",
+	1,
+], onyx = [
+	"NEUTRAL_12",
+	1,
+] }
+TOGGLEBUTTON_CRITICAL_ICON_SELECTED = { ash = [
+	"RED_NEW_46",
+	1,
+], dark = [
+	"RED_NEW_46",
+	1,
+], light = [
+	"RED_NEW_50",
+	1,
+], onyx = [
+	"RED_NEW_46",
+	1,
+] }
+TOGGLEBUTTON_CRITICAL_ICON_SELECTED_HOVER = { ash = [
+	"RED_NEW_46",
+	1,
+], dark = [
+	"RED_NEW_46",
+	1,
+], light = [
+	"RED_NEW_50",
+	1,
+], onyx = [
+	"RED_NEW_46",
+	1,
+] }
+TOGGLEBUTTON_ICON_ACTIVE = { ash = [
+	"NEUTRAL_4",
+	1,
+], dark = [
+	"NEUTRAL_5",
+	1,
+], light = [
+	"NEUTRAL_72",
+	1,
+], onyx = [
+	"NEUTRAL_12",
+	1,
+] }
+TOGGLEBUTTON_ICON_DEFAULT = { ash = [
+	"NEUTRAL_4",
+	1,
+], dark = [
+	"NEUTRAL_5",
+	1,
+], light = [
+	"NEUTRAL_72",
+	1,
+], onyx = [
+	"NEUTRAL_12",
+	1,
+] }
+TOGGLEBUTTON_ICON_HOVER = { ash = [
+	"NEUTRAL_4",
+	1,
+], dark = [
+	"NEUTRAL_5",
+	1,
+], light = [
+	"NEUTRAL_72",
+	1,
+], onyx = [
+	"NEUTRAL_12",
+	1,
+] }
+TOGGLEBUTTON_ICON_ONLY_ICON_ACTIVE = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_2",
+	1,
+], light = [
+	"NEUTRAL_76",
+	1,
+], onyx = [
+	"NEUTRAL_10",
+	1,
+] }
+TOGGLEBUTTON_ICON_ONLY_ICON_DEFAULT = { ash = [
+	"NEUTRAL_4",
+	1,
+], dark = [
+	"NEUTRAL_5",
+	1,
+], light = [
+	"NEUTRAL_72",
+	1,
+], onyx = [
+	"NEUTRAL_12",
+	1,
+] }
+TOGGLEBUTTON_ICON_ONLY_ICON_HOVER = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_2",
+	1,
+], light = [
+	"NEUTRAL_76",
+	1,
+], onyx = [
+	"NEUTRAL_10",
+	1,
+] }
+TOGGLEBUTTON_ICON_ONLY_ICON_SELECTED = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_2",
+	1,
+], light = [
+	"NEUTRAL_76",
+	1,
+], onyx = [
+	"NEUTRAL_10",
+	1,
+] }
+TOGGLEBUTTON_ICON_ONLY_ICON_SELECTED_HOVER = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_2",
+	1,
+], light = [
+	"NEUTRAL_76",
+	1,
+], onyx = [
+	"NEUTRAL_10",
+	1,
+] }
+TOGGLEBUTTON_ICON_SELECTED = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_2",
+	1,
+], light = [
+	"NEUTRAL_76",
+	1,
+], onyx = [
+	"NEUTRAL_10",
+	1,
+] }
+TOGGLEBUTTON_ICON_SELECTED_HOVER = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_2",
+	1,
+], light = [
+	"NEUTRAL_76",
+	1,
+], onyx = [
+	"NEUTRAL_10",
+	1,
+] }
+USER_PROFILE_ABOUT_ME_HEADING_TEXT = { ash = [
+	"NEUTRAL_1",
+	1,
+], dark = [
+	"NEUTRAL_2",
+	1,
+], light = [
+	"NEUTRAL_76",
+	1,
+], onyx = [
+	"NEUTRAL_10",
+	1,
+] }
+USER_PROFILE_CONTAINER_BACKGROUND = { ash = [
+	"OPACITY_12",
+	0.12156862745098039,
+], dark = [
+	"OPACITY_12",
+	0.12156862745098039,
+], light = [
+	"OPACITY_12",
+	0.12156862745098039,
+], onyx = [
+	"OPACITY_12",
+	0.12156862745098039,
+] }
+USER_PROFILE_GRADIENT_BACKGROUND = { ash = [
+	"NEUTRAL_73",
+	1,
+], dark = [
+	"NEUTRAL_92",
+	1,
+], light = [
+	"NEUTRAL_4",
+	1,
+], onyx = [
+	"NEUTRAL_100",
+	1,
+] }
+VOICE_CHANNEL_USER_LIMIT_ACCENT_BACKGROUND = { ash = [
+	"OPACITY_20",
+	0.2,
+], dark = [
+	"OPACITY_20",
+	0.2,
+], light = [
+	"OPACITY_24",
+	0.23921568627450981,
+], onyx = [
+	"OPACITY_24",
+	0.23921568627450981,
+] }
+VOICE_CHANNEL_USER_LIMIT_BACKGROUND = { ash = [
+	"NEUTRAL_66",
+	1,
+], dark = [
+	"NEUTRAL_82",
+	1,
+], light = [
+	"NEUTRAL_2",
+	1,
+], onyx = [
+	"NEUTRAL_100",
+	1,
+] }
+VOICE_CHANNEL_USER_LIMIT_ICON = { ash = [
+	"NEUTRAL_16",
+	1,
+], dark = [
+	"NEUTRAL_23",
+	1,
+], light = [
+	"NEUTRAL_47",
+	1,
+], onyx = [
+	"NEUTRAL_29",
+	1,
+] }
+VOICE_CHANNEL_USER_LIMIT_TEXT = { ash = [
+	"NEUTRAL_16",
+	1,
+], dark = [
+	"NEUTRAL_23",
+	1,
+], light = [
+	"NEUTRAL_47",
+	1,
+], onyx = [
+	"NEUTRAL_29",
+	1,
+] }
+VOICE_VIDEO_VIDEO_TILE_BACKGROUND = { ash = [
+	"PLUM_17",
+	0.4,
+], dark = [
+	"PLUM_17",
+	0.4,
+], light = [
+	"PLUM_17",
+	0.4,
+], onyx = [
+	"PLUM_17",
+	0.4,
+] }
+VOICE_VIDEO_VIDEO_TILE_BLUR_FALLBACK = { ash = [
+	"PRIMARY_700",
+	0.48,
+], dark = [
+	"PRIMARY_700",
+	0.48,
+], light = [
+	"PRIMARY_700",
+	0.48,
+], onyx = [
+	"PRIMARY_700",
+	0.48,
+] }
+WHITE = { ash = ["WHITE", 1], dark = ["WHITE", 1], light = ["WHITE", 1], onyx = ["WHITE", 1] }

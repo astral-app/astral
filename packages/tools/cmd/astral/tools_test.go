@@ -158,3 +158,32 @@ func TestProfileCoversBundleAndDevice(t *testing.T) {
 		t.Fatal("expired profile still covered")
 	}
 }
+
+func TestParseSemanticColors(t *testing.T) {
+	source := `r1 = {'SemanticColors': null};
+        r5 = {'TEXT_DEFAULT': null, 'BACKGROUND_BASE_LOW': null};
+        r6 = {'category': 'generic'};
+        r9 = r7.DARK;
+        r8 = {'raw': 'NEUTRAL_5', 'opacity': 1};
+        r6[9] = r8;
+        r9 = r7.LIGHT;
+        r8 = {'raw': 'NEUTRAL_72', 'opacity': 0.5};
+        r6[9] = r8;
+        r5[0] = r6;
+        r6 = {'category': 'generic'};
+        r9 = r7.DARK;
+        r8 = {'raw': 'NEUTRAL_82', 'opacity': 1};
+        r6[9] = r8;
+        r5[1] = r6;`
+	keys, entries, err := parseSemanticColors(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(keys) != 2 || len(entries) != 2 || entries[0]["dark"] != [2]string{"NEUTRAL_5", "1"} || entries[0]["light"] != [2]string{"NEUTRAL_72", "0.5"} || entries[1]["dark"] != [2]string{"NEUTRAL_82", "1"} {
+		t.Fatalf("keys %v entries %v", keys, entries)
+	}
+	rendered := renderSemanticPalette(keys, entries, "test")
+	if !strings.Contains(rendered, `BACKGROUND_BASE_LOW = { dark = ["NEUTRAL_82", 1] }`) {
+		t.Fatalf("rendered %s", rendered)
+	}
+}

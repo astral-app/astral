@@ -190,8 +190,8 @@ func runOpenSettings(args []string) error {
 	if err != nil {
 		return err
 	}
-	status := regexp.MustCompile(`(Idle|Online|Do Not Disturb|Invisible)`)
-	for attempt := 0; attempt < 4; attempt++ {
+	status := regexp.MustCompile(`, (Idle|Online|Do Not Disturb|Invisible)$`)
+	for attempt := 0; attempt < 6; attempt++ {
 		nodes, err := p.labels()
 		if err != nil {
 			return err
@@ -207,15 +207,20 @@ func runOpenSettings(args []string) error {
 				return nil
 			}
 		}
-		switch {
-		case hasLabel(nodes, regexp.MustCompile(`Edit Profile`)):
-			p.tap(251, 610, 4*time.Second)
-		case hasLabel(nodes, status):
-			p.tap(165, 623, 3*time.Second)
-			p.tap(251, 610, 4*time.Second)
-		default:
-			p.tap(28, 48, 2*time.Second)
+		if button, found := labelAt(nodes, "Settings"); found {
+			p.tap(int(button.ActivationPoint.X), int(button.ActivationPoint.Y), 3*time.Second)
+			continue
 		}
+		if hasLabel(nodes, status) {
+			for _, node := range nodes {
+				if status.MatchString(node.Label) {
+					p.tap(int(node.ActivationPoint.X), int(node.ActivationPoint.Y), 3*time.Second)
+					break
+				}
+			}
+			continue
+		}
+		p.tap(28, 48, 2*time.Second)
 	}
 	return errors.New("could not reach the " + target + " row")
 }

@@ -29,6 +29,7 @@ var commands = map[string]command{
 	"bench":         {"bench [captured batch ...]", runBench},
 	"create":        {"create [--name <name>] [--author <name>] [--dir <directory>] <id>", runCreate},
 	"sideload":      {"sideload --ipa <IPA> --bundle-id <id> [--device <udid>] [--profile <mobileprovision>]", runSideload},
+	"palette":       {"palette semantic --source <generated-definitions.tsx> --origin <description> [--output <toml>]", runPalette},
 	"sdk":           {"sdk install", runSDK},
 	"compat":        {"compat --ipa <decrypted Discord.ipa> [--channel stable] [--baseline compat.json] [--results compat.json] [--report report.md]", runCompat},
 }

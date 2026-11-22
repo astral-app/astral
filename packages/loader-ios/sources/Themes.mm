@@ -97,12 +97,41 @@ static NSDictionary<NSString *, NSString *> *DiscordPalette(void)
     return [palette[@"colors"] isKindOfClass:NSDictionary.class] ? palette[@"colors"] : @{};
 }
 
+static NSDictionary<NSString *, NSDictionary *> *DiscordSemanticColors(void)
+{
+    NSString *path = [AstralResourceDirectory() stringByAppendingPathComponent:@"palettes/discord-semantic.toml"];
+    NSDictionary *palette = AstralParseTOML([NSData dataWithContentsOfFile:path]);
+    return [palette[@"colors"] isKindOfClass:NSDictionary.class] ? palette[@"colors"] : @{};
+}
+
 static NSString *OpaqueHex(NSString *hex)
 {
     NSString *digits = [[hex stringByReplacingOccurrencesOfString:@"#" withString:@""] uppercaseString];
     if (digits.length == 6) return [@"FF" stringByAppendingString:digits];
     if (digits.length == 8) return [[digits substringFromIndex:6] stringByAppendingString:[digits substringToIndex:6]];
     return nil;
+}
+
+static NSString *WithOpacity(NSString *argb, double opacity)
+{
+    if (argb.length != 8 || opacity >= 1) return argb;
+    unsigned alpha = 0;
+    [[NSScanner scannerWithString:[argb substringToIndex:2]] scanHexInt:&alpha];
+    return [NSString stringWithFormat:@"%02X%@", (unsigned)lround(alpha * MAX(opacity, 0.0)), [argb substringFromIndex:2]];
+}
+
+static NSString *SemanticOriginal(NSDictionary *entry, NSDictionary *palette)
+{
+    NSArray *dark = [entry isKindOfClass:NSDictionary.class] ? entry[@"dark"] : nil;
+    if (![dark isKindOfClass:NSArray.class] || dark.count != 2 || ![dark[0] isKindOfClass:NSString.class]) return nil;
+    NSString *base = OpaqueHex(palette[dark[0]] ?: @"");
+    return base ? WithOpacity(base, [dark[1] doubleValue]) : nil;
+}
+
+static NSString *SemanticReplacement(id value)
+{
+    if ([value isKindOfClass:NSArray.class]) value = [value count] ? [value firstObject] : nil;
+    return [value isKindOfClass:NSString.class] ? OpaqueHex(value) : nil;
 }
 
 static NSString *Slug(NSString *name)
@@ -124,12 +153,20 @@ NSString *AstralImportUnboundTheme(NSData *json, NSString *fallbackName)
     id parsed = [NSJSONSerialization JSONObjectWithData:json options:0 error:nil];
     if (![parsed isKindOfClass:NSDictionary.class]) return @"not an Unbound theme";
     NSDictionary *raw = [parsed[@"raw"] isKindOfClass:NSDictionary.class] ? parsed[@"raw"] : parsed[@"rawColors"];
-    if (![raw isKindOfClass:NSDictionary.class] || !raw.count) return @"the theme has no raw colours to convert";
+    NSDictionary *semantic = [parsed[@"semantic"] isKindOfClass:NSDictionary.class] ? parsed[@"semantic"] : parsed[@"semanticColors"];
+    if (![raw isKindOfClass:NSDictionary.class]) raw = @{};
+    if (![semantic isKindOfClass:NSDictionary.class]) semantic = @{};
+    if (!raw.count && !semantic.count) return @"the theme has no raw or semantic colours to convert";
     NSDictionary *palette = DiscordPalette();
     NSMutableDictionary<NSString *, NSString *> *colors = [NSMutableDictionary dictionary];
     for (NSString *name in raw) {
         NSString *original = OpaqueHex(palette[name] ?: @""),
                  *replacement = [raw[name] isKindOfClass:NSString.class] ? OpaqueHex(raw[name]) : nil;
+        if (original && replacement && ![original isEqualToString:replacement]) colors[original] = replacement;
+    }
+    NSDictionary *tokens = semantic.count ? DiscordSemanticColors() : @{};
+    for (NSString *token in semantic) {
+        NSString *original = SemanticOriginal(tokens[token], palette), *replacement = SemanticReplacement(semantic[token]);
         if (original && replacement && ![original isEqualToString:replacement]) colors[original] = replacement;
     }
     if (!colors.count) return @"none of the theme's colours match Discord's palette";
