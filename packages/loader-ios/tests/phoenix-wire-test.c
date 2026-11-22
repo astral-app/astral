@@ -380,6 +380,50 @@ static void gradientThemeTest(void)
     astral_wire_set_background_gradient(NULL, 0);
 }
 
+static void coloredView(Batch *batch, int id, uint32_t color)
+{
+    create(batch, id, "view", 1);
+    b16(batch, 90);
+    b8(batch, 4);
+    b32(batch, (int)color);
+    b32(batch, 0);
+}
+
+static void recolorTest(void)
+{
+    AstralWireBuffer out;
+    astral_wire_forget_colors();
+    assert(!astral_wire_recolor(&out));
+    Batch batch = {.length = 0};
+    b8(&batch, 1);
+    coloredView(&batch, 960, 0xFF5865F2);
+    coloredView(&batch, 961, 0xFF123456);
+    coloredView(&batch, 0x7a000500, 0xFF5865F2);
+    if (astral_settings_rewrite(batch.bytes, batch.length, &out)) astral_wire_buffer_free(&out);
+    uint32_t from[] = {0xFF5865F2}, to[] = {0xFF9B6BFF};
+    astral_wire_set_palette(from, to, 1);
+    assert(astral_wire_recolor(&out));
+    astral_wire_summarise(out.bytes, out.length, sink, NULL);
+    assert(strstr(line, "\"complete\":true"));
+    assert(strstr(line, "[2,960,[[90,4,4288375807]]]"));
+    assert(strstr(line, "[2,961,[[90,4,4279383126]]]"));
+    assert(!strstr(line, "2046821632"));
+    astral_wire_buffer_free(&out);
+    astral_wire_set_palette(NULL, NULL, 0);
+    assert(astral_wire_recolor(&out));
+    astral_wire_summarise(out.bytes, out.length, sink, NULL);
+    assert(strstr(line, "[2,960,[[90,4,4283983346]]]"));
+    astral_wire_buffer_free(&out);
+    Batch removal = {.length = 0};
+    b8(&removal, 1);
+    b8(&removal, 4);
+    b32(&removal, 2);
+    b32(&removal, 960);
+    b32(&removal, 961);
+    if (astral_settings_rewrite(removal.bytes, removal.length, &out)) astral_wire_buffer_free(&out);
+    assert(!astral_wire_recolor(&out));
+}
+
 static void unsupportedVersionTest(void)
 {
     AstralWireBuffer out;
@@ -401,6 +445,7 @@ int main(void)
     gradientTagTest();
     relabelTest();
     paletteTest();
+    recolorTest();
     Batch batch;
     overview(&batch);
     AstralWireBuffer out;

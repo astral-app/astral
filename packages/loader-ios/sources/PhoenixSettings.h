@@ -15,6 +15,7 @@ void AstralOnPhoenixRouteChange(void (^_Nonnull changed)(void));
 NSString *_Nullable AstralInstallPhoenixSettings(NSDictionary *_Nonnull category, AstralSettingsPage _Nonnull page,
                                                  AstralSettingsAction _Nonnull action);
 void AstralRefreshPhoenixSettings(void);
+void AstralPhoenixUpdateTheme(void (^_Nonnull apply)(void));
 
 #ifdef __cplusplus
 }

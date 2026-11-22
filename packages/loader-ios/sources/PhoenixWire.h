@@ -127,6 +127,8 @@ void astral_wire_set_relabeler(AstralRelabeler relabeler);
 void astral_wire_set_palette(const uint32_t *from, const uint32_t *to, size_t count);
 void astral_wire_set_scales(double radius, double font);
 void astral_wire_set_background_gradient(const uint32_t *colors, size_t count);
+int astral_wire_recolor(AstralWireBuffer *buffer);
+void astral_wire_forget_colors(void);
 AstralWireStats astral_wire_stats(void);
 uint64_t astral_wire_current_channel(void);
 int astral_wire_unsupported_version(void);

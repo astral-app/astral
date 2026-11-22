@@ -370,6 +370,21 @@ static void Deliver(Delivery delivery, NSDictionary *model, void (^failed)(void)
     });
 }
 
+void AstralPhoenixUpdateTheme(void (^apply)(void))
+{
+    pthread_mutex_lock(&gLock);
+    apply();
+    pthread_mutex_unlock(&gLock);
+    if (!gQueue) return;
+    dispatch_async(gQueue, ^{
+        pthread_mutex_lock(&gLock);
+        AstralWireBuffer buffer = {};
+        bool live = gHostOriginal && gHostContext && !astral_wire_unsupported_version() && !gRewriteDisabled.load();
+        if (live && astral_wire_recolor(&buffer)) Send(&buffer);
+        pthread_mutex_unlock(&gLock);
+    });
+}
+
 static void Push(NSString *route)
 {
     [gRoutes addObject:route];

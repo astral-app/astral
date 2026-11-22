@@ -10,6 +10,7 @@ enum { kMaxSpans = 8192, kMaxChildren = 4096, kMaxProps = 128 };
 
 static const char kAnchor[] = "settings.row.account";
 static const int32_t kFirstId = 0x7a000000;
+enum { kWireVersion = 1 };
 
 typedef struct {
     uint8_t op;
@@ -1906,6 +1907,143 @@ static int patchColors(uint8_t *bytes, const Span *spans, size_t count)
     return patched;
 }
 
+enum { kColorCapacity = 32768, kColorEmpty = 0, kColorLive = 1, kColorGone = 2 };
+
+typedef struct {
+    int32_t id;
+    uint16_t property;
+    uint8_t state;
+    uint8_t tag;
+    uint32_t color;
+} TrackedColor;
+
+static TrackedColor gColors[kColorCapacity];
+static size_t gColorsOccupied;
+
+static size_t colorSlot(int32_t id, uint16_t property)
+{
+    return ((uint32_t)id * 2654435761u ^ property * 40503u) & (kColorCapacity - 1);
+}
+
+static void compactColors(void)
+{
+    static TrackedColor live[kColorCapacity];
+    size_t count = 0;
+    for (size_t index = 0; index < kColorCapacity; index++) {
+        if (gColors[index].state == kColorLive) live[count++] = gColors[index];
+    }
+    memset(gColors, 0, sizeof(gColors));
+    gColorsOccupied = 0;
+    for (size_t index = 0; index < count; index++) {
+        size_t slot = colorSlot(live[index].id, live[index].property);
+        while (gColors[slot].state != kColorEmpty) slot = (slot + 1) & (kColorCapacity - 1);
+        gColors[slot] = live[index];
+        gColorsOccupied++;
+    }
+}
+
+static void rememberColor(int32_t id, uint16_t property, uint8_t tag, uint32_t color)
+{
+    if (gColorsOccupied >= kColorCapacity * 3 / 4) compactColors();
+    if (gColorsOccupied >= kColorCapacity * 3 / 4) return;
+    size_t slot = colorSlot(id, property);
+    size_t reusable = kColorCapacity;
+    while (gColors[slot].state != kColorEmpty) {
+        if (gColors[slot].state == kColorLive && gColors[slot].id == id && gColors[slot].property == property) {
+            gColors[slot].tag = tag;
+            gColors[slot].color = color;
+            return;
+        }
+        if (gColors[slot].state == kColorGone && reusable == kColorCapacity) reusable = slot;
+        slot = (slot + 1) & (kColorCapacity - 1);
+    }
+    if (reusable == kColorCapacity) {
+        reusable = slot;
+        gColorsOccupied++;
+    }
+    gColors[reusable] = (TrackedColor){id, property, kColorLive, tag, color};
+}
+
+static void forgetColor(int32_t id, uint16_t property)
+{
+    size_t slot = colorSlot(id, property);
+    while (gColors[slot].state != kColorEmpty) {
+        if (gColors[slot].state == kColorLive && gColors[slot].id == id && gColors[slot].property == property) {
+            gColors[slot].state = kColorGone;
+            return;
+        }
+        slot = (slot + 1) & (kColorCapacity - 1);
+    }
+}
+
+static void forgetRemovedColors(const uint8_t *bytes, const Span *span)
+{
+    const uint16_t properties[] = {
+        P(background),       P(color), P(borderColor), P(activeBackground), P(activeBorderColor), P(focusBorderColor),
+        P(placeholderColor), P(tint)};
+    for (uint32_t position = 0; position < span->childCount; position++) {
+        int32_t id = child_at(bytes, span, position);
+        for (size_t index = 0; index < sizeof(properties) / sizeof(*properties); index++) forgetColor(id, properties[index]);
+    }
+}
+
+static void trackColors(const uint8_t *bytes, const Span *spans, size_t count)
+{
+    for (size_t index = 0; index < count; index++) {
+        const Span *span = &spans[index];
+        if (span->op == 4 && span->childCount) forgetRemovedColors(bytes, span);
+        if ((span->op != 1 && span->op != 2) || span->id <= 0 || span->id >= kFirstId) continue;
+        Cursor cursor = {bytes, span->end, span->start + 1 + 4, 0};
+        if (span->op == 1) skip(&cursor, read16(&cursor));
+        uint16_t properties = read16(&cursor);
+        for (uint16_t entry = 0; entry < properties && !cursor.failed; entry++) {
+            uint16_t property = read16(&cursor);
+            uint8_t tag = read8(&cursor);
+            size_t at = cursor.offset;
+            skipValue(&cursor, tag, 0);
+            if (cursor.failed || !colorProperty(property) || (tag != 3 && tag != 4)) continue;
+            uint32_t color;
+            memcpy(&color, bytes + at, 4);
+            rememberColor(span->id, property, tag, color);
+        }
+    }
+}
+
+int astral_wire_recolor(AstralWireBuffer *buffer)
+{
+    memset(buffer, 0, sizeof(*buffer));
+    Out out = {0};
+    put8(&out, kWireVersion);
+    size_t updates = 0;
+    for (size_t index = 0; index < kColorCapacity; index++) {
+        const TrackedColor *tracked = &gColors[index];
+        if (tracked->state != kColorLive) continue;
+        uint32_t color = tracked->color;
+        paletteColor(tracked->color, &color);
+        put8(&out, 2);
+        put32(&out, (uint32_t)tracked->id);
+        put16(&out, 1);
+        put16(&out, tracked->property);
+        put8(&out, tracked->tag);
+        put32(&out, color);
+        if (tracked->tag == 4) put32(&out, 0);
+        updates++;
+    }
+    if (!updates || out.failed) {
+        free(out.bytes);
+        return 0;
+    }
+    buffer->bytes = out.bytes;
+    buffer->length = out.length;
+    return 1;
+}
+
+void astral_wire_forget_colors(void)
+{
+    memset(gColors, 0, sizeof(gColors));
+    gColorsOccupied = 0;
+}
+
 enum { kMaxLabelEdits = 512, kMaxLabelNodes = 2048, kLabelCapacity = 256 };
 
 typedef struct {
@@ -2247,7 +2385,6 @@ static uint8_t *relabel(const uint8_t *bytes, size_t length, Span *spans, size_t
     return result;
 }
 
-enum { kWireVersion = 1 };
 static int gUnsupportedWireVersion;
 static unsigned gRewriteFailures;
 
@@ -2279,6 +2416,7 @@ int astral_settings_rewrite(const uint8_t *bytes, size_t length, AstralWireBuffe
         length = relabelledLength;
         changed = 1;
     }
+    trackColors(bytes, spans, count);
     uint8_t *themed = NULL;
     if (gPaletteCount || gRadiusScale != 1 || gFontScale != 1 || gBackgroundStopCount) {
         themed = malloc(length);
