@@ -4,7 +4,11 @@ Plugins are Lua 5.4 files. astral runs no native plugin code, so a plugin works 
 
 ## Icons
 
-A manifest's `icon` names a Discord icon (`TextIcon`, `UserPlusIcon`), which the card draws from Phoenix's own `ic_mana_*` asset of the same name, or a `res://` source. Without one the card shows the plug.
+A manifest's `iconSvg` carries the plugin's icon, as Unbound's catalog does; the loader rasterises it on device into a template image Phoenix tints like its own icons. Without one, `icon` may name a Discord icon (`TextIcon`), drawn from Phoenix's `ic_mana_*` assets, and otherwise the card shows the plug. astral's own icons (`assets/*.svg`) are drawn the same way.
+
+## Authors
+
+Cards show each author's avatar the way Unbound does: Discord's local user cache first, then a `GET /users/{id}` with the signed-in session, cached in `Documents/astral/authors.json` for a week, then Discord's default avatar by the author's position.
 
 ## Package
 

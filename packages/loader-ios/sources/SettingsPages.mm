@@ -2,6 +2,8 @@
 
 #include "LoaderSettings.h"
 #import "AstralState.h"
+#import "AuthorAvatars.h"
+#import "ImageAssets.h"
 #import "DiscordCache.h"
 #import "LuaHost.h"
 #import "Marketplace.h"
@@ -112,6 +114,7 @@ static BOOL MatchesFilter(NSDictionary *plugin)
 
 static NSString *PluginIcon(NSDictionary *plugin)
 {
+    if ([plugin[@"iconSvg"] length]) return AstralRegisterIconSVG([@"plugin_" stringByAppendingString:plugin[@"id"]], plugin[@"iconSvg"]);
     NSString *name = plugin[@"icon"];
     if ([name hasPrefix:@"res://"]) return name;
     if (![name hasSuffix:@"Icon"] || name.length <= 4) return @"res://astral_plug";
@@ -135,21 +138,12 @@ static NSString *AuthorNames(NSDictionary *plugin)
     return [names componentsJoinedByString:@", "];
 }
 
-static NSString *AvatarURL(NSString *userID)
-{
-    NSDictionary *user = AstralDiscordUser(userID);
-    if ([user[@"avatar"] length]) {
-        return [NSString stringWithFormat:@"https://cdn.discordapp.com/avatars/%@/%@.png?size=64", userID, user[@"avatar"]];
-    }
-    unsigned long long snowflake = strtoull(userID.UTF8String, nullptr, 10);
-    return [NSString stringWithFormat:@"https://cdn.discordapp.com/embed/avatars/%llu.png", (snowflake >> 22) % 6];
-}
-
 static NSArray<NSString *> *AuthorAvatars(NSDictionary *plugin)
 {
     NSMutableArray *avatars = [NSMutableArray array];
-    for (NSDictionary *author in plugin[@"authors"]) {
-        if ([author[@"id"] length] && avatars.count < 3) [avatars addObject:AvatarURL(author[@"id"])];
+    NSArray *authors = plugin[@"authors"];
+    for (NSUInteger index = 0; index < authors.count && avatars.count < 3; index++) {
+        [avatars addObject:AstralAuthorAvatarURL(authors[index][@"id"], index)];
     }
     return avatars;
 }

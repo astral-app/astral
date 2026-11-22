@@ -43,6 +43,7 @@ struct LuaPlugin {
     std::string version;
     std::string description;
     std::string icon;
+    std::string iconSvg;
     std::vector<std::pair<std::string, std::string>> authors;
     std::string directory;
     bool bundled = false;
@@ -505,6 +506,9 @@ static LuaPlugin *Load(NSString *directory)
     plugin->version = [manifest[@"version"] isKindOfClass:NSString.class] ? [manifest[@"version"] UTF8String] : "";
     plugin->description = [manifest[@"description"] isKindOfClass:NSString.class] ? [manifest[@"description"] UTF8String] : "";
     plugin->icon = [manifest[@"icon"] isKindOfClass:NSString.class] ? [manifest[@"icon"] UTF8String] : "";
+    plugin->iconSvg = [manifest[@"iconSvg"] isKindOfClass:NSString.class] && [manifest[@"iconSvg"] length] < 16384
+                          ? [manifest[@"iconSvg"] UTF8String]
+                          : "";
     for (id author in [manifest[@"authors"] isKindOfClass:NSArray.class] ? manifest[@"authors"] : @[]) {
         NSString *authorName = [author isKindOfClass:NSDictionary.class] ? author[@"name"] : author;
         NSString *authorID =
@@ -591,6 +595,7 @@ NSArray<NSDictionary *> *AstralLuaPlugins(void)
             @"switches" : switches,
             @"description" : Native(plugin->description),
             @"icon" : Native(plugin->icon),
+            @"iconSvg" : Native(plugin->iconSvg),
             @"authors" : authors,
             @"directory" : Native(plugin->directory),
             @"bundled" : @(plugin->bundled)

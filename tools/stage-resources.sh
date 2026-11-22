@@ -14,4 +14,4 @@ done
 cp "$root"/themes/*.json "$target/themes/"
 cp "$root"/catalog/index.json "$target/catalog/"
 cp "$root"/catalog/themes/*.json "$target/catalog/themes/"
-cp "$root"/assets/rendered/*.png "$target/assets/"
+cp "$root"/assets/*.svg "$target/assets/"
