@@ -607,7 +607,7 @@ static LuaPlugin *Load(NSString *directory)
 {
     NSData *manifestData = [NSData dataWithContentsOfFile:[directory stringByAppendingPathComponent:@"manifest.toml"]];
     NSDictionary *manifest = AstralParseTOML(manifestData);
-    if (![manifest isKindOfClass:NSDictionary.class] || ![manifest[@"runtime"] isEqual:@"lua"]) return nullptr;
+    if (![manifest isKindOfClass:NSDictionary.class]) return nullptr;
     NSString *identifier = manifest[@"id"], *name = manifest[@"name"], *main = manifest[@"main"] ?: @"main.lua";
     if (![identifier isKindOfClass:NSString.class] || !ValidIdentifier(identifier) || ![name isKindOfClass:NSString.class] ||
         ![main isKindOfClass:NSString.class] || [main containsString:@"/"])

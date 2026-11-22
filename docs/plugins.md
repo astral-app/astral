@@ -17,7 +17,7 @@ Cards show each author's avatar the way Unbound does: Discord's local user cache
 ## Package
 
 ```
-plugins/<name>/manifest.toml   {"id", "name", "description", "authors": [{"name", "id"}], "version", "runtime": "lua", "main": "main.lua"}
+plugins/<name>/manifest.toml   {"id", "name", "description", "authors": [{"name", "id"}], "version", "main": "main.lua"}
 plugins/<name>/main.lua        at most 256 KB
 plugins/<name>/tests/*.lua     run by tools/test.sh against a mocked `astral` table
 ```
