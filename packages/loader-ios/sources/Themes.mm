@@ -27,7 +27,8 @@ static NSDictionary *LoadTheme(NSString *path, BOOL bundled)
     NSData *data = [NSData dataWithContentsOfFile:path];
     NSDictionary *theme = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
     if (![theme isKindOfClass:NSDictionary.class] || ![theme[@"id"] isKindOfClass:NSString.class] ||
-        ![theme[@"name"] isKindOfClass:NSString.class] || ![theme[@"colors"] isKindOfClass:NSDictionary.class]) return nil;
+        ![theme[@"name"] isKindOfClass:NSString.class] || ![theme[@"colors"] isKindOfClass:NSDictionary.class])
+        return nil;
     NSMutableDictionary *loaded = [theme mutableCopy];
     loaded[@"bundled"] = @(bundled);
     loaded[@"path"] = path;
@@ -37,11 +38,17 @@ static NSDictionary *LoadTheme(NSString *path, BOOL bundled)
 NSArray<NSDictionary *> *AstralThemes(void)
 {
     NSMutableArray *themes = [NSMutableArray arrayWithObject:@{
-        @"id": kDefaultTheme, @"name": @"Discord", @"description": @"Discord's own colours", @"colors": @{}, @"bundled": @YES}];
+        @"id" : kDefaultTheme,
+        @"name" : @"Discord",
+        @"description" : @"Discord's own colours",
+        @"colors" : @{},
+        @"bundled" : @YES
+    }];
     NSMutableSet *seen = [NSMutableSet setWithObject:kDefaultTheme];
     NSString *bundled = [AstralResourceDirectory() stringByAppendingPathComponent:@"themes"];
-    for (NSString *root in @[AstralLocalThemesDirectory(), bundled]) {
-        for (NSString *entry in [[NSFileManager.defaultManager contentsOfDirectoryAtPath:root error:nil] sortedArrayUsingSelector:@selector(compare:)]) {
+    for (NSString *root in @[ AstralLocalThemesDirectory(), bundled ]) {
+        for (NSString *entry in
+             [[NSFileManager.defaultManager contentsOfDirectoryAtPath:root error:nil] sortedArrayUsingSelector:@selector(compare:)]) {
             if (![entry.pathExtension isEqualToString:@"json"]) continue;
             NSDictionary *theme = LoadTheme([root stringByAppendingPathComponent:entry], root == bundled);
             if (!theme || [seen containsObject:theme[@"id"]]) continue;

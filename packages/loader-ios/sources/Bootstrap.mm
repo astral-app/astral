@@ -44,8 +44,13 @@ static NSArray *PluginSummaries(void)
 {
     NSMutableArray *summaries = [NSMutableArray array];
     for (NSDictionary *plugin in AstralLuaPlugins()) {
-        [summaries addObject:@{@"id": plugin[@"id"], @"enabled": plugin[@"enabled"], @"running": plugin[@"running"],
-                               @"failed": plugin[@"failed"], @"error": plugin[@"error"]}];
+        [summaries addObject:@{
+            @"id" : plugin[@"id"],
+            @"enabled" : plugin[@"enabled"],
+            @"running" : plugin[@"running"],
+            @"failed" : plugin[@"failed"],
+            @"error" : plugin[@"error"]
+        }];
     }
     return summaries;
 }
@@ -53,11 +58,19 @@ static NSArray *PluginSummaries(void)
 static void Status(NSString *stage)
 {
     lastStage = stage;
-    NSDictionary *report = @{@"schema": @2, @"runID": runID ?: @"", @"pid": @(getpid()), @"stage": stage,
-                             @"compatibility": compatibility ?: @"checking", @"recovering": @(recovering),
-                             @"time": @(NSDate.date.timeIntervalSince1970), @"engine": engineSelection ?: @{},
-                             @"settings": settingsIntegration ?: @"", @"settingsRefusal": settingsRefusal ?: @"",
-                             @"plugins": PluginSummaries()};
+    NSDictionary *report = @{
+        @"schema" : @2,
+        @"runID" : runID ?: @"",
+        @"pid" : @(getpid()),
+        @"stage" : stage,
+        @"compatibility" : compatibility ?: @"checking",
+        @"recovering" : @(recovering),
+        @"time" : @(NSDate.date.timeIntervalSince1970),
+        @"engine" : engineSelection ?: @{},
+        @"settings" : settingsIntegration ?: @"",
+        @"settingsRefusal" : settingsRefusal ?: @"",
+        @"plugins" : PluginSummaries()
+    };
     NSData *data = [NSJSONSerialization dataWithJSONObject:report options:0 error:nullptr];
     NSString *json = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
     if (!json || !loader::writeTextFileAtomically(loader::joinPath(stateDirectory, "status.json"), String(json))) {
@@ -101,7 +114,8 @@ NSString *AstralVersion(void)
 static AstralPageContext PageContext(void)
 {
     NSDictionary *info = NSBundle.mainBundle.infoDictionary;
-    NSString *discord = [NSString stringWithFormat:@"%@ · %@", info[@"CFBundleShortVersionString"] ?: @"?", info[@"CFBundleVersion"] ?: @"?"];
+    NSString *discord =
+        [NSString stringWithFormat:@"%@ · %@", info[@"CFBundleShortVersionString"] ?: @"?", info[@"CFBundleVersion"] ?: @"?"];
     return {recovering, discord, compatibility ?: @"checking"};
 }
 
@@ -118,16 +132,23 @@ static NSDictionary *FallbackModel(void)
 
 static void FallbackAction(NSString *key)
 {
-    AstralSettingsPageAction(@"plugins", [key hasPrefix:@"plugin."] ? [@"switch." stringByAppendingString:key] : key, ^{});
+    AstralSettingsPageAction(@"plugins", [key hasPrefix:@"plugin."] ? [@"switch." stringByAppendingString:key] : key,
+                             ^{
+                             });
 }
 
 static BOOL InstallSettings(void)
 {
     if (settingsIntegration) return YES;
-    NSString *refusal = AstralInstallPhoenixSettings(AstralSettingsCategory(),
-        ^NSDictionary *(NSString *route) { return AstralSettingsPageModel(route, PageContext()); },
+    NSString *refusal = AstralInstallPhoenixSettings(
+        AstralSettingsCategory(),
+        ^NSDictionary *(NSString *route) {
+            return AstralSettingsPageModel(route, PageContext());
+        },
         ^NSString *(NSString *route, NSString *key) {
-            NSString *next = AstralSettingsPageAction(route, key, ^{ SettingsChanged(); });
+            NSString *next = AstralSettingsPageAction(route, key, ^{
+                SettingsChanged();
+            });
             if ([key hasPrefix:@"switch."] || [key isEqualToString:@"uninstall"]) Status(@"settings-changed");
             return next;
         });
@@ -150,9 +171,13 @@ static void StartPlugins(void)
     recovering = verdict.enterRecovery;
     bool safeMode = settings->getBoolean("astral", "safe-mode", false);
     [NSFileManager.defaultManager createDirectoryAtPath:LocalPlugins() withIntermediateDirectories:YES attributes:nil error:nil];
-    AstralLuaHostStart(@[LocalPlugins(), [AstralResourceDirectory() stringByAppendingPathComponent:@"plugins"]], settings.get(), !recovering && !safeMode);
+    AstralLuaHostStart(@[ LocalPlugins(), [AstralResourceDirectory() stringByAppendingPathComponent:@"plugins"] ], settings.get(),
+                       !recovering && !safeMode);
     astral_wire_set_decorator(AstralLuaDecorate);
-    AstralCatalogRefresh(^{ AstralRefreshPhoenixSettings(); });
+    astral_wire_set_relabeler(AstralLuaRelabel);
+    AstralCatalogRefresh(^{
+        AstralRefreshPhoenixSettings();
+    });
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 30 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
         loader::LaunchGuard(stateDirectory).succeed();
     });
@@ -198,18 +223,22 @@ __attribute__((constructor)) static void AstralBootstrap(void)
         settings->load();
         AstralApplyTheme(AstralActiveThemeID());
         Status(@"injected");
-        [NSNotificationCenter.defaultCenter addObserverForName:UIApplicationDidBecomeActiveNotification object:nil
-            queue:NSOperationQueue.mainQueue usingBlock:^(__unused NSNotification *notification) {
-                if (started) loader::ExitRecord(stateDirectory).clear();
-                if (readinessScheduled) return;
-                readinessAttempts = 0;
-                CheckReadiness();
-            }];
-        [NSNotificationCenter.defaultCenter addObserverForName:UIApplicationDidEnterBackgroundNotification object:nil
-            queue:NSOperationQueue.mainQueue usingBlock:^(__unused NSNotification *notification) {
-                loader::LaunchGuard(stateDirectory).succeed();
-                loader::ExitRecord(stateDirectory).markEnded();
-            }];
+        [NSNotificationCenter.defaultCenter addObserverForName:UIApplicationDidBecomeActiveNotification
+                                                        object:nil
+                                                         queue:NSOperationQueue.mainQueue
+                                                    usingBlock:^(__unused NSNotification *notification) {
+                                                        if (started) loader::ExitRecord(stateDirectory).clear();
+                                                        if (readinessScheduled) return;
+                                                        readinessAttempts = 0;
+                                                        CheckReadiness();
+                                                    }];
+        [NSNotificationCenter.defaultCenter addObserverForName:UIApplicationDidEnterBackgroundNotification
+                                                        object:nil
+                                                         queue:NSOperationQueue.mainQueue
+                                                    usingBlock:^(__unused NSNotification *notification) {
+                                                        loader::LaunchGuard(stateDirectory).succeed();
+                                                        loader::ExitRecord(stateDirectory).markEnded();
+                                                    }];
         if (UIApplication.sharedApplication.applicationState == UIApplicationStateActive) CheckReadiness();
     });
 }

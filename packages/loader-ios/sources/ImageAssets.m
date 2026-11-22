@@ -22,7 +22,8 @@ static UIImage *AstralImage(NSString *name)
     NSString *path = [assets stringByAppendingPathComponent:[file stringByAppendingString:@"@3x.png"]];
     UIImage *image = [UIImage imageWithContentsOfFile:path];
     if (!image) return nil;
-    image = [[UIImage imageWithCGImage:image.CGImage scale:3 orientation:UIImageOrientationUp] imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+    image = [[UIImage imageWithCGImage:image.CGImage scale:3
+                           orientation:UIImageOrientationUp] imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
     [gImages setObject:image forKey:name];
     return image;
 }

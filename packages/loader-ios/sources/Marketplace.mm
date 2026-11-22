@@ -15,7 +15,8 @@ static NSMutableDictionary<NSString *, NSString *> *gInstalls;
 
 NSString *AstralCatalogURL(void)
 {
-    NSString *fallback = [NSURL fileURLWithPath:[AstralResourceDirectory() stringByAppendingPathComponent:@"catalog/index.json"]].absoluteString;
+    NSString *fallback =
+        [NSURL fileURLWithPath:[AstralResourceDirectory() stringByAppendingPathComponent:@"catalog/index.json"]].absoluteString;
     std::string url = AstralSettings()->getString("astral", "catalog", fallback.UTF8String);
     return [NSString stringWithUTF8String:url.c_str()] ?: fallback;
 }
@@ -62,14 +63,20 @@ static NSData *Fetch(NSURL *url, NSString **failure)
     __block NSString *error = nil;
     dispatch_semaphore_t done = dispatch_semaphore_create(0);
     NSURLRequest *request = [NSURLRequest requestWithURL:url cachePolicy:NSURLRequestReloadIgnoringLocalCacheData timeoutInterval:15];
-    [[NSURLSession.sharedSession dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *taskError) {
-        NSInteger status = [response isKindOfClass:NSHTTPURLResponse.class] ? ((NSHTTPURLResponse *)response).statusCode : 0;
-        if (taskError) error = taskError.localizedDescription;
-        else if (status != 200) error = [NSString stringWithFormat:@"HTTP %ld", (long)status];
-        else if (data.length > kMaxDownload) error = @"download too large";
-        else result = data;
-        dispatch_semaphore_signal(done);
-    }] resume];
+    [[NSURLSession.sharedSession
+        dataTaskWithRequest:request
+          completionHandler:^(NSData *data, NSURLResponse *response, NSError *taskError) {
+              NSInteger status = [response isKindOfClass:NSHTTPURLResponse.class] ? ((NSHTTPURLResponse *)response).statusCode : 0;
+              if (taskError)
+                  error = taskError.localizedDescription;
+              else if (status != 200)
+                  error = [NSString stringWithFormat:@"HTTP %ld", (long)status];
+              else if (data.length > kMaxDownload)
+                  error = @"download too large";
+              else
+                  result = data;
+              dispatch_semaphore_signal(done);
+          }] resume];
     dispatch_semaphore_wait(done, DISPATCH_TIME_FOREVER);
     if (error) *failure = error;
     return result;
@@ -85,7 +92,8 @@ static NSArray *Entries(NSDictionary *catalog, NSString *key)
     NSMutableArray *entries = [NSMutableArray array];
     for (NSDictionary *entry in [catalog[key] isKindOfClass:NSArray.class] ? catalog[key] : @[]) {
         if ([entry isKindOfClass:NSDictionary.class] && [entry[@"id"] isKindOfClass:NSString.class] &&
-            [entry[@"name"] isKindOfClass:NSString.class] && [entry[@"base"] isKindOfClass:NSString.class]) [entries addObject:entry];
+            [entry[@"name"] isKindOfClass:NSString.class] && [entry[@"base"] isKindOfClass:NSString.class])
+            [entries addObject:entry];
     }
     return entries;
 }
@@ -102,8 +110,11 @@ void AstralCatalogRefresh(void (^changed)(void))
         id parsed = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
         NSDictionary *catalog = nil;
         if ([parsed isKindOfClass:NSDictionary.class]) {
-            catalog = @{@"loader": [parsed[@"loader"] isKindOfClass:NSDictionary.class] ? parsed[@"loader"] : @{},
-                        @"plugins": Entries(parsed, @"plugins"), @"themes": Entries(parsed, @"themes")};
+            catalog = @{
+                @"loader" : [parsed[@"loader"] isKindOfClass:NSDictionary.class] ? parsed[@"loader"] : @{},
+                @"plugins" : Entries(parsed, @"plugins"),
+                @"themes" : Entries(parsed, @"themes")
+            };
         } else if (!failure) {
             failure = @"catalog is not valid JSON";
         }
@@ -136,7 +147,8 @@ static NSString *InstallPlugin(NSDictionary *package)
     [files removeItemAtPath:staging error:nil];
     if (![files createDirectoryAtPath:staging withIntermediateDirectories:YES attributes:nil error:nil] ||
         ![manifestData writeToFile:[staging stringByAppendingPathComponent:@"manifest.json"] atomically:YES] ||
-        ![source writeToFile:[staging stringByAppendingPathComponent:main] atomically:YES]) return @"could not write files";
+        ![source writeToFile:[staging stringByAppendingPathComponent:main] atomically:YES])
+        return @"could not write files";
     [files removeItemAtPath:target error:nil];
     if (![files moveItemAtPath:staging toPath:target error:nil]) return @"could not move files";
     return nil;
@@ -166,7 +178,8 @@ void AstralInstallPackage(NSDictionary *package, NSString *kind, void (^changed)
         dispatch_async(dispatch_get_main_queue(), ^{
             if (failure) {
                 gInstalls[identifier] = @"Failed";
-                loader::log(loader::LogLevel::Error, "marketplace", std::string("Failed to install ") + identifier.UTF8String + ": " + failure.UTF8String);
+                loader::log(loader::LogLevel::Error, "marketplace",
+                            std::string("Failed to install ") + identifier.UTF8String + ": " + failure.UTF8String);
             } else {
                 [gInstalls removeObjectForKey:identifier];
                 if (![kind isEqualToString:@"theme"]) {

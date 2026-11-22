@@ -18,8 +18,7 @@ UIWindow *AstralPhoenixWindow(void)
     if (!PhoenixClass(root)) return nil;
 
     for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
-        if (![scene isKindOfClass:UIWindowScene.class] ||
-            scene.activationState != UISceneActivationStateForegroundActive) continue;
+        if (![scene isKindOfClass:UIWindowScene.class] || scene.activationState != UISceneActivationStateForegroundActive) continue;
         for (UIWindow *window in ((UIWindowScene *)scene).windows) {
             if (!window.hidden && window.rootViewController.class == root) return window;
         }
@@ -38,7 +37,8 @@ Method AstralPhoenixOwnedMethod(Class cls, SEL selector, const char *encoding)
         if (method_getName(method) == selector && strcmp(method_getTypeEncoding(method), encoding) == 0) {
             Dl_info owner = {0};
             if (dladdr((const void *)method_getImplementation(method), &owner) &&
-                [AstralImageUUIDForPath(owner.dli_fname) isEqualToString:expectedUUID]) match = method;
+                [AstralImageUUIDForPath(owner.dli_fname) isEqualToString:expectedUUID])
+                match = method;
             break;
         }
     }
@@ -57,12 +57,12 @@ const struct mach_header *AstralPhoenixImage(void)
     return NULL;
 }
 
-
 NSString *AstralPhoenixCompatibility(void)
 {
     NSBundle *bundle = NSBundle.mainBundle;
     if (![bundle.bundleIdentifier isEqualToString:@"com.hammerandchisel.discord"] ||
-        ![bundle.infoDictionary[@"CFBundleVersion"] isEqualToString:@"124376"]) return @"unsupported-build";
+        ![bundle.infoDictionary[@"CFBundleVersion"] isEqualToString:@"124376"])
+        return @"unsupported-build";
     Class text = NSClassFromString(@"LibdiscordHost.TextBox");
     if (!text) return @"phoenix-image-unavailable";
     if (!PhoenixClass(text)) return @"unsupported-image";

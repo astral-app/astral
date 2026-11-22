@@ -5,21 +5,41 @@ cyan_repository="https://github.com/asdfzxcvbn/pyzule-rw"
 cyan_commit="740d3716dcd98c20c000f12cdb88f1f0b2a533a4"
 pillow_version="11.3.0"
 
-usage() { echo "usage: build-ipa.sh --ipa <decrypted Discord.ipa> [--deb <astral.deb>] [--output <astral.ipa>]" >&2; exit 2; }
+usage() {
+  echo "usage: build-ipa.sh --ipa <decrypted Discord.ipa> [--deb <astral.deb>] [--output <astral.ipa>]" >&2
+  exit 2
+}
 ipa="" deb="" output=""
 while [ $# -gt 0 ]; do
   case "$1" in
-    --ipa) ipa="$2"; shift 2 ;;
-    --deb) deb="$2"; shift 2 ;;
-    --output) output="$2"; shift 2 ;;
+    --ipa)
+      ipa="$2"
+      shift 2
+      ;;
+    --deb)
+      deb="$2"
+      shift 2
+      ;;
+    --output)
+      output="$2"
+      shift 2
+      ;;
     *) usage ;;
   esac
 done
 [ -n "$ipa" ] || usage
-[ -f "$ipa" ] || { echo "IPA not found: $ipa" >&2; exit 1; }
+[ -f "$ipa" ] || {
+  echo "IPA not found: $ipa" >&2
+  exit 1
+}
 if [ -z "$deb" ]; then
-  deb="$(ls -t "$root"/packages/loader-ios/packages/*.deb 2>/dev/null | head -1 || true)"
-  [ -n "$deb" ] || { echo "no astral .deb; build packages/loader-ios first" >&2; exit 1; }
+  for candidate in "$root"/packages/loader-ios/packages/*.deb; do
+    [ -e "$candidate" ] && deb="$candidate"
+  done
+  [ -n "$deb" ] || {
+    echo "no astral .deb; build packages/loader-ios first" >&2
+    exit 1
+  }
 fi
 output="${output:-$root/astral.ipa}"
 

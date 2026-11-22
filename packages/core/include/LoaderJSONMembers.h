@@ -13,6 +13,5 @@ struct JSONMember {
     std::string_view value;
 };
 
-std::optional<std::vector<JSONMember>> splitJSONObject(std::string_view text,
-                                                       size_t maximumDepth = kMaximumJSONDepth);
-}
+std::optional<std::vector<JSONMember>> splitJSONObject(std::string_view text, size_t maximumDepth = kMaximumJSONDepth);
+} // namespace loader

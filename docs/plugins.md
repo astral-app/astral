@@ -2,6 +2,10 @@
 
 Plugins are Lua 5.4 files. astral runs no native plugin code, so a plugin works the same on jailbroken and sideloaded installs and cannot crash Discord.
 
+## Icons
+
+A manifest's `icon` names a Discord icon (`TextIcon`, `UserPlusIcon`), which the card draws from Phoenix's own `ic_mana_*` asset of the same name, or a `res://` source. Without one the card shows the plug.
+
 ## Package
 
 ```
@@ -22,9 +26,11 @@ Each plugin gets its own `lua_State` with `base`, `table`, `string`, `math`, `ut
 | --- | --- |
 | `astral.log(...)`, `astral.id`, `astral.api` | Logging and identity |
 | `astral.settings.switch(key, title, default, { subtitle, section })` | A switch on the plugin's settings page, grouped by section |
+| `astral.settings.choice(key, title, options, default, { section })` | Radio rows; `options` are `{ value, title, subtitle }` |
 | `astral.settings.get/set`, `astral.on_setting(key, value)` | Persisted values |
 | `astral.ui.decorate("message.author", fn)` | `fn(node)` returns pills `{ text, color, text_color, colors, shape }` shown after the guild tag |
-| `astral.discord.guild/member/message/channel_guild/permissions` | Read-only views of Discord's own cache; permissions apply channel overwrites |
+| `astral.ui.relabel("message.author", fn)` | `fn(node)` returns new text for a message author (`node.kind == "author"`) or a reply preview's author (`"reply"`); plugins chain |
+| `astral.discord.guild/member/message/user/nickname/channel_guild/permissions` | Read-only views of Discord's own cache; messages carry `type`, `author` and `reference`, permissions apply channel overwrites |
 | `astral.discord.permission.*` | Permission bits |
 
 A pill with two or three `colors` draws Phoenix's native `backgroundGradient`; `shape = "op"` draws Discord's original poster style.

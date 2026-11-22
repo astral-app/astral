@@ -8,8 +8,7 @@
 #include "LoaderLaunchGuard.h"
 
 namespace loader {
-enum class BundleState
-{
+enum class BundleState {
     Active,
     Trial,
     Discarded,
@@ -17,16 +16,16 @@ enum class BundleState
 };
 
 struct LaunchReport {
-    BundleState bundle        = BundleState::Active;
-    int earlyCloses           = 0;
-    bool recovery             = false;
+    BundleState bundle = BundleState::Active;
+    int earlyCloses = 0;
+    bool recovery = false;
     PreviousExit previousExit = PreviousExit::Unknown;
     std::string revision;
     std::string channel;
-    int64_t bundleMs      = 0;
+    int64_t bundleMs = 0;
     int64_t firstRenderMs = 0;
     std::string source;
-    int pullRequest   = 0;
+    int pullRequest = 0;
     int64_t checkedAt = 0;
     std::string checkOutcome;
     std::string checkDetail;
@@ -53,7 +52,7 @@ bool isLikelyPointerAuthFailure(uint64_t address);
 int pullRequestOf(const std::string &updateURL);
 
 constexpr const char *kCrashHistoryFile = "crash-history.json";
-constexpr size_t kCrashHistoryLimit     = 5;
+constexpr size_t kCrashHistoryLimit = 5;
 
 std::vector<NativeCrashRecord> readCrashHistory(const std::string &directory);
 bool recordCrash(const std::string &directory, const std::string &stack, int64_t at);
@@ -65,4 +64,4 @@ std::string describeNativeCrash(const std::string &stack);
 nlohmann::json launchReportJSON(const LaunchReport &report, const std::string &nativeCrash,
                                 const std::vector<NativeCrashRecord> &history = {});
 std::string launchReportLine(const LaunchReport &report, const std::string &nativeCrash);
-}
+} // namespace loader

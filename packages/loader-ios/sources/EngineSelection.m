@@ -20,8 +20,8 @@ NSDictionary<NSString *, id> *AstralForcePhoenix(void)
         changed = YES;
     }
     return @{
-        @"previousClient": client ?: @"",
-        @"previousUnhealthyLaunches": @(unhealthy),
-        @"changed": @(changed),
+        @"previousClient" : client ?: @"",
+        @"previousUnhealthyLaunches" : @(unhealthy),
+        @"changed" : @(changed),
     };
 }

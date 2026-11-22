@@ -8,8 +8,7 @@
 #include "LoaderLogCategories.h"
 
 namespace loader {
-enum class LogLevel
-{
+enum class LogLevel {
     Debug,
     Info,
     Warning,
@@ -35,4 +34,4 @@ LogLevel logLevelFromIndex(int index);
 std::string formatLogLine(const std::string &category, const std::string &message);
 std::string scopedLogLine(const std::vector<std::string> &scope, const std::string &message);
 void logFromPlatform(int level, const std::string &category, const std::string &message);
-}
+} // namespace loader

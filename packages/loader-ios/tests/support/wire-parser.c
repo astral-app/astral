@@ -90,9 +90,9 @@ static int identifier(const uint8_t *bytes, size_t length)
     if (!length || length > 48) return 0;
     for (size_t index = 0; index < length; index++) {
         uint8_t character = bytes[index];
-        if (!((character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') ||
-              (character >= '0' && character <= '9') || character == '_' || character == '-' ||
-              character == '.' || character == ':' || character == '%' || character == '#')) return 0;
+        if (!((character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') || (character >= '0' && character <= '9') ||
+              character == '_' || character == '-' || character == '.' || character == ':' || character == '%' || character == '#'))
+            return 0;
     }
     return 1;
 }
@@ -133,11 +133,21 @@ static void valueOfTag(Reader *reader, Writer *writer, uint8_t tag, int depth)
         return;
     }
     switch (tag) {
-    case 0: emit(writer, "null"); break;
-    case 1: emit(writer, "false"); break;
-    case 2: emit(writer, "true"); break;
-    case 3: emit(writer, "%d", (int32_t)u32(reader)); break;
-    case 4: emit(writer, "%lld", (long long)(int64_t)u64(reader)); break;
+    case 0:
+        emit(writer, "null");
+        break;
+    case 1:
+        emit(writer, "false");
+        break;
+    case 2:
+        emit(writer, "true");
+        break;
+    case 3:
+        emit(writer, "%d", (int32_t)u32(reader));
+        break;
+    case 4:
+        emit(writer, "%lld", (long long)(int64_t)u64(reader));
+        break;
     case 5: {
         uint64_t raw = u64(reader);
         double number;
@@ -145,10 +155,15 @@ static void valueOfTag(Reader *reader, Writer *writer, uint8_t tag, int depth)
         emit(writer, "%.6g", number);
         break;
     }
-    case 6: text(reader, writer, u32(reader), gKeepStrings); break;
+    case 6:
+        text(reader, writer, u32(reader), gKeepStrings);
+        break;
     case 7: {
         uint32_t count = u32(reader);
-        if (count > kMaxItems) { reader->failed = 1; return; }
+        if (count > kMaxItems) {
+            reader->failed = 1;
+            return;
+        }
         emit(writer, "[");
         for (uint32_t index = 0; index < count && !reader->failed; index++) {
             if (index) emit(writer, ",");
@@ -159,7 +174,10 @@ static void valueOfTag(Reader *reader, Writer *writer, uint8_t tag, int depth)
     }
     case 8: {
         uint32_t count = u32(reader);
-        if (count > kMaxItems) { reader->failed = 1; return; }
+        if (count > kMaxItems) {
+            reader->failed = 1;
+            return;
+        }
         emit(writer, "{\"m\":[");
         for (uint32_t index = 0; index < count && !reader->failed; index++) {
             if (index) emit(writer, ",");
@@ -181,7 +199,10 @@ static void valueOfTag(Reader *reader, Writer *writer, uint8_t tag, int depth)
     }
     case 10: {
         uint32_t count = u32(reader);
-        if (count > kMaxItems) { reader->failed = 1; return; }
+        if (count > kMaxItems) {
+            reader->failed = 1;
+            return;
+        }
         emit(writer, "{\"k\":[");
         for (uint32_t index = 0; index < count && !reader->failed; index++) {
             if (index) emit(writer, ",");
@@ -196,7 +217,10 @@ static void valueOfTag(Reader *reader, Writer *writer, uint8_t tag, int depth)
     }
     case 11: {
         uint32_t count = u32(reader);
-        if (count > kMaxItems || !has(reader, (size_t)count * 4)) { reader->failed = 1; return; }
+        if (count > kMaxItems || !has(reader, (size_t)count * 4)) {
+            reader->failed = 1;
+            return;
+        }
         reader->offset += (size_t)count * 4;
         emit(writer, "{\"words\":%u}", count);
         break;
@@ -209,7 +233,9 @@ static void valueOfTag(Reader *reader, Writer *writer, uint8_t tag, int depth)
         emit(writer, "{\"cached\":%u,\"edits\":%u}", cached, edits);
         break;
     }
-    default: reader->failed = 1; break;
+    default:
+        reader->failed = 1;
+        break;
     }
 }
 
@@ -232,7 +258,10 @@ static void properties(Reader *reader, Writer *writer)
 
 static void ids(Reader *reader, Writer *writer, uint32_t count)
 {
-    if (count > kMaxItems) { reader->failed = 1; return; }
+    if (count > kMaxItems) {
+        reader->failed = 1;
+        return;
+    }
     emit(writer, "[");
     for (uint32_t index = 0; index < count && !reader->failed; index++) {
         emit(writer, index ? ",%d" : "%d", (int32_t)u32(reader));
@@ -276,7 +305,9 @@ int astral_wire_summarise(const uint8_t *bytes, size_t length, AstralWireSink si
                 emit(&writer, ",");
                 ids(&reader, &writer, u32(&reader));
                 break;
-            case 5: emit(&writer, ",%d", (int32_t)u32(&reader)); break;
+            case 5:
+                emit(&writer, ",%d", (int32_t)u32(&reader));
+                break;
             case 6:
                 if (u8(&reader)) emit(&writer, ",%d", (int32_t)u32(&reader));
                 break;
@@ -288,11 +319,15 @@ int astral_wire_summarise(const uint8_t *bytes, size_t length, AstralWireSink si
                 emit(&writer, "]");
                 break;
             }
-            case 8: break;
+            case 8:
+                break;
             case 10: {
                 emit(&writer, ",%d,[", (int32_t)u32(&reader));
                 uint32_t edits = u32(&reader);
-                if (edits > kMaxItems) { reader.failed = 1; break; }
+                if (edits > kMaxItems) {
+                    reader.failed = 1;
+                    break;
+                }
                 for (uint32_t index = 0; index < edits && !reader.failed; index++) {
                     uint32_t keep = u32(&reader), drop = u32(&reader);
                     emit(&writer, index ? ",[%u,%u," : "[%u,%u,", keep, drop);
@@ -302,14 +337,15 @@ int astral_wire_summarise(const uint8_t *bytes, size_t length, AstralWireSink si
                 emit(&writer, "]");
                 break;
             }
-            default: reader.failed = 1; break;
+            default:
+                reader.failed = 1;
+                break;
             }
             emit(&writer, "]");
             count++;
         }
     }
-    emit(&writer, "],\"complete\":%s,\"overflow\":%s}",
-         (!reader.failed && reader.offset == reader.length) ? "true" : "false",
+    emit(&writer, "],\"complete\":%s,\"overflow\":%s}", (!reader.failed && reader.offset == reader.length) ? "true" : "false",
          writer.overflowed ? "true" : "false");
     if (writer.overflowed) {
         writer.length = (size_t)snprintf(buffer, kLineCap, "{\"v\":%u,\"bytes\":%zu,\"overflow\":true}", version, length);

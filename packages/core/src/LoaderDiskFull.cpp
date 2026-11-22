@@ -15,8 +15,7 @@ bool isOutOfSpace(int error)
 
 void noteWriteFailure(int error, const std::string &path, int64_t at)
 {
-    if (!isOutOfSpace(error))
-    {
+    if (!isOutOfSpace(error)) {
         return;
     }
 
@@ -35,4 +34,4 @@ void clearDiskFullNote()
     std::lock_guard<std::mutex> guard(noteLock);
     latestNote.reset();
 }
-}
+} // namespace loader

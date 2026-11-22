@@ -7,7 +7,7 @@
 namespace loader {
 class ExitRecord
 {
-public:
+  public:
     static constexpr const char *kFile = "exit-record";
 
     explicit ExitRecord(std::string directory);
@@ -16,9 +16,9 @@ public:
     bool clear() const;
     PreviousExit take(bool nativeCrashRecorded) const;
 
-private:
+  private:
     std::string path() const;
 
     std::string directory_;
 };
-}
+} // namespace loader

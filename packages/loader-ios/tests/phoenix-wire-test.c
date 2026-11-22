@@ -11,25 +11,52 @@ typedef struct {
     size_t length;
 } Batch;
 
-static void b8(Batch *b, unsigned v) { b->bytes[b->length++] = (unsigned char)v; }
-static void b16(Batch *b, unsigned v) { b8(b, v & 255); b8(b, v >> 8); }
-static void b32(Batch *b, int v) { memcpy(b->bytes + b->length, &v, 4); b->length += 4; }
-static void bstr(Batch *b, const char *s) { b32(b, (int)strlen(s)); memcpy(b->bytes + b->length, s, strlen(s)); b->length += strlen(s); }
+static void b8(Batch *b, unsigned v)
+{
+    b->bytes[b->length++] = (unsigned char)v;
+}
+static void b16(Batch *b, unsigned v)
+{
+    b8(b, v & 255);
+    b8(b, v >> 8);
+}
+static void b32(Batch *b, int v)
+{
+    memcpy(b->bytes + b->length, &v, 4);
+    b->length += 4;
+}
+static void bstr(Batch *b, const char *s)
+{
+    b32(b, (int)strlen(s));
+    memcpy(b->bytes + b->length, s, strlen(s));
+    b->length += strlen(s);
+}
 
 static void create(Batch *b, int id, const char *type, int props)
 {
-    b8(b, 1); b32(b, id); b16(b, (unsigned)strlen(type)); memcpy(b->bytes + b->length, type, strlen(type)); b->length += strlen(type);
+    b8(b, 1);
+    b32(b, id);
+    b16(b, (unsigned)strlen(type));
+    memcpy(b->bytes + b->length, type, strlen(type));
+    b->length += strlen(type);
     b16(b, (unsigned)props);
 }
 
 static void children(Batch *b, int parent, int count, const int *ids)
 {
-    b8(b, 3); b32(b, parent); b32(b, count);
+    b8(b, 3);
+    b32(b, parent);
+    b32(b, count);
     for (int i = 0; i < count; i++) b32(b, ids[i]);
 }
 
 static char line[1 << 20];
-static void sink(void *c, const char *l, size_t n) { (void)c; memcpy(line, l, n); line[n] = 0; }
+static void sink(void *c, const char *l, size_t n)
+{
+    (void)c;
+    memcpy(line, l, n);
+    line[n] = 0;
+}
 
 static void skeleton(Batch *b)
 {
@@ -40,10 +67,21 @@ static void skeleton(Batch *b)
     const int plain[] = {100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 112, 113, 115, 116};
     for (size_t i = 0; i < sizeof(plain) / sizeof(*plain); i++) create(b, plain[i], "view", 0);
     create(b, 111, "view", 2);
-    b16(b, 9); b8(b, 6); bstr(b, "Back");
-    b16(b, 740); b8(b, 12); b32(b, 0); b16(b, 0);
-    create(b, 114, "image", 1); b16(b, 542); b8(b, 6); bstr(b, "res://ic_mana_x_small");
-    create(b, 117, "text", 1); b16(b, 499); b8(b, 6); bstr(b, "Settings");
+    b16(b, 9);
+    b8(b, 6);
+    bstr(b, "Back");
+    b16(b, 740);
+    b8(b, 12);
+    b32(b, 0);
+    b16(b, 0);
+    create(b, 114, "image", 1);
+    b16(b, 542);
+    b8(b, 6);
+    bstr(b, "res://ic_mana_x_small");
+    create(b, 117, "text", 1);
+    b16(b, 499);
+    b8(b, 6);
+    bstr(b, "Settings");
     create(b, 30, "view", 0);
     create(b, 31, "view", 0);
 }
@@ -67,7 +105,12 @@ static void links(Batch *b)
     children(b, 116, 1, (int[]){117});
     children(b, 5, 2, (int[]){6, 100});
     children(b, 50, 1, (int[]){51});
-    b8(b, 2); b32(b, 5); b16(b, 1); b16(b, 252); b8(b, 3); b32(b, 1);
+    b8(b, 2);
+    b32(b, 5);
+    b16(b, 1);
+    b16(b, 252);
+    b8(b, 3);
+    b32(b, 1);
 }
 
 static void overview(Batch *b)
@@ -77,17 +120,41 @@ static void overview(Batch *b)
     skeleton(b);
     create(b, 10, "view", 0);
     create(b, 11, "input", 0);
-    create(b, 20, "view", 1); b16(b, 147); b8(b, 6); bstr(b, "column");
-    create(b, 21, "text", 1); b16(b, 499); b8(b, 6); bstr(b, "Account Settings");
+    create(b, 20, "view", 1);
+    b16(b, 147);
+    b8(b, 6);
+    bstr(b, "column");
+    create(b, 21, "text", 1);
+    b16(b, 499);
+    b8(b, 6);
+    bstr(b, "Account Settings");
     create(b, 22, "view", 0);
     create(b, 23, "view", 4);
-    b16(b, 9); b8(b, 6); bstr(b, "settings.row.account");
-    b16(b, 11); b8(b, 6); bstr(b, "Account");
-    b16(b, 320); b8(b, 7); b32(b, 1); b8(b, 6); bstr(b, "press");
-    b16(b, 733); b8(b, 11); b32(b, 2); b32(b, 7); b32(b, 9);
+    b16(b, 9);
+    b8(b, 6);
+    bstr(b, "settings.row.account");
+    b16(b, 11);
+    b8(b, 6);
+    bstr(b, "Account");
+    b16(b, 320);
+    b8(b, 7);
+    b32(b, 1);
+    b8(b, 6);
+    bstr(b, "press");
+    b16(b, 733);
+    b8(b, 11);
+    b32(b, 2);
+    b32(b, 7);
+    b32(b, 9);
     create(b, 24, "view", 0);
-    create(b, 25, "image", 1); b16(b, 542); b8(b, 6); bstr(b, "res://ic_mana_user_circle");
-    create(b, 26, "text", 1); b16(b, 499); b8(b, 6); bstr(b, "Account");
+    create(b, 25, "image", 1);
+    b16(b, 542);
+    b8(b, 6);
+    bstr(b, "res://ic_mana_user_circle");
+    create(b, 26, "text", 1);
+    b16(b, 499);
+    b8(b, 6);
+    bstr(b, "Account");
     create(b, 27, "view", 0);
     create(b, 28, "image", 0);
     children(b, 27, 1, (int[]){28});
@@ -115,21 +182,32 @@ static void decorationTest(void)
     Batch b = {.length = 0};
     b8(&b, 1);
     create(&b, 900, "view", 2);
-    b16(&b, 13); b8(&b, 2);
-    b16(&b, 9); b8(&b, 6); bstr(&b, "navigation.channel:100000000000000002");
+    b16(&b, 13);
+    b8(&b, 2);
+    b16(&b, 9);
+    b8(&b, 6);
+    bstr(&b, "navigation.channel:100000000000000002");
     create(&b, 910, "view", 1);
-    b16(&b, 9); b8(&b, 6); bstr(&b, "message.avatar:100000000000000003");
+    b16(&b, 9);
+    b8(&b, 6);
+    bstr(&b, "message.avatar:100000000000000003");
     create(&b, 911, "image", 1);
-    b16(&b, 542); b8(&b, 6); bstr(&b, "https://cdn.discordapp.com/avatars/100000000000000001/abc.webp?size=80");
+    b16(&b, 542);
+    b8(&b, 6);
+    bstr(&b, "https://cdn.discordapp.com/avatars/100000000000000001/abc.webp?size=80");
     create(&b, 912, "stack", 0);
     children(&b, 910, 1, (int[]){912});
     children(&b, 912, 1, (int[]){911});
     create(&b, 920, "view", 0);
     create(&b, 921, "text", 1);
-    b16(&b, 9); b8(&b, 6); bstr(&b, "message.author:100000000000000003");
+    b16(&b, 9);
+    b8(&b, 6);
+    bstr(&b, "message.author:100000000000000003");
     create(&b, 922, "view", 0);
     create(&b, 923, "text", 1);
-    b16(&b, 9); b8(&b, 6); bstr(&b, "message.timestamp:100000000000000003");
+    b16(&b, 9);
+    b8(&b, 6);
+    bstr(&b, "message.timestamp:100000000000000003");
     children(&b, 920, 3, (int[]){921, 922, 923});
     assert(astral_settings_rewrite(b.bytes, b.length, &out));
     assert(astral_wire_current_channel() == 100000000000000002ull);
@@ -150,7 +228,9 @@ static void decorationTest(void)
 
     Batch gone = {.length = 0};
     b8(&gone, 1);
-    b8(&gone, 4); b32(&gone, 1); b32(&gone, 920);
+    b8(&gone, 4);
+    b32(&gone, 1);
+    b32(&gone, 920);
     assert(astral_settings_rewrite(gone.bytes, gone.length, &out));
     astral_wire_summarise(out.bytes, out.length, sink, NULL);
     assert(strstr(line, "[4,[2063597570,2063597571]]"));
@@ -164,8 +244,15 @@ static void cardPageTest(void)
     static const AstralChipSpec chips[] = {{"filter.all", "All 2", 1}, {"filter.enabled", "Enabled 1", 0}};
     static const AstralToolbarSpec toolbar = {chips, 2, "browse", "res://ic_mana_download"};
     static const AstralCardSpec cards[] = {
-        {.key = "plugin.dev.astral.tags", .title = "More User Tags", .authors = "adrian", .description = "Adds tags.",
-         .version = "v0.0.1", .avatars = {"https://cdn.discordapp.com/embed/avatars/0.png"}, .avatarCount = 1, .hasSettings = 1, .on = 1},
+        {.key = "plugin.dev.astral.tags",
+         .title = "More User Tags",
+         .authors = "adrian",
+         .description = "Adds tags.",
+         .version = "v0.0.1",
+         .avatars = {"https://cdn.discordapp.com/embed/avatars/0.png"},
+         .avatarCount = 1,
+         .hasSettings = 1,
+         .on = 1},
         {.key = "plugin.dev.astral.broken", .title = "Broken", .error = "start: boom", .failed = 1},
     };
     AstralPageSpec page = {.title = "Plugins", .toolbar = &toolbar, .cards = cards, .cardCount = 2};
@@ -193,7 +280,9 @@ static void categoryRowsTest(void)
     AstralWireBuffer out;
     Batch gone = {.length = 0};
     b8(&gone, 1);
-    b8(&gone, 4); b32(&gone, 1); b32(&gone, 10);
+    b8(&gone, 4);
+    b32(&gone, 1);
+    b32(&gone, 10);
     assert(astral_settings_rewrite(gone.bytes, gone.length, &out));
     astral_wire_buffer_free(&out);
     static const AstralRowSpec rows[] = {
@@ -236,8 +325,13 @@ static void paletteTest(void)
     Batch b = {.length = 0};
     b8(&b, 1);
     create(&b, 950, "view", 2);
-    b16(&b, 90); b8(&b, 4); b32(&b, 0xFF5865F2); b32(&b, 0);
-    b16(&b, 129); b8(&b, 3); b32(&b, 0xFF000000);
+    b16(&b, 90);
+    b8(&b, 4);
+    b32(&b, 0xFF5865F2);
+    b32(&b, 0);
+    b16(&b, 129);
+    b8(&b, 3);
+    b32(&b, 0xFF000000);
     assert(astral_settings_rewrite(b.bytes, b.length, &out));
     astral_wire_summarise(out.bytes, out.length, sink, NULL);
     assert(strstr(line, "\"complete\":true"));
@@ -247,10 +341,82 @@ static void paletteTest(void)
     astral_wire_set_palette(NULL, NULL, 0);
 }
 
+static int labelWithUser(const AstralLabelContext *context, const char *text, size_t length, char *out, size_t capacity)
+{
+    (void)length;
+    const char *user = context->kind == kAstralLabelReply ? "@replied" : "@author";
+    return snprintf(out, capacity, "%s (%s)", text, user);
+}
+
+static void relabelTest(void)
+{
+    AstralWireBuffer out;
+    astral_wire_set_relabeler(labelWithUser);
+    Batch b = {.length = 0};
+    b8(&b, 1);
+    create(&b, 970, "view", 1);
+    b16(&b, 9);
+    b8(&b, 6);
+    bstr(&b, "message-row");
+    create(&b, 971, "text", 2);
+    b16(&b, 1);
+    b8(&b, 7);
+    b32(&b, 1);
+    b8(&b, 6);
+    bstr(&b, "replyPreview");
+    b16(&b, 468);
+    b8(&b, 7);
+    b32(&b, 1);
+    b8(&b, 8);
+    b32(&b, 1);
+    b16(&b, 499);
+    b8(&b, 6);
+    bstr(&b, "Rae");
+    create(&b, 972, "text", 2);
+    b16(&b, 9);
+    b8(&b, 6);
+    bstr(&b, "message.author:100000000000000009");
+    b16(&b, 499);
+    b8(&b, 6);
+    bstr(&b, "Kode");
+    create(&b, 973, "view", 0);
+    children(&b, 973, 1, (int[]){971});
+    children(&b, 970, 2, (int[]){973, 972});
+    assert(astral_settings_rewrite(b.bytes, b.length, &out));
+    astral_wire_summarise(out.bytes, out.length, sink, NULL);
+    assert(strstr(line, "\"complete\":true"));
+    assert(strstr(line, "[499,6,{\"n\":14"));
+    assert(strstr(line, "\"m\":[[499,[6,{\"n\":14"));
+    astral_wire_buffer_free(&out);
+
+    uint32_t from[] = {0xFF000000}, to[] = {0xFF111111};
+    astral_wire_set_palette(from, to, 1);
+    Batch update = {.length = 0};
+    b8(&update, 1);
+    b8(&update, 2);
+    b32(&update, 972);
+    b16(&update, 2);
+    b16(&update, 499);
+    b8(&update, 6);
+    bstr(&update, "Kode");
+    b16(&update, 129);
+    b8(&update, 3);
+    b32(&update, 0xFF000000);
+    assert(astral_settings_rewrite(update.bytes, update.length, &out));
+    astral_wire_summarise(out.bytes, out.length, sink, NULL);
+    assert(strstr(line, "\"complete\":true"));
+    assert(strstr(line, "[499,6,{\"n\":14"));
+    assert(strstr(line, "[129,3,-15658735]") || strstr(line, "[129,3,4279308561]"));
+    astral_wire_buffer_free(&out);
+    astral_wire_set_palette(NULL, NULL, 0);
+    astral_wire_set_relabeler(NULL);
+}
+
 int main(void)
 {
     decorationTest();
     gradientTagTest();
+    relabelTest();
     paletteTest();
     Batch batch;
     overview(&batch);
@@ -281,12 +447,17 @@ int main(void)
 
     Batch unrelated = {.length = 0};
     b8(&unrelated, 1);
-    b8(&unrelated, 2); b32(&unrelated, 5); b16(&unrelated, 0);
+    b8(&unrelated, 2);
+    b32(&unrelated, 5);
+    b16(&unrelated, 0);
     assert(!astral_settings_rewrite(unrelated.bytes, unrelated.length, &out));
 
     Batch close = {.length = 0};
     b8(&close, 1);
-    b8(&close, 4); b32(&close, 2); b32(&close, 10); b32(&close, 11);
+    b8(&close, 4);
+    b32(&close, 2);
+    b32(&close, 10);
+    b32(&close, 11);
     assert(astral_settings_rewrite(close.bytes, close.length, &out));
     astral_wire_summarise(out.bytes, out.length, sink, NULL);
     assert(strstr(line, "[4,[2046820352,2046820353,2046820354,2046820355,2046820356,2046820357,2046820358,2046820359,2046820360]]"));
@@ -300,7 +471,11 @@ int main(void)
         {.key = "plugin.dev.astral.tint", .title = "Cyan Text", .icon = "res://ic_mana_puzzle_piece", .kind = kAstralRowSwitch, .on = 1},
     };
     static const AstralRowSpec developerRows[] = {
-        {.key = "style-test", .title = "Text style test", .subtitle = "Shows a sample", .icon = "res://ic_mana_wrench", .kind = kAstralRowSwitch},
+        {.key = "style-test",
+         .title = "Text style test",
+         .subtitle = "Shows a sample",
+         .icon = "res://ic_mana_wrench",
+         .kind = kAstralRowSwitch},
         {.key = "engine", .title = "Engine", .detail = "Phoenix", .icon = "res://ic_mana_bug", .kind = kAstralRowInfo},
         {.key = "more", .title = "More", .kind = kAstralRowLink},
     };
@@ -345,7 +520,8 @@ int main(void)
     assert(astral_page_depth() == 1);
     astral_wire_buffer_free(&out);
 
-    AstralRowSpec flipped[] = {{.key = "plugin.dev.astral.tint", .title = "Cyan Text", .icon = "res://ic_mana_puzzle_piece", .kind = kAstralRowSwitch}};
+    AstralRowSpec flipped[] = {
+        {.key = "plugin.dev.astral.tint", .title = "Cyan Text", .icon = "res://ic_mana_puzzle_piece", .kind = kAstralRowSwitch}};
     AstralSectionSpec refreshed[] = {{"Plugins", flipped, 1}};
     AstralPageSpec refreshedPage = {.title = "astral", .sections = refreshed, .count = 1};
     assert(astral_page_refresh(&refreshedPage, &out));

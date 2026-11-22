@@ -3,8 +3,8 @@
 #import "PhoenixImage.h"
 
 @interface AstralSettingsEntry : UIButton
-@property(nonatomic) UIEdgeInsets nativeInset;
-@property(nonatomic) CGFloat reservedHeight;
+@property (nonatomic) UIEdgeInsets nativeInset;
+@property (nonatomic) CGFloat reservedHeight;
 @end
 
 static void (*originalLayout)(UIScrollView *, SEL);
@@ -39,7 +39,7 @@ static const char entryKey = 0;
     chevron.tintColor = UIColor.tertiaryLabelColor;
     chevron.contentMode = UIViewContentModeScaleAspectFit;
 
-    UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[icon, title, chevron]];
+    UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[ icon, title, chevron ]];
     stack.translatesAutoresizingMaskIntoConstraints = NO;
     stack.alignment = UIStackViewAlignmentCenter;
     stack.spacing = 16;
@@ -61,9 +61,11 @@ static const char entryKey = 0;
 - (void)open
 {
     UIViewController *presenter = self.window.rootViewController;
-    while (presenter.presentedViewController && !presenter.presentedViewController.isBeingDismissed) presenter = presenter.presentedViewController;
+    while (presenter.presentedViewController && !presenter.presentedViewController.isBeingDismissed)
+        presenter = presenter.presentedViewController;
     if (!presenter) return;
-    UITableViewController *page = [(UITableViewController *)[NSClassFromString(@"AstralFallbackController") alloc] initWithStyle:UITableViewStyleInsetGrouped];
+    UITableViewController *page =
+        [(UITableViewController *)[NSClassFromString(@"AstralFallbackController") alloc] initWithStyle:UITableViewStyleInsetGrouped];
     UINavigationController *navigation = [[UINavigationController alloc] initWithRootViewController:page];
     [presenter presentViewController:navigation animated:YES completion:nil];
 }
@@ -82,7 +84,8 @@ static const char entryKey = 0;
     [super viewDidLoad];
     self.title = @"astral";
     self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemDone
-        target:self action:@selector(close)];
+                                                                                           target:self
+                                                                                           action:@selector(close)];
     [self reload];
 }
 
@@ -151,7 +154,8 @@ static BOOL IsSettingsOverview(UIScrollView *scroll)
 {
     UIWindow *window = scroll.window;
     if (!window || scroll.hidden || scroll.bounds.size.width < 240 ||
-        window.rootViewController.class != NSClassFromString(@"LibdiscordHost.RootController")) return NO;
+        window.rootViewController.class != NSClassFromString(@"LibdiscordHost.RootController"))
+        return NO;
 
     Class sheet = NSClassFromString(@"LibdiscordHost.PageSheetView");
     UIView *container = scroll.superview;
@@ -216,8 +220,8 @@ static void LayoutSettings(UIScrollView *scroll, SEL selector)
     const CGFloat height = 56;
     const CGFloat reserved = 72;
     BOOL atTop = fabs(scroll.contentOffset.y + scroll.adjustedContentInset.top) < 1;
-    entry = [[AstralSettingsEntry alloc] initWithFrame:CGRectMake(
-        margin, -reserved + margin / 2, CGRectGetWidth(scroll.bounds) - margin * 2, height)];
+    entry = [[AstralSettingsEntry alloc]
+        initWithFrame:CGRectMake(margin, -reserved + margin / 2, CGRectGetWidth(scroll.bounds) - margin * 2, height)];
     entry.nativeInset = scroll.contentInset;
     entry.reservedHeight = reserved;
     objc_setAssociatedObject(scroll, &entryKey, entry, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
@@ -231,8 +235,7 @@ static void LayoutSettings(UIScrollView *scroll, SEL selector)
 BOOL AstralInstallSettingsEntry(AstralFallbackModel model, AstralFallbackAction action)
 {
     if (originalLayout) return YES;
-    Method layout = AstralPhoenixOwnedMethod(NSClassFromString(@"LibdiscordHost.ScrollBox"),
-                                             @selector(layoutSubviews), "v16@0:8");
+    Method layout = AstralPhoenixOwnedMethod(NSClassFromString(@"LibdiscordHost.ScrollBox"), @selector(layoutSubviews), "v16@0:8");
     if (!layout) return NO;
 
     fallbackModel = model;

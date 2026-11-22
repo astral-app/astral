@@ -24,11 +24,10 @@ PreviousExit ExitRecord::take(bool nativeCrashRecorded) const
 {
     bool ended = fileExists(path());
     clear();
-    if (nativeCrashRecorded)
-    {
+    if (nativeCrashRecorded) {
         return PreviousExit::Crashed;
     }
 
     return ended ? PreviousExit::Ended : PreviousExit::Unknown;
 }
-}
+} // namespace loader

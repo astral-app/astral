@@ -2,8 +2,14 @@
 	"id": "astral.more-user-tags",
 	"name": "More User Tags",
 	"description": "Adds tags for webhooks and moderative roles, and can show each member's top coloured role.",
-	"authors": [{ "name": "adrian", "id": "224617799434108928" }],
+	"authors": [
+		{
+			"name": "adrian",
+			"id": "224617799434108928"
+		}
+	],
 	"version": "0.0.1",
+	"icon": "UserPlusIcon",
 	"runtime": "lua",
 	"main": "main.lua"
 }

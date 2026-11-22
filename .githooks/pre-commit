@@ -1,0 +1,5 @@
+#!/bin/bash
+set -euo pipefail
+root="$(git rev-parse --show-toplevel)"
+"$root/tools/lint.sh"
+"$root/tools/test.sh" >/dev/null

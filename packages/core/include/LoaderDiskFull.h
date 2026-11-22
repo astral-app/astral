@@ -14,4 +14,4 @@ bool isOutOfSpace(int error);
 void noteWriteFailure(int error, const std::string &path, int64_t at);
 std::optional<DiskFullNote> diskFullNote();
 void clearDiskFullNote();
-}
+} // namespace loader

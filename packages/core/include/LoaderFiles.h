@@ -21,6 +21,5 @@ bool isDirectory(const std::string &path);
 bool createDirectories(const std::string &path);
 std::vector<std::string> listDirectory(const std::string &path);
 std::string joinPath(const std::string &base, const std::string &component);
-std::optional<std::string> resolveInsideDirectory(const std::string &directory,
-                                                  const std::string &relative);
-}
+std::optional<std::string> resolveInsideDirectory(const std::string &directory, const std::string &relative);
+} // namespace loader

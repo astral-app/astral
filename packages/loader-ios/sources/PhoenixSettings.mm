@@ -9,6 +9,7 @@
 #import <substrate.h>
 #import <vector>
 
+#import "AstralState.h"
 #import "PhoenixImage.h"
 #import "PhoenixWire.h"
 
@@ -48,6 +49,32 @@ static Class gGuestTap;
 static void (*originalSetIdentifier)(UIView *, SEL, NSString *);
 static BOOL (*originalShouldReceive)(id, SEL, UIGestureRecognizer *, UITouch *);
 static const char gRoutedKey = 0;
+static NSString *gCaptureDirectory;
+static dispatch_queue_t gCaptureQueue;
+static NSUInteger gCaptured;
+static const NSUInteger kMaxCaptured = 400;
+
+static void Capture(NSData *batch)
+{
+    if (!gCaptureDirectory || gCaptured >= kMaxCaptured) return;
+    NSUInteger sequence = ++gCaptured;
+    NSData *copy = [batch copy];
+    dispatch_async(gCaptureQueue, ^{
+        NSString *name = [NSString stringWithFormat:@"%04lu.bin", (unsigned long)sequence];
+        [copy writeToFile:[gCaptureDirectory stringByAppendingPathComponent:name] atomically:NO];
+    });
+}
+
+static void StartCapture(void)
+{
+    NSString *state = AstralStateDirectory();
+    if (![NSFileManager.defaultManager fileExistsAtPath:[state stringByAppendingPathComponent:@"capture-wire"]]) return;
+    NSString *directory = [state stringByAppendingPathComponent:@"wire"];
+    [NSFileManager.defaultManager removeItemAtPath:directory error:nil];
+    [NSFileManager.defaultManager createDirectoryAtPath:directory withIntermediateDirectories:YES attributes:nil error:nil];
+    gCaptureQueue = dispatch_queue_create("app.astral.wire-capture", DISPATCH_QUEUE_SERIAL);
+    gCaptureDirectory = directory;
+}
 
 void astral_wire_unlock(void)
 {
@@ -62,6 +89,7 @@ SwiftData astral_wire_intercept(uint64_t first, uint64_t second, void *context)
     @autoreleasepool {
         NSData *data = CFBridgingRelease(gToObjC(first, second));
         if (![data isKindOfClass:NSData.class]) return original;
+        Capture(data);
         AstralWireBuffer rewritten;
         if (!astral_settings_rewrite((const uint8_t *)data.bytes, data.length, &rewritten)) return original;
         NSData *replacement = [NSData dataWithBytesNoCopy:rewritten.bytes length:rewritten.length freeWhenDone:YES];
@@ -118,8 +146,8 @@ static void WithSpec(NSDictionary *model, void (^body)(const AstralPageSpec *pag
         spec.failed = [card[@"failed"] boolValue];
         cards.push_back(spec);
     }
-    AstralPageSpec page = {Text(model, @"title") ?: "", specs.data(), specs.size(), toolbarModel ? &toolbar : NULL,
-                           cards.data(), cards.size()};
+    AstralPageSpec page = {Text(model, @"title") ?: "",    specs.data(), specs.size(),
+                           toolbarModel ? &toolbar : NULL, cards.data(), cards.size()};
     body(&page);
 }
 
@@ -145,8 +173,10 @@ static void Deliver(Delivery delivery, NSDictionary *model, void (^failed)(void)
                 built = delivery == kPush ? astral_page_push(page, &buffer) : astral_page_refresh(page, &buffer);
             });
         }
-        if (built && gContext) Send(&buffer);
-        else if (built) astral_wire_buffer_free(&buffer);
+        if (built && gContext)
+            Send(&buffer);
+        else if (built)
+            astral_wire_buffer_free(&buffer);
         pthread_mutex_unlock(&gLock);
         if (!built && failed) dispatch_async(dispatch_get_main_queue(), failed);
     });
@@ -196,9 +226,12 @@ static void Pop(void)
         if (![identifier hasPrefix:prefix] || !gRoutes.count) return;
         NSString *key = [identifier substringFromIndex:prefix.length];
         NSString *next = gAction(gRoutes.lastObject, isSwitch ? [@"switch." stringByAppendingString:key] : key);
-        if ([next isEqualToString:@".."]) Pop();
-        else if (next.length) Push(next);
-        else RefreshTop();
+        if ([next isEqualToString:@".."])
+            Pop();
+        else if (next.length)
+            Push(next);
+        else
+            RefreshTop();
     }
 }
 @end
@@ -207,8 +240,8 @@ static AstralSettingsTarget *gTarget;
 
 static BOOL Routed(NSString *identifier)
 {
-    return [identifier hasPrefix:kOverviewRow] || [identifier isEqualToString:kBack] ||
-        [identifier hasPrefix:kRowPrefix] || [identifier hasPrefix:kSwitchPrefix];
+    return [identifier hasPrefix:kOverviewRow] || [identifier isEqualToString:kBack] || [identifier hasPrefix:kRowPrefix] ||
+           [identifier hasPrefix:kSwitchPrefix];
 }
 
 static void Route(UIView *view)
@@ -268,6 +301,7 @@ NSString *AstralInstallPhoenixSettings(NSDictionary *category, AstralSettingsPag
     gAction = [action copy];
     gRoutes = [NSMutableArray array];
     InstallCategory(category);
+    StartCapture();
     gTarget = [AstralSettingsTarget new];
     gQueue = dispatch_queue_create("app.astral.phoenix-settings", DISPATCH_QUEUE_SERIAL);
     originalShouldReceive = (BOOL (*)(id, SEL, UIGestureRecognizer *, UITouch *))method_setImplementation(receive, (IMP)ShouldReceive);

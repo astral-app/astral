@@ -96,6 +96,19 @@ typedef struct {
 
 typedef size_t (*AstralDecorator)(const AstralDecorationContext *context, AstralTag *tags, size_t capacity);
 
+typedef enum {
+    kAstralLabelAuthor,
+    kAstralLabelReply,
+} AstralLabelKind;
+
+typedef struct {
+    AstralLabelKind kind;
+    uint64_t message_id;
+    uint64_t channel_id;
+} AstralLabelContext;
+
+typedef int (*AstralRelabeler)(const AstralLabelContext *context, const char *text, size_t length, char *out, size_t capacity);
+
 typedef struct {
     uint64_t authors;
     uint64_t with_user;
@@ -105,6 +118,7 @@ typedef struct {
 
 void astral_wire_set_category(const char *title, const AstralRowSpec *rows, size_t count);
 void astral_wire_set_decorator(AstralDecorator decorator);
+void astral_wire_set_relabeler(AstralRelabeler relabeler);
 void astral_wire_set_palette(const uint32_t *from, const uint32_t *to, size_t count);
 AstralWireStats astral_wire_stats(void);
 uint64_t astral_wire_current_channel(void);

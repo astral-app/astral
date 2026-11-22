@@ -30,7 +30,8 @@ static sqlite3 *Database(void)
     if (gDatabase) return gDatabase;
     NSString *path = DatabasePath();
     if (!path) return nullptr;
-    NSString *uri = [@"file:" stringByAppendingString:[path stringByAddingPercentEncodingWithAllowedCharacters:NSCharacterSet.URLPathAllowedCharacterSet]];
+    NSString *uri = [@"file:"
+        stringByAppendingString:[path stringByAddingPercentEncodingWithAllowedCharacters:NSCharacterSet.URLPathAllowedCharacterSet]];
     if (sqlite3_open_v2([uri stringByAppendingString:@"?mode=ro"].UTF8String, &gDatabase,
                         SQLITE_OPEN_READONLY | SQLITE_OPEN_URI | SQLITE_OPEN_NOMUTEX, nullptr) != SQLITE_OK) {
         sqlite3_close(gDatabase);
@@ -51,7 +52,7 @@ static id Cached(NSString *key)
 
 static id Remember(NSString *key, id value)
 {
-    gCache[key] = @[NSDate.date, value ?: NSNull.null];
+    gCache[key] = @[ NSDate.date, value ?: NSNull.null ];
     return value;
 }
 
@@ -81,14 +82,14 @@ static NSDictionary *JSONObject(NSString *text)
 static BOOL Snowflake(NSString *value)
 {
     return value.length >= 15 && value.length <= 20 &&
-        [value rangeOfCharacterFromSet:NSCharacterSet.decimalDigitCharacterSet.invertedSet].location == NSNotFound;
+           [value rangeOfCharacterFromSet:NSCharacterSet.decimalDigitCharacterSet.invertedSet].location == NSNotFound;
 }
 
 static NSDictionary *RoleColors(NSDictionary *role)
 {
     NSDictionary *colors = [role[@"colors"] isKindOfClass:NSDictionary.class] ? role[@"colors"] : @{};
     NSMutableDictionary *stops = [NSMutableDictionary dictionary];
-    for (NSString *name in @[@"primary_color", @"secondary_color", @"tertiary_color"]) {
+    for (NSString *name in @[ @"primary_color", @"secondary_color", @"tertiary_color" ]) {
         if ([colors[name] isKindOfClass:NSNumber.class]) stops[name] = colors[name];
     }
     if (!stops[@"primary_color"] && [role[@"color"] isKindOfClass:NSNumber.class]) stops[@"primary_color"] = role[@"color"];
@@ -120,19 +121,19 @@ NSDictionary *AstralDiscordGuild(NSString *guildID)
     for (NSDictionary *role in record[@"roles"]) {
         if (![role isKindOfClass:NSDictionary.class] || ![role[@"id"] isKindOfClass:NSString.class]) continue;
         roles[role[@"id"]] = @{
-            @"id": role[@"id"],
-            @"name": [role[@"name"] isKindOfClass:NSString.class] ? role[@"name"] : @"",
-            @"permissions": [role[@"permissions"] isKindOfClass:NSString.class] ? role[@"permissions"] : @"0",
-            @"color": [role[@"color"] isKindOfClass:NSNumber.class] ? role[@"color"] : @0,
-            @"position": [role[@"position"] isKindOfClass:NSNumber.class] ? role[@"position"] : @0,
-            @"colors": RoleColors(role),
+            @"id" : role[@"id"],
+            @"name" : [role[@"name"] isKindOfClass:NSString.class] ? role[@"name"] : @"",
+            @"permissions" : [role[@"permissions"] isKindOfClass:NSString.class] ? role[@"permissions"] : @"0",
+            @"color" : [role[@"color"] isKindOfClass:NSNumber.class] ? role[@"color"] : @0,
+            @"position" : [role[@"position"] isKindOfClass:NSNumber.class] ? role[@"position"] : @0,
+            @"colors" : RoleColors(role),
         };
     }
     NSDictionary *guild = @{
-        @"id": guildID,
-        @"name": [properties[@"name"] isKindOfClass:NSString.class] ? properties[@"name"] : @"",
-        @"owner_id": [properties[@"owner_id"] isKindOfClass:NSString.class] ? properties[@"owner_id"] : @"",
-        @"roles": roles,
+        @"id" : guildID,
+        @"name" : [properties[@"name"] isKindOfClass:NSString.class] ? properties[@"name"] : @"",
+        @"owner_id" : [properties[@"owner_id"] isKindOfClass:NSString.class] ? properties[@"owner_id"] : @"",
+        @"roles" : roles,
     };
     return Remember(key, guild);
 }
@@ -143,12 +144,14 @@ NSDictionary *AstralDiscordMember(NSString *guildID, NSString *userID)
     NSString *key = [NSString stringWithFormat:@"member:%@:%@", guildID, userID];
     id cached = Cached(key);
     if (cached) return cached == NSNull.null ? nil : cached;
-    NSDictionary *record = JSONObject(Column(@"SELECT v FROM members WHERE k = ?", [NSString stringWithFormat:@"%@:%@", Key(guildID), Key(userID)], 0));
+    NSDictionary *record =
+        JSONObject(Column(@"SELECT v FROM members WHERE k = ?", [NSString stringWithFormat:@"%@:%@", Key(guildID), Key(userID)], 0));
     if (!record) return Remember(key, nil);
     NSMutableArray<NSString *> *roles = [NSMutableArray array];
-    for (id role in record[@"roles"]) if ([role isKindOfClass:NSString.class]) [roles addObject:role];
-    return Remember(key, @{@"user_id": userID, @"roles": roles,
-                           @"nick": [record[@"nick"] isKindOfClass:NSString.class] ? record[@"nick"] : @""});
+    for (id role in record[@"roles"])
+        if ([role isKindOfClass:NSString.class]) [roles addObject:role];
+    return Remember(
+        key, @{@"user_id" : userID, @"roles" : roles, @"nick" : [record[@"nick"] isKindOfClass:NSString.class] ? record[@"nick"] : @""});
 }
 
 NSString *AstralDiscordChannelGuild(NSString *channelID)
@@ -170,11 +173,22 @@ NSDictionary *AstralDiscordUser(NSString *userID)
     if (cached) return cached == NSNull.null ? nil : cached;
     NSDictionary *record = JSONObject(Column(@"SELECT v FROM users WHERE k = ?", Key(userID), 0));
     if (!record) return Remember(key, nil);
-    NSMutableDictionary *user = [NSMutableDictionary dictionaryWithDictionary:@{@"id": userID}];
-    for (NSString *field in @[@"avatar", @"username", @"global_name"]) {
+    NSMutableDictionary *user = [NSMutableDictionary dictionaryWithDictionary:@{@"id" : userID}];
+    for (NSString *field in @[ @"avatar", @"username", @"global_name" ]) {
         if ([record[field] isKindOfClass:NSString.class]) user[field] = record[field];
     }
     return Remember(key, user);
+}
+
+NSString *AstralDiscordFriendNickname(NSString *userID)
+{
+    if (!Snowflake(userID)) return nil;
+    NSString *key = [@"relationship:" stringByAppendingString:userID];
+    id cached = Cached(key);
+    if (cached) return cached == NSNull.null ? nil : cached;
+    NSDictionary *record = JSONObject(Column(@"SELECT v FROM relationships WHERE k = ?", Key(userID), 0));
+    NSString *nickname = [record[@"nickname"] isKindOfClass:NSString.class] && [record[@"nickname"] length] ? record[@"nickname"] : nil;
+    return Remember(key, nickname);
 }
 
 NSString *AstralDiscordMessageChannel(NSString *messageID)
@@ -194,15 +208,25 @@ NSDictionary *AstralDiscordMessage(NSString *channelID, NSString *messageID)
     NSString *key = [NSString stringWithFormat:@"message-record:%@:%@", channelID, messageID];
     id cached = Cached(key);
     if (cached) return cached == NSNull.null ? nil : cached;
-    NSDictionary *record = JSONObject(Column(@"SELECT v FROM messages WHERE k = ?", [NSString stringWithFormat:@"%@:%@", Key(channelID), Key(messageID)], 0));
+    NSDictionary *record =
+        JSONObject(Column(@"SELECT v FROM messages WHERE k = ?", [NSString stringWithFormat:@"%@:%@", Key(channelID), Key(messageID)], 0));
     if (!record) return Remember(key, nil);
     NSDictionary *author = [record[@"author"] isKindOfClass:NSDictionary.class] ? record[@"author"] : @{};
-    NSMutableDictionary *message = [NSMutableDictionary dictionaryWithDictionary:@{@"id": messageID, @"channel_id": channelID}];
+    NSMutableDictionary *message = [NSMutableDictionary dictionaryWithDictionary:@{@"id" : messageID, @"channel_id" : channelID}];
     if ([record[@"webhook_id"] isKindOfClass:NSString.class]) message[@"webhook_id"] = record[@"webhook_id"];
-    message[@"author"] = @{
-        @"id": [author[@"id"] isKindOfClass:NSString.class] ? author[@"id"] : @"",
-        @"bot": @([author[@"bot"] isKindOfClass:NSNumber.class] && [author[@"bot"] boolValue]),
-    };
+    NSMutableDictionary *authorRecord = [NSMutableDictionary dictionaryWithDictionary:@{
+        @"id" : [author[@"id"] isKindOfClass:NSString.class] ? author[@"id"] : @"",
+        @"bot" : @([author[@"bot"] isKindOfClass:NSNumber.class] && [author[@"bot"] boolValue]),
+    }];
+    for (NSString *field in @[ @"username", @"global_name" ]) {
+        if ([author[field] isKindOfClass:NSString.class]) authorRecord[field] = author[field];
+    }
+    message[@"author"] = authorRecord;
+    if ([record[@"type"] isKindOfClass:NSNumber.class]) message[@"type"] = record[@"type"];
+    NSDictionary *reference = [record[@"message_reference"] isKindOfClass:NSDictionary.class] ? record[@"message_reference"] : nil;
+    if ([reference[@"message_id"] isKindOfClass:NSString.class] && [reference[@"channel_id"] isKindOfClass:NSString.class]) {
+        message[@"reference"] = @{@"message_id" : reference[@"message_id"], @"channel_id" : reference[@"channel_id"]};
+    }
     return Remember(key, message);
 }
 
@@ -211,7 +235,8 @@ static NSArray<NSDictionary *> *Overwrites(NSString *guildID, NSString *channelI
     NSString *key = [NSString stringWithFormat:@"overwrites:%@:%@", guildID, channelID];
     id cached = Cached(key);
     if (cached) return cached == NSNull.null ? nil : cached;
-    NSString *text = Column(@"SELECT v FROM channel_overwrites WHERE k = ?", [NSString stringWithFormat:@"%@:%@", Key(guildID), Key(channelID)], 0);
+    NSString *text =
+        Column(@"SELECT v FROM channel_overwrites WHERE k = ?", [NSString stringWithFormat:@"%@:%@", Key(guildID), Key(channelID)], 0);
     id value = text ? [NSJSONSerialization JSONObjectWithData:[text dataUsingEncoding:NSUTF8StringEncoding] options:0 error:nil] : nil;
     return Remember(key, [value isKindOfClass:NSArray.class] ? value : nil);
 }
@@ -221,7 +246,8 @@ static uint64_t Bits(id value)
     return [value isKindOfClass:NSString.class] ? strtoull([value UTF8String], nullptr, 10) : 0;
 }
 
-static uint64_t ApplyOverwrites(uint64_t permissions, NSArray<NSDictionary *> *overwrites, NSString *guildID, NSDictionary *member, NSString *userID)
+static uint64_t ApplyOverwrites(uint64_t permissions, NSArray<NSDictionary *> *overwrites, NSString *guildID, NSDictionary *member,
+                                NSString *userID)
 {
     uint64_t roleAllow = 0, roleDeny = 0;
     NSSet *roles = [NSSet setWithArray:member[@"roles"] ?: @[]];

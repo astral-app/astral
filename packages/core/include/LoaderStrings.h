@@ -13,4 +13,4 @@ constexpr const char *kLoaderStringsFile = "i18n/loader.json";
 void loadStrings(const std::string &documents);
 void setStrings(const std::string &json);
 std::string text(std::string_view key, std::string_view english, const TextValues &values = {});
-}
+} // namespace loader

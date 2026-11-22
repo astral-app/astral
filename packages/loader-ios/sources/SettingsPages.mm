@@ -13,7 +13,7 @@ static NSString *const kPluginSettingsRoute = @"plugin-settings:";
 
 static NSDictionary *Row(NSString *key, NSString *title, NSString *icon, AstralRowKind kind)
 {
-    return @{@"key": key, @"title": title, @"icon": icon, @"kind": @(kind)};
+    return @{@"key" : key, @"title" : title, @"icon" : icon, @"kind" : @(kind)};
 }
 
 static NSDictionary *With(NSDictionary *row, NSDictionary *extra)
@@ -25,23 +25,26 @@ static NSDictionary *With(NSDictionary *row, NSDictionary *extra)
 
 static NSDictionary *Section(NSString *title, NSArray *rows)
 {
-    return @{@"title": title, @"rows": rows};
+    return @{@"title" : title, @"rows" : rows};
 }
 
 static NSDictionary *Page(NSString *title, NSArray *sections)
 {
-    return @{@"title": title, @"sections": sections};
+    return @{@"title" : title, @"sections" : sections};
 }
 
 NSDictionary *AstralSettingsCategory(void)
 {
-    return @{@"title": @"astral", @"rows": @[
-        @{@"key": @"general", @"title": @"astral", @"icon": @"res://astral_galaxy"},
-        @{@"key": @"plugins", @"title": @"Plugins", @"icon": @"res://ic_mana_puzzle_piece"},
-        @{@"key": @"design", @"title": @"Design", @"icon": @"res://ic_mana_paintbrush_thick"},
-        @{@"key": @"marketplace", @"title": @"Marketplace", @"icon": @"res://ic_mana_shop"},
-        @{@"key": @"updates", @"title": @"Updates", @"icon": @"res://ic_mana_download"},
-    ]};
+    return @{
+        @"title" : @"astral",
+        @"rows" : @[
+            @{@"key" : @"general", @"title" : @"astral", @"icon" : @"res://astral_galaxy"},
+            @{@"key" : @"plugins", @"title" : @"Plugins", @"icon" : @"res://ic_mana_puzzle_piece"},
+            @{@"key" : @"design", @"title" : @"Design", @"icon" : @"res://ic_mana_paintbrush_thick"},
+            @{@"key" : @"marketplace", @"title" : @"Marketplace", @"icon" : @"res://ic_mana_shop"},
+            @{@"key" : @"updates", @"title" : @"Updates", @"icon" : @"res://ic_mana_download"},
+        ]
+    };
 }
 
 static NSDictionary *PluginWithID(NSString *identifier)
@@ -62,25 +65,34 @@ static NSDictionary *GeneralPage(AstralPageContext context)
     AstralWireStats stats = astral_wire_stats();
     NSString *recovery = context.recovering ? @"Plugins paused after a crash" : @"Normal";
     return Page(@"astral", @[
-        Section(@"astral", @[
-            With(Row(@"version", @"Version", @"res://ic_mana_circle_information", kAstralRowInfo), @{@"detail": AstralVersion()}),
-            With(Row(@"discord", @"Discord", @"res://ic_mana_mobile_phone_settings", kAstralRowInfo), @{@"detail": context.discordVersion}),
-            With(Row(@"engine", @"Engine", @"res://ic_mana_bug", kAstralRowInfo), @{@"detail": @"Phoenix"}),
-            With(Row(@"runtime", @"Plugin runtime", @"res://ic_mana_puzzle_piece", kAstralRowInfo), @{@"detail": @"Lua 5.4"}),
-        ]),
-        Section(@"Preferences", @[
-            With(Row(@"safe-mode", @"Safe mode", @"res://ic_mana_shield", kAstralRowSwitch),
-                 @{@"on": @(SafeMode()), @"subtitle": @"Start without plugins on the next launch"}),
-            With(Row(@"force-phoenix", @"Force Phoenix", @"res://ic_mana_settings_arrow_up", kAstralRowInfo),
-                 @{@"detail": @"On", @"subtitle": @"The React Native fallback stays off"}),
-        ]),
-        Section(@"Diagnostics", @[
-            With(Row(@"recovery", @"Recovery", @"res://ic_mana_refresh", kAstralRowInfo), @{@"detail": recovery}),
-            With(Row(@"decorations", @"Decorations", @"res://ic_mana_bug", kAstralRowInfo), @{
-                @"detail": [NSString stringWithFormat:@"%llu", stats.tagged],
-                @"subtitle": [NSString stringWithFormat:@"%llu authors, %llu users, %llu channels resolved", stats.authors, stats.with_user, stats.with_channel]}),
-            With(Row(@"reload", @"Reload plugins", @"res://ic_mana_refresh", kAstralRowLink), @{@"subtitle": @"Restart every enabled plugin"}),
-        ]),
+        Section(@"astral",
+                @[
+                    With(Row(@"version", @"Version", @"res://ic_mana_circle_information", kAstralRowInfo), @{@"detail" : AstralVersion()}),
+                    With(Row(@"discord", @"Discord", @"res://ic_mana_mobile_phone_settings", kAstralRowInfo),
+                         @{@"detail" : context.discordVersion}),
+                    With(Row(@"engine", @"Engine", @"res://ic_mana_bug", kAstralRowInfo), @{@"detail" : @"Phoenix"}),
+                    With(Row(@"runtime", @"Plugin runtime", @"res://ic_mana_puzzle_piece", kAstralRowInfo), @{@"detail" : @"Lua 5.4"}),
+                ]),
+        Section(@"Preferences",
+                @[
+                    With(
+                        Row(@"safe-mode", @"Safe mode", @"res://ic_mana_shield", kAstralRowSwitch),
+                        @{@"on" : @(SafeMode()),
+                          @"subtitle" : @"Start without plugins on the next launch"}),
+                    With(Row(@"force-phoenix", @"Force Phoenix", @"res://ic_mana_settings_arrow_up", kAstralRowInfo),
+                         @{@"detail" : @"On", @"subtitle" : @"The React Native fallback stays off"}),
+                ]),
+        Section(@"Diagnostics",
+                @[
+                    With(Row(@"recovery", @"Recovery", @"res://ic_mana_refresh", kAstralRowInfo), @{@"detail" : recovery}),
+                    With(Row(@"decorations", @"Decorations", @"res://ic_mana_bug", kAstralRowInfo), @{
+                        @"detail" : [NSString stringWithFormat:@"%llu", stats.tagged],
+                        @"subtitle" : [NSString stringWithFormat:@"%llu authors, %llu users, %llu channels resolved", stats.authors,
+                                                                 stats.with_user, stats.with_channel]
+                    }),
+                    With(Row(@"reload", @"Reload plugins", @"res://ic_mana_refresh", kAstralRowLink),
+                         @{@"subtitle" : @"Restart every enabled plugin"}),
+                ]),
     ]);
 }
 
@@ -96,6 +108,24 @@ static BOOL MatchesFilter(NSDictionary *plugin)
     if ([gPluginFilter isEqualToString:@"enabled"]) return PluginEnabled(plugin);
     if ([gPluginFilter isEqualToString:@"disabled"]) return !PluginEnabled(plugin);
     return YES;
+}
+
+static NSString *PluginIcon(NSDictionary *plugin)
+{
+    NSString *name = plugin[@"icon"];
+    if ([name hasPrefix:@"res://"]) return name;
+    if (![name hasSuffix:@"Icon"] || name.length <= 4) return @"res://astral_plug";
+    NSString *stem = [name substringToIndex:name.length - 4];
+    NSMutableString *asset = [NSMutableString stringWithString:@"res://ic_mana"];
+    for (NSUInteger index = 0; index < stem.length; index++) {
+        unichar character = [stem characterAtIndex:index];
+        BOOL upper = [NSCharacterSet.uppercaseLetterCharacterSet characterIsMember:character];
+        BOOL digit = [NSCharacterSet.decimalDigitCharacterSet characterIsMember:character];
+        BOOL previousDigit = index > 0 && [NSCharacterSet.decimalDigitCharacterSet characterIsMember:[stem characterAtIndex:index - 1]];
+        if (upper || (digit && !previousDigit)) [asset appendString:@"_"];
+        [asset appendString:[[NSString stringWithCharacters:&character length:1] lowercaseString]];
+    }
+    return asset;
 }
 
 static NSString *AuthorNames(NSDictionary *plugin)
@@ -127,16 +157,16 @@ static NSArray<NSString *> *AuthorAvatars(NSDictionary *plugin)
 static NSDictionary *PluginCard(NSDictionary *plugin)
 {
     NSMutableDictionary *card = [@{
-        @"key": [@"plugin." stringByAppendingString:plugin[@"id"]],
-        @"title": plugin[@"name"],
-        @"authors": AuthorNames(plugin),
-        @"avatars": AuthorAvatars(plugin),
-        @"hasSettings": @([plugin[@"switches"] count] > 0),
-        @"description": plugin[@"description"] ?: @"",
-        @"version": [@"v" stringByAppendingString:plugin[@"version"]],
-        @"icon": @"res://astral_plug",
-        @"on": @(PluginEnabled(plugin)),
-        @"failed": plugin[@"failed"],
+        @"key" : [@"plugin." stringByAppendingString:plugin[@"id"]],
+        @"title" : plugin[@"name"],
+        @"authors" : AuthorNames(plugin),
+        @"avatars" : AuthorAvatars(plugin),
+        @"hasSettings" : @([plugin[@"switches"] count] > 0),
+        @"description" : plugin[@"description"] ?: @"",
+        @"version" : [@"v" stringByAppendingString:plugin[@"version"]],
+        @"icon" : PluginIcon(plugin),
+        @"on" : @(PluginEnabled(plugin)),
+        @"failed" : plugin[@"failed"],
     } mutableCopy];
     if ([plugin[@"failed"] boolValue]) card[@"error"] = [@"Stopped after errors: " stringByAppendingString:plugin[@"error"]];
     return card;
@@ -152,19 +182,28 @@ static NSDictionary *PluginsPage(void)
         if (MatchesFilter(plugin)) [cards addObject:PluginCard(plugin)];
     }
     NSArray *chips = @[
-        @{@"key": @"filter.all", @"title": [NSString stringWithFormat:@"All %lu", (unsigned long)plugins.count],
-          @"selected": @([gPluginFilter isEqualToString:@"all"])},
-        @{@"key": @"filter.enabled", @"title": [NSString stringWithFormat:@"Enabled %lu", (unsigned long)enabled],
-          @"selected": @([gPluginFilter isEqualToString:@"enabled"])},
-        @{@"key": @"filter.disabled", @"title": [NSString stringWithFormat:@"Disabled %lu", (unsigned long)(plugins.count - enabled)],
-          @"selected": @([gPluginFilter isEqualToString:@"disabled"])},
+        @{
+            @"key" : @"filter.all",
+            @"title" : [NSString stringWithFormat:@"All %lu", (unsigned long)plugins.count],
+            @"selected" : @([gPluginFilter isEqualToString:@"all"])
+        },
+        @{
+            @"key" : @"filter.enabled",
+            @"title" : [NSString stringWithFormat:@"Enabled %lu", (unsigned long)enabled],
+            @"selected" : @([gPluginFilter isEqualToString:@"enabled"])
+        },
+        @{
+            @"key" : @"filter.disabled",
+            @"title" : [NSString stringWithFormat:@"Disabled %lu", (unsigned long)(plugins.count - enabled)],
+            @"selected" : @([gPluginFilter isEqualToString:@"disabled"])
+        },
     ];
     NSMutableDictionary *page = [Page(@"Plugins", @[]) mutableCopy];
-    page[@"toolbar"] = @{@"chips": chips, @"buttonKey": @"browse", @"buttonIcon": @"res://ic_mana_download"};
+    page[@"toolbar"] = @{@"chips" : chips, @"buttonKey" : @"browse", @"buttonIcon" : @"res://ic_mana_download"};
     page[@"cards"] = cards;
     if (!cards.count) {
         NSString *empty = plugins.count ? @"No plugins match this filter" : @"No plugins installed";
-        page[@"sections"] = @[Section(@"Plugins", @[Row(@"none", empty, @"res://ic_mana_filters_horizontal", kAstralRowInfo)])];
+        page[@"sections"] = @[ Section(@"Plugins", @[ Row(@"none", empty, @"res://ic_mana_filters_horizontal", kAstralRowInfo) ]) ];
     }
     return page;
 }
@@ -172,31 +211,37 @@ static NSDictionary *PluginsPage(void)
 static NSDictionary *PluginPage(NSString *identifier)
 {
     NSDictionary *plugin = PluginWithID(identifier);
-    if (!plugin) return Page(@"Plugin", @[Section(@"Plugin", @[Row(@"missing", @"This plugin is no longer installed", @"res://ic_mana_puzzle_piece_minus", kAstralRowInfo)])]);
+    if (!plugin)
+        return Page(@"Plugin", @[ Section(@"Plugin", @[ Row(@"missing", @"This plugin is no longer installed",
+                                                            @"res://ic_mana_puzzle_piece_minus", kAstralRowInfo) ]) ]);
     NSMutableArray *sections = [NSMutableArray array];
     NSMutableArray *about = [NSMutableArray array];
     if ([plugin[@"description"] length]) {
         [about addObject:With(Row(@"description", plugin[@"description"], @"res://ic_mana_circle_information", kAstralRowInfo), @{})];
     }
-    [about addObject:With(Row(@"plugin-version", @"Version", @"res://ic_mana_settings_info", kAstralRowInfo), @{@"detail": plugin[@"version"]})];
+    [about addObject:With(Row(@"plugin-version", @"Version", @"res://ic_mana_settings_info", kAstralRowInfo),
+                          @{@"detail" : plugin[@"version"]})];
     if ([plugin[@"authors"] count]) {
-        [about addObject:With(Row(@"authors", @"Authors", @"res://ic_mana_user", kAstralRowInfo),
-                              @{@"subtitle": AuthorNames(plugin)})];
+        [about addObject:With(Row(@"authors", @"Authors", @"res://ic_mana_user", kAstralRowInfo), @{@"subtitle" : AuthorNames(plugin)})];
     }
     [about addObject:With(Row(@"source", @"Source", @"res://ic_mana_download", kAstralRowInfo),
-                          @{@"detail": [plugin[@"bundled"] boolValue] ? @"Bundled" : @"Marketplace"})];
+                          @{@"detail" : [plugin[@"bundled"] boolValue] ? @"Bundled" : @"Marketplace"})];
     [sections addObject:Section(@"About", about)];
 
-    NSMutableArray *status = [NSMutableArray arrayWithObject:With(Row(@"enabled", @"Enabled", @"res://ic_mana_puzzle_piece", kAstralRowSwitch),
-        @{@"on": @([plugin[@"enabled"] boolValue] && ![plugin[@"failed"] boolValue])})];
+    NSMutableArray *status =
+        [NSMutableArray arrayWithObject:With(
+                                            Row(@"enabled", @"Enabled", @"res://ic_mana_puzzle_piece", kAstralRowSwitch),
+                                            @{@"on" : @([plugin[@"enabled"] boolValue] && ![plugin[@"failed"] boolValue])})];
     if ([plugin[@"failed"] boolValue]) {
-        [status addObject:With(Row(@"error", @"Stopped after errors", @"res://ic_mana_bug", kAstralRowInfo), @{@"subtitle": plugin[@"error"]})];
+        [status addObject:With(Row(@"error", @"Stopped after errors", @"res://ic_mana_bug", kAstralRowInfo),
+                               @{@"subtitle" : plugin[@"error"]})];
         [status addObject:Row(@"retry", @"Try again", @"res://ic_mana_refresh", kAstralRowLink)];
     }
     [sections addObject:Section(@"Status", status)];
 
-    NSMutableArray *manage = [NSMutableArray arrayWithObject:With(Row(@"reset", @"Reset settings", @"res://ic_mana_refresh", kAstralRowLink),
-                                                                  @{@"subtitle": @"Return every option to its default"})];
+    NSMutableArray *manage =
+        [NSMutableArray arrayWithObject:With(Row(@"reset", @"Reset settings", @"res://ic_mana_refresh", kAstralRowLink),
+                                             @{@"subtitle" : @"Return every option to its default"})];
     if (![plugin[@"bundled"] boolValue]) [manage addObject:Row(@"uninstall", @"Uninstall", @"res://ic_mana_trash", kAstralRowLink)];
     [sections addObject:Section(@"Manage", manage)];
     return Page(plugin[@"name"], sections);
@@ -209,21 +254,40 @@ static NSDictionary *PluginSettingsPage(NSString *identifier)
     NSMutableArray *sections = [NSMutableArray array];
     NSMutableArray<NSString *> *order = [NSMutableArray array];
     NSMutableDictionary<NSString *, NSMutableArray *> *grouped = [NSMutableDictionary dictionary];
+    NSMutableDictionary<NSString *, NSString *> *titles = [NSMutableDictionary dictionary];
     for (NSDictionary *entry in plugin[@"switches"]) {
+        if ([entry[@"options"] count]) {
+            NSString *choice = [@"choice:" stringByAppendingString:entry[@"key"]];
+            NSMutableArray *rows = [NSMutableArray array];
+            for (NSDictionary *option in entry[@"options"]) {
+                BOOL selected = [option[@"value"] isEqualToString:entry[@"value"]];
+                NSString *key = [NSString stringWithFormat:@"choice.%@.%@", entry[@"key"], option[@"value"]];
+                NSMutableDictionary *row =
+                    [With(Row(key, option[@"title"], @"res://ic_mana_settings", selected ? kAstralRowSelected : kAstralRowChoice), @{})
+                        mutableCopy];
+                if ([option[@"subtitle"] length]) row[@"subtitle"] = option[@"subtitle"];
+                [rows addObject:row];
+            }
+            grouped[choice] = rows;
+            [order addObject:choice];
+            titles[choice] = entry[@"title"];
+            continue;
+        }
         NSString *section = [entry[@"section"] length] ? entry[@"section"] : @"Settings";
         if (!grouped[section]) {
             grouped[section] = [NSMutableArray array];
             [order addObject:section];
         }
-        NSMutableDictionary *row = [With(Row([@"setting." stringByAppendingString:entry[@"key"]], entry[@"title"], @"res://ic_mana_settings", kAstralRowSwitch),
-                                         @{@"on": entry[@"on"]}) mutableCopy];
+        NSMutableDictionary *row =
+            [With(Row([@"setting." stringByAppendingString:entry[@"key"]], entry[@"title"], @"res://ic_mana_settings", kAstralRowSwitch),
+                  @{@"on" : entry[@"on"]}) mutableCopy];
         if ([entry[@"subtitle"] length]) row[@"subtitle"] = entry[@"subtitle"];
         [grouped[section] addObject:row];
     }
-    for (NSString *section in order) [sections addObject:Section(section, grouped[section])];
+    for (NSString *section in order) [sections addObject:Section(titles[section] ?: section, grouped[section])];
 
-    [sections addObject:Section(@"Manage", @[With(Row(@"reset", @"Reset settings", @"res://ic_mana_refresh", kAstralRowLink),
-                                                 @{@"subtitle": @"Return every option to its default"})])];
+    [sections addObject:Section(@"Manage", @[ With(Row(@"reset", @"Reset settings", @"res://ic_mana_refresh", kAstralRowLink),
+                                                   @{@"subtitle" : @"Return every option to its default"}) ])];
     return Page(plugin[@"name"], sections);
 }
 
@@ -233,17 +297,18 @@ static NSDictionary *DesignPage(void)
     NSMutableArray *rows = [NSMutableArray array];
     for (NSDictionary *theme in AstralThemes()) {
         BOOL selected = [theme[@"id"] isEqualToString:active];
-        NSMutableDictionary *row = [With(Row([@"theme." stringByAppendingString:theme[@"id"]], theme[@"name"], @"res://ic_mana_paint_palette",
-                                             selected ? kAstralRowSelected : kAstralRowChoice), @{}) mutableCopy];
+        NSMutableDictionary *row = [With(Row([@"theme." stringByAppendingString:theme[@"id"]], theme[@"name"],
+                                             @"res://ic_mana_paint_palette", selected ? kAstralRowSelected : kAstralRowChoice),
+                                         @{}) mutableCopy];
         if ([theme[@"description"] isKindOfClass:NSString.class]) row[@"subtitle"] = theme[@"description"];
         [rows addObject:row];
     }
     return Page(@"Design", @[
         Section(@"Themes", rows),
-        Section(@"How themes apply", @[With(Row(@"theme-note", @"Recolours Phoenix views as they draw",
-                                                @"res://ic_mana_circle_information", kAstralRowInfo),
-                                            @{@"subtitle": @"Screens already on display update when Discord redraws them"})]),
-        Section(@"Get more", @[Row(@"browse", @"Browse themes", @"res://ic_mana_shop", kAstralRowLink)]),
+        Section(@"How themes apply",
+                @[ With(Row(@"theme-note", @"Recolours Phoenix views as they draw", @"res://ic_mana_circle_information", kAstralRowInfo),
+                        @{@"subtitle" : @"Screens already on display update when Discord redraws them"}) ]),
+        Section(@"Get more", @[ Row(@"browse", @"Browse themes", @"res://ic_mana_shop", kAstralRowLink) ]),
     ]);
 }
 
@@ -251,7 +316,8 @@ static NSString *InstalledVersion(NSString *identifier, NSString *kind)
 {
     if ([kind isEqualToString:@"theme"]) {
         for (NSDictionary *theme in AstralThemes()) {
-            if ([theme[@"id"] isEqualToString:identifier]) return [theme[@"version"] isKindOfClass:NSString.class] ? theme[@"version"] : @"";
+            if ([theme[@"id"] isEqualToString:identifier])
+                return [theme[@"version"] isKindOfClass:NSString.class] ? theme[@"version"] : @"";
         }
         return nil;
     }
@@ -263,24 +329,31 @@ static NSDictionary *PackageRow(NSDictionary *package, NSString *kind)
     NSString *installed = InstalledVersion(package[@"id"], kind);
     NSString *status = AstralInstallStatus(package[@"id"]);
     if (!status) {
-        if (!installed) status = @"Get";
-        else if (AstralVersionIsNewer(package[@"version"], installed)) status = @"Update";
-        else status = @"Installed";
+        if (!installed)
+            status = @"Get";
+        else if (AstralVersionIsNewer(package[@"version"], installed))
+            status = @"Update";
+        else
+            status = @"Installed";
     }
     NSString *icon = [kind isEqualToString:@"theme"] ? @"res://ic_mana_paint_palette" : @"res://ic_mana_puzzle_piece_plus";
     NSString *subtitle = [package[@"description"] isKindOfClass:NSString.class] ? package[@"description"] : @"";
-    if ([package[@"version"] isKindOfClass:NSString.class]) subtitle = [NSString stringWithFormat:@"v%@ · %@", package[@"version"], subtitle];
+    if ([package[@"version"] isKindOfClass:NSString.class])
+        subtitle = [NSString stringWithFormat:@"v%@ · %@", package[@"version"], subtitle];
     return With(Row([NSString stringWithFormat:@"%@.%@", kind, package[@"id"]], package[@"name"], icon, kAstralRowLink),
-                @{@"detail": status, @"subtitle": subtitle});
+                @{@"detail" : status, @"subtitle" : subtitle});
 }
 
 static NSArray *CatalogStatusRows(void)
 {
     switch (AstralCatalogCurrentState()) {
-    case AstralCatalogLoading: return @[Row(@"loading", @"Loading the catalog…", @"res://ic_mana_refresh", kAstralRowInfo)];
-    case AstralCatalogFailed: return @[With(Row(@"failed", @"Could not load the catalog", @"res://ic_mana_bug", kAstralRowInfo),
-                                           @{@"subtitle": AstralCatalogError() ?: @""})];
-    default: return @[];
+    case AstralCatalogLoading:
+        return @[ Row(@"loading", @"Loading the catalog…", @"res://ic_mana_refresh", kAstralRowInfo) ];
+    case AstralCatalogFailed:
+        return @[ With(Row(@"failed", @"Could not load the catalog", @"res://ic_mana_bug", kAstralRowInfo),
+                       @{@"subtitle" : AstralCatalogError() ?: @""}) ];
+    default:
+        return @[];
     }
 }
 
@@ -290,25 +363,26 @@ static NSDictionary *MarketplacePage(void)
     NSMutableArray *sections = [NSMutableArray array];
     NSArray *status = CatalogStatusRows();
     if (status.count) [sections addObject:Section(@"Catalog", status)];
-    for (NSString *kind in @[@"plugin", @"theme"]) {
+    for (NSString *kind in @[ @"plugin", @"theme" ]) {
         NSMutableArray *rows = [NSMutableArray array];
         for (NSDictionary *package in catalog[[kind stringByAppendingString:@"s"]]) [rows addObject:PackageRow(package, kind)];
         if (rows.count) [sections addObject:Section([kind isEqualToString:@"plugin"] ? @"Plugins" : @"Themes", rows)];
     }
     [sections addObject:Section(@"Source", @[
-        With(Row(@"catalog-url", @"Catalog", @"res://ic_mana_link", kAstralRowInfo), @{@"subtitle": AstralCatalogURL()}),
-        Row(@"refresh", @"Refresh", @"res://ic_mana_refresh", kAstralRowLink),
-    ])];
+                  With(Row(@"catalog-url", @"Catalog", @"res://ic_mana_link", kAstralRowInfo), @{@"subtitle" : AstralCatalogURL()}),
+                  Row(@"refresh", @"Refresh", @"res://ic_mana_refresh", kAstralRowLink),
+              ])];
     return Page(@"Marketplace", sections);
 }
 
 static NSArray<NSDictionary *> *PendingUpdates(void)
 {
     NSMutableArray *pending = [NSMutableArray array];
-    for (NSString *kind in @[@"plugin", @"theme"]) {
+    for (NSString *kind in @[ @"plugin", @"theme" ]) {
         for (NSDictionary *package in AstralCatalog()[[kind stringByAppendingString:@"s"]]) {
             NSString *installed = InstalledVersion(package[@"id"], kind);
-            if (installed && AstralVersionIsNewer(package[@"version"], installed)) [pending addObject:@{@"package": package, @"kind": kind}];
+            if (installed && AstralVersionIsNewer(package[@"version"], installed))
+                [pending addObject:@{@"package" : package, @"kind" : kind}];
         }
     }
     return pending;
@@ -317,15 +391,20 @@ static NSArray<NSDictionary *> *PendingUpdates(void)
 static NSDictionary *UpdatesPage(AstralPageContext context)
 {
     NSString *latest = AstralCatalog()[@"loader"][@"version"];
-    NSString *loaderStatus = !latest ? @"Unknown" : AstralVersionIsNewer(latest, AstralVersion()) ? [@"Update to " stringByAppendingString:latest] : @"Up to date";
+    NSString *loaderStatus = !latest                                         ? @"Unknown"
+                             : AstralVersionIsNewer(latest, AstralVersion()) ? [@"Update to " stringByAppendingString:latest]
+                                                                             : @"Up to date";
     BOOL supported = [context.compatibility isEqualToString:@"ready"];
     NSMutableArray *addonRows = [NSMutableArray array];
     for (NSDictionary *pending in PendingUpdates()) {
         NSDictionary *package = pending[@"package"];
         [addonRows addObject:With(Row([NSString stringWithFormat:@"%@.%@", pending[@"kind"], package[@"id"]], package[@"name"],
                                       @"res://ic_mana_cloud_download", kAstralRowLink),
-                                  @{@"detail": AstralInstallStatus(package[@"id"]) ?: [@"v" stringByAppendingString:package[@"version"]],
-                                    @"subtitle": [NSString stringWithFormat:@"Installed v%@", InstalledVersion(package[@"id"], pending[@"kind"])]})];
+                                  @{
+                                      @"detail" : AstralInstallStatus(package[@"id"]) ?: [@"v" stringByAppendingString:package[@"version"]],
+                                      @"subtitle" : [NSString
+                                          stringWithFormat:@"Installed v%@", InstalledVersion(package[@"id"], pending[@"kind"])]
+                                  })];
     }
     if (addonRows.count > 1) [addonRows addObject:Row(@"update-all", @"Update all", @"res://ic_mana_download", kAstralRowLink)];
     if (!addonRows.count) [addonRows addObject:Row(@"current", @"Everything is up to date", @"res://ic_mana_circle_check", kAstralRowInfo)];
@@ -333,12 +412,12 @@ static NSDictionary *UpdatesPage(AstralPageContext context)
     NSArray *status = CatalogStatusRows();
     if (status.count) [sections addObject:Section(@"Catalog", status)];
     [sections addObjectsFromArray:@[
-        Section(@"astral", @[With(Row(@"loader", @"Loader", @"res://ic_mana_settings", kAstralRowInfo),
-                                  @{@"detail": loaderStatus, @"subtitle": [@"Installed " stringByAppendingString:AstralVersion()]})]),
-        Section(@"Discord", @[With(Row(@"discord-build", @"Build", @"res://ic_mana_mobile_phone_settings", kAstralRowInfo),
-                                   @{@"detail": supported ? @"Supported" : @"Unsupported", @"subtitle": context.discordVersion})]),
+        Section(@"astral", @[ With(Row(@"loader", @"Loader", @"res://ic_mana_settings", kAstralRowInfo),
+                                   @{@"detail" : loaderStatus, @"subtitle" : [@"Installed " stringByAppendingString:AstralVersion()]}) ]),
+        Section(@"Discord", @[ With(Row(@"discord-build", @"Build", @"res://ic_mana_mobile_phone_settings", kAstralRowInfo),
+                                    @{@"detail" : supported ? @"Supported" : @"Unsupported", @"subtitle" : context.discordVersion}) ]),
         Section(@"Plugins and themes", addonRows),
-        Section(@"Check", @[Row(@"refresh", @"Check for updates", @"res://ic_mana_refresh", kAstralRowLink)]),
+        Section(@"Check", @[ Row(@"refresh", @"Check for updates", @"res://ic_mana_refresh", kAstralRowLink) ]),
     ]];
     return Page(@"Updates", sections);
 }
@@ -385,6 +464,12 @@ static NSString *PluginAction(NSString *identifier, NSString *key, void (^change
         for (NSDictionary *entry in plugin[@"switches"]) {
             if ([entry[@"key"] isEqualToString:settingKey]) AstralLuaSetSwitch(identifier, settingKey, ![entry[@"on"] boolValue]);
         }
+    } else if ([key hasPrefix:@"choice."]) {
+        NSString *rest = [key substringFromIndex:@"choice.".length];
+        NSRange dot = [rest rangeOfString:@"."];
+        if (dot.location != NSNotFound) {
+            AstralLuaSetChoice(identifier, [rest substringToIndex:dot.location], [rest substringFromIndex:dot.location + 1]);
+        }
     } else if ([key isEqualToString:@"reset"]) {
         AstralLuaResetSettings(identifier);
     } else if ([key isEqualToString:@"uninstall"] && ![plugin[@"bundled"] boolValue]) {
@@ -408,7 +493,8 @@ NSString *AstralSettingsPageAction(NSString *route, NSString *key, void (^change
         if (plugin) AstralLuaSetEnabled(identifier, [plugin[@"failed"] boolValue] || ![plugin[@"enabled"] boolValue]);
         return nil;
     }
-    if ([key hasPrefix:@"settings.plugin."]) return [kPluginSettingsRoute stringByAppendingString:[key substringFromIndex:@"settings.plugin.".length]];
+    if ([key hasPrefix:@"settings.plugin."])
+        return [kPluginSettingsRoute stringByAppendingString:[key substringFromIndex:@"settings.plugin.".length]];
     if ([key hasPrefix:@"more.plugin."]) return [kPluginRoute stringByAppendingString:[key substringFromIndex:@"more.plugin.".length]];
     if ([key hasPrefix:@"filter."]) {
         gPluginFilter = [key substringFromIndex:@"filter.".length];

@@ -1,32 +1,96 @@
 local P = astral.discord.permission
 
 local TAGS = {
-	{ key = "WEBHOOK", text = "Webhook", color = 0xFF5865F2, title = "Webhook", subtitle = "Messages sent by webhooks" },
+	{
+		key = "WEBHOOK",
+		text = "Webhook",
+		color = 0xFF5865F2,
+		title = "Webhook",
+		subtitle = "Messages sent by webhooks",
+	},
 	{ key = "OWNER", text = "Owner", color = 0xFFF0B232, title = "Owner", subtitle = "Owns the server" },
-	{ key = "ADMINISTRATOR", text = "Admin", color = 0xFFDA373C, title = "Admin", subtitle = "Has the administrator permission",
-		permissions = P.ADMINISTRATOR },
-	{ key = "MODERATOR_STAFF", text = "Staff", color = 0xFF248046, title = "Staff", subtitle = "Can manage the server, channels or roles",
-		permissions = P.MANAGE_GUILD | P.MANAGE_CHANNELS | P.MANAGE_ROLES | P.MANAGE_WEBHOOKS },
-	{ key = "MODERATOR", text = "Mod", color = 0xFF4E7FFF, title = "Mod", subtitle = "Can manage messages or kick/ban people",
-		permissions = P.MANAGE_MESSAGES | P.KICK_MEMBERS | P.BAN_MEMBERS },
-	{ key = "VOICE_MODERATOR", text = "VC Mod", color = 0xFF059669, title = "VC Mod", subtitle = "Can manage voice chats",
-		permissions = P.MOVE_MEMBERS | P.MUTE_MEMBERS | P.DEAFEN_MEMBERS },
-	{ key = "CHAT_MODERATOR", text = "Chat Mod", color = 0xFFC27C0E, title = "Chat Mod", subtitle = "Can time people out",
-		permissions = P.MODERATE_MEMBERS },
+	{
+		key = "ADMINISTRATOR",
+		text = "Admin",
+		color = 0xFFDA373C,
+		title = "Admin",
+		subtitle = "Has the administrator permission",
+		permissions = P.ADMINISTRATOR,
+	},
+	{
+		key = "MODERATOR_STAFF",
+		text = "Staff",
+		color = 0xFF248046,
+		title = "Staff",
+		subtitle = "Can manage the server, channels or roles",
+		permissions = P.MANAGE_GUILD | P.MANAGE_CHANNELS | P.MANAGE_ROLES | P.MANAGE_WEBHOOKS,
+	},
+	{
+		key = "MODERATOR",
+		text = "Mod",
+		color = 0xFF4E7FFF,
+		title = "Mod",
+		subtitle = "Can manage messages or kick/ban people",
+		permissions = P.MANAGE_MESSAGES | P.KICK_MEMBERS | P.BAN_MEMBERS,
+	},
+	{
+		key = "VOICE_MODERATOR",
+		text = "VC Mod",
+		color = 0xFF059669,
+		title = "VC Mod",
+		subtitle = "Can manage voice chats",
+		permissions = P.MOVE_MEMBERS | P.MUTE_MEMBERS | P.DEAFEN_MEMBERS,
+	},
+	{
+		key = "CHAT_MODERATOR",
+		text = "Chat Mod",
+		color = 0xFFC27C0E,
+		title = "Chat Mod",
+		subtitle = "Can time people out",
+		permissions = P.MODERATE_MEMBERS,
+	},
 }
 
 local APPEARANCE = {
-	{ key = "coloredTags", title = "Coloured Tags", subtitle = "Give each tag its own colour instead of the default styling", default = true },
-	{ key = "useRoleColor", title = "Use Role Colour", subtitle = "Colour tags with the member's role colour where they have one", default = true },
-	{ key = "useEnhancedRoleColors", title = "Use Enhanced Role Colours",
-		subtitle = "Use gradient and holographic role colours across all generated tags when available", default = true },
-	{ key = "useOpTagStyle", title = "Use Original Poster Tag Style", subtitle = "Show staff tags with Discord's original poster badge styling",
-		default = false },
+	{
+		key = "coloredTags",
+		title = "Coloured Tags",
+		subtitle = "Give each tag its own colour instead of the default styling",
+		default = true,
+	},
+	{
+		key = "useRoleColor",
+		title = "Use Role Colour",
+		subtitle = "Colour tags with the member's role colour where they have one",
+		default = true,
+	},
+	{
+		key = "useEnhancedRoleColors",
+		title = "Use Enhanced Role Colours",
+		subtitle = "Use gradient and holographic role colours across all generated tags when available",
+		default = true,
+	},
+	{
+		key = "useOpTagStyle",
+		title = "Use Original Poster Tag Style",
+		subtitle = "Show staff tags with Discord's original poster badge styling",
+		default = false,
+	},
 }
 
 local ROLE_NAME = {
-	{ key = "showRoleName", title = "Show Role Name", subtitle = "Add a tag with the member's top coloured role", default = false },
-	{ key = "roleNameOnBots", title = "Role Name on Bots", subtitle = "Also show the role name tag for bot accounts", default = false },
+	{
+		key = "showRoleName",
+		title = "Show Role Name",
+		subtitle = "Add a tag with the member's top coloured role",
+		default = false,
+	},
+	{
+		key = "roleNameOnBots",
+		title = "Role Name on Bots",
+		subtitle = "Also show the role name tag for bot accounts",
+		default = false,
+	},
 }
 
 local DEFAULT_TAG_COLOR = 0xFF5865F2
@@ -36,12 +100,20 @@ for _, tag in ipairs(TAGS) do
 	settings[tag.key] = astral.settings.switch(tag.key, tag.title, true, { subtitle = tag.subtitle, section = "Tags" })
 end
 for _, option in ipairs(APPEARANCE) do
-	settings[option.key] = astral.settings.switch(option.key, option.title, option.default,
-		{ subtitle = option.subtitle, section = "Appearance" })
+	settings[option.key] = astral.settings.switch(
+		option.key,
+		option.title,
+		option.default,
+		{ subtitle = option.subtitle, section = "Appearance" }
+	)
 end
 for _, option in ipairs(ROLE_NAME) do
-	settings[option.key] = astral.settings.switch(option.key, option.title, option.default,
-		{ subtitle = option.subtitle, section = "Role Name" })
+	settings[option.key] = astral.settings.switch(
+		option.key,
+		option.title,
+		option.default,
+		{ subtitle = option.subtitle, section = "Role Name" }
+	)
 end
 
 function astral.on_setting(key, value)
@@ -55,7 +127,9 @@ end
 local function roleStops(role, includeEnhanced)
 	local colors = role.colors or {}
 	local primary = colors.primary_color
-	if not primary or primary == 0 then return {} end
+	if not primary or primary == 0 then
+		return {}
+	end
 	local stops = { opaque(primary) }
 	if includeEnhanced then
 		for _, name in ipairs({ "secondary_color", "tertiary_color" }) do
@@ -63,8 +137,12 @@ local function roleStops(role, includeEnhanced)
 			if value and value ~= 0 then
 				local stop = opaque(value)
 				local seen = false
-				for _, existing in ipairs(stops) do seen = seen or existing == stop end
-				if not seen then stops[#stops + 1] = stop end
+				for _, existing in ipairs(stops) do
+					seen = seen or existing == stop
+				end
+				if not seen then
+					stops[#stops + 1] = stop
+				end
 			end
 		end
 	end
@@ -108,7 +186,9 @@ local function contrastingText(backgrounds)
 end
 
 local function hasPermission(permissions, wanted)
-	if not permissions then return false end
+	if not permissions then
+		return false
+	end
 	return permissions & wanted ~= 0
 end
 
@@ -118,12 +198,18 @@ local function resolveTag(node, guild, message)
 	for _, tag in ipairs(TAGS) do
 		if settings[tag.key] then
 			if tag.key == "WEBHOOK" then
-				if message and message.webhook_id and isBot then return tag end
+				if message and message.webhook_id and isBot then
+					return tag
+				end
 			elseif tag.key == "OWNER" then
-				if guild and guild.owner_id == node.user_id then return tag end
+				if guild and guild.owner_id == node.user_id then
+					return tag
+				end
 			elseif guild and not isBot then
 				permissions = permissions or astral.discord.permissions(guild.id, node.user_id, node.channel_id)
-				if hasPermission(permissions, tag.permissions) then return tag end
+				if hasPermission(permissions, tag.permissions) then
+					return tag
+				end
 			end
 		end
 	end
@@ -135,7 +221,9 @@ local function tagColors(tag, guild, node)
 		local member = astral.discord.member(guild.id, node.user_id)
 		if member then
 			local stops = memberRoleStops(guild, member, settings.useEnhancedRoleColors)
-			if #stops > 0 then return stops end
+			if #stops > 0 then
+				return stops
+			end
 		end
 	end
 	return settings.coloredTags and { tag.color } or {}
@@ -149,20 +237,28 @@ local function pillFor(text, stops, shape)
 		text_color = contrastingText(#stops > 0 and stops or { background }),
 		shape = shape,
 	}
-	if #stops >= 2 then pill.colors = stops end
+	if #stops >= 2 then
+		pill.colors = stops
+	end
 	return pill
 end
 
 local function roleNamePill(guild, node, isBot)
-	if not settings.showRoleName or not guild or (isBot and not settings.roleNameOnBots) then return nil end
+	if not settings.showRoleName or not guild or (isBot and not settings.roleNameOnBots) then
+		return nil
+	end
 	local member = astral.discord.member(guild.id, node.user_id)
 	local role = member and topColouredRole(guild, member)
-	if not role then return nil end
+	if not role then
+		return nil
+	end
 	return pillFor(role.name, roleStops(role, settings.useEnhancedRoleColors), "pill")
 end
 
 astral.ui.decorate("message.author", function(node)
-	if not node.user_id then return nil end
+	if not node.user_id then
+		return nil
+	end
 	local message = node.channel_id and astral.discord.message(node.channel_id, node.message_id) or nil
 	local guild = node.guild_id and astral.discord.guild(node.guild_id) or nil
 	local isBot = message and message.author and message.author.bot
@@ -172,7 +268,9 @@ astral.ui.decorate("message.author", function(node)
 		pills[#pills + 1] = pillFor(tag.text, tagColors(tag, guild, node), settings.useOpTagStyle and "op" or "pill")
 	end
 	local roleName = roleNamePill(guild, node, isBot)
-	if roleName then pills[#pills + 1] = roleName end
+	if roleName then
+		pills[#pills + 1] = roleName
+	end
 	return #pills > 0 and pills or nil
 end)
 

@@ -1,18 +1,63 @@
 local decorator, stored = nil, {}
 astral = {
 	log = function() end,
-	settings = { switch = function(key, _, default) if stored[key] == nil then return default end return stored[key] end },
-	ui = { decorate = function(_, fn) decorator = fn end },
+	settings = {
+		switch = function(key, _, default)
+			if stored[key] == nil then
+				return default
+			end
+			return stored[key]
+		end,
+	},
+	ui = {
+		decorate = function(_, fn)
+			decorator = fn
+		end,
+	},
 	discord = {
-		permission = { KICK_MEMBERS = 2, BAN_MEMBERS = 4, ADMINISTRATOR = 8, MANAGE_CHANNELS = 16, MANAGE_GUILD = 32,
-			MANAGE_MESSAGES = 8192, MUTE_MEMBERS = 1 << 22, DEAFEN_MEMBERS = 1 << 23, MOVE_MEMBERS = 1 << 24,
-			MANAGE_ROLES = 1 << 28, MANAGE_WEBHOOKS = 1 << 29, MODERATE_MEMBERS = 1 << 40 },
-		guild = function() return { id = "g", owner_id = "owner", roles = {
-			r1 = { name = "Dev", position = 2, colors = { primary_color = 0x2D7FD0 } },
-			r2 = { name = "Holo", position = 3, colors = { primary_color = 0xA9C9FF, secondary_color = 0xFFBBEC, tertiary_color = 0xFFC3A0 } } } } end,
-		member = function(_, user) if user == "owner" then return { roles = { "r1" } } end return { roles = { "r2" } } end,
-		permissions = function(_, user) if user == "mod" then return 8192 end return 0 end,
-		message = function() return { author = { bot = false } } end,
+		permission = {
+			KICK_MEMBERS = 2,
+			BAN_MEMBERS = 4,
+			ADMINISTRATOR = 8,
+			MANAGE_CHANNELS = 16,
+			MANAGE_GUILD = 32,
+			MANAGE_MESSAGES = 8192,
+			MUTE_MEMBERS = 1 << 22,
+			DEAFEN_MEMBERS = 1 << 23,
+			MOVE_MEMBERS = 1 << 24,
+			MANAGE_ROLES = 1 << 28,
+			MANAGE_WEBHOOKS = 1 << 29,
+			MODERATE_MEMBERS = 1 << 40,
+		},
+		guild = function()
+			return {
+				id = "g",
+				owner_id = "owner",
+				roles = {
+					r1 = { name = "Dev", position = 2, colors = { primary_color = 0x2D7FD0 } },
+					r2 = {
+						name = "Holo",
+						position = 3,
+						colors = { primary_color = 0xA9C9FF, secondary_color = 0xFFBBEC, tertiary_color = 0xFFC3A0 },
+					},
+				},
+			}
+		end,
+		member = function(_, user)
+			if user == "owner" then
+				return { roles = { "r1" } }
+			end
+			return { roles = { "r2" } }
+		end,
+		permissions = function(_, user)
+			if user == "mod" then
+				return 8192
+			end
+			return 0
+		end,
+		message = function()
+			return { author = { bot = false } }
+		end,
 	},
 }
 dofile(arg[1])

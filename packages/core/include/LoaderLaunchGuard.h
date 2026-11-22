@@ -3,23 +3,22 @@
 #include <string>
 
 namespace loader {
-enum class PreviousExit
-{
+enum class PreviousExit {
     Unknown,
     Crashed,
     Ended,
 };
 
 struct LaunchVerdict {
-    int failures       = 0;
-    bool rollBack      = false;
+    int failures = 0;
+    bool rollBack = false;
     bool enterRecovery = false;
 };
 
 class LaunchGuard
 {
-public:
-    static constexpr const char *kFile  = "launch-guard.json";
+  public:
+    static constexpr const char *kFile = "launch-guard.json";
     static constexpr int kRollBackAfter = 2;
     static constexpr int kRecoveryAfter = 3;
 
@@ -31,7 +30,7 @@ public:
     bool markHidden() const;
     bool markShown() const;
 
-private:
+  private:
     std::string path() const;
 
     std::string directory_;
@@ -39,4 +38,4 @@ private:
 
 std::string launchRollBackNotice(int failures);
 std::string launchRecoveryNotice(int failures);
-}
+} // namespace loader

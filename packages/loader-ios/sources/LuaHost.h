@@ -17,6 +17,8 @@ void AstralLuaRescan(void);
 void AstralLuaRemove(NSString *pluginID);
 void AstralLuaResetSettings(NSString *pluginID);
 size_t AstralLuaDecorate(const AstralDecorationContext *context, AstralTag *tags, size_t capacity);
+int AstralLuaRelabel(const AstralLabelContext *context, const char *text, size_t length, char *out, size_t capacity);
+void AstralLuaSetChoice(NSString *pluginID, NSString *key, NSString *value);
 
 #ifdef __cplusplus
 }

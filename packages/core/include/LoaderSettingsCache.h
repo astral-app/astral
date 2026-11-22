@@ -17,9 +17,7 @@ struct CachedStore {
 
 uint64_t settingsHash(std::string_view json);
 
-std::string encodeSettingsCache(uint64_t jsonHash, uint64_t jsonSize,
-                                const std::vector<CachedStore> &stores);
+std::string encodeSettingsCache(uint64_t jsonHash, uint64_t jsonSize, const std::vector<CachedStore> &stores);
 
-std::optional<std::vector<CachedStore>> decodeSettingsCache(std::string_view cache,
-                                                            uint64_t jsonHash, uint64_t jsonSize);
-}
+std::optional<std::vector<CachedStore>> decodeSettingsCache(std::string_view cache, uint64_t jsonHash, uint64_t jsonSize);
+} // namespace loader

@@ -101,10 +101,20 @@ static void skipValue(Cursor *cursor, uint8_t tag, int depth)
         return;
     }
     switch (tag) {
-    case 0: case 1: case 2: break;
-    case 3: skip(cursor, 4); break;
-    case 4: case 5: skip(cursor, 8); break;
-    case 6: skip(cursor, read32(cursor)); break;
+    case 0:
+    case 1:
+    case 2:
+        break;
+    case 3:
+        skip(cursor, 4);
+        break;
+    case 4:
+    case 5:
+        skip(cursor, 8);
+        break;
+    case 6:
+        skip(cursor, read32(cursor));
+        break;
     case 7: {
         uint32_t count = read32(cursor);
         for (uint32_t index = 0; index < count && !cursor->failed; index++) skipTagged(cursor, depth + 1);
@@ -118,7 +128,9 @@ static void skipValue(Cursor *cursor, uint8_t tag, int depth)
         }
         break;
     }
-    case 9: skip(cursor, 16); break;
+    case 9:
+        skip(cursor, 16);
+        break;
     case 10: {
         uint32_t count = read32(cursor);
         for (uint32_t index = 0; index < count && !cursor->failed; index++) {
@@ -127,13 +139,17 @@ static void skipValue(Cursor *cursor, uint8_t tag, int depth)
         }
         break;
     }
-    case 11: skip(cursor, (size_t)read32(cursor) * 4); break;
+    case 11:
+        skip(cursor, (size_t)read32(cursor) * 4);
+        break;
     case 12: {
         skip(cursor, 4);
         skip(cursor, (size_t)read16(cursor) * 6);
         break;
     }
-    default: cursor->failed = 1; break;
+    default:
+        cursor->failed = 1;
+        break;
     }
 }
 
@@ -173,15 +189,24 @@ static int scan(const uint8_t *bytes, size_t length, Span *spans, size_t *count)
             span->children = cursor.offset;
             skip(&cursor, (size_t)span->childCount * 4);
             break;
-        case 4: case 9:
+        case 4:
+        case 9:
             span->childCount = read32(&cursor);
             span->children = cursor.offset;
             skip(&cursor, (size_t)span->childCount * 4);
             break;
-        case 5: skip(&cursor, 4); break;
-        case 6: if (read8(&cursor)) skip(&cursor, 4); break;
-        case 7: skip(&cursor, 4); skipTagged(&cursor, 0); break;
-        case 8: break;
+        case 5:
+            skip(&cursor, 4);
+            break;
+        case 6:
+            if (read8(&cursor)) skip(&cursor, 4);
+            break;
+        case 7:
+            skip(&cursor, 4);
+            skipTagged(&cursor, 0);
+            break;
+        case 8:
+            break;
         case 10: {
             span->id = (int32_t)read32(&cursor);
             uint32_t edits = read32(&cursor);
@@ -191,7 +216,8 @@ static int scan(const uint8_t *bytes, size_t length, Span *spans, size_t *count)
             }
             break;
         }
-        default: return -1;
+        default:
+            return -1;
         }
         span->end = cursor.offset;
     }
@@ -284,9 +310,18 @@ static void put(Out *out, const void *bytes, size_t length)
     out->length += length;
 }
 
-static void put8(Out *out, uint8_t value) { put(out, &value, 1); }
-static void put16(Out *out, uint16_t value) { put(out, &value, 2); }
-static void put32(Out *out, uint32_t value) { put(out, &value, 4); }
+static void put8(Out *out, uint8_t value)
+{
+    put(out, &value, 1);
+}
+static void put16(Out *out, uint16_t value)
+{
+    put(out, &value, 2);
+}
+static void put32(Out *out, uint32_t value)
+{
+    put(out, &value, 4);
+}
 
 typedef enum { kKeep, kDrop, kString, kNumber, kInteger } Edit;
 
@@ -419,8 +454,8 @@ void astral_wire_set_category(const char *title, const AstralRowSpec *rows, size
     }
 }
 
-static int32_t categoryNode(Out *out, const uint8_t *bytes, const Span *spans, size_t count, int32_t source,
-                            const Change *changes, size_t changeCount)
+static int32_t categoryNode(Out *out, const uint8_t *bytes, const Span *spans, size_t count, int32_t source, const Change *changes,
+                            size_t changeCount)
 {
     const Span *span = creation(spans, count, source);
     if (!span || gState.count >= kMaxCategoryNodes) {
@@ -433,8 +468,7 @@ static int32_t categoryNode(Out *out, const uint8_t *bytes, const Span *spans, s
     return id;
 }
 
-static int32_t categoryRow(Out *out, const uint8_t *bytes, const Span *spans, size_t count, const int32_t *source,
-                           size_t index)
+static int32_t categoryRow(Out *out, const uint8_t *bytes, const Span *spans, size_t count, const int32_t *source, size_t index)
 {
     char identifier[kCategoryText + 32];
     if (gCategoryRows[index].key[0]) {
@@ -443,12 +477,12 @@ static int32_t categoryRow(Out *out, const uint8_t *bytes, const Span *spans, si
         snprintf(identifier, sizeof(identifier), "settings.row.astral");
     }
     int first = index == 0, last = index + 1 == gCategoryRowCount;
-    Change rowChanges[] = {
-        {9, kString, identifier, 0}, {11, kString, gCategoryRows[index].title, 0},
-        last ? (Change){389, kNumber, NULL, 12} : (Change){389, kDrop, NULL, 0},
-        last ? (Change){390, kNumber, NULL, 12} : (Change){390, kDrop, NULL, 0},
-        first ? (Change){391, kNumber, NULL, 12} : (Change){391, kDrop, NULL, 0},
-        first ? (Change){392, kNumber, NULL, 12} : (Change){392, kDrop, NULL, 0}};
+    Change rowChanges[] = {{9, kString, identifier, 0},
+                           {11, kString, gCategoryRows[index].title, 0},
+                           last ? (Change){389, kNumber, NULL, 12} : (Change){389, kDrop, NULL, 0},
+                           last ? (Change){390, kNumber, NULL, 12} : (Change){390, kDrop, NULL, 0},
+                           first ? (Change){391, kNumber, NULL, 12} : (Change){391, kDrop, NULL, 0},
+                           first ? (Change){392, kNumber, NULL, 12} : (Change){392, kDrop, NULL, 0}};
     Change iconChange = {542, kString, gCategoryRows[index].icon, 0};
     Change titleChange = {499, kString, gCategoryRows[index].title, 0};
     int32_t row = categoryNode(out, bytes, spans, count, source[0], rowChanges, sizeof(rowChanges) / sizeof(*rowChanges));
@@ -479,8 +513,8 @@ static int createCategory(Out *out, const uint8_t *bytes, const Span *spans, siz
     int32_t trailing = child(bytes, contentChildren, 2);
     const Span *trailingChildren = childList(bytes, spans, count, trailing);
     if (!trailingChildren || trailingChildren->childCount < 1) return 0;
-    int32_t source[6] = {row->id, content, child(bytes, contentChildren, 0), child(bytes, contentChildren, 1), trailing,
-                         child(bytes, trailingChildren, 0)};
+    int32_t source[6] = {
+        row->id, content, child(bytes, contentChildren, 0), child(bytes, contentChildren, 1), trailing, child(bytes, trailingChildren, 0)};
     int32_t separator = cardChildren->childCount > 1 ? child(bytes, cardChildren, 1) : 0;
     const Span *separatorChildren = separator ? childList(bytes, spans, count, separator) : NULL;
     int32_t separatorLine = separatorChildren && separatorChildren->childCount ? child(bytes, separatorChildren, 0) : 0;
@@ -512,11 +546,37 @@ static int createCategory(Out *out, const uint8_t *bytes, const Span *spans, siz
 }
 
 enum Role {
-    kRoot, kPhone, kColumn, kContainer, kSpacer, kHairline, kScroll, kList,
-    kHeaderBar, kHeaderLeft, kHeaderLeftInner, kHeaderLeftPad, kBack, kBackStack, kBackStackInner, kBackIcon,
-    kTitleWrap, kTitleInner, kTitle,
-    kGroup, kGroupHeader, kCard, kRow, kRowContent, kRowIcon, kRowTitle, kRowTrailing, kRowChevron,
-    kSeparator, kSeparatorLine, kRoleCount
+    kRoot,
+    kPhone,
+    kColumn,
+    kContainer,
+    kSpacer,
+    kHairline,
+    kScroll,
+    kList,
+    kHeaderBar,
+    kHeaderLeft,
+    kHeaderLeftInner,
+    kHeaderLeftPad,
+    kBack,
+    kBackStack,
+    kBackStackInner,
+    kBackIcon,
+    kTitleWrap,
+    kTitleInner,
+    kTitle,
+    kGroup,
+    kGroupHeader,
+    kCard,
+    kRow,
+    kRowContent,
+    kRowIcon,
+    kRowTitle,
+    kRowTrailing,
+    kRowChevron,
+    kSeparator,
+    kSeparatorLine,
+    kRoleCount
 };
 
 enum { kMaxNavigatorChildren = 64, kMaxPageNodes = 1024 };
@@ -679,7 +739,8 @@ static int trackNavigator(const uint8_t *bytes, const Span *spans, size_t count,
         if (!navigator) continue;
         if (span->op == 3 && span->childCount <= kMaxNavigatorChildren) {
             navigator->count = span->childCount;
-            for (uint32_t position = 0; position < span->childCount; position++) navigator->children[position] = child(bytes, span, position);
+            for (uint32_t position = 0; position < span->childCount; position++)
+                navigator->children[position] = child(bytes, span, position);
             if (gDepth && navigator->id == gSettingsNavigator) {
                 if (!*changed) put(out, bytes, length_of_batch);
                 putAllPagesRemoval(out);
@@ -722,7 +783,10 @@ static int32_t newNode(Out *out, const char *type)
     return id;
 }
 
-static void propCount(Out *out, uint16_t count) { put16(out, count); }
+static void propCount(Out *out, uint16_t count)
+{
+    put16(out, count);
+}
 static void propString(Out *out, uint16_t property, const char *value)
 {
     size_t length = strlen(value);
@@ -786,7 +850,10 @@ static int32_t buildSwitch(Out *out, const char *key, int on)
     propBool(out, 7, 1);
     propString(out, 9, identifier);
     propString(out, 63, "stretch");
-    if (on) propLong(out, 90, kSwitchOn); else propInt(out, 90, kSwitchOff);
+    if (on)
+        propLong(out, 90, kSwitchOn);
+    else
+        propInt(out, 90, kSwitchOff);
     propInt(out, 104, kSwitchBorder);
     propNumber(out, 107, 1);
     propString(out, 147, "row");
@@ -840,8 +907,11 @@ static int32_t buildSpecRow(Out *out, const AstralRowSpec *row, int first, int l
         propString(out, 147, "column");
         propNumber(out, 198, 1);
         propNumber(out, 220, 2);
-        Change subtitleChanges[] = {{499, kString, row->subtitle, 0}, {207, kNumber, NULL, 13}, {278, kNumber, NULL, 17},
-                                    {322, kNumber, NULL, 0.62}, {293, kInteger, NULL, 3}};
+        Change subtitleChanges[] = {{499, kString, row->subtitle, 0},
+                                    {207, kNumber, NULL, 13},
+                                    {278, kNumber, NULL, 17},
+                                    {322, kNumber, NULL, 0.62},
+                                    {293, kInteger, NULL, 3}};
         int32_t subtitle = cloneRole(out, kRowTitle, subtitleChanges, 5);
         putChildren(out, column, (int32_t[]){title, subtitle}, 2);
         title = column;
@@ -849,8 +919,8 @@ static int32_t buildSpecRow(Out *out, const AstralRowSpec *row, int first, int l
     int32_t children[4] = {icon, title, 0, 0};
     uint32_t childCount = 2;
     if (row->detail && row->detail[0]) {
-        Change detailChanges[] = {{499, kString, row->detail, 0}, {207, kNumber, NULL, 14}, {322, kNumber, NULL, 0.62},
-                                  {198, kDrop, NULL, 0}};
+        Change detailChanges[] = {
+            {499, kString, row->detail, 0}, {207, kNumber, NULL, 14}, {322, kNumber, NULL, 0.62}, {198, kDrop, NULL, 0}};
         children[childCount++] = cloneRole(out, kRowTitle, detailChanges, 4);
     }
     if (row->kind == kAstralRowLink) {
@@ -955,7 +1025,10 @@ static int32_t buildChip(Out *out, const AstralChipSpec *chip)
     propString(out, 9, identifier);
     propString(out, 63, "center");
     propString(out, 147, "row");
-    if (chip->selected) propLong(out, 90, kSwitchOn); else propLong(out, 90, kTranslucentFill);
+    if (chip->selected)
+        propLong(out, 90, kSwitchOn);
+    else
+        propLong(out, 90, kTranslucentFill);
     propQuad(out, 332, 14, 7, 14, 7);
     propNumber(out, 388, 16);
     propEvents(out, 320, "press");
@@ -1172,7 +1245,8 @@ int astral_page_push(const AstralPageSpec *page, AstralWireBuffer *buffer)
 {
     memset(buffer, 0, sizeof(*buffer));
     Navigator *navigator = navigatorWithId(gSettingsNavigator);
-    if (!gTemplatesReady || !navigator || gDepth >= kMaxPages || navigator->count == 0 || navigator->count >= kMaxNavigatorChildren) return 0;
+    if (!gTemplatesReady || !navigator || gDepth >= kMaxPages || navigator->count == 0 || navigator->count >= kMaxNavigatorChildren)
+        return 0;
     Out out = {0};
     gPage = &gPages[gDepth];
     gPage->count = 0;
@@ -1269,7 +1343,8 @@ int astral_page_refresh(const AstralPageSpec *page, AstralWireBuffer *buffer)
     uint32_t savedCount = gPage->count;
     memcpy(savedIds, gPage->ids, sizeof(int32_t) * savedCount);
     int32_t highest = 0;
-    for (uint32_t index = 0; index < savedCount; index++) if (savedIds[index] > highest) highest = savedIds[index];
+    for (uint32_t index = 0; index < savedCount; index++)
+        if (savedIds[index] > highest) highest = savedIds[index];
     memcpy(gPage->ids, kept, sizeof(int32_t) * keptCount);
     gPage->count = keptCount;
     gPage->nextId = highest + 1;
@@ -1568,17 +1643,25 @@ static int32_t buildTag(Out *out, const AstralTag *tag, Decorated *slot)
     int originalPoster = tag->shape == kAstralTagOriginalPoster;
     int gradient = tag->gradientCount >= 2;
     int32_t pill = tagId();
-    put8(out, 1); put32(out, (uint32_t)pill); put16(out, 4); put(out, "view", 4);
+    put8(out, 1);
+    put32(out, (uint32_t)pill);
+    put16(out, 4);
+    put(out, "view", 4);
     put16(out, 6);
     propString(out, 63, "center");
-    if (gradient) propGradient(out, 91, tag->gradient, tag->gradientCount > 3 ? 3 : tag->gradientCount);
-    else propLong(out, 90, (int64_t)tag->background);
+    if (gradient)
+        propGradient(out, 91, tag->gradient, tag->gradientCount > 3 ? 3 : tag->gradientCount);
+    else
+        propLong(out, 90, (int64_t)tag->background);
     propString(out, 147, "row");
     propNumber(out, 235, originalPoster ? 16 : 18);
     propQuad(out, 332, originalPoster ? 5 : 4, 0, originalPoster ? 5 : 4, 0);
     propNumber(out, 388, originalPoster ? 8 : 4);
     int32_t label = tagId();
-    put8(out, 1); put32(out, (uint32_t)label); put16(out, 4); put(out, "text", 4);
+    put8(out, 1);
+    put32(out, (uint32_t)label);
+    put16(out, 4);
+    put(out, "text", 4);
     put16(out, originalPoster ? 8 : 7);
     propLong(out, 129, (int64_t)tag->foreground);
     propNumber(out, 207, originalPoster ? 10 : 12);
@@ -1702,7 +1785,8 @@ static int paletteColor(uint32_t color, uint32_t *mapped)
 
 static int colorProperty(uint16_t property)
 {
-    return property == 90 || property == 129 || property == 104 || property == 21 || property == 25 || property == 201 || property == 355 || property == 522;
+    return property == 90 || property == 129 || property == 104 || property == 21 || property == 25 || property == 201 || property == 355 ||
+           property == 522;
 }
 
 static int patchColors(uint8_t *bytes, const Span *spans, size_t count)
@@ -1731,6 +1815,205 @@ static int patchColors(uint8_t *bytes, const Span *spans, size_t count)
     return patched;
 }
 
+enum { kMaxLabelEdits = 512, kMaxLabelNodes = 2048, kLabelCapacity = 256 };
+
+typedef struct {
+    size_t offset;
+    uint32_t oldLength;
+    char text[kLabelCapacity];
+    uint32_t newLength;
+} LabelEdit;
+
+typedef struct {
+    int32_t id;
+    int32_t parent;
+} LabelLink;
+
+static AstralRelabeler gRelabeler;
+
+void astral_wire_set_relabeler(AstralRelabeler relabeler)
+{
+    gRelabeler = relabeler;
+}
+
+static int stringAt(const uint8_t *bytes, const Span *span, uint16_t wanted, size_t *offset, uint32_t *length)
+{
+    Cursor cursor = {bytes, span->end, span->start + 1 + 4, 0};
+    if (span->op == 1) skip(&cursor, read16(&cursor));
+    uint16_t count = read16(&cursor);
+    for (uint16_t index = 0; index < count && !cursor.failed; index++) {
+        uint16_t property = read16(&cursor);
+        uint8_t tag = read8(&cursor);
+        if (property == wanted && tag == 6) {
+            size_t at = cursor.offset;
+            uint32_t size = read32(&cursor);
+            if (!need(&cursor, size)) return 0;
+            *offset = at;
+            *length = size;
+            return 1;
+        }
+        skipValue(&cursor, tag, 0);
+    }
+    return 0;
+}
+
+static int firstSpanText(const uint8_t *bytes, const Span *span, size_t *offset, uint32_t *length)
+{
+    Cursor cursor = {bytes, span->end, span->start + 1 + 4, 0};
+    if (span->op == 1) skip(&cursor, read16(&cursor));
+    uint16_t count = read16(&cursor);
+    for (uint16_t index = 0; index < count && !cursor.failed; index++) {
+        uint16_t property = read16(&cursor);
+        uint8_t tag = read8(&cursor);
+        if (property != 468 || tag != 7) {
+            skipValue(&cursor, tag, 0);
+            continue;
+        }
+        if (read32(&cursor) == 0 || read8(&cursor) != 8) return 0;
+        uint32_t entries = read32(&cursor);
+        for (uint32_t entry = 0; entry < entries && !cursor.failed; entry++) {
+            uint16_t key = read16(&cursor);
+            uint8_t valueTag = read8(&cursor);
+            if (key == 499 && valueTag == 6) {
+                size_t at = cursor.offset;
+                uint32_t size = read32(&cursor);
+                if (!need(&cursor, size)) return 0;
+                *offset = at;
+                *length = size;
+                return 1;
+            }
+            skipValue(&cursor, valueTag, 0);
+        }
+        return 0;
+    }
+    return 0;
+}
+
+static int spanContains(const uint8_t *bytes, const Span *span, const char *needle)
+{
+    size_t size = strlen(needle);
+    for (size_t at = span->start; at + size <= span->end; at++) {
+        if (memcmp(bytes + at, needle, size) == 0) return 1;
+    }
+    return 0;
+}
+
+static int32_t labelParent(const LabelLink *links, size_t count, int32_t id)
+{
+    for (size_t index = 0; index < count; index++) {
+        if (links[index].id == id) return links[index].parent;
+    }
+    return 0;
+}
+
+static int32_t rowOf(const LabelLink *links, size_t linkCount, const int32_t *rows, size_t rowCount, int32_t id)
+{
+    for (int depth = 0; depth < 24 && id; depth++) {
+        for (size_t index = 0; index < rowCount; index++) {
+            if (rows[index] == id) return id;
+        }
+        id = labelParent(links, linkCount, id);
+    }
+    return 0;
+}
+
+static void addLabelEdit(LabelEdit *edits, size_t *count, const uint8_t *bytes, size_t offset, uint32_t length,
+                         const AstralLabelContext *context)
+{
+    if (*count >= kMaxLabelEdits || length >= kLabelCapacity) return;
+    char current[kLabelCapacity];
+    memcpy(current, bytes + offset + 4, length);
+    current[length] = 0;
+    LabelEdit *edit = &edits[*count];
+    int written = gRelabeler(context, current, length, edit->text, sizeof(edit->text));
+    if (written < 0 || (uint32_t)written >= kLabelCapacity) return;
+    if ((uint32_t)written == length && memcmp(edit->text, current, length) == 0) return;
+    edit->offset = offset;
+    edit->oldLength = length;
+    edit->newLength = (uint32_t)written;
+    (*count)++;
+}
+
+static int compareEdits(const void *left, const void *right)
+{
+    size_t a = ((const LabelEdit *)left)->offset, b = ((const LabelEdit *)right)->offset;
+    return a < b ? -1 : a > b;
+}
+
+static uint8_t *relabel(const uint8_t *bytes, size_t length, const Span *spans, size_t count, size_t *newLength)
+{
+    if (!gRelabeler) return NULL;
+    static LabelLink links[kMaxChildren];
+    static int32_t rows[kMaxLabelNodes];
+    static int32_t authorNodes[kMaxLabelNodes];
+    static uint64_t authorMessages[kMaxLabelNodes];
+    static LabelEdit edits[kMaxLabelEdits];
+    size_t linkCount = 0, rowCount = 0, authorCount = 0, editCount = 0;
+    for (size_t index = 0; index < count; index++) {
+        const Span *span = &spans[index];
+        if (span->op == 3) {
+            for (uint32_t position = 0; position < span->childCount && linkCount < kMaxChildren; position++) {
+                links[linkCount++] = (LabelLink){child_at(bytes, span, position), span->id};
+            }
+        } else if (span->op == 1) {
+            if (stringProperty(bytes, span, 9, "message-row") && rowCount < kMaxLabelNodes) rows[rowCount++] = span->id;
+            size_t offset;
+            uint32_t size;
+            uint64_t message = 0;
+            if (stringAt(bytes, span, 9, &offset, &size) && prefixed(bytes + offset + 4, size, "message.author:", &message) &&
+                authorCount < kMaxLabelNodes) {
+                authorNodes[authorCount] = span->id;
+                authorMessages[authorCount++] = message;
+            }
+        }
+    }
+    for (size_t index = 0; index < count; index++) {
+        const Span *span = &spans[index];
+        if (span->op != 1 && span->op != 2) continue;
+        size_t offset;
+        uint32_t size;
+        uint64_t message = 0;
+        for (size_t author = 0; author < authorCount; author++) {
+            if (authorNodes[author] == span->id) message = authorMessages[author];
+        }
+        Tracked *tracked = message ? NULL : trackSlot(span->id, 0);
+        if (!message && tracked && tracked->kind == kTrackAuthor) message = tracked->value;
+        if (message && stringAt(bytes, span, 499, &offset, &size)) {
+            AstralLabelContext context = {kAstralLabelAuthor, message, gCurrentChannel};
+            addLabelEdit(edits, &editCount, bytes, offset, size, &context);
+            continue;
+        }
+        if (span->op != 1 || !spanContains(bytes, span, "replyPreview") || !firstSpanText(bytes, span, &offset, &size)) continue;
+        int32_t row = rowOf(links, linkCount, rows, rowCount, span->id);
+        uint64_t replying = 0;
+        for (size_t author = 0; author < authorCount && row; author++) {
+            if (rowOf(links, linkCount, rows, rowCount, authorNodes[author]) == row) replying = authorMessages[author];
+        }
+        if (!replying) continue;
+        AstralLabelContext context = {kAstralLabelReply, replying, gCurrentChannel};
+        addLabelEdit(edits, &editCount, bytes, offset, size, &context);
+    }
+    if (!editCount) return NULL;
+    qsort(edits, editCount, sizeof(*edits), compareEdits);
+    size_t total = length;
+    for (size_t index = 0; index < editCount; index++) total = total - edits[index].oldLength + edits[index].newLength;
+    uint8_t *result = malloc(total);
+    if (!result) return NULL;
+    size_t read = 0, written = 0;
+    for (size_t index = 0; index < editCount; index++) {
+        const LabelEdit *edit = &edits[index];
+        memcpy(result + written, bytes + read, edit->offset - read);
+        written += edit->offset - read;
+        memcpy(result + written, &edit->newLength, 4);
+        memcpy(result + written + 4, edit->text, edit->newLength);
+        written += 4 + edit->newLength;
+        read = edit->offset + 4 + edit->oldLength;
+    }
+    memcpy(result + written, bytes + read, length - read);
+    *newLength = total;
+    return result;
+}
+
 int astral_settings_rewrite(const uint8_t *bytes, size_t length, AstralWireBuffer *buffer)
 {
     static Span spans[kMaxSpans];
@@ -1740,18 +2023,31 @@ int astral_settings_rewrite(const uint8_t *bytes, size_t length, AstralWireBuffe
 
     Out out = {0};
     int changed = 0;
+    size_t relabelledLength = 0;
+    uint8_t *relabelled = relabel(bytes, length, spans, count, &relabelledLength);
+    if (relabelled) {
+        if (scan(relabelled, relabelledLength, spans, &count) != 0) {
+            free(relabelled);
+            relabelled = NULL;
+            scan(bytes, length, spans, &count);
+        } else {
+            bytes = relabelled;
+            length = relabelledLength;
+            changed = 1;
+        }
+    }
     uint8_t *themed = NULL;
     if (gPaletteCount) {
         themed = malloc(length);
         if (themed) {
             memcpy(themed, bytes, length);
-            if (patchColors(themed, spans, count)) {
+            if (patchColors(themed, spans, count) || changed) {
                 bytes = themed;
-                put(&out, bytes, length);
                 changed = 1;
             }
         }
     }
+    if (changed) put(&out, bytes, length);
     length_of_batch = length;
     observe(bytes, spans, count);
     trackNavigator(bytes, spans, count, &out, &changed);
@@ -1794,6 +2090,7 @@ int astral_settings_rewrite(const uint8_t *bytes, size_t length, AstralWireBuffe
     decorate(bytes, spans, count, &out, &changed, length);
     observeRemovals(bytes, spans, count, &out, &changed, length);
     free(themed);
+    free(relabelled);
     if (!changed || out.failed) {
         free(out.bytes);
         return 0;

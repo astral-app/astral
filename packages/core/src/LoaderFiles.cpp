@@ -17,41 +17,34 @@ namespace loader {
 std::optional<std::string> readTextFile(const std::string &path)
 {
     int descriptor = open(path.c_str(), O_RDONLY | O_CLOEXEC);
-    if (descriptor < 0)
-    {
+    if (descriptor < 0) {
         return std::nullopt;
     }
 
     struct stat status{};
     size_t capacity = 64 * 1024;
-    if (fstat(descriptor, &status) == 0 && S_ISREG(status.st_mode) && status.st_size > 0)
-    {
+    if (fstat(descriptor, &status) == 0 && S_ISREG(status.st_mode) && status.st_size > 0) {
         capacity = static_cast<size_t>(status.st_size) + 1;
     }
 
     std::string contents(capacity, '\0');
     size_t length = 0;
-    while (true)
-    {
-        if (length == contents.size())
-        {
+    while (true) {
+        if (length == contents.size()) {
             contents.resize(contents.size() * 2);
         }
 
         ssize_t count = read(descriptor, contents.data() + length, contents.size() - length);
-        if (count < 0 && errno == EINTR)
-        {
+        if (count < 0 && errno == EINTR) {
             continue;
         }
 
-        if (count < 0)
-        {
+        if (count < 0) {
             close(descriptor);
             return std::nullopt;
         }
 
-        if (count == 0)
-        {
+        if (count == 0) {
             break;
         }
 
@@ -66,16 +59,13 @@ std::optional<std::string> readTextFile(const std::string &path)
 static bool writeAll(int descriptor, const std::string &contents)
 {
     size_t written = 0;
-    while (written < contents.size())
-    {
+    while (written < contents.size()) {
         ssize_t count = write(descriptor, contents.data() + written, contents.size() - written);
-        if (count < 0 && errno == EINTR)
-        {
+        if (count < 0 && errno == EINTR) {
             continue;
         }
 
-        if (count <= 0)
-        {
+        if (count <= 0) {
             return false;
         }
 
@@ -88,8 +78,7 @@ static bool writeAll(int descriptor, const std::string &contents)
 static void syncDirectory(const std::filesystem::path &directory)
 {
     int descriptor = open(directory.empty() ? "." : directory.c_str(), O_RDONLY | O_CLOEXEC);
-    if (descriptor < 0)
-    {
+    if (descriptor < 0) {
         return;
     }
 
@@ -100,18 +89,15 @@ static void syncDirectory(const std::filesystem::path &directory)
 std::string unreadableReason(const std::string &path)
 {
     struct stat status{};
-    if (stat(path.c_str(), &status) != 0)
-    {
+    if (stat(path.c_str(), &status) != 0) {
         return errno == ENOENT ? "the file is missing" : std::string(std::strerror(errno));
     }
 
     int descriptor = open(path.c_str(), O_RDONLY | O_CLOEXEC);
-    if (descriptor < 0)
-    {
-        int error          = errno;
+    if (descriptor < 0) {
+        int error = errno;
         std::string reason = std::strerror(error);
-        return error == EACCES ? reason + " (owned by uid " + std::to_string(status.st_uid) + ")"
-                               : reason;
+        return error == EACCES ? reason + " (owned by uid " + std::to_string(status.st_uid) + ")" : reason;
     }
 
     close(descriptor);
@@ -121,14 +107,12 @@ std::string unreadableReason(const std::string &path)
 bool moveAsideUnreadable(const std::string &path)
 {
     int descriptor = open(path.c_str(), O_RDONLY | O_CLOEXEC);
-    if (descriptor >= 0)
-    {
+    if (descriptor >= 0) {
         close(descriptor);
         return false;
     }
 
-    if (errno != EACCES && errno != EPERM)
-    {
+    if (errno != EACCES && errno != EPERM) {
         return false;
     }
 
@@ -141,15 +125,13 @@ bool writeTextFileAtomically(const std::string &path, const std::string &content
 {
     std::error_code error;
     std::filesystem::path target(path);
-    if (target.has_parent_path())
-    {
+    if (target.has_parent_path()) {
         std::filesystem::create_directories(target.parent_path(), error);
     }
 
     std::string staging = path + ".tmp-XXXXXX";
-    int descriptor      = mkstemp(staging.data());
-    if (descriptor < 0)
-    {
+    int descriptor = mkstemp(staging.data());
+    if (descriptor < 0) {
         noteWriteFailure(errno, path, pipeline_time::epochMs());
         return false;
     }
@@ -158,18 +140,16 @@ bool writeTextFileAtomically(const std::string &path, const std::string &content
     fchmod(descriptor, 0644);
 
     bool written = writeAll(descriptor, contents) && fsync(descriptor) == 0;
-    int failure  = written ? 0 : errno;
-    written      = close(descriptor) == 0 && written;
-    if (!written)
-    {
+    int failure = written ? 0 : errno;
+    written = close(descriptor) == 0 && written;
+    if (!written) {
         noteWriteFailure(failure != 0 ? failure : errno, path, pipeline_time::epochMs());
         unlink(staging.c_str());
         return false;
     }
 
     std::filesystem::rename(staging, target, error);
-    if (error)
-    {
+    if (error) {
         unlink(staging.c_str());
         return false;
     }
@@ -181,8 +161,7 @@ bool writeTextFileAtomically(const std::string &path, const std::string &content
 bool copyFile(const std::string &source, const std::string &destination)
 {
     std::error_code error;
-    std::filesystem::copy_file(source, destination,
-                               std::filesystem::copy_options::overwrite_existing, error);
+    std::filesystem::copy_file(source, destination, std::filesystem::copy_options::overwrite_existing, error);
     return !error;
 }
 
@@ -194,15 +173,12 @@ bool removeFile(const std::string &path)
 
 bool isContainedRelativePath(const std::filesystem::path &relative)
 {
-    if (relative.empty() || relative.is_absolute())
-    {
+    if (relative.empty() || relative.is_absolute()) {
         return false;
     }
 
-    for (const auto &component : relative)
-    {
-        if (component == ".." || component == ".")
-        {
+    for (const auto &component : relative) {
+        if (component == ".." || component == ".") {
             return false;
         }
     }
@@ -213,8 +189,7 @@ bool isContainedRelativePath(const std::filesystem::path &relative)
 bool removeTree(const std::string &root, const std::string &relative)
 {
     const std::filesystem::path path(relative);
-    if (root.empty() || !isContainedRelativePath(path))
-    {
+    if (root.empty() || !isContainedRelativePath(path)) {
         return false;
     }
 
@@ -253,8 +228,7 @@ std::vector<std::string> listDirectory(const std::string &path)
 {
     std::vector<std::string> entries;
     std::error_code error;
-    for (const auto &entry : std::filesystem::directory_iterator(path, error))
-    {
+    for (const auto &entry : std::filesystem::directory_iterator(path, error)) {
         entries.push_back(entry.path().filename().string());
     }
 
@@ -268,27 +242,21 @@ static bool containedIn(const std::filesystem::path &root, const std::filesystem
     return std::mismatch(root.begin(), rootEnd, path.begin(), path.end()).first == rootEnd;
 }
 
-std::optional<std::string> resolveInsideDirectory(const std::string &directory,
-                                                  const std::string &relative)
+std::optional<std::string> resolveInsideDirectory(const std::string &directory, const std::string &relative)
 {
     const std::filesystem::path normal = std::filesystem::path(relative).lexically_normal();
-    if (relative.empty() || normal.empty() || normal.is_absolute() || normal.has_root_name()
-        || *normal.begin() == "..")
-    {
+    if (relative.empty() || normal.empty() || normal.is_absolute() || normal.has_root_name() || *normal.begin() == "..") {
         return std::nullopt;
     }
 
     std::error_code error;
     const std::filesystem::path root = std::filesystem::weakly_canonical(directory, error);
-    if (error)
-    {
+    if (error) {
         return std::nullopt;
     }
 
-    const std::filesystem::path resolved =
-        std::filesystem::weakly_canonical(std::filesystem::path(directory) / normal, error);
-    if (error || !containedIn(root, resolved))
-    {
+    const std::filesystem::path resolved = std::filesystem::weakly_canonical(std::filesystem::path(directory) / normal, error);
+    if (error || !containedIn(root, resolved)) {
         return std::nullopt;
     }
 
@@ -297,21 +265,18 @@ std::optional<std::string> resolveInsideDirectory(const std::string &directory,
 
 std::string joinPath(const std::string &base, const std::string &component)
 {
-    if (component.empty())
-    {
+    if (component.empty()) {
         return base;
     }
 
-    if (!component.empty() && component.front() == '/')
-    {
+    if (!component.empty() && component.front() == '/') {
         return component;
     }
 
-    if (base.empty() || base.back() == '/')
-    {
+    if (base.empty() || base.back() == '/') {
         return base + component;
     }
 
     return base + "/" + component;
 }
-}
+} // namespace loader

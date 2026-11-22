@@ -42,8 +42,7 @@ void writeSystemLog(LogLevel level, const std::string &line)
         sink = currentSystemSink();
     }
 
-    if (sink)
-    {
+    if (sink) {
         sink(level, line);
     }
 }
@@ -56,31 +55,27 @@ void log(LogLevel level, const std::string &category, const std::string &message
         sink = currentSink();
     }
 
-    if (sink)
-    {
+    if (sink) {
         sink(level, category, message);
     }
 }
 
 bool isLogCategory(const std::string &category)
 {
-    return std::any_of(kLogCategories.begin(), kLogCategories.end(), [&](const char *known) {
-        return category == known;
-    });
+    return std::any_of(kLogCategories.begin(), kLogCategories.end(), [&](const char *known) { return category == known; });
 }
 
 LogLevel logLevelFromIndex(int index)
 {
-    switch (index)
-    {
-        case static_cast<int>(LogLevel::Debug):
-            return LogLevel::Debug;
-        case static_cast<int>(LogLevel::Warning):
-            return LogLevel::Warning;
-        case static_cast<int>(LogLevel::Error):
-            return LogLevel::Error;
-        default:
-            return LogLevel::Info;
+    switch (index) {
+    case static_cast<int>(LogLevel::Debug):
+        return LogLevel::Debug;
+    case static_cast<int>(LogLevel::Warning):
+        return LogLevel::Warning;
+    case static_cast<int>(LogLevel::Error):
+        return LogLevel::Error;
+    default:
+        return LogLevel::Info;
     }
 }
 
@@ -92,8 +87,7 @@ std::string formatLogLine(const std::string &category, const std::string &messag
 std::string scopedLogLine(const std::vector<std::string> &scope, const std::string &message)
 {
     std::string joined;
-    for (const std::string &part : scope)
-    {
+    for (const std::string &part : scope) {
         joined += (joined.empty() ? "" : "/") + part;
     }
 
@@ -102,12 +96,11 @@ std::string scopedLogLine(const std::vector<std::string> &scope, const std::stri
 
 void logFromPlatform(int level, const std::string &category, const std::string &message)
 {
-    if (isLogCategory(category))
-    {
+    if (isLogCategory(category)) {
         log(logLevelFromIndex(level), category, message);
         return;
     }
 
     log(logLevelFromIndex(level), LOG_CATEGORY_DEFAULT, formatLogLine(category, message));
 }
-}
+} // namespace loader
