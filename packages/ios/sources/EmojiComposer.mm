@@ -8,9 +8,8 @@
 #import "EmojiPacks.h"
 
 static const NSInteger kOverlayTag = 0x55454d4a;
-static const CGFloat kHiddenFontSize = 0.01;
 static const NSUInteger kMaxEmoji = 64;
-static NSString *const kHiddenAttribute = @"app.astral.emoji-hidden";
+static const char kHiddenRangesKey = 0;
 
 static NSCache<NSString *, UIImage *> *gImages;
 static NSMutableSet<NSString *> *gLoading;
@@ -129,39 +128,52 @@ static void RemoveOverlays(UITextView *textView)
     }
 }
 
-static void ShowAll(UITextView *textView)
+static void (*gOriginalDrawGlyphs)(NSLayoutManager *, SEL, NSRange, CGPoint);
+
+static void DrawGlyphs(NSLayoutManager *self, SEL selector, NSRange glyphs, CGPoint origin)
 {
-    NSTextStorage *storage = textView.textStorage;
-    NSMutableArray<NSValue *> *ranges = [NSMutableArray array];
-    [storage enumerateAttribute:kHiddenAttribute
-                        inRange:NSMakeRange(0, storage.length)
-                        options:0
-                     usingBlock:^(id value, NSRange range, __unused BOOL *stop) {
-                         if (value) [ranges addObject:[NSValue valueWithRange:range]];
-                     }];
-    if (!ranges.count) return;
-    [storage beginEditing];
-    for (NSValue *value in ranges) {
-        NSRange range = value.rangeValue;
-        if (textView.font) [storage addAttribute:NSFontAttributeName value:textView.font range:range];
-        if (textView.textColor) [storage addAttribute:NSForegroundColorAttributeName value:textView.textColor range:range];
-        [storage removeAttribute:NSKernAttributeName range:range];
-        [storage removeAttribute:kHiddenAttribute range:range];
+    NSArray<NSValue *> *hidden = objc_getAssociatedObject(self, &kHiddenRangesKey);
+    if (!hidden.count) {
+        gOriginalDrawGlyphs(self, selector, glyphs, origin);
+        return;
     }
-    [storage endEditing];
+    NSUInteger cursor = glyphs.location, end = NSMaxRange(glyphs), length = self.textStorage.length;
+    for (NSValue *value in hidden) {
+        if (NSMaxRange(value.rangeValue) > length) continue;
+        NSRange skip = NSIntersectionRange([self glyphRangeForCharacterRange:value.rangeValue actualCharacterRange:NULL], glyphs);
+        if (!skip.length || skip.location < cursor) continue;
+        if (skip.location > cursor) gOriginalDrawGlyphs(self, selector, NSMakeRange(cursor, skip.location - cursor), origin);
+        cursor = NSMaxRange(skip);
+    }
+    if (cursor < end) gOriginalDrawGlyphs(self, selector, NSMakeRange(cursor, end - cursor), origin);
 }
 
-static CGRect OverlayFrame(UITextView *textView, NSUInteger location, CGFloat side)
+static void HideRanges(UITextView *textView, NSArray<NSValue *> *ranges)
+{
+    NSLayoutManager *layout = textView.layoutManager;
+    NSArray *previous = objc_getAssociatedObject(layout, &kHiddenRangesKey);
+    if (!previous.count && !ranges.count) return;
+    NSArray *sorted = [ranges sortedArrayUsingComparator:^NSComparisonResult(NSValue *first, NSValue *second) {
+        return first.rangeValue.location < second.rangeValue.location ? NSOrderedAscending : NSOrderedDescending;
+    }];
+    objc_setAssociatedObject(layout, &kHiddenRangesKey, sorted.count ? sorted : nil, OBJC_ASSOCIATION_COPY_NONATOMIC);
+    [layout invalidateDisplayForCharacterRange:NSMakeRange(0, textView.textStorage.length)];
+}
+
+static CGRect OverlayFrame(UITextView *textView, NSRange characters, CGFloat side)
 {
     NSLayoutManager *layout = textView.layoutManager;
     NSTextContainer *container = textView.textContainer;
     [layout ensureLayoutForTextContainer:container];
-    NSUInteger glyph = [layout glyphIndexForCharacterAtIndex:location];
-    CGRect line = [layout lineFragmentUsedRectForGlyphAtIndex:glyph effectiveRange:NULL];
-    CGRect at = [layout boundingRectForGlyphRange:NSMakeRange(glyph, 1) inTextContainer:container];
+    NSRange glyphs = [layout glyphRangeForCharacterRange:characters actualCharacterRange:NULL];
+    if (!glyphs.length) return CGRectNull;
+    CGRect line = [layout lineFragmentUsedRectForGlyphAtIndex:glyphs.location effectiveRange:NULL];
+    CGRect at = [layout boundingRectForGlyphRange:glyphs inTextContainer:container];
     UIEdgeInsets inset = textView.textContainerInset;
-    if (line.size.height <= 0) return CGRectNull;
-    return CGRectMake(at.origin.x + inset.left, line.origin.y + inset.top + (line.size.height - side) / 2, side, side);
+    if (line.size.height <= 0 || at.size.width <= 0) return CGRectNull;
+    CGFloat size = MIN(side, MAX(at.size.width, side * 0.8));
+    return CGRectMake(at.origin.x + inset.left + (at.size.width - size) / 2, line.origin.y + inset.top + (line.size.height - size) / 2,
+                      size, size);
 }
 
 static void Paint(UITextView *textView);
@@ -188,9 +200,11 @@ static void Paint(UITextView *textView)
     }
     if (textView.markedTextRange) return;
     RemoveOverlays(textView);
-    ShowAll(textView);
     NSString *text = textView.text;
-    if (!text.length || [AstralActiveEmojiPackID() isEqualToString:@"discord"]) return;
+    if (!text.length || [AstralActiveEmojiPackID() isEqualToString:@"discord"]) {
+        HideRanges(textView, @[]);
+        return;
+    }
     CGFloat side = ceil(textView.font.lineHeight ?: 20);
     NSMutableArray<NSDictionary *> *runs = [NSMutableArray array];
     [text enumerateSubstringsInRange:NSMakeRange(0, text.length)
@@ -205,29 +219,9 @@ static void Paint(UITextView *textView)
                               UIImage *image = url ? ImageFor(url) : nil;
                               if (image) [runs addObject:@{@"range" : [NSValue valueWithRange:range], @"image" : image}];
                           }];
-    if (!runs.count) return;
-    NSTextStorage *storage = textView.textStorage;
-    UIFont *tiny = [UIFont systemFontOfSize:kHiddenFontSize];
-    [storage beginEditing];
+    NSMutableArray<NSValue *> *hidden = [NSMutableArray array];
     for (NSDictionary *run in runs) {
-        NSRange range = [run[@"range"] rangeValue];
-        [storage addAttributes:@{
-            NSFontAttributeName : tiny,
-            NSForegroundColorAttributeName : UIColor.clearColor,
-            kHiddenAttribute : @YES
-        }
-                         range:range];
-        [storage addAttribute:NSKernAttributeName value:@(side) range:range];
-    }
-    [storage endEditing];
-    NSMutableDictionary *typing = [textView.typingAttributes mutableCopy];
-    if (textView.font) typing[NSFontAttributeName] = textView.font;
-    if (textView.textColor) typing[NSForegroundColorAttributeName] = textView.textColor;
-    [typing removeObjectForKey:NSKernAttributeName];
-    [typing removeObjectForKey:kHiddenAttribute];
-    textView.typingAttributes = typing;
-    for (NSDictionary *run in runs) {
-        CGRect frame = OverlayFrame(textView, [run[@"range"] rangeValue].location, side);
+        CGRect frame = OverlayFrame(textView, [run[@"range"] rangeValue], side);
         if (CGRectIsNull(frame)) continue;
         UIImageView *overlay = [[UIImageView alloc] initWithFrame:frame];
         overlay.image = run[@"image"];
@@ -235,7 +229,9 @@ static void Paint(UITextView *textView)
         overlay.userInteractionEnabled = NO;
         overlay.tag = kOverlayTag;
         [textView addSubview:overlay];
+        [hidden addObject:run[@"range"]];
     }
+    HideRanges(textView, hidden);
 }
 
 static UITextView *FindIn(UIView *view, NSTextStorage *storage, int depth)
@@ -300,6 +296,12 @@ static void DidMoveToWindow(UITextView *self, SEL selector)
     });
 }
 
+static void HookGlyphDrawing(void)
+{
+    Method method = class_getInstanceMethod(NSLayoutManager.class, @selector(drawGlyphsForGlyphRange:atPoint:));
+    if (method) gOriginalDrawGlyphs = (void (*)(NSLayoutManager *, SEL, NSRange, CGPoint))method_setImplementation(method, (IMP)DrawGlyphs);
+}
+
 static void HookWindowMoves(void)
 {
     Method method = class_getInstanceMethod(UITextView.class, @selector(didMoveToWindow));
@@ -316,6 +318,7 @@ void AstralInstallEmojiComposer(void)
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         HookWindowMoves();
+        HookGlyphDrawing();
         gImages = [NSCache new];
         gLoading = [NSMutableSet set];
         gTextViews = [NSHashTable weakObjectsHashTable];
