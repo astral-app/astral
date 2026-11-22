@@ -69,6 +69,10 @@ astral runs a prelude (`packages/core/lua/prelude.lua`, compiled into astral) be
 
 A pill with two or three colours draws Phoenix's native `backgroundGradient`; `Shape.Op` draws Discord's original poster style.
 
+## Replay
+
+`astral vphone capture <dir>` records the ViewWire batches Phoenix sends while you use Discord. `astral replay <plugin folder>... <dir>` then runs those batches through the rewriter on the Mac with the plugins loaded in the same sandbox and prelude, and prints every decoration and relabel they return. Discord's cache is absent there, so `astral.discord` lookups return nothing.
+
 ## Autocomplete
 
 `packages/sdk/library/astral.lua` describes the whole API for lua-language-server (the Lua extension in VS Code, Zed, Neovim and others), and `.luarc.json` loads it, so `astral.` completes, enums list their members and typos are flagged. Plugins outside this repository copy `packages/sdk/library` and point `workspace.library` at it. `astral lint` runs the same checks on every plugin.

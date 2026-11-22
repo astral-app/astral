@@ -33,6 +33,7 @@ var commands = map[string]command{
 	"vphone":        {"vphone <boot|status|install|launch|shell|push|pull|deploy> ...", runVphone},
 	"sdk":           {"sdk install", runSDK},
 	"doctor":        {"doctor", runDoctor},
+	"replay":        {"replay <plugin>... <capture>", runReplay},
 	"check":         {"check [--staged] [file ...]", runCheck},
 	"android-core":  {"android-core [--ndk <directory>] [--output <directory>]", runAndroidCore},
 	"compat":        {"compat --ipa <decrypted Discord.ipa> [--channel stable] [--baseline compat.json] [--results compat.json] [--report report.md]", runCompat},

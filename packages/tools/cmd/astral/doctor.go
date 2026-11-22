@@ -89,6 +89,10 @@ func diagnoses(pins map[string]string) []diagnosis {
 		diagnosis{"vphone-cli", advisory, checkTool("vphone-cli", "--help"), "install vphone-cli for astral vphone"},
 		diagnosis{"ideviceinstaller", advisory, checkTool("ideviceinstaller", "--help"), "run: brew install ideviceinstaller"},
 		diagnosis{"vphone api", advisory, checkVphoneAPI, "run: astral vphone boot"},
+		diagnosis{"vphone preset", advisory, checkVphonePreset, "rebuild with astral vphone create (it uses the adhoc preset)"},
+		diagnosis{"vphone ellekit", advisory, checkVphoneElleKit, "run: astral vphone setup"},
+		diagnosis{"vphone tweak", advisory, checkVphoneTweak, "run: astral vphone deploy"},
+		diagnosis{"vphone discord", advisory, checkVphoneDiscord, "run: astral vphone discord --ipa <decrypted Discord.ipa>"},
 		diagnosis{"one vm at a time", advisory, checkSingleVM, "stop the AVD or the vphone; the Mac lacks memory for both"},
 		diagnosis{"free disk", advisory, checkDisk, fmt.Sprintf("free at least %d GB", minimumFreeGigabytes)},
 	)

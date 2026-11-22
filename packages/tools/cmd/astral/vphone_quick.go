@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net/http"
 	"os"
 	"path"
 	"path/filepath"
@@ -90,9 +91,19 @@ func vphoneTweakDeploy(client vphoneClient) error {
 	if err != nil {
 		return err
 	}
-	pushed, removed, err := syncTweakFiles(client, files, path.Join(root, "usr", "lib", "astral"), tweaks)
+	pushed, removed, binaryChanged, err := syncTweakFiles(client, files, path.Join(root, "usr", "lib", "astral"), tweaks)
 	if err != nil {
 		return err
+	}
+	if pushed+removed > 0 && !binaryChanged && discordRunning(client) {
+		if reply, err := reloadInPlace(); err == nil {
+			fmt.Printf("deployed %d changed resource files and reloaded the theme and plugins in place (%s) in %.1fs\n", pushed+removed, reply, time.Since(started).Seconds())
+			return nil
+		}
+	}
+	if pushed+removed == 0 && discordRunning(client) {
+		fmt.Printf("nothing changed; Discord keeps running (%.1fs)\n", time.Since(started).Seconds())
+		return nil
 	}
 	if _, err := saveVphoneSession(client); err == nil {
 		fmt.Println("refreshed the saved login")
@@ -171,19 +182,40 @@ func remoteFiles(client vphoneClient, roots ...string) map[string]bool {
 	return present
 }
 
-func syncTweakFiles(client vphoneClient, files []deployFile, resources string, tweaks string) (int, int, error) {
+func reloadInPlace() (string, error) {
+	d := newDevClient()
+	if err := d.forward(); err != nil {
+		return "", err
+	}
+	reply, err := d.request(http.MethodPost, "/reload", map[string]any{})
+	if err != nil {
+		return "", err
+	}
+	if !strings.Contains(string(reply), "\"theme\"") {
+		return "", errors.New(strings.TrimSpace(string(reply)))
+	}
+	return strings.TrimSpace(string(reply)), nil
+}
+
+func syncTweakFiles(client vphoneClient, files []deployFile, resources string, tweaks string) (int, int, bool, error) {
 	cache := map[string]string{}
 	if data, err := os.ReadFile(deployCachePath()); err == nil {
 		json.Unmarshal(data, &cache)
 	}
-	present := remoteFiles(client, resources, tweaks)
+	present := remoteFiles(client, resources)
+	if entries, err := client.list(tweaks); err == nil {
+		for _, entry := range entries {
+			present[strings.TrimPrefix(path.Join(tweaks, entry.Name), "/private")] = true
+		}
+	}
 	wanted := map[string]bool{}
 	pushed := 0
+	binaryChanged := false
 	for _, file := range files {
 		wanted[file.remote] = true
 		hash, err := fileHash(file.local)
 		if err != nil {
-			return pushed, 0, err
+			return pushed, 0, binaryChanged, err
 		}
 		if cache[file.remote] == hash && present[strings.TrimPrefix(file.remote, "/private")] {
 			continue
@@ -192,10 +224,13 @@ func syncTweakFiles(client vphoneClient, files []deployFile, resources string, t
 			client.call("files.remove", map[string]any{"path": file.remote}, nil)
 		}
 		if err := client.push(file.local, file.remote); err != nil {
-			return pushed, 0, err
+			return pushed, 0, binaryChanged, err
 		}
 		cache[file.remote] = hash
 		pushed++
+		if strings.HasPrefix(file.remote, tweaks+"/") {
+			binaryChanged = true
+		}
 	}
 	removed := 0
 	for remote := range present {
@@ -207,10 +242,10 @@ func syncTweakFiles(client vphoneClient, files []deployFile, resources string, t
 		}
 	}
 	if err := os.MkdirAll(filepath.Dir(deployCachePath()), 0o700); err != nil {
-		return pushed, removed, err
+		return pushed, removed, binaryChanged, err
 	}
 	encoded, _ := json.Marshal(cache)
-	return pushed, removed, os.WriteFile(deployCachePath(), encoded, 0o600)
+	return pushed, removed, binaryChanged, os.WriteFile(deployCachePath(), encoded, 0o600)
 }
 
 func discordRunning(client vphoneClient) bool {

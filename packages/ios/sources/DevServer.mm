@@ -191,6 +191,19 @@ static NSData *HandleRequest(NSString *method, NSString *path, NSData *bodyData,
         });
         return Response(200, @{@"active" : AstralActiveThemeID()});
     }
+    if ([method isEqualToString:@"POST"] && [route isEqualToString:@"/reload"]) {
+        __block NSUInteger plugins = 0;
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            AstralApplyTheme(AstralActiveThemeID());
+            for (NSDictionary *plugin in AstralLuaPlugins()) {
+                if (![plugin[@"enabled"] boolValue]) continue;
+                AstralLuaReload(plugin[@"id"]);
+                plugins++;
+            }
+            if (gChanged) gChanged();
+        });
+        return Response(200, @{@"theme" : AstralActiveThemeID(), @"plugins" : @(plugins)});
+    }
     if ([method isEqualToString:@"POST"] && [route isEqualToString:@"/unbound-theme"] && bodyData.length) {
         __block NSString *failure = nil;
         dispatch_sync(dispatch_get_main_queue(), ^{
