@@ -11,6 +11,8 @@ usage: astral-dev <command>
   watch <plugin folder>  push the plugin every time a file in it changes
   eval <plugin id> <lua> run Lua inside a running plugin and print the result
   logs [-f]              print astral's log, following it with -f
+  backup export [file]   write the device's settings backup (TOML) to a file or stdout
+  backup import <file>   restore a settings backup on the device
 Needs Developer mode on and DEVICE set to the device UDID (the port is forwarded over USB).
 USAGE
   exit 2
@@ -69,6 +71,20 @@ case "$command" in
       [ "${1:-}" = "-f" ] || break
       sleep 1
     done
+    ;;
+  backup)
+    case "${1:-}" in
+      export)
+        text="$(request GET /backup | python3 -c 'import json,sys; print(json.load(sys.stdin)["backup"], end="")')"
+        if [ -n "${2:-}" ]; then printf '%s' "$text" >"$2"; else printf '%s' "$text"; fi
+        ;;
+      import)
+        body="$(python3 -c 'import json,sys; print(json.dumps({"backup": open(sys.argv[1]).read()}))' "${2:?backup file}")"
+        request POST /backup "$body"
+        echo
+        ;;
+      *) usage ;;
+    esac
     ;;
   *) usage ;;
 esac

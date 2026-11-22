@@ -3,6 +3,7 @@
 #include "LoaderSettings.h"
 #import "AstralState.h"
 #import "AuthorAvatars.h"
+#import "Backup.h"
 #import "CrashReports.h"
 #import <UIKit/UIKit.h>
 #import "ImageAssets.h"
@@ -117,6 +118,13 @@ static NSDictionary *GeneralPage(AstralPageContext context)
                         }),
                     With(Row(@"force-phoenix", @"Force Phoenix", @"res://ic_mana_settings_arrow_up", kAstralRowInfo),
                          @{@"detail" : @"On", @"subtitle" : @"The React Native fallback stays off"}),
+                ]),
+        Section(@"Backup",
+                @[
+                    With(Row(@"export-backup", @"Export settings", @"res://ic_mana_download", kAstralRowLink),
+                         @{@"subtitle" : @"Save astral, plugin and theme settings to a TOML file"}),
+                    With(Row(@"import-backup", @"Import settings", @"res://ic_mana_refresh", kAstralRowLink),
+                         @{@"subtitle" : @"Restore a backup and reinstall its marketplace items"}),
                 ]),
         ReportsSection(),
         Section(@"Diagnostics",
@@ -528,6 +536,14 @@ NSString *AstralSettingsPageAction(NSString *route, NSString *key, void (^change
     if ([key hasPrefix:@"more.plugin."]) return [kPluginRoute stringByAppendingString:[key substringFromIndex:@"more.plugin.".length]];
     if ([key hasPrefix:@"filter."]) {
         gPluginFilter = [key substringFromIndex:@"filter.".length];
+        return nil;
+    }
+    if ([key isEqualToString:@"export-backup"]) {
+        AstralExportBackup();
+        return nil;
+    }
+    if ([key isEqualToString:@"import-backup"]) {
+        AstralImportBackup(changed);
         return nil;
     }
     if ([key hasPrefix:@"report."]) {

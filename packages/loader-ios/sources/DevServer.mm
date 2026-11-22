@@ -6,6 +6,7 @@
 #import <unistd.h>
 
 #import "AstralState.h"
+#import "Backup.h"
 #import "LuaHost.h"
 #import "TomlDocument.h"
 
@@ -102,6 +103,23 @@ static NSData *HandleRequest(NSString *method, NSString *path, NSData *bodyData)
         }
         [gLogLock unlock];
         return Response(200, lines);
+    }
+    if ([method isEqualToString:@"GET"] && [route isEqualToString:@"/backup"]) {
+        __block NSString *text = nil;
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            text = AstralBackupTOML();
+        });
+        return Response(200, @{@"backup" : text ?: @""});
+    }
+    if ([method isEqualToString:@"POST"] && [route isEqualToString:@"/backup"] && [body isKindOfClass:NSDictionary.class] &&
+        [body[@"backup"] isKindOfClass:NSString.class]) {
+        __block NSString *failure = nil;
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            failure = AstralApplyBackup([body[@"backup"] dataUsingEncoding:NSUTF8StringEncoding], gChanged
+                                                                                                      ?: ^{
+                                                                                                         });
+        });
+        return failure ? Response(400, @{@"error" : failure}) : Response(200, @{@"imported" : @YES});
     }
     if ([method isEqualToString:@"PUT"] && [route isEqualToString:@"/plugin"] && [body isKindOfClass:NSDictionary.class])
         return PutPlugin(body);
