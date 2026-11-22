@@ -32,6 +32,7 @@ var commands = map[string]command{
 	"palette":       {"palette semantic --source <generated-definitions.tsx> --origin <description> [--output <toml>]", runPalette},
 	"vphone":        {"vphone <boot|status|install|launch|shell|push|pull|deploy> ...", runVphone},
 	"sdk":           {"sdk install", runSDK},
+	"doctor":        {"doctor", runDoctor},
 	"android-core":  {"android-core [--ndk <directory>] [--output <directory>]", runAndroidCore},
 	"compat":        {"compat --ipa <decrypted Discord.ipa> [--channel stable] [--baseline compat.json] [--results compat.json] [--report report.md]", runCompat},
 }

@@ -187,3 +187,33 @@ func TestParseSemanticColors(t *testing.T) {
 		t.Fatalf("rendered %s", rendered)
 	}
 }
+
+func TestDoctorReadsCIPins(t *testing.T) {
+	workflow, err := os.ReadFile(repoPath(".github", "workflows", "ci.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pins := pinsFrom(string(workflow))
+	for _, tool := range pinnedTools {
+		if pins[tool.binary] == "" {
+			t.Fatalf("no CI pin for %s", tool.binary)
+		}
+	}
+}
+
+func TestDoctorVersionMatching(t *testing.T) {
+	cases := map[string]bool{
+		"clang-format version 23.1.5": true,
+		"clang-format version 23.1.6": false,
+		"stylua 2.6.0":                true,
+		"stylua 12.6.0":               false,
+		"3.19.2":                      true,
+		"3.19.20":                     false,
+	}
+	pins := map[string]string{"clang-format version 23.1.5": "23.1.5", "clang-format version 23.1.6": "23.1.5", "stylua 2.6.0": "2.6.0", "stylua 12.6.0": "2.6.0", "3.19.2": "3.19.2", "3.19.20": "3.19.2"}
+	for output, want := range cases {
+		if versionMatches(output, pins[output]) != want {
+			t.Fatalf("versionMatches(%q, %q) != %v", output, pins[output], want)
+		}
+	}
+}
