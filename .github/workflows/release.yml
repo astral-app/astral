@@ -24,6 +24,10 @@ jobs:
     needs: release-please
     if: needs.release-please.outputs.created == 'true'
     runs-on: macos-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -45,7 +49,30 @@ jobs:
         run: |
           export PATH="$(brew --prefix make)/libexec/gnubin:$PATH"
           make -C packages/loader-ios package FINALPACKAGE=1
+      - name: Record provenance
+        env:
+          TAG: ${{ needs.release-please.outputs.tag }}
+        run: |
+          set -euo pipefail
+          cd packages/loader-ios/packages
+          shasum -a 256 *.deb > SHA256SUMS
+          jq -n \
+            --arg tag "$TAG" \
+            --arg commit "$GITHUB_SHA" \
+            --arg repository "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
+            --arg run "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT" \
+            --arg workflow "$GITHUB_WORKFLOW_REF" \
+            --arg runner "$RUNNER_OS $RUNNER_ARCH $ImageOS $ImageVersion" \
+            --arg built "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --rawfile sums SHA256SUMS \
+            '{tag: $tag, source: {repository: $repository, commit: $commit}, builder: {workflow: $workflow, run: $run, runner: $runner}, built: $built,
+              artifacts: ($sums | split("\n") | map(select(length > 0) | split("  ") | {name: .[1], sha256: .[0]}))}' > provenance.json
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
+        if: github.event.repository.visibility == 'public'
+        with:
+          subject-path: packages/loader-ios/packages/*.deb
       - name: Attach the package
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ needs.release-please.outputs.tag }}" packages/loader-ios/packages/*.deb --clobber
+        run: |
+          gh release upload "${{ needs.release-please.outputs.tag }}" packages/loader-ios/packages/*.deb packages/loader-ios/packages/SHA256SUMS packages/loader-ios/packages/provenance.json --clobber
