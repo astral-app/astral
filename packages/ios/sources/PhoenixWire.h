@@ -147,6 +147,7 @@ int astral_page_depth(void);
 
 void astral_wire_set_settings_backdrop(int enabled, double dim);
 int astral_wire_settings_backdrop_enabled(void);
+size_t astral_wire_app_gradient(uint32_t *colors, size_t capacity);
 
 #ifdef __cplusplus
 }

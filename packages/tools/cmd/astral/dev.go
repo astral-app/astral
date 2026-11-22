@@ -97,14 +97,16 @@ func (d devClient) reachable() bool {
 }
 
 func (d *devClient) forward() error {
-	if d.reachable() {
-		return nil
-	}
 	device := os.Getenv("DEVICE")
-	if device == "" {
+	if device == "" && d.pairing == "" {
 		if code, err := vphonePairing(); err == nil && code != "" {
 			d.pairing = code
 		}
+	}
+	if d.reachable() {
+		return nil
+	}
+	if device == "" {
 		return d.forwardOverVphoneSSH()
 	}
 	proxy := exec.Command("iproxy", d.port, d.port, "-u", device)

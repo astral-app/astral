@@ -7,6 +7,10 @@ enum { kBackdropDepth = 4, kBackdropStops = 8, kBackdropTargets = 64 };
 static const char kSettingsScreen[] = "settings-phone";
 
 static int gBackdropEnabled;
+static int32_t gAppGradientNode;
+static uint32_t gAppStops[kBackdropStops];
+static size_t gAppStopCount;
+static double gAppAngle = 180;
 static double gBackdropDim = 0.55;
 
 void astral_wire_set_settings_backdrop(int enabled, double dim)
@@ -29,9 +33,102 @@ static uint32_t dimmed(uint32_t color, double dim)
     return 0xFF000000u | red << 16 | green << 8 | blue;
 }
 
+static int propertiesCursor(const uint8_t *bytes, const Span *span, Cursor *cursor)
+{
+    *cursor = (Cursor){bytes, span->end, span->start + 1 + 4, 0};
+    if (span->op == 1) wireSkip(cursor, wireRead16(cursor));
+    return !cursor->failed;
+}
+
+static int readGradient(const uint8_t *bytes, const Span *span, double *angle, uint32_t *stops, size_t *stopCount)
+{
+    Cursor cursor;
+    if (!propertiesCursor(bytes, span, &cursor)) return 0;
+    uint16_t count = wireRead16(&cursor);
+    for (uint16_t index = 0; index < count && !cursor.failed; index++) {
+        uint16_t property = wireRead16(&cursor);
+        uint8_t tag = wireRead8(&cursor);
+        if (property != P(backgroundGradient) || tag != 8) {
+            wireSkipValue(&cursor, tag, 0);
+            continue;
+        }
+        uint32_t entries = wireRead32(&cursor);
+        size_t found = 0;
+        for (uint32_t entry = 0; entry < entries && !cursor.failed; entry++) {
+            uint16_t key = wireRead16(&cursor);
+            uint8_t valueTag = wireRead8(&cursor);
+            if (key == P(angle) && valueTag == 5 && wireNeed(&cursor, 8)) {
+                memcpy(angle, cursor.bytes + cursor.offset, 8);
+                cursor.offset += 8;
+            } else if (key == P(colors) && valueTag == 7) {
+                uint32_t colors = wireRead32(&cursor);
+                for (uint32_t stop = 0; stop < colors && !cursor.failed; stop++) {
+                    uint8_t stopTag = wireRead8(&cursor);
+                    size_t at = cursor.offset;
+                    wireSkipValue(&cursor, stopTag, 2);
+                    if (cursor.failed || (stopTag != 3 && stopTag != 4) || found >= kBackdropStops) continue;
+                    memcpy(&stops[found++], bytes + at, 4);
+                }
+            } else {
+                wireSkipValue(&cursor, valueTag, 1);
+            }
+        }
+        *stopCount = found;
+        return !cursor.failed && found > 0;
+    }
+    return 0;
+}
+
+static int hasProperty(const uint8_t *bytes, const Span *span, uint16_t wanted)
+{
+    Cursor cursor;
+    if (!propertiesCursor(bytes, span, &cursor)) return 0;
+    uint16_t count = wireRead16(&cursor);
+    for (uint16_t index = 0; index < count && !cursor.failed; index++) {
+        uint16_t property = wireRead16(&cursor);
+        uint8_t tag = wireRead8(&cursor);
+        if (property == wanted) return 1;
+        wireSkipValue(&cursor, tag, 0);
+    }
+    return 0;
+}
+
+static void observeAppGradient(const uint8_t *bytes, const Span *spans, size_t count)
+{
+    for (size_t index = 0; index < count; index++) {
+        const Span *span = &spans[index];
+        if (span->op == 1 && gAppGradientNode && span->id != gAppGradientNode) continue;
+        if (span->op == 2 && span->id != gAppGradientNode) continue;
+        if (span->op != 1 && span->op != 2) continue;
+        if (span->op == 1 && !wireTypeIs(bytes, span, "stack")) continue;
+        double angle = 180;
+        uint32_t stops[kBackdropStops];
+        size_t stopCount = 0;
+        if (!readGradient(bytes, span, &angle, stops, &stopCount)) {
+            if (span->op == 2 && hasProperty(bytes, span, P(backgroundGradient))) gAppStopCount = 0;
+            continue;
+        }
+        gAppGradientNode = span->id;
+        gAppAngle = angle;
+        gAppStopCount = stopCount;
+        memcpy(gAppStops, stops, stopCount * sizeof(uint32_t));
+    }
+}
+
+size_t astral_wire_app_gradient(uint32_t *colors, size_t capacity)
+{
+    size_t count = gAppStopCount < capacity ? gAppStopCount : capacity;
+    memcpy(colors, gAppStops, count * sizeof(uint32_t));
+    return count;
+}
+
 static size_t dimmedStops(uint32_t *colors)
 {
-    size_t count = wireBackgroundStops(colors, kBackdropStops);
+    size_t count = gAppStopCount;
+    if (count)
+        memcpy(colors, gAppStops, count * sizeof(uint32_t));
+    else
+        count = wireBackgroundStops(colors, kBackdropStops);
     for (size_t index = 0; index < count; index++) colors[index] = dimmed(colors[index], gBackdropDim);
     return count;
 }
@@ -65,12 +162,13 @@ static void putBackdrop(Out *out, int32_t id, const uint32_t *stops, size_t stop
     wirePut32(out, (uint32_t)id);
     wirePut16(out, 2);
     wirePropLong(out, P(background), 0);
-    wirePropGradient(out, P(backgroundGradient), 180, stops, (uint32_t)stopCount);
+    wirePropGradient(out, P(backgroundGradient), gAppStopCount ? gAppAngle : 180, stops, (uint32_t)stopCount);
 }
 
 void wireSettingsBackdrop(const uint8_t *bytes, const Span *spans, size_t count, Out *out, int *changed, size_t length)
 {
-    if (!gBackdropEnabled || !wireThemeActive()) return;
+    observeAppGradient(bytes, spans, count);
+    if (!gBackdropEnabled || (!gAppStopCount && !wireThemeActive())) return;
     uint32_t stops[kBackdropStops];
     size_t stopCount = dimmedStops(stops);
     if (stopCount == 0) return;
