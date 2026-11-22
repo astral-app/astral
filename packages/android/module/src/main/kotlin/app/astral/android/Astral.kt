@@ -21,7 +21,9 @@ class Astral : XposedModule() {
             .onFailure { Log.error("Failed to read Phoenix's property table", it) }
             .getOrNull()
         if (names == null) Log.warning("Phoenix's property table was not found; astral uses its built-in property ids")
-        Native.initialize(names)
+        val resources = Resources.extract(moduleApplicationInfo, param.applicationInfo)
+        val languages = android.os.LocaleList.getDefault().let { list -> Array(list.size()) { list[it].toLanguageTag() } }
+        Native.initialize(names, param.applicationInfo.dataDir, resources.absolutePath, languages)
         PhoenixBridge.install(this, param.classLoader)
     }
 }

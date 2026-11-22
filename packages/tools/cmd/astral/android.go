@@ -14,7 +14,7 @@ const androidAPILevel = "26"
 
 var androidABIs = map[string]string{"arm64-v8a": "aarch64-linux-android", "x86_64": "x86_64-linux-android"}
 
-var appleOnlyCoreSources = map[string]bool{"AstralMetricKitCrash": true, "PluginStorage": true}
+var appleOnlyCoreSources = map[string]bool{"AstralMetricKitCrash": true}
 
 var luaLibrarySources = []string{"lapi", "lcode", "lctype", "ldebug", "ldo", "ldump", "lfunc", "lgc", "llex", "lmem", "lobject", "lopcodes", "lparser", "lstate", "lstring", "ltable", "ltm", "lundump", "lvm", "lzio", "lauxlib", "lbaselib", "lstrlib", "ltablib", "lmathlib", "lutf8lib", "lcorolib"}
 
@@ -96,9 +96,28 @@ func buildAndroidCore(toolchain string, triple string, sources []string, directo
 		return "", err
 	}
 	compiler := filepath.Join(toolchain, triple+androidAPILevel+"-clang")
-	includes := []string{"-I" + repoPath("packages", "core", "include"), "-I" + repoPath("vendor", "lua"),
+	generated := filepath.Join(directory, "generated")
+	if err := os.MkdirAll(generated, 0o755); err != nil {
+		return "", err
+	}
+	if err := runEmbedPrelude([]string{repoPath("packages", "core", "lua", "prelude.lua"), filepath.Join(generated, "AstralPrelude.h")}); err != nil {
+		return "", err
+	}
+	includes := []string{"-I" + repoPath("packages", "core", "include"), "-I" + repoPath("packages", "core", "wire"), "-I" + generated,
+		"-I" + repoPath("vendor", "lua"), "-I" + repoPath("vendor", "sqlite"),
 		"-isystem", repoPath("vendor", "json", "single_include"), "-isystem", repoPath("vendor", "tomlplusplus", "include")}
 	var built []string
+	cSources, err := filepath.Glob(repoPath("packages", "core", "wire", "*.c"))
+	if err != nil {
+		return "", err
+	}
+	for _, source := range append(cSources, repoPath("vendor", "sqlite", "sqlite3.c")) {
+		object := filepath.Join(objects, "c-"+strings.TrimSuffix(filepath.Base(source), ".c")+".o")
+		if err := run(repoPath(), compiler, append([]string{"-O2", "-fPIC", "-w", "-c", source, "-o", object}, includes...)...); err != nil {
+			return "", err
+		}
+		built = append(built, object)
+	}
 	for _, source := range sources {
 		object := filepath.Join(objects, strings.TrimSuffix(filepath.Base(source), ".cpp")+".o")
 		arguments := append([]string{"-std=c++20", "-O2", "-fPIC", "-Wall", "-Werror", "-c", source, "-o", object}, includes...)
@@ -122,6 +141,7 @@ func buildAndroidCore(toolchain string, triple string, sources []string, directo
 	if err := checkAndroidLinks(compiler, library, directory); err != nil {
 		return "", err
 	}
+	os.RemoveAll(generated)
 	return library, os.RemoveAll(objects)
 }
 
@@ -129,5 +149,5 @@ func checkAndroidLinks(compiler string, library string, directory string) error 
 	shared := filepath.Join(directory, "libastral-core.so")
 	defer os.Remove(shared)
 	return run(repoPath(), compiler+"++", "-shared", "-static-libstdc++", "-Wl,--no-undefined", "-Wl,--whole-archive", library,
-		"-Wl,--no-whole-archive", "-llog", "-o", shared)
+		"-Wl,--no-whole-archive", "-llog", "-lm", "-o", shared)
 }
