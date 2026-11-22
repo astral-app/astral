@@ -28,7 +28,7 @@ astral_LIBRARIES := sqlite3
 include $(THEOS_MAKE_PATH)/tweak.mk
 
 before-all::
-	$(ROOT)/tools/embed-prelude.sh "$(PRELUDE)" "$(GENERATED)/AstralPrelude.h"
+	cd $(ROOT) && go run ./packages/tools/cmd/astral embed-prelude "$(PRELUDE)" "$(GENERATED)/AstralPrelude.h"
 
 before-package::
-	$(ROOT)/tools/stage-resources.sh "$(THEOS_STAGING_DIR)/usr/lib/astral"
+	cd $(ROOT) && go run ./packages/tools/cmd/astral stage "$(THEOS_STAGING_DIR)/usr/lib/astral"

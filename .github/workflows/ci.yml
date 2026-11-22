@@ -25,17 +25,15 @@ jobs:
           curl -fsSL https://github.com/JohnnyMorganz/StyLua/releases/download/v2.6.0/stylua-linux-x86_64.zip -o stylua.zip
           unzip -q stylua.zip -d "$HOME/.local/bin"
           chmod +x "$HOME/.local/bin/stylua"
-          curl -fsSL https://github.com/mvdan/sh/releases/download/v3.14.1/shfmt_v3.14.1_linux_amd64 -o "$HOME/.local/bin/shfmt"
-          chmod +x "$HOME/.local/bin/shfmt"
           curl -fsSL https://github.com/tamasfe/taplo/releases/download/0.10.0/taplo-linux-x86_64.gz | gunzip > "$HOME/.local/bin/taplo"
           chmod +x "$HOME/.local/bin/taplo"
           mkdir -p "$HOME/.local/luals"
           curl -fsSL https://github.com/LuaLS/lua-language-server/releases/download/3.19.2/lua-language-server-3.19.2-linux-x64.tar.gz | tar -xz -C "$HOME/.local/luals"
           ln -s "$HOME/.local/luals/bin/lua-language-server" "$HOME/.local/bin/lua-language-server"
           sudo apt-get update -qq
-          sudo apt-get install -y -qq lua-check shellcheck clang
-      - run: tools/lint.sh
-      - run: tools/test.sh
+          sudo apt-get install -y -qq lua-check clang
+      - run: go run ./packages/tools/cmd/astral lint
+      - run: go run ./packages/tools/cmd/astral test
 
   package:
     name: Build the package
@@ -54,7 +52,7 @@ jobs:
       - name: Prepare Theos
         run: |
           echo "THEOS=${{ github.workspace }}/theos" >> "$GITHUB_ENV"
-          THEOS="${{ github.workspace }}/theos" tools/prepare-theos.sh
+          go run ./packages/tools/cmd/astral prepare-theos --theos "${{ github.workspace }}/theos"
       - name: Build
         run: |
           export PATH="$(brew --prefix make)/libexec/gnubin:$PATH"

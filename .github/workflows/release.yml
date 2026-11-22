@@ -36,7 +36,7 @@ jobs:
       - name: Prepare Theos
         run: |
           echo "THEOS=${{ github.workspace }}/theos" >> "$GITHUB_ENV"
-          THEOS="${{ github.workspace }}/theos" tools/prepare-theos.sh
+          go run ./packages/tools/cmd/astral prepare-theos --theos "${{ github.workspace }}/theos"
       - name: Build
         run: |
           export PATH="$(brew --prefix make)/libexec/gnubin:$PATH"

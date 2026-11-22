@@ -17,16 +17,16 @@ Cards show each author's avatar the way Unbound does: Discord's local user cache
 ## Package
 
 ```
-plugins/<name>/manifest.toml   {"id", "name", "description", "authors": [{"name", "id"}], "version", "main": "main.lua"}
-plugins/<name>/main.lua        at most 256 KB
-plugins/<name>/tests/*.lua     run by tools/test.sh against a mocked `astral` table and the prelude
+packages/plugins/<name>/manifest.toml   {"id", "name", "description", "authors": [{"name", "id"}], "version", "main": "main.lua"}
+packages/plugins/<name>/main.lua        at most 256 KB
+packages/plugins/<name>/tests/*.lua     run by astral test against a mocked `astral` table and the prelude
 ```
 
 Bundled plugins ship in the package's resource directory (`/var/jb/usr/lib/astral` when jailbroken, `astral.bundle` inside the app when sideloaded). Plugins installed from the marketplace live in `Documents/astral/plugins` and take precedence over bundled ones with the same id.
 
 ## Signing
 
-Marketplace plugins and the catalog are signed with astral's Ed25519 key (`keys/plugin-signing.pub`, compiled into the loader and checked with Monocypher). A plugin's `signature` is a small TOML file listing the SHA-256 of `manifest.toml`, `main.lua` and every `i18n/*.toml`, with an Ed25519 signature over that list (`astral-plugin-v2`); marketplace installs read it first and download exactly the files it names. The catalog's `index.toml.sig` covers the catalog. `tools/sign-plugins.sh` signs everything and `tools/test.sh` fails on a stale signature. Bundled plugins ship inside the package; anything else that is unsigned stays off, marked "unsigned", unless Developer mode is on. Downloads are verified before they are written.
+Marketplace plugins and the catalog are signed with astral's Ed25519 key (`keys/plugin-signing.pub`, compiled into the loader and checked with Monocypher). A plugin's `signature` is a small TOML file listing the SHA-256 of `manifest.toml`, `main.lua` and every `i18n/*.toml`, with an Ed25519 signature over that list (`astral-plugin-v2`); marketplace installs read it first and download exactly the files it names. The catalog's `index.toml.sig` covers the catalog. `astral sign` signs everything and `astral test` fails on a stale signature. Bundled plugins ship inside the package; anything else that is unsigned stays off, marked "unsigned", unless Developer mode is on. Downloads are verified before they are written.
 
 ## Sandbox
 
@@ -64,7 +64,7 @@ A pill with two or three colours draws Phoenix's native `backgroundGradient`; `S
 
 ## Autocomplete
 
-`sdk/types/astral.lua` describes the whole API for lua-language-server (the Lua extension in VS Code, Zed, Neovim and others), and `.luarc.json` loads it, so `astral.` completes, enums list their members and typos are flagged. Plugins outside this repository copy `sdk/types` and point `workspace.library` at it. `tools/lint.sh` runs the same checks on every plugin.
+`packages/sdk/types/astral.lua` describes the whole API for lua-language-server (the Lua extension in VS Code, Zed, Neovim and others), and `.luarc.json` loads it, so `astral.` completes, enums list their members and typos are flagged. Plugins outside this repository copy `packages/sdk/types` and point `workspace.library` at it. `astral lint` runs the same checks on every plugin.
 
 ## Decorations
 
@@ -76,7 +76,7 @@ The ViewWire rewriter tracks `message.author`, `message.avatar`, `message.timest
 
 ## Backup
 
-Export settings writes `astral-backup.toml` (format 1) through the share sheet: astral's settings, each installed plugin's enabled state and settings, and the marketplace plugins and themes installed. Import settings reads one back from Files, applies it and reinstalls missing marketplace items from the catalog. `astral-dev backup export|import` does the same over the development API.
+Export settings writes `astral-backup.toml` (format 1) through the share sheet: astral's settings, each installed plugin's enabled state and settings, and the marketplace plugins and themes installed. Import settings reads one back from Files, applies it and reinstalls missing marketplace items from the catalog. `astral dev backup export|import` does the same over the development API.
 
 ## Reports
 
@@ -90,4 +90,4 @@ The astral category in Discord's settings has astral, Plugins, Design, Marketpla
 
 A theme (TOML) maps ARGB colours to ARGB colours under `[colors]`, and can scale corner radii (`[radius] scale`) and font sizes and line heights (`[font] scale`). The rewriter applies all of it in place in each batch before Discord's host decodes it, so Discord draws its own views with the theme; astral's own cards are built separately and keep their sizes.
 
-"Import Unbound theme" on the Design page converts an Unbound theme's `raw` palette overrides into colour mappings, using Discord's raw palette (`themes/palettes/discord-raw.toml`, from Discord 356.0). Phoenix mostly draws with semantic and translucent colours, so an imported theme only changes what uses raw palette values until Phoenix's semantic token table is mapped too.
+"Import Unbound theme" on the Design page converts an Unbound theme's `raw` palette overrides into colour mappings, using Discord's raw palette (`packages/themes/palettes/discord-raw.toml`, from Discord 356.0). Phoenix mostly draws with semantic and translucent colours, so an imported theme only changes what uses raw palette values until Phoenix's semantic token table is mapped too.
