@@ -1908,32 +1908,61 @@ static int patchColors(uint8_t *bytes, const Span *spans, size_t count)
 }
 
 enum { kColorCapacity = 32768, kColorEmpty = 0, kColorLive = 1, kColorGone = 2 };
+enum { kTrackedColor, kTrackedNumber, kTrackedGradient };
 
 typedef struct {
     int32_t id;
     uint16_t property;
     uint8_t state;
     uint8_t tag;
-    uint32_t color;
-} TrackedColor;
+    uint8_t kind;
+    uint32_t length;
+    union {
+        uint32_t color;
+        double number;
+        uint8_t *bytes;
+    } value;
+} TrackedValue;
 
-static TrackedColor gColors[kColorCapacity];
+static TrackedValue gColors[kColorCapacity];
 static size_t gColorsOccupied;
+static size_t gColorsGone;
+static unsigned gColorsDropped;
+
+static int scalableProperty(uint16_t property)
+{
+    return property == P(radius) || property == P(radiusBottomLeft) || property == P(radiusBottomRight) || property == P(radiusTopLeft) ||
+           property == P(radiusTopRight) || property == P(fontSize) || property == P(lineHeight);
+}
+
+static double currentScale(uint16_t property)
+{
+    return property == P(fontSize) || property == P(lineHeight) ? gFontScale : gRadiusScale;
+}
 
 static size_t colorSlot(int32_t id, uint16_t property)
 {
     return ((uint32_t)id * 2654435761u ^ property * 40503u) & (kColorCapacity - 1);
 }
 
+static void releaseValue(TrackedValue *tracked)
+{
+    if (tracked->kind == kTrackedGradient) free(tracked->value.bytes);
+    tracked->value.bytes = NULL;
+    tracked->state = kColorGone;
+    gColorsGone++;
+}
+
 static void compactColors(void)
 {
-    static TrackedColor live[kColorCapacity];
+    static TrackedValue live[kColorCapacity];
     size_t count = 0;
     for (size_t index = 0; index < kColorCapacity; index++) {
         if (gColors[index].state == kColorLive) live[count++] = gColors[index];
     }
     memset(gColors, 0, sizeof(gColors));
     gColorsOccupied = 0;
+    gColorsGone = 0;
     for (size_t index = 0; index < count; index++) {
         size_t slot = colorSlot(live[index].id, live[index].property);
         while (gColors[slot].state != kColorEmpty) slot = (slot + 1) & (kColorCapacity - 1);
@@ -1942,17 +1971,19 @@ static void compactColors(void)
     }
 }
 
-static void rememberColor(int32_t id, uint16_t property, uint8_t tag, uint32_t color)
+static TrackedValue *trackedSlot(int32_t id, uint16_t property)
 {
-    if (gColorsOccupied >= kColorCapacity * 3 / 4) compactColors();
-    if (gColorsOccupied >= kColorCapacity * 3 / 4) return;
+    if (gColorsOccupied >= kColorCapacity / 2 && gColorsGone >= gColorsOccupied / 4) compactColors();
+    if (gColorsOccupied >= kColorCapacity * 3 / 4) {
+        gColorsDropped++;
+        return NULL;
+    }
     size_t slot = colorSlot(id, property);
     size_t reusable = kColorCapacity;
     while (gColors[slot].state != kColorEmpty) {
         if (gColors[slot].state == kColorLive && gColors[slot].id == id && gColors[slot].property == property) {
-            gColors[slot].tag = tag;
-            gColors[slot].color = color;
-            return;
+            if (gColors[slot].kind == kTrackedGradient) free(gColors[slot].value.bytes);
+            return &gColors[slot];
         }
         if (gColors[slot].state == kColorGone && reusable == kColorCapacity) reusable = slot;
         slot = (slot + 1) & (kColorCapacity - 1);
@@ -1960,8 +1991,33 @@ static void rememberColor(int32_t id, uint16_t property, uint8_t tag, uint32_t c
     if (reusable == kColorCapacity) {
         reusable = slot;
         gColorsOccupied++;
+    } else {
+        gColorsGone--;
     }
-    gColors[reusable] = (TrackedColor){id, property, kColorLive, tag, color};
+    return &gColors[reusable];
+}
+
+static void rememberValue(int32_t id, uint16_t property, uint8_t tag, const uint8_t *value, size_t length)
+{
+    TrackedValue *tracked = trackedSlot(id, property);
+    if (!tracked) return;
+    *tracked = (TrackedValue){.id = id, .property = property, .state = kColorLive, .tag = tag};
+    if (tag == 3 || tag == 4) {
+        tracked->kind = kTrackedColor;
+        memcpy(&tracked->value.color, value, 4);
+    } else if (tag == 5) {
+        tracked->kind = kTrackedNumber;
+        memcpy(&tracked->value.number, value, 8);
+    } else {
+        tracked->kind = kTrackedGradient;
+        tracked->value.bytes = malloc(length);
+        if (!tracked->value.bytes) {
+            tracked->state = kColorGone;
+            return;
+        }
+        memcpy(tracked->value.bytes, value, length);
+        tracked->length = (uint32_t)length;
+    }
 }
 
 static void forgetColor(int32_t id, uint16_t property)
@@ -1969,7 +2025,7 @@ static void forgetColor(int32_t id, uint16_t property)
     size_t slot = colorSlot(id, property);
     while (gColors[slot].state != kColorEmpty) {
         if (gColors[slot].state == kColorLive && gColors[slot].id == id && gColors[slot].property == property) {
-            gColors[slot].state = kColorGone;
+            releaseValue(&gColors[slot]);
             return;
         }
         slot = (slot + 1) & (kColorCapacity - 1);
@@ -1979,12 +2035,20 @@ static void forgetColor(int32_t id, uint16_t property)
 static void forgetRemovedColors(const uint8_t *bytes, const Span *span)
 {
     const uint16_t properties[] = {
-        P(background),       P(color), P(borderColor), P(activeBackground), P(activeBorderColor), P(focusBorderColor),
-        P(placeholderColor), P(tint)};
+        P(background),       P(color),    P(borderColor), P(activeBackground),  P(activeBorderColor), P(focusBorderColor),
+        P(placeholderColor), P(tint),     P(radius),      P(radiusBottomLeft),  P(radiusBottomRight), P(radiusTopLeft),
+        P(radiusTopRight),   P(fontSize), P(lineHeight),  P(backgroundGradient)};
     for (uint32_t position = 0; position < span->childCount; position++) {
         int32_t id = child_at(bytes, span, position);
         for (size_t index = 0; index < sizeof(properties) / sizeof(*properties); index++) forgetColor(id, properties[index]);
     }
+}
+
+static int trackedProperty(uint16_t property, uint8_t tag)
+{
+    if (tag == 3 || tag == 4) return colorProperty(property);
+    if (tag == 5) return scalableProperty(property);
+    return tag == 8 && property == P(backgroundGradient);
 }
 
 static void trackColors(const uint8_t *bytes, const Span *spans, size_t count)
@@ -2001,12 +2065,36 @@ static void trackColors(const uint8_t *bytes, const Span *spans, size_t count)
             uint8_t tag = read8(&cursor);
             size_t at = cursor.offset;
             skipValue(&cursor, tag, 0);
-            if (cursor.failed || !colorProperty(property) || (tag != 3 && tag != 4)) continue;
-            uint32_t color;
-            memcpy(&color, bytes + at, 4);
-            rememberColor(span->id, property, tag, color);
+            if (!cursor.failed && trackedProperty(property, tag)) rememberValue(span->id, property, tag, bytes + at, cursor.offset - at);
         }
     }
+}
+
+static void putTrackedValue(Out *out, const TrackedValue *tracked)
+{
+    if (tracked->kind == kTrackedColor) {
+        uint32_t color = tracked->value.color;
+        paletteColor(tracked->value.color, &color);
+        put32(out, color);
+        if (tracked->tag == 4) put32(out, 0);
+        return;
+    }
+    if (tracked->kind == kTrackedNumber) {
+        double value = tracked->value.number;
+        if (value > 0 && value < 9000) value *= currentScale(tracked->property);
+        put(out, &value, 8);
+        return;
+    }
+    uint8_t *copy = malloc(tracked->length);
+    if (!copy) {
+        out->failed = 1;
+        return;
+    }
+    memcpy(copy, tracked->value.bytes, tracked->length);
+    Cursor gradient = {copy, tracked->length, 0, 0};
+    if (gBackgroundStopCount > 0 || gPaletteCount) patchGradientStops(copy, &gradient, gBackgroundStopCount > 0);
+    put(out, copy, tracked->length);
+    free(copy);
 }
 
 int astral_wire_recolor(AstralWireBuffer *buffer)
@@ -2016,17 +2104,14 @@ int astral_wire_recolor(AstralWireBuffer *buffer)
     put8(&out, kWireVersion);
     size_t updates = 0;
     for (size_t index = 0; index < kColorCapacity; index++) {
-        const TrackedColor *tracked = &gColors[index];
+        const TrackedValue *tracked = &gColors[index];
         if (tracked->state != kColorLive) continue;
-        uint32_t color = tracked->color;
-        paletteColor(tracked->color, &color);
         put8(&out, 2);
         put32(&out, (uint32_t)tracked->id);
         put16(&out, 1);
         put16(&out, tracked->property);
         put8(&out, tracked->tag);
-        put32(&out, color);
-        if (tracked->tag == 4) put32(&out, 0);
+        putTrackedValue(&out, tracked);
         updates++;
     }
     if (!updates || out.failed) {
@@ -2038,10 +2123,20 @@ int astral_wire_recolor(AstralWireBuffer *buffer)
     return updates > INT32_MAX ? INT32_MAX : (int)updates;
 }
 
+unsigned astral_wire_colors_dropped(void)
+{
+    return gColorsDropped;
+}
+
 void astral_wire_forget_colors(void)
 {
+    for (size_t index = 0; index < kColorCapacity; index++) {
+        if (gColors[index].state == kColorLive) releaseValue(&gColors[index]);
+    }
     memset(gColors, 0, sizeof(gColors));
     gColorsOccupied = 0;
+    gColorsGone = 0;
+    gColorsDropped = 0;
 }
 
 enum { kMaxLabelEdits = 512, kMaxLabelNodes = 2048, kLabelCapacity = 256 };

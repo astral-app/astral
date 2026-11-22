@@ -424,6 +424,78 @@ static void recolorTest(void)
     assert(!astral_wire_recolor(&out));
 }
 
+static void putDouble(Batch *batch, double value)
+{
+    memcpy(batch->bytes + batch->length, &value, 8);
+    batch->length += 8;
+}
+
+static void liveThemeTest(void)
+{
+    AstralWireBuffer out;
+    astral_wire_forget_colors();
+    astral_wire_set_palette(NULL, NULL, 0);
+    Batch batch = {.length = 0};
+    b8(&batch, 1);
+    create(&batch, 970, "text", 1);
+    b16(&batch, 207);
+    b8(&batch, 5);
+    putDouble(&batch, 14);
+    create(&batch, 971, "view", 1);
+    b16(&batch, 91);
+    b8(&batch, 8);
+    b32(&batch, 2);
+    b16(&batch, 70);
+    b8(&batch, 5);
+    putDouble(&batch, 90);
+    b16(&batch, 577);
+    b8(&batch, 7);
+    b32(&batch, 2);
+    b8(&batch, 3);
+    b32(&batch, (int)0xFF111111);
+    b8(&batch, 3);
+    b32(&batch, (int)0xFF222222);
+    if (astral_settings_rewrite(batch.bytes, batch.length, &out)) astral_wire_buffer_free(&out);
+    astral_wire_set_scales(1, 2);
+    const uint32_t stops[] = {0xFF0000AA, 0xFFAA00AA};
+    astral_wire_set_background_gradient(stops, 2);
+    assert(astral_wire_recolor(&out) == 2);
+    double doubled = 28, original = 14;
+    uint32_t first = 0xFF0000AA, old = 0xFF111111;
+    assert(memmem(out.bytes, out.length, &doubled, 8) && memmem(out.bytes, out.length, &first, 4) &&
+           !memmem(out.bytes, out.length, &old, 4));
+    astral_wire_buffer_free(&out);
+    astral_wire_set_scales(1, 1);
+    astral_wire_set_background_gradient(NULL, 0);
+    assert(astral_wire_recolor(&out) == 2);
+    assert(memmem(out.bytes, out.length, &original, 8) && memmem(out.bytes, out.length, &old, 4));
+    astral_wire_buffer_free(&out);
+    assert(astral_wire_colors_dropped() == 0);
+    astral_wire_forget_colors();
+}
+
+static void trackerOverflowTest(void)
+{
+    AstralWireBuffer out;
+    astral_wire_forget_colors();
+    static Batch batch;
+    int id = 1000;
+    for (int round = 0; round < 12; round++) {
+        batch.length = 0;
+        b8(&batch, 1);
+        for (int index = 0; index < 2500; index++) {
+            create(&batch, id++, "v", 1);
+            b16(&batch, 90);
+            b8(&batch, 3);
+            b32(&batch, (int)0xFF101010);
+        }
+        if (astral_settings_rewrite(batch.bytes, batch.length, &out)) astral_wire_buffer_free(&out);
+    }
+    assert(astral_wire_colors_dropped() > 0);
+    astral_wire_forget_colors();
+    assert(astral_wire_colors_dropped() == 0);
+}
+
 static void unsupportedVersionTest(void)
 {
     AstralWireBuffer out;
@@ -446,6 +518,8 @@ int main(void)
     relabelTest();
     paletteTest();
     recolorTest();
+    liveThemeTest();
+    trackerOverflowTest();
     Batch batch;
     overview(&batch);
     AstralWireBuffer out;

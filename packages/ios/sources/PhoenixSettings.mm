@@ -382,6 +382,7 @@ void AstralPhoenixUpdateTheme(void (^apply)(void))
         bool live = gHostOriginal && gHostContext && !astral_wire_unsupported_version() && !gRewriteDisabled.load();
         int updates = live ? astral_wire_recolor(&buffer) : 0;
         RecordTiming(@"recolorUpdates", @(updates));
+        RecordTiming(@"recolorDropped", @(astral_wire_colors_dropped()));
         if (updates) Send(&buffer);
         pthread_mutex_unlock(&gLock);
         void (^changed)(void) = gRouteChanged;
