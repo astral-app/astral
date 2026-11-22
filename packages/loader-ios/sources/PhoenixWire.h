@@ -127,6 +127,7 @@ void astral_wire_set_palette(const uint32_t *from, const uint32_t *to, size_t co
 void astral_wire_set_scales(double radius, double font);
 AstralWireStats astral_wire_stats(void);
 uint64_t astral_wire_current_channel(void);
+int astral_wire_unsupported_version(void);
 int astral_settings_rewrite(const uint8_t *bytes, size_t length, AstralWireBuffer *out);
 void astral_wire_buffer_free(AstralWireBuffer *buffer);
 int astral_page_push(const AstralPageSpec *page, AstralWireBuffer *buffer);

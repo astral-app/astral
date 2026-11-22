@@ -431,6 +431,21 @@ static void relabelTest(void)
     astral_wire_set_relabeler(NULL);
 }
 
+static void unsupportedVersionTest(void)
+{
+    AstralWireBuffer out;
+    Batch future = {.length = 0};
+    b8(&future, 2);
+    children(&future, 5, 1, (int[]){6});
+    assert(!astral_wire_unsupported_version());
+    assert(!astral_settings_rewrite(future.bytes, future.length, &out));
+    assert(astral_wire_unsupported_version() == 2);
+    Batch current = {.length = 0};
+    b8(&current, 1);
+    children(&current, 5, 1, (int[]){6});
+    assert(!astral_settings_rewrite(current.bytes, current.length, &out));
+}
+
 int main(void)
 {
     decorationTest();
@@ -574,6 +589,7 @@ int main(void)
     astral_wire_buffer_free(&out);
     cardPageTest();
     categoryRowsTest();
+    unsupportedVersionTest();
     puts("ok");
     return 0;
 }

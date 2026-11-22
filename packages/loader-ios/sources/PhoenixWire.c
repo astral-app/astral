@@ -1,5 +1,7 @@
 #include "PhoenixWire.h"
 
+#include "PhoenixProperties.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -477,14 +479,14 @@ static int32_t categoryRow(Out *out, const uint8_t *bytes, const Span *spans, si
         snprintf(identifier, sizeof(identifier), "settings.row.astral");
     }
     int first = index == 0, last = index + 1 == gCategoryRowCount;
-    Change rowChanges[] = {{9, kString, identifier, 0},
-                           {11, kString, gCategoryRows[index].title, 0},
-                           last ? (Change){389, kNumber, NULL, 12} : (Change){389, kDrop, NULL, 0},
-                           last ? (Change){390, kNumber, NULL, 12} : (Change){390, kDrop, NULL, 0},
-                           first ? (Change){391, kNumber, NULL, 12} : (Change){391, kDrop, NULL, 0},
-                           first ? (Change){392, kNumber, NULL, 12} : (Change){392, kDrop, NULL, 0}};
-    Change iconChange = {542, kString, gCategoryRows[index].icon, 0};
-    Change titleChange = {499, kString, gCategoryRows[index].title, 0};
+    Change rowChanges[] = {{P(accessibilityId), kString, identifier, 0},
+                           {P(accessibilityLabel), kString, gCategoryRows[index].title, 0},
+                           last ? (Change){P(radiusBottomLeft), kNumber, NULL, 12} : (Change){P(radiusBottomLeft), kDrop, NULL, 0},
+                           last ? (Change){P(radiusBottomRight), kNumber, NULL, 12} : (Change){P(radiusBottomRight), kDrop, NULL, 0},
+                           first ? (Change){P(radiusTopLeft), kNumber, NULL, 12} : (Change){P(radiusTopLeft), kDrop, NULL, 0},
+                           first ? (Change){P(radiusTopRight), kNumber, NULL, 12} : (Change){P(radiusTopRight), kDrop, NULL, 0}};
+    Change iconChange = {P(uri), kString, gCategoryRows[index].icon, 0};
+    Change titleChange = {P(text), kString, gCategoryRows[index].title, 0};
     int32_t row = categoryNode(out, bytes, spans, count, source[0], rowChanges, sizeof(rowChanges) / sizeof(*rowChanges));
     int32_t content = categoryNode(out, bytes, spans, count, source[1], NULL, 0);
     int32_t icon = categoryNode(out, bytes, spans, count, source[2], &iconChange, 1);
@@ -521,7 +523,7 @@ static int createCategory(Out *out, const uint8_t *bytes, const Span *spans, siz
     if (gCategoryRowCount > 1 && (!separator || !separatorLine)) return 0;
 
     gState.count = 0;
-    Change headerChange = {499, kString, gCategoryTitle, 0};
+    Change headerChange = {P(text), kString, gCategoryTitle, 0};
     int32_t newGroup = categoryNode(out, bytes, spans, count, group, NULL, 0);
     int32_t newHeader = categoryNode(out, bytes, spans, count, header, &headerChange, 1);
     int32_t newCard = categoryNode(out, bytes, spans, count, card, NULL, 0);
@@ -749,7 +751,7 @@ static int trackNavigator(const uint8_t *bytes, const Span *spans, size_t count,
         }
         if (span->op == 2) {
             int found = 0;
-            int32_t value = integerProperty(bytes, span, 252, &found);
+            int32_t value = integerProperty(bytes, span, P(index), &found);
             if (found) navigator->index = value;
         }
     }
@@ -846,34 +848,34 @@ static int32_t buildSwitch(Out *out, const char *key, int on)
     char identifier[128];
     snprintf(identifier, sizeof(identifier), "astral.switch.%s", key);
     int32_t track = newNode(out, "view");
-    propCount(out, 14);
-    propBool(out, 7, 1);
-    propString(out, 9, identifier);
-    propString(out, 63, "stretch");
+    propCount(out, P(accessibilityTapLabel));
+    propBool(out, P(accessibilityHidden), 1);
+    propString(out, P(accessibilityId), identifier);
+    propString(out, P(align), "stretch");
     if (on)
-        propLong(out, 90, kSwitchOn);
+        propLong(out, P(background), kSwitchOn);
     else
-        propInt(out, 90, kSwitchOff);
-    propInt(out, 104, kSwitchBorder);
-    propNumber(out, 107, 1);
-    propString(out, 147, "row");
-    propNumber(out, 235, 28);
-    propEvents(out, 320, "press");
-    propQuad(out, 332, 4, 4, 4, 4);
-    propString(out, 376, "none");
-    propNumber(out, 388, 16);
-    propNumber(out, 553, 56);
-    propBool(out, 805, 1);
+        propInt(out, P(background), kSwitchOff);
+    propInt(out, P(borderColor), kSwitchBorder);
+    propNumber(out, P(borderWidth), 1);
+    propString(out, P(direction), "row");
+    propNumber(out, P(height), 28);
+    propEvents(out, P(on), "press");
+    propQuad(out, P(padding), 4, 4, 4, 4);
+    propString(out, P(pressFeedback), "none");
+    propNumber(out, P(radius), 16);
+    propNumber(out, P(width), 56);
+    propBool(out, P(exactHitArea), 1);
     int32_t thumb = newNode(out, "view");
-    propCount(out, 8);
-    propString(out, 63, "center");
-    propLong(out, 90, kThumb);
-    propString(out, 147, "row");
-    propNumber(out, 235, 20);
-    propString(out, 260, "center");
-    propNumber(out, 388, 9999);
-    propNumber(out, 535, on ? 28 : 0);
-    propNumber(out, 553, 20);
+    propCount(out, P(accessibilityHint));
+    propString(out, P(align), "center");
+    propLong(out, P(background), kThumb);
+    propString(out, P(direction), "row");
+    propNumber(out, P(height), 20);
+    propString(out, P(justify), "center");
+    propNumber(out, P(radius), 9999);
+    propNumber(out, P(translateX), on ? 28 : 0);
+    propNumber(out, P(width), 20);
     putChildren(out, track, (int32_t[]){thumb}, 1);
     return track;
 }
@@ -884,34 +886,34 @@ static int32_t buildSpecRow(Out *out, const AstralRowSpec *row, int first, int l
     snprintf(identifier, sizeof(identifier), "astral.row.%s", row->key);
     Change rowChanges[12];
     size_t used = 0;
-    rowChanges[used++] = (Change){9, kString, identifier, 0};
-    rowChanges[used++] = (Change){11, kString, row->title, 0};
-    rowChanges[used++] = first ? (Change){391, kNumber, NULL, 12} : (Change){391, kDrop, NULL, 0};
-    rowChanges[used++] = first ? (Change){392, kNumber, NULL, 12} : (Change){392, kDrop, NULL, 0};
-    rowChanges[used++] = last ? (Change){389, kNumber, NULL, 12} : (Change){389, kDrop, NULL, 0};
-    rowChanges[used++] = last ? (Change){390, kNumber, NULL, 12} : (Change){390, kDrop, NULL, 0};
-    if (row->kind == kAstralRowInfo) rowChanges[used++] = (Change){320, kDrop, NULL, 0};
+    rowChanges[used++] = (Change){P(accessibilityId), kString, identifier, 0};
+    rowChanges[used++] = (Change){P(accessibilityLabel), kString, row->title, 0};
+    rowChanges[used++] = first ? (Change){P(radiusTopLeft), kNumber, NULL, 12} : (Change){P(radiusTopLeft), kDrop, NULL, 0};
+    rowChanges[used++] = first ? (Change){P(radiusTopRight), kNumber, NULL, 12} : (Change){P(radiusTopRight), kDrop, NULL, 0};
+    rowChanges[used++] = last ? (Change){P(radiusBottomLeft), kNumber, NULL, 12} : (Change){P(radiusBottomLeft), kDrop, NULL, 0};
+    rowChanges[used++] = last ? (Change){P(radiusBottomRight), kNumber, NULL, 12} : (Change){P(radiusBottomRight), kDrop, NULL, 0};
+    if (row->kind == kAstralRowInfo) rowChanges[used++] = (Change){P(on), kDrop, NULL, 0};
     if (row->kind == kAstralRowSwitch) {
-        rowChanges[used++] = (Change){320, kDrop, NULL, 0};
-        rowChanges[used++] = (Change){414, kString, "switch", 0};
+        rowChanges[used++] = (Change){P(on), kDrop, NULL, 0};
+        rowChanges[used++] = (Change){P(role), kString, "switch", 0};
     }
     int32_t rowId = cloneRole(out, kRow, rowChanges, used);
     int32_t content = cloneRole(out, kRowContent, NULL, 0);
-    Change iconChange = {542, kString, row->icon ? row->icon : "res://ic_mana_sparkles", 0};
+    Change iconChange = {P(uri), kString, row->icon ? row->icon : "res://ic_mana_sparkles", 0};
     int32_t icon = cloneRole(out, kRowIcon, &iconChange, 1);
-    Change titleChange = {499, kString, row->title, 0};
+    Change titleChange = {P(text), kString, row->title, 0};
     int32_t title = cloneRole(out, kRowTitle, &titleChange, 1);
     if (row->subtitle && row->subtitle[0]) {
         int32_t column = newNode(out, "view");
-        propCount(out, 3);
-        propString(out, 147, "column");
-        propNumber(out, 198, 1);
-        propNumber(out, 220, 2);
-        Change subtitleChanges[] = {{499, kString, row->subtitle, 0},
-                                    {207, kNumber, NULL, 13},
-                                    {278, kNumber, NULL, 17},
-                                    {322, kNumber, NULL, 0.62},
-                                    {293, kInteger, NULL, 3}};
+        propCount(out, P(accessibilityChecked));
+        propString(out, P(direction), "column");
+        propNumber(out, P(flex), 1);
+        propNumber(out, P(gap), 2);
+        Change subtitleChanges[] = {{P(text), kString, row->subtitle, 0},
+                                    {P(fontSize), kNumber, NULL, 13},
+                                    {P(lineHeight), kNumber, NULL, 17},
+                                    {P(opacity), kNumber, NULL, 0.62},
+                                    {P(maxLines), kInteger, NULL, 3}};
         int32_t subtitle = cloneRole(out, kRowTitle, subtitleChanges, 5);
         putChildren(out, column, (int32_t[]){title, subtitle}, 2);
         title = column;
@@ -919,8 +921,10 @@ static int32_t buildSpecRow(Out *out, const AstralRowSpec *row, int first, int l
     int32_t children[4] = {icon, title, 0, 0};
     uint32_t childCount = 2;
     if (row->detail && row->detail[0]) {
-        Change detailChanges[] = {
-            {499, kString, row->detail, 0}, {207, kNumber, NULL, 14}, {322, kNumber, NULL, 0.62}, {198, kDrop, NULL, 0}};
+        Change detailChanges[] = {{P(text), kString, row->detail, 0},
+                                  {P(fontSize), kNumber, NULL, 14},
+                                  {P(opacity), kNumber, NULL, 0.62},
+                                  {P(flex), kDrop, NULL, 0}};
         children[childCount++] = cloneRole(out, kRowTitle, detailChanges, 4);
     }
     if (row->kind == kAstralRowLink) {
@@ -930,15 +934,15 @@ static int32_t buildSpecRow(Out *out, const AstralRowSpec *row, int first, int l
         children[childCount++] = trailing;
     } else if (row->kind == kAstralRowSelected) {
         int32_t trailing = cloneRole(out, kRowTrailing, NULL, 0);
-        Change checkChange = {542, kString, "res://ic_mana_checkmark_large_bold", 0};
+        Change checkChange = {P(uri), kString, "res://ic_mana_checkmark_large_bold", 0};
         int32_t check = cloneRole(out, kRowChevron, &checkChange, 1);
         putChildren(out, trailing, (int32_t[]){check}, 1);
         children[childCount++] = trailing;
     } else if (row->kind == kAstralRowSwitch || row->kind == kAstralRowSwitchLink) {
         int32_t trailing = newNode(out, "view");
-        propCount(out, 2);
-        propString(out, 63, "stretch");
-        propQuad(out, 287, 18, 0, 0, 0);
+        propCount(out, P(accessibilityBusy));
+        propString(out, P(align), "stretch");
+        propQuad(out, P(margin), 18, 0, 0, 0);
         putChildren(out, trailing, (int32_t[]){buildSwitch(out, row->key, row->on)}, 1);
         children[childCount++] = trailing;
     }
@@ -974,25 +978,26 @@ static int32_t buildColoredText(Out *out, const char *text, double size, int32_t
 {
     int32_t node = newNode(out, "text");
     propCount(out, (uint16_t)(6 + (lines > 0) + (grow > 0)));
-    propString(out, 499, text);
-    propLong(out, 129, color);
-    propNumber(out, 207, size);
-    propInt(out, 208, weight);
-    propNumber(out, 278, size + 4);
-    propNumber(out, 322, opacity);
-    if (lines > 0) propInt(out, 293, lines);
-    if (grow > 0) propNumber(out, 198, 1);
+    propString(out, P(text), text);
+    propLong(out, P(color), color);
+    propNumber(out, P(fontSize), size);
+    propInt(out, P(fontWeight), weight);
+    propNumber(out, P(lineHeight), size + 4);
+    propNumber(out, P(opacity), opacity);
+    if (lines > 0) propInt(out, P(maxLines), lines);
+    if (grow > 0) propNumber(out, P(flex), 1);
     return node;
 }
 
 static int32_t buildText(Out *out, const char *text, double size, int32_t weight, double opacity, int32_t lines, int grow)
 {
-    return buildColoredText(out, text, size, weight, opacity, lines, grow, templateColor(kRowTitle, 129, 0xFFFBFBFB));
+    return buildColoredText(out, text, size, weight, opacity, lines, grow, templateColor(kRowTitle, P(color), 0xFFFBFBFB));
 }
 
 static int32_t buildIcon(Out *out, const char *source, double size)
 {
-    Change changes[] = {{542, kString, source, 0}, {553, kNumber, NULL, size}, {235, kNumber, NULL, size}, {287, kDrop, NULL, 0}};
+    Change changes[] = {
+        {P(uri), kString, source, 0}, {P(width), kNumber, NULL, size}, {P(height), kNumber, NULL, size}, {P(margin), kDrop, NULL, 0}};
     return cloneRole(out, kRowIcon, changes, 4);
 }
 
@@ -1001,17 +1006,17 @@ static int32_t buildRoundButton(Out *out, const char *key, const char *icon, dou
     char identifier[128];
     snprintf(identifier, sizeof(identifier), "astral.row.%s", key);
     int32_t button = newNode(out, "view");
-    propCount(out, 10);
-    propString(out, 9, identifier);
-    propString(out, 63, "center");
-    propString(out, 260, "center");
-    propLong(out, 90, kTranslucentFill);
-    propNumber(out, 553, size);
-    propNumber(out, 235, size);
-    propNumber(out, 388, size / 2);
-    propEvents(out, 320, "press");
-    propString(out, 414, "button");
-    propNumber(out, 460, 0);
+    propCount(out, P(accessibilityKeepsChildren));
+    propString(out, P(accessibilityId), identifier);
+    propString(out, P(align), "center");
+    propString(out, P(justify), "center");
+    propLong(out, P(background), kTranslucentFill);
+    propNumber(out, P(width), size);
+    propNumber(out, P(height), size);
+    propNumber(out, P(radius), size / 2);
+    propEvents(out, P(on), "press");
+    propString(out, P(role), "button");
+    propNumber(out, P(shrink), 0);
     putChildren(out, button, (int32_t[]){buildIcon(out, icon, size * 0.55)}, 1);
     return button;
 }
@@ -1021,19 +1026,19 @@ static int32_t buildChip(Out *out, const AstralChipSpec *chip)
     char identifier[128];
     snprintf(identifier, sizeof(identifier), "astral.row.%s", chip->key);
     int32_t node = newNode(out, "view");
-    propCount(out, 9);
-    propString(out, 9, identifier);
-    propString(out, 63, "center");
-    propString(out, 147, "row");
+    propCount(out, P(accessibilityId));
+    propString(out, P(accessibilityId), identifier);
+    propString(out, P(align), "center");
+    propString(out, P(direction), "row");
     if (chip->selected)
-        propLong(out, 90, kSwitchOn);
+        propLong(out, P(background), kSwitchOn);
     else
-        propLong(out, 90, kTranslucentFill);
-    propQuad(out, 332, 14, 7, 14, 7);
-    propNumber(out, 388, 16);
-    propEvents(out, 320, "press");
-    propString(out, 414, "button");
-    propNumber(out, 460, 0);
+        propLong(out, P(background), kTranslucentFill);
+    propQuad(out, P(padding), 14, 7, 14, 7);
+    propNumber(out, P(radius), 16);
+    propEvents(out, P(on), "press");
+    propString(out, P(role), "button");
+    propNumber(out, P(shrink), 0);
     putChildren(out, node, (int32_t[]){buildText(out, chip->title, 14, 600, 1, 1, 0)}, 1);
     return node;
 }
@@ -1044,17 +1049,17 @@ static int32_t buildToolbar(Out *out, const AstralToolbarSpec *toolbar)
     uint32_t count = 0;
     for (size_t index = 0; index < toolbar->chipCount && count < 8; index++) children[count++] = buildChip(out, &toolbar->chips[index]);
     int32_t spacer = newNode(out, "view");
-    propCount(out, 1);
-    propNumber(out, 198, 1);
+    propCount(out, P(accessibilityActions));
+    propNumber(out, P(flex), 1);
     children[count++] = spacer;
     if (toolbar->buttonKey) children[count++] = buildRoundButton(out, toolbar->buttonKey, toolbar->buttonIcon, 36);
     int32_t row = newNode(out, "view");
-    propCount(out, 5);
-    propString(out, 147, "row");
-    propString(out, 63, "center");
-    propNumber(out, 220, 8);
-    propString(out, 553, "fill");
-    propQuad(out, 287, 0, 0, 0, 4);
+    propCount(out, P(accessibilityExpanded));
+    propString(out, P(direction), "row");
+    propString(out, P(align), "center");
+    propNumber(out, P(gap), 8);
+    propString(out, P(width), "fill");
+    propQuad(out, P(margin), 0, 0, 0, 4);
     putChildren(out, row, children, count);
     return row;
 }
@@ -1062,11 +1067,11 @@ static int32_t buildToolbar(Out *out, const AstralToolbarSpec *toolbar)
 static int32_t buildVersionTag(Out *out, const char *text)
 {
     int32_t tag = newNode(out, "view");
-    propCount(out, 4);
-    propLong(out, 90, kTranslucentFill);
-    propQuad(out, 332, 6, 2, 6, 2);
-    propNumber(out, 388, 6);
-    propNumber(out, 460, 0);
+    propCount(out, P(accessibilityDisabled));
+    propLong(out, P(background), kTranslucentFill);
+    propQuad(out, P(padding), 6, 2, 6, 2);
+    propNumber(out, P(radius), 6);
+    propNumber(out, P(shrink), 0);
     putChildren(out, tag, (int32_t[]){buildText(out, text, 11, 600, 0.62, 1, 0)}, 1);
     return tag;
 }
@@ -1074,14 +1079,14 @@ static int32_t buildVersionTag(Out *out, const char *text)
 static int32_t buildAvatar(Out *out, const char *source, int first)
 {
     int32_t avatar = newNode(out, "image");
-    propCount(out, 7);
-    propString(out, 542, source);
-    propNumber(out, 553, 24);
-    propNumber(out, 235, 24);
-    propNumber(out, 388, 12);
-    propString(out, 428, "fill");
-    propQuad(out, 287, first ? 0 : -6, 0, 0, 0);
-    propNumber(out, 460, 0);
+    propCount(out, P(accessibilityHidden));
+    propString(out, P(uri), source);
+    propNumber(out, P(width), 24);
+    propNumber(out, P(height), 24);
+    propNumber(out, P(radius), 12);
+    propString(out, P(scale), "fill");
+    propQuad(out, P(margin), first ? 0 : -6, 0, 0, 0);
+    propNumber(out, P(shrink), 0);
     return avatar;
 }
 
@@ -1094,20 +1099,20 @@ static int32_t buildAuthors(Out *out, const AstralCardSpec *card)
         size_t avatarCount = card->avatarCount > 3 ? 3 : card->avatarCount;
         for (size_t index = 0; index < avatarCount; index++) avatars[index] = buildAvatar(out, card->avatars[index], index == 0);
         int32_t pile = newNode(out, "view");
-        propCount(out, 3);
-        propString(out, 147, "row");
-        propString(out, 63, "center");
-        propNumber(out, 460, 0);
+        propCount(out, P(accessibilityChecked));
+        propString(out, P(direction), "row");
+        propString(out, P(align), "center");
+        propNumber(out, P(shrink), 0);
         putChildren(out, pile, avatars, (uint32_t)avatarCount);
         children[count++] = pile;
     }
     int32_t names = buildText(out, card->authors, 12, 500, 0.62, 1, 0);
     children[count++] = names;
     int32_t row = newNode(out, "view");
-    propCount(out, 3);
-    propString(out, 147, "row");
-    propString(out, 63, "center");
-    propNumber(out, 220, 6);
+    propCount(out, P(accessibilityChecked));
+    propString(out, P(direction), "row");
+    propString(out, P(align), "center");
+    propNumber(out, P(gap), 6);
     putChildren(out, row, children, count);
     return row;
 }
@@ -1118,14 +1123,14 @@ static int32_t buildCard(Out *out, const AstralCardSpec *card)
     snprintf(settingsKey, sizeof(settingsKey), "settings.%s", card->key);
     snprintf(overflowKey, sizeof(overflowKey), "more.%s", card->key);
     int32_t tile = newNode(out, "view");
-    propCount(out, 7);
-    propString(out, 63, "center");
-    propString(out, 260, "center");
-    propLong(out, 90, kTranslucentFill);
-    propNumber(out, 553, 40);
-    propNumber(out, 235, 40);
-    propNumber(out, 388, 12);
-    propNumber(out, 460, 0);
+    propCount(out, P(accessibilityHidden));
+    propString(out, P(align), "center");
+    propString(out, P(justify), "center");
+    propLong(out, P(background), kTranslucentFill);
+    propNumber(out, P(width), 40);
+    propNumber(out, P(height), 40);
+    propNumber(out, P(radius), 12);
+    propNumber(out, P(shrink), 0);
     putChildren(out, tile, (int32_t[]){buildIcon(out, card->icon ? card->icon : "res://astral_plug", 22)}, 1);
 
     int32_t headingChildren[2];
@@ -1133,11 +1138,11 @@ static int32_t buildCard(Out *out, const AstralCardSpec *card)
     headingChildren[headingCount++] = buildText(out, card->title, 16, 600, 1, 1, 0);
     if (card->authors && card->authors[0]) headingChildren[headingCount++] = buildAuthors(out, card);
     int32_t heading = newNode(out, "view");
-    propCount(out, 4);
-    propString(out, 147, "column");
-    propNumber(out, 198, 1);
-    propNumber(out, 220, 2);
-    propNumber(out, 301, 0);
+    propCount(out, P(accessibilityDisabled));
+    propString(out, P(direction), "column");
+    propNumber(out, P(flex), 1);
+    propNumber(out, P(gap), 2);
+    propNumber(out, P(minWidth), 0);
     putChildren(out, heading, headingChildren, headingCount);
 
     int32_t actionChildren[3];
@@ -1146,18 +1151,18 @@ static int32_t buildCard(Out *out, const AstralCardSpec *card)
     actionChildren[actionCount++] = buildRoundButton(out, overflowKey, "res://ic_mana_more_horizontal", 32);
     actionChildren[actionCount++] = buildSwitch(out, card->key, card->on);
     int32_t actions = newNode(out, "view");
-    propCount(out, 4);
-    propString(out, 147, "row");
-    propString(out, 63, "center");
-    propNumber(out, 220, 8);
-    propNumber(out, 460, 0);
+    propCount(out, P(accessibilityDisabled));
+    propString(out, P(direction), "row");
+    propString(out, P(align), "center");
+    propNumber(out, P(gap), 8);
+    propNumber(out, P(shrink), 0);
     putChildren(out, actions, actionChildren, actionCount);
 
     int32_t top = newNode(out, "view");
-    propCount(out, 3);
-    propString(out, 147, "row");
-    propString(out, 63, "start");
-    propNumber(out, 220, 12);
+    propCount(out, P(accessibilityChecked));
+    propString(out, P(direction), "row");
+    propString(out, P(align), "start");
+    propNumber(out, P(gap), 12);
     putChildren(out, top, (int32_t[]){tile, heading, actions}, 3);
 
     int32_t bottomChildren[2];
@@ -1166,16 +1171,16 @@ static int32_t buildCard(Out *out, const AstralCardSpec *card)
         bottomChildren[bottomCount++] = buildText(out, card->description, 14, 400, 1, 0, 1);
     } else {
         int32_t spacer = newNode(out, "view");
-        propCount(out, 1);
-        propNumber(out, 198, 1);
+        propCount(out, P(accessibilityActions));
+        propNumber(out, P(flex), 1);
         bottomChildren[bottomCount++] = spacer;
     }
     if (card->version && card->version[0]) bottomChildren[bottomCount++] = buildVersionTag(out, card->version);
     int32_t bottom = newNode(out, "view");
-    propCount(out, 3);
-    propString(out, 147, "row");
-    propString(out, 63, "end");
-    propNumber(out, 220, 12);
+    propCount(out, P(accessibilityChecked));
+    propString(out, P(direction), "row");
+    propString(out, P(align), "end");
+    propNumber(out, P(gap), 12);
     putChildren(out, bottom, bottomChildren, bottomCount);
 
     int32_t cardChildren[3] = {top, bottom, 0};
@@ -1184,16 +1189,16 @@ static int32_t buildCard(Out *out, const AstralCardSpec *card)
         cardChildren[cardCount++] = buildColoredText(out, card->error, 12, 500, 1, 3, 0, kCriticalText);
     }
     int32_t node = newNode(out, "view");
-    propCount(out, 9);
-    propString(out, 147, "column");
-    propNumber(out, 220, 6);
-    propQuad(out, 332, 16, 16, 16, 16);
-    propLong(out, 90, templateColor(kRow, 90, 0x1497979F));
-    propNumber(out, 388, 16);
-    propLong(out, 104, kSubtleBorder);
-    propNumber(out, 107, 1);
-    propNumber(out, 322, card->failed ? 0.5 : 1);
-    propString(out, 553, "fill");
+    propCount(out, P(accessibilityId));
+    propString(out, P(direction), "column");
+    propNumber(out, P(gap), 6);
+    propQuad(out, P(padding), 16, 16, 16, 16);
+    propLong(out, P(background), templateColor(kRow, P(background), 0x1497979F));
+    propNumber(out, P(radius), 16);
+    propLong(out, P(borderColor), kSubtleBorder);
+    propNumber(out, P(borderWidth), 1);
+    propNumber(out, P(opacity), card->failed ? 0.5 : 1);
+    propString(out, P(width), "fill");
     putChildren(out, node, cardChildren, cardCount);
     return node;
 }
@@ -1205,11 +1210,11 @@ static int32_t buildCardList(Out *out, const AstralPageSpec *page)
     if (page->toolbar) children[count++] = buildToolbar(out, page->toolbar);
     for (size_t index = 0; index < page->cardCount && count < 65; index++) children[count++] = buildCard(out, &page->cards[index]);
     int32_t list = newNode(out, "view");
-    propCount(out, 4);
-    propString(out, 147, "column");
-    propNumber(out, 220, 12);
-    propString(out, 553, "fill");
-    propQuad(out, 287, 0, 4, 0, 8);
+    propCount(out, P(accessibilityDisabled));
+    propString(out, P(direction), "column");
+    propNumber(out, P(gap), 12);
+    propString(out, P(width), "fill");
+    propQuad(out, P(margin), 0, 4, 0, 8);
     putChildren(out, list, children, count);
     return list;
 }
@@ -1221,7 +1226,7 @@ static void buildSections(Out *out, const AstralPageSpec *page, int32_t *section
     for (size_t index = 0; index < page->count && *sectionCount < 16; index++) {
         const AstralSectionSpec *section = &page->sections[index];
         int32_t group = cloneRole(out, kGroup, NULL, 0);
-        Change headerChange = {499, kString, section->title, 0};
+        Change headerChange = {P(text), kString, section->title, 0};
         int32_t header = cloneRole(out, kGroupHeader, &headerChange, 1);
         int32_t card = cloneRole(out, kCard, NULL, 0);
         int32_t cardChildren[64];
@@ -1269,15 +1274,15 @@ int astral_page_push(const AstralPageSpec *page, AstralWireBuffer *buffer)
     int32_t left = cloneRole(&out, kHeaderLeft, NULL, 0);
     int32_t leftInner = cloneRole(&out, kHeaderLeftInner, NULL, 0);
     int32_t leftPad = cloneRole(&out, kHeaderLeftPad, NULL, 0);
-    Change backChange = {9, kString, "astral.back", 0};
+    Change backChange = {P(accessibilityId), kString, "astral.back", 0};
     int32_t back = cloneRole(&out, kBack, &backChange, 1);
     int32_t backStack = cloneRole(&out, kBackStack, NULL, 0);
     int32_t backStackInner = cloneRole(&out, kBackStackInner, NULL, 0);
-    Change backIconChange = {542, kString, "res://ic_mana_arrow_large_left", 0};
+    Change backIconChange = {P(uri), kString, "res://ic_mana_arrow_large_left", 0};
     int32_t backIcon = cloneRole(&out, kBackIcon, &backIconChange, 1);
     int32_t titleWrap = cloneRole(&out, kTitleWrap, NULL, 0);
     int32_t titleInner = cloneRole(&out, kTitleInner, NULL, 0);
-    Change titleChanges[] = {{9, kString, "settings-astral-title", 0}, {499, kString, page->title, 0}};
+    Change titleChanges[] = {{P(accessibilityId), kString, "settings-astral-title", 0}, {P(text), kString, page->title, 0}};
     int32_t title = cloneRole(&out, kTitle, titleChanges, 2);
 
     putChildren(&out, root, (int32_t[]){phone}, 1);
@@ -1525,29 +1530,29 @@ static void observeProperties(const uint8_t *bytes, const Span *span)
     for (uint16_t index = 0; index < count && !cursor.failed; index++) {
         uint16_t property = read16(&cursor);
         uint8_t tag = read8(&cursor);
-        if (tag == 6 && (property == 9 || property == 542)) {
+        if (tag == 6 && (property == P(accessibilityId) || property == P(uri))) {
             uint32_t length = read32(&cursor);
             if (!need(&cursor, length)) return;
             const uint8_t *text = bytes + cursor.offset;
             cursor.offset += length;
             uint64_t value = 0;
             int kind = kTrackNone;
-            if (property == 9 && prefixed(text, length, "message.author:", &value)) {
+            if (property == P(accessibilityId) && prefixed(text, length, "message.author:", &value)) {
                 kind = kTrackAuthor;
-            } else if (property == 9 && prefixed(text, length, "message.avatar:", &value)) {
+            } else if (property == P(accessibilityId) && prefixed(text, length, "message.avatar:", &value)) {
                 kind = kTrackAvatar;
-            } else if (property == 9 && prefixed(text, length, "message.timestamp:", &value)) {
+            } else if (property == P(accessibilityId) && prefixed(text, length, "message.timestamp:", &value)) {
                 kind = kTrackTimestamp;
-            } else if (property == 9 && prefixed(text, length, "navigation.channel:", &value)) {
+            } else if (property == P(accessibilityId) && prefixed(text, length, "navigation.channel:", &value)) {
                 kind = kTrackChannel;
-            } else if (property == 542 && (value = avatarUser(text, length))) {
+            } else if (property == P(uri) && (value = avatarUser(text, length))) {
                 kind = kTrackAvatarImage;
             }
             Tracked *slot = kind == kTrackNone ? NULL : trackSlot(span->id, 1);
             if (slot) *slot = (Tracked){span->id, kind, value};
             continue;
         }
-        if (property == 13 && (tag == 1 || tag == 2)) {
+        if (property == P(accessibilitySelected) && (tag == 1 || tag == 2)) {
             selected = tag == 2;
             continue;
         }
@@ -1616,11 +1621,11 @@ static void propGradient(Out *out, uint16_t property, const uint32_t *colors, ui
     put16(out, property);
     put8(out, 8);
     put32(out, 3);
-    put16(out, 70);
+    put16(out, P(angle));
     put8(out, 5);
     double angle = 90;
     put(out, &angle, 8);
-    put16(out, 577);
+    put16(out, P(colors));
     put8(out, 7);
     put32(out, count);
     for (uint32_t index = 0; index < count; index++) {
@@ -1628,7 +1633,7 @@ static void propGradient(Out *out, uint16_t property, const uint32_t *colors, ui
         int64_t color = colors[index];
         put(out, &color, 8);
     }
-    put16(out, 613);
+    put16(out, P(positions));
     put8(out, 7);
     put32(out, count);
     for (uint32_t index = 0; index < count; index++) {
@@ -1648,30 +1653,30 @@ static int32_t buildTag(Out *out, const AstralTag *tag, Decorated *slot)
     put16(out, 4);
     put(out, "view", 4);
     put16(out, 6);
-    propString(out, 63, "center");
+    propString(out, P(align), "center");
     if (gradient)
-        propGradient(out, 91, tag->gradient, tag->gradientCount > 3 ? 3 : tag->gradientCount);
+        propGradient(out, P(backgroundGradient), tag->gradient, tag->gradientCount > 3 ? 3 : tag->gradientCount);
     else
-        propLong(out, 90, (int64_t)tag->background);
-    propString(out, 147, "row");
-    propNumber(out, 235, originalPoster ? 16 : 18);
-    propQuad(out, 332, originalPoster ? 5 : 4, 0, originalPoster ? 5 : 4, 0);
-    propNumber(out, 388, originalPoster ? 8 : 4);
+        propLong(out, P(background), (int64_t)tag->background);
+    propString(out, P(direction), "row");
+    propNumber(out, P(height), originalPoster ? 16 : 18);
+    propQuad(out, P(padding), originalPoster ? 5 : 4, 0, originalPoster ? 5 : 4, 0);
+    propNumber(out, P(radius), originalPoster ? 8 : 4);
     int32_t label = tagId();
     put8(out, 1);
     put32(out, (uint32_t)label);
     put16(out, 4);
     put(out, "text", 4);
     put16(out, originalPoster ? 8 : 7);
-    propLong(out, 129, (int64_t)tag->foreground);
-    propNumber(out, 207, originalPoster ? 10 : 12);
-    propInt(out, 208, originalPoster ? 700 : 600);
-    propNumber(out, 278, originalPoster ? 13 : 16);
-    propInt(out, 293, 1);
-    propString(out, 499, tag->text);
-    propBool(out, 835, 1);
+    propLong(out, P(color), (int64_t)tag->foreground);
+    propNumber(out, P(fontSize), originalPoster ? 10 : 12);
+    propInt(out, P(fontWeight), originalPoster ? 700 : 600);
+    propNumber(out, P(lineHeight), originalPoster ? 13 : 16);
+    propInt(out, P(maxLines), 1);
+    propString(out, P(text), tag->text);
+    propBool(out, P(notoFallback), 1);
     if (originalPoster) {
-        propString(out, 508, "uppercase");
+        propString(out, P(textTransform), "uppercase");
     }
     putChildren(out, pill, (int32_t[]){label}, 1);
     slot->tags[slot->count++] = pill;
@@ -1793,11 +1798,12 @@ void astral_wire_set_scales(double radius, double font)
 
 static int scaledProperty(uint16_t property, double *scale)
 {
-    if (property == 388 || property == 389 || property == 390 || property == 391 || property == 392) {
+    if (property == P(radius) || property == P(radiusBottomLeft) || property == P(radiusBottomRight) || property == P(radiusTopLeft) ||
+        property == P(radiusTopRight)) {
         *scale = gRadiusScale;
         return gRadiusScale != 1;
     }
-    if (property == 207 || property == 278) {
+    if (property == P(fontSize) || property == P(lineHeight)) {
         *scale = gFontScale;
         return gFontScale != 1;
     }
@@ -1806,8 +1812,8 @@ static int scaledProperty(uint16_t property, double *scale)
 
 static int colorProperty(uint16_t property)
 {
-    return property == 90 || property == 129 || property == 104 || property == 21 || property == 25 || property == 201 || property == 355 ||
-           property == 522;
+    return property == P(background) || property == P(color) || property == P(borderColor) || property == P(activeBackground) ||
+           property == P(activeBorderColor) || property == P(focusBorderColor) || property == P(placeholderColor) || property == P(tint);
 }
 
 static int patchColors(uint8_t *bytes, const Span *spans, size_t count)
@@ -1897,7 +1903,7 @@ static int firstSpanText(const uint8_t *bytes, const Span *span, size_t *offset,
     for (uint16_t index = 0; index < count && !cursor.failed; index++) {
         uint16_t property = read16(&cursor);
         uint8_t tag = read8(&cursor);
-        if (property != 468 || tag != 7) {
+        if (property != P(spans) || tag != 7) {
             skipValue(&cursor, tag, 0);
             continue;
         }
@@ -1996,8 +2002,8 @@ static void labelRows(const uint8_t *bytes, const Span *spans, size_t count, con
         if (span->op != 1) continue;
         size_t offset;
         uint32_t size;
-        if (!stringAt(bytes, span, 9, &offset, &size)) continue;
-        if (size == 8 && memcmp(bytes + offset + 4, "composer", 8) == 0 && stringAt(bytes, span, 354, &offset, &size)) {
+        if (!stringAt(bytes, span, P(accessibilityId), &offset, &size)) continue;
+        if (size == 8 && memcmp(bytes + offset + 4, "composer", 8) == 0 && stringAt(bytes, span, P(placeholder), &offset, &size)) {
             AstralLabelContext context = {kAstralLabelComposer, 0, gCurrentChannel, 0};
             addLabelEdit(edits, editCount, bytes, offset, size, &context);
             continue;
@@ -2019,7 +2025,7 @@ static void labelRows(const uint8_t *bytes, const Span *spans, size_t count, con
         if (span->op != 1 || !typeIs(bytes, span, "text")) continue;
         size_t offset;
         uint32_t size;
-        if (!stringAt(bytes, span, 499, &offset, &size)) continue;
+        if (!stringAt(bytes, span, P(text), &offset, &size)) continue;
         int32_t node = span->id;
         for (int depth = 0; depth < 8 && node; depth++) {
             node = labelParent(links, linkCount, node);
@@ -2055,12 +2061,12 @@ static uint8_t *relabel(const uint8_t *bytes, size_t length, const Span *spans, 
                 links[linkCount++] = (LabelLink){child_at(bytes, span, position), span->id};
             }
         } else if (span->op == 1) {
-            if (stringProperty(bytes, span, 9, "message-row") && rowCount < kMaxLabelNodes) rows[rowCount++] = span->id;
+            if (stringProperty(bytes, span, P(accessibilityId), "message-row") && rowCount < kMaxLabelNodes) rows[rowCount++] = span->id;
             size_t offset;
             uint32_t size;
             uint64_t message = 0;
-            if (stringAt(bytes, span, 9, &offset, &size) && prefixed(bytes + offset + 4, size, "message.author:", &message) &&
-                authorCount < kMaxLabelNodes) {
+            if (stringAt(bytes, span, P(accessibilityId), &offset, &size) &&
+                prefixed(bytes + offset + 4, size, "message.author:", &message) && authorCount < kMaxLabelNodes) {
                 authorNodes[authorCount] = span->id;
                 authorMessages[authorCount++] = message;
             }
@@ -2077,7 +2083,7 @@ static uint8_t *relabel(const uint8_t *bytes, size_t length, const Span *spans, 
         }
         Tracked *tracked = message ? NULL : trackSlot(span->id, 0);
         if (!message && tracked && tracked->kind == kTrackAuthor) message = tracked->value;
-        if (message && stringAt(bytes, span, 499, &offset, &size)) {
+        if (message && stringAt(bytes, span, P(text), &offset, &size)) {
             AstralLabelContext context = {kAstralLabelAuthor, message, gCurrentChannel, 0};
             addLabelEdit(edits, &editCount, bytes, offset, size, &context);
             continue;
@@ -2114,11 +2120,21 @@ static uint8_t *relabel(const uint8_t *bytes, size_t length, const Span *spans, 
     return result;
 }
 
+enum { kWireVersion = 1 };
+static int gUnsupportedWireVersion;
+
+int astral_wire_unsupported_version(void)
+{
+    return gUnsupportedWireVersion;
+}
+
 int astral_settings_rewrite(const uint8_t *bytes, size_t length, AstralWireBuffer *buffer)
 {
     static Span spans[kMaxSpans];
     size_t count = 0;
     memset(buffer, 0, sizeof(*buffer));
+    if (length && bytes[0] != kWireVersion && !gUnsupportedWireVersion) gUnsupportedWireVersion = bytes[0];
+    if (gUnsupportedWireVersion) return 0;
     if (scan(bytes, length, spans, &count) != 0) return 0;
 
     Out out = {0};
@@ -2172,7 +2188,7 @@ int astral_settings_rewrite(const uint8_t *bytes, size_t length, AstralWireBuffe
         }
     } else {
         for (size_t index = 0; index < count; index++) {
-            if (spans[index].op == 1 && stringProperty(bytes, &spans[index], 9, kAnchor)) {
+            if (spans[index].op == 1 && stringProperty(bytes, &spans[index], P(accessibilityId), kAnchor)) {
                 Out category = {0};
                 captureTemplates(bytes, spans, count, spans[index].id);
                 if (createCategory(&category, bytes, spans, count, &spans[index]) && !category.failed) {

@@ -6,7 +6,10 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <string.h>
+
 #include "../sources/PhoenixLocate.h"
+#include "../sources/PhoenixProperties.h"
 
 int main(int count, char **arguments)
 {
@@ -26,5 +29,18 @@ int main(int count, char **arguments)
     printf("host call at 0x%llx\n", (unsigned long long)hostCall);
     assert(hostCall == 0x7cf00);
     assert(astral_locate_unique_caller(&view, 0) == 0);
+    static const char *names[2048];
+    static char storage[65536];
+    size_t nameCount = astral_read_property_names(&view, names, 2048, storage, sizeof storage);
+    printf("%zu property names\n", nameCount);
+    assert(nameCount >= 800);
+    assert(strcmp(names[0], "absolute") == 0 && strcmp(names[9], "accessibilityId") == 0 && strcmp(names[499], "text") == 0);
+    assert(strcmp(names[577], "colors") == 0 && strcmp(names[613], "positions") == 0);
+    AstralWireProperties fallback = gAstralWireProperties;
+    const char *missing = NULL;
+    size_t found = astral_wire_resolve_properties(names, nameCount, &missing);
+    if (missing) printf("missing %s\n", missing);
+    assert(!missing && found == sizeof(AstralWireProperties) / sizeof(uint16_t));
+    assert(memcmp(&fallback, &gAstralWireProperties, sizeof fallback) == 0);
     return 0;
 }

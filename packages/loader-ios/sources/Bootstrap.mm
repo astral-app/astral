@@ -73,6 +73,7 @@ static void Status(NSString *stage)
         @"settings" : settingsIntegration ?: @"",
         @"settingsRefusal" : settingsRefusal ?: @"",
         @"route" : AstralPhoenixRoute(),
+        @"timings" : AstralPhoenixTimings(),
         @"plugins" : PluginSummaries()
     };
     NSData *data = [NSJSONSerialization dataWithJSONObject:report options:0 error:nullptr];
@@ -144,9 +145,6 @@ static void FallbackAction(NSString *key)
 static BOOL InstallSettings(void)
 {
     if (settingsIntegration) return YES;
-    AstralOnPhoenixRouteChange(^{
-        Status(lastStage ?: @"route-changed");
-    });
     NSString *refusal = AstralInstallPhoenixSettings(
         AstralSettingsCategory(),
         ^NSDictionary *(NSString *route) {
@@ -236,20 +234,24 @@ __attribute__((constructor)) static void AstralBootstrap(void)
     if (!AstralIsDiscordApp()) return;
     engineSelection = AstralForcePhoenix();
     AstralInstallImageAssets();
+    NSURL *documents = [NSFileManager.defaultManager URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask].firstObject;
+    if (!documents) return;
+    stateDirectory = String([documents.path stringByAppendingPathComponent:@"astral"]);
+    if (!loader::createDirectories(stateDirectory)) return;
+    runID = NSUUID.UUID.UUIDString;
+    loader::setSystemLogSink([](loader::LogLevel, const std::string &message) {
+        NSString *line = [NSString stringWithUTF8String:message.c_str()] ?: @"";
+        NSLog(@"astral %@", line);
+        AstralDevAppendLog(line);
+    });
+    settings = std::make_unique<loader::SettingsStore>(loader::joinPath(stateDirectory, "settings.json"));
+    settings->load();
+    AstralApplyTheme(AstralActiveThemeID());
+    AstralOnPhoenixRouteChange(^{
+        Status(lastStage ?: @"route-changed");
+    });
+    AstralStartPhoenixRouteWhenLoaded();
     dispatch_async(dispatch_get_main_queue(), ^{
-        NSURL *documents = [NSFileManager.defaultManager URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask].firstObject;
-        if (!documents) return;
-        stateDirectory = String([documents.path stringByAppendingPathComponent:@"astral"]);
-        if (!loader::createDirectories(stateDirectory)) return;
-        runID = NSUUID.UUID.UUIDString;
-        loader::setSystemLogSink([](loader::LogLevel, const std::string &message) {
-            NSString *line = [NSString stringWithUTF8String:message.c_str()] ?: @"";
-            NSLog(@"astral %@", line);
-            AstralDevAppendLog(line);
-        });
-        settings = std::make_unique<loader::SettingsStore>(loader::joinPath(stateDirectory, "settings.json"));
-        settings->load();
-        AstralApplyTheme(AstralActiveThemeID());
         Status(@"injected");
         [NSNotificationCenter.defaultCenter addObserverForName:UIApplicationDidBecomeActiveNotification
                                                         object:nil

@@ -35,7 +35,7 @@ func testWire(work string) error {
 	loader := repoPath("packages", "loader-ios")
 	binary := filepath.Join(work, "phoenix-wire-test")
 	if err := run(loader, "clang", "-Wall", "-Wextra", "-Werror", "-g", "-fsanitize=address,undefined",
-		"tests/phoenix-wire-test.c", "tests/support/wire-parser.c", "-o", binary); err != nil {
+		"tests/phoenix-wire-test.c", "tests/support/wire-parser.c", "sources/PhoenixProperties.c", "-o", binary); err != nil {
 		return err
 	}
 	return run(loader, binary)
@@ -141,7 +141,7 @@ func verifyWithMonocypher(work string, folders []string) error {
 func testLocator(work string, phoenix string) error {
 	binary := filepath.Join(work, "locate-test")
 	sources := repoPath("packages", "loader-ios")
-	if err := run(sources, "clang", "-Wall", "-Wextra", "-Werror", "-O1", "tests/locate-test.c", "sources/PhoenixLocate.c", "-o", binary); err != nil {
+	if err := run(sources, "clang", "-Wall", "-Wextra", "-Werror", "-O1", "tests/locate-test.c", "sources/PhoenixLocate.c", "sources/PhoenixProperties.c", "-o", binary); err != nil {
 		return err
 	}
 	return run(sources, binary, phoenix)

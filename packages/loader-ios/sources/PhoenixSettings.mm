@@ -1,10 +1,13 @@
 #import "PhoenixSettings.h"
 
 #import <UIKit/UIKit.h>
+#import <dlfcn.h>
 #import <mach-o/dyld.h>
 #import <objc/runtime.h>
 #import <pthread.h>
 #import <string>
+#import <atomic>
+#import <sys/sysctl.h>
 #import <vector>
 
 #import "AstralState.h"
@@ -12,6 +15,7 @@
 #import "PhoenixHostCall.h"
 #import "PhoenixImage.h"
 #import "PhoenixLocate.h"
+#import "PhoenixProperties.h"
 #import "PhoenixWire.h"
 
 static const char kOpsArrivedNeedle[] = "ops batch dropped";
@@ -87,29 +91,23 @@ static void StartCapture(void)
     gCaptureDirectory = directory;
 }
 
-static bool InterceptHostCall(void *context, const uint8_t *frame, size_t length, void *result)
+static NSString *gRoute = @"none";
+static NSMutableDictionary<NSString *, NSNumber *> *gTimings;
+
+static void RecordTiming(NSString *key, NSNumber *value)
 {
-    if (length < 4 || frame[0] || frame[1] || frame[2] || frame[3]) return gHostOriginal(context, frame, length, result);
-    pthread_mutex_lock(&gLock);
-    gHostContext = context;
-    bool handled;
-    @autoreleasepool {
-        Capture([NSData dataWithBytesNoCopy:(void *)(frame + 4) length:length - 4 freeWhenDone:NO]);
-        AstralWireBuffer rewritten;
-        if (astral_settings_rewrite(frame + 4, length - 4, &rewritten)) {
-            std::vector<uint8_t> replacement(4 + rewritten.length, 0);
-            memcpy(replacement.data() + 4, rewritten.bytes, rewritten.length);
-            astral_wire_buffer_free(&rewritten);
-            handled = gHostOriginal(context, replacement.data(), replacement.size(), result);
-        } else {
-            handled = gHostOriginal(context, frame, length, result);
-        }
+    @synchronized(NSMutableDictionary.class) {
+        if (!gTimings) gTimings = [NSMutableDictionary dictionary];
+        gTimings[key] = value;
     }
-    pthread_mutex_unlock(&gLock);
-    return handled;
 }
 
-static NSString *gRoute = @"none";
+NSDictionary<NSString *, NSNumber *> *AstralPhoenixTimings(void)
+{
+    @synchronized(NSMutableDictionary.class) {
+        return [gTimings copy] ?: @{};
+    }
+}
 static void (^gRouteChanged)(void);
 
 static void SetRoute(NSString *route)
@@ -135,6 +133,79 @@ NSString *AstralPhoenixRoute(void)
     return gRoute;
 }
 
+static double MillisecondsSinceLaunch(void)
+{
+    struct kinfo_proc info;
+    size_t size = sizeof info;
+    int name[] = {CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid()};
+    if (sysctl(name, 4, &info, &size, NULL, 0) != 0) return -1;
+    struct timeval now;
+    gettimeofday(&now, NULL);
+    struct timeval start = info.kp_proc.p_starttime;
+    return (now.tv_sec - start.tv_sec) * 1000.0 + (now.tv_usec - start.tv_usec) / 1000.0;
+}
+
+static double Rounded(double value)
+{
+    return round(value * 10) / 10;
+}
+
+static void RecordFirstFrame(const uint8_t *batch, size_t length)
+{
+    static bool recorded;
+    if (recorded) return;
+    recorded = true;
+    int32_t identifier = 0;
+    if (length >= 6) memcpy(&identifier, batch + 2, 4);
+    RecordTiming(@"firstFrameMs", @(Rounded(MillisecondsSinceLaunch())));
+    RecordTiming(@"firstFrameCreatesRoot", @(length >= 6 && batch[1] == 1 && identifier == 1));
+    void (^changed)(void) = gRouteChanged;
+    if (changed) dispatch_async(dispatch_get_main_queue(), changed);
+}
+
+static bool InterceptHostCall(void *context, const uint8_t *frame, size_t length, void *result)
+{
+    if (length < 4 || frame[0] || frame[1] || frame[2] || frame[3]) return gHostOriginal(context, frame, length, result);
+    pthread_mutex_lock(&gLock);
+    gHostContext = context;
+    RecordFirstFrame(frame + 4, length - 4);
+    bool handled;
+    @autoreleasepool {
+        Capture([NSData dataWithBytesNoCopy:(void *)(frame + 4) length:length - 4 freeWhenDone:NO]);
+        int unsupportedBefore = astral_wire_unsupported_version();
+        AstralWireBuffer rewritten;
+        if (astral_settings_rewrite(frame + 4, length - 4, &rewritten)) {
+            std::vector<uint8_t> replacement(4 + rewritten.length, 0);
+            memcpy(replacement.data() + 4, rewritten.bytes, rewritten.length);
+            astral_wire_buffer_free(&rewritten);
+            handled = gHostOriginal(context, replacement.data(), replacement.size(), result);
+        } else {
+            handled = gHostOriginal(context, frame, length, result);
+        }
+        int unsupported = astral_wire_unsupported_version();
+        if (unsupported && !unsupportedBefore) SetRoute([NSString stringWithFormat:@"unsupported-wire-v%d", unsupported]);
+    }
+    pthread_mutex_unlock(&gLock);
+    return handled;
+}
+
+static NSString *ResolveProperties(const struct mach_header *image)
+{
+    static const char *names[2048];
+    static char storage[65536];
+    AstralImageView view = {(const uint8_t *)image, 0, 0, 0};
+    CFAbsoluteTime started = CFAbsoluteTimeGetCurrent();
+    size_t count = astral_read_property_names(&view, names, 2048, storage, sizeof storage);
+    if (!count) return @"property-table-not-found";
+    const char *missing = NULL;
+    astral_wire_resolve_properties(names, count, &missing);
+    if (missing) return [NSString stringWithFormat:@"property-missing:%s", missing];
+    RecordTiming(@"propertiesMs", @(round((CFAbsoluteTimeGetCurrent() - started) * 10000) / 10));
+    Log([NSString
+        stringWithFormat:@"phoenix: %zu view properties resolved in %.1f ms", count, (CFAbsoluteTimeGetCurrent() - started) * 1000]);
+    return nil;
+}
+
 static void InstallHostCall(const struct mach_header *image, uint64_t hostCall)
 {
     uintptr_t base = (uintptr_t)image;
@@ -148,11 +219,18 @@ static void InstallHostCall(const struct mach_header *image, uint64_t hostCall)
     AstralHostCallImage target = {base, base + textSize, base + (uintptr_t)hostCall};
     gHostOriginal = (AstralHostCall)target.call;
     gRoute = @"host-call-pending";
+    RecordTiming(@"routeStartMs", @(Rounded(MillisecondsSinceLaunch())));
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-        for (int attempt = 0; attempt < 400; attempt++) {
+        for (int attempt = 0; attempt < 550; attempt++) {
             void *context = NULL;
-            size_t swapped = astral_host_call_swap(&target, InterceptHostCall, &context);
+            CFAbsoluteTime scanStarted = CFAbsoluteTimeGetCurrent();
+            bool fullScan = attempt % 10 == 9;
+            size_t swapped = astral_host_call_swap(&target, InterceptHostCall, &context, fullScan);
+            RecordTiming(@"lastScanMs", @(Rounded((CFAbsoluteTimeGetCurrent() - scanStarted) * 1000)));
             if (swapped) {
+                RecordTiming(@"swapMs", @(Rounded(MillisecondsSinceLaunch())));
+                RecordTiming(@"swapAttempt", @(attempt + 1));
+                RecordTiming(@"recordRegionTag", @(astral_host_call_last_tag()));
                 pthread_mutex_lock(&gLock);
                 if (!gHostContext) gHostContext = context;
                 pthread_mutex_unlock(&gLock);
@@ -160,7 +238,7 @@ static void InstallHostCall(const struct mach_header *image, uint64_t hostCall)
                 Log([NSString stringWithFormat:@"phoenix: host call route installed (%zu record(s), attempt %d)", swapped, attempt + 1]);
                 return;
             }
-            usleep(attempt < 100 ? 20000 : 100000);
+            usleep(attempt < 250 ? 2000 : 100000);
         }
         SetRoute(@"host-call-missing");
         Log(@"phoenix: host call record not found");
@@ -244,7 +322,10 @@ static void Deliver(Delivery delivery, NSDictionary *model, void (^failed)(void)
                 built = delivery == kPush ? astral_page_push(page, &buffer) : astral_page_refresh(page, &buffer);
             });
         }
-        if (built && gHostOriginal && gHostContext)
+        int unsupported = astral_wire_unsupported_version();
+        if (unsupported && ![gRoute hasPrefix:@"unsupported-wire"])
+            SetRoute([NSString stringWithFormat:@"unsupported-wire-v%d", unsupported]);
+        if (built && gHostOriginal && gHostContext && !unsupported)
             Send(&buffer);
         else if (built)
             astral_wire_buffer_free(&buffer);
@@ -352,14 +433,52 @@ static void InstallCategory(NSDictionary *category)
     astral_wire_set_category(Text(category, @"title") ?: "astral", rows.data(), rows.size());
 }
 
-NSString *AstralInstallPhoenixSettings(NSDictionary *category, AstralSettingsPage page, AstralSettingsAction action)
+static NSString *gRouteRefusal;
+
+static NSString *StartRoute(void)
 {
-    if (gPageModel) return nil;
     const struct mach_header *image = AstralPhoenixImage();
     if (!image) return @"unsupported-image";
     HookPoints points = LocateHookPoints(image);
     if (!points.opsArrived) return @"ops-entry-not-found";
     if (!points.hostCall) return @"host-call-not-found";
+    NSString *propertyRefusal = ResolveProperties(image);
+    if (propertyRefusal) return propertyRefusal;
+    StartCapture();
+    InstallHostCall(image, points.hostCall);
+    return nil;
+}
+
+NSString *AstralStartPhoenixRoute(void)
+{
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        gRouteRefusal = StartRoute();
+    });
+    return gRouteRefusal;
+}
+
+static void PhoenixImageAdded(const struct mach_header *header, intptr_t slide)
+{
+    (void)slide;
+    Dl_info info;
+    if (!dladdr(header, &info) || !info.dli_fname || !strstr(info.dli_fname, "/PhoenixFatClient.framework/PhoenixFatClient")) return;
+    RecordTiming(@"phoenixLoadedMs", @(Rounded(MillisecondsSinceLaunch())));
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INTERACTIVE, 0), ^{
+        AstralStartPhoenixRoute();
+    });
+}
+
+void AstralStartPhoenixRouteWhenLoaded(void)
+{
+    _dyld_register_func_for_add_image(PhoenixImageAdded);
+}
+
+NSString *AstralInstallPhoenixSettings(NSDictionary *category, AstralSettingsPage page, AstralSettingsAction action)
+{
+    if (gPageModel) return nil;
+    NSString *routeRefusal = AstralStartPhoenixRoute();
+    if (routeRefusal) return routeRefusal;
     gGuestTap = NSClassFromString(@"LibdiscordHost.GuestTapRecognizer");
     if (!gGuestTap) return @"tap-recognizer-unavailable";
     Class navigator = NSClassFromString(@"LibdiscordHost.NavigatorBox");
@@ -369,14 +488,14 @@ NSString *AstralInstallPhoenixSettings(NSDictionary *category, AstralSettingsPag
     gPageModel = [page copy];
     gAction = [action copy];
     gRoutes = [NSMutableArray array];
+    pthread_mutex_lock(&gLock);
     InstallCategory(category);
-    StartCapture();
+    pthread_mutex_unlock(&gLock);
     gTarget = [AstralSettingsTarget new];
     gQueue = dispatch_queue_create("app.astral.phoenix-settings", DISPATCH_QUEUE_SERIAL);
     originalShouldReceive = (BOOL (*)(id, SEL, UIGestureRecognizer *, UITouch *))method_setImplementation(receive, (IMP)ShouldReceive);
     Method identifier = class_getInstanceMethod(UIView.class, @selector(setAccessibilityIdentifier:));
     originalSetIdentifier = (void (*)(UIView *, SEL, NSString *))method_setImplementation(identifier, (IMP)SetIdentifier);
-    InstallHostCall(image, points.hostCall);
     return nil;
 }
 

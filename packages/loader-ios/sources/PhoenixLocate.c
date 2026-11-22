@@ -3,7 +3,7 @@
 #include <mach-o/loader.h>
 #include <string.h>
 
-enum { kMaxSegments = 16, kMaxTargets = 8 };
+enum { kMaxSegments = 16, kMaxTargets = 8, kMaxDataSections = 32 };
 
 typedef struct {
     uint64_t vmaddr;
@@ -78,6 +78,8 @@ typedef struct {
     const struct section_64 *strings[4];
     size_t stringCount;
     const struct linkedit_data_command *starts;
+    const struct section_64 *data[kMaxDataSections];
+    size_t dataCount;
 } Parsed;
 
 static int parse(const AstralImageView *view, Parsed *parsed)
@@ -101,6 +103,9 @@ static int parse(const AstralImageView *view, Parsed *parsed)
             }
             const struct section_64 *section = (const struct section_64 *)(segment + 1);
             for (uint32_t sectionIndex = 0; sectionIndex < segment->nsects; sectionIndex++, section++) {
+                if (strncmp(section->segname, "__DATA", 6) == 0 && (section->flags & SECTION_TYPE) != S_ZEROFILL &&
+                    parsed->dataCount < kMaxDataSections)
+                    parsed->data[parsed->dataCount++] = section;
                 if (strcmp(section->segname, "__TEXT") != 0) continue;
                 if (strcmp(section->sectname, "__text") == 0)
                     parsed->text = section;
@@ -193,4 +198,74 @@ uint64_t astral_locate_function_referencing(const AstralImageView *view, const c
         }
     }
     return found ? found - image.textBase : 0;
+}
+
+static const uint8_t kPropertyAnchor[16] = {'t', 'e', 'x', 't', 'T', 'r', 'a', 'n', 's', 'f', 'o', 'r', 'm', 0, 0, 0xED};
+
+static int printable(const uint8_t *bytes, size_t length)
+{
+    for (size_t index = 0; index < length; index++) {
+        if (bytes[index] <= 32 || bytes[index] >= 127) return 0;
+    }
+    return length > 0;
+}
+
+static size_t decodeString(const Parsed *parsed, const uint8_t *entry, const uint8_t **text)
+{
+    uint8_t discriminator = entry[15];
+    if ((discriminator >> 4) == 0xE) {
+        size_t length = discriminator & 0xF;
+        for (size_t index = length; index < 15; index++) {
+            if (entry[index]) return 0;
+        }
+        *text = entry;
+        return printable(entry, length) ? length : 0;
+    }
+    uint64_t flags, object;
+    memcpy(&flags, entry, 8);
+    memcpy(&object, entry + 8, 8);
+    uint8_t kind = (uint8_t)(flags >> 60);
+    if (kind != 0x8 && kind != 0x9 && kind != 0xC && kind != 0xD) return 0;
+    uint64_t length = flags & 0xFFFFFFFFFFFFull;
+    if (length == 0 || length > 255) return 0;
+    uint64_t address;
+    if (parsed->image.view->file) {
+        if (((object >> 36) & 0xFF) != 0x80) return 0;
+        address = parsed->image.textBase + (object & 0xFFFFFFFFFull) + 32;
+    } else {
+        if ((object >> 60) != 0x8) return 0;
+        address = (object & 0x0FFFFFFFFFFFFFFFull) + 32 - (uint64_t)parsed->image.slide;
+    }
+    const uint8_t *bytes = pointerAt(&parsed->image, address, (size_t)length);
+    if (!bytes || !printable(bytes, (size_t)length)) return 0;
+    *text = bytes;
+    return (size_t)length;
+}
+
+size_t astral_read_property_names(const AstralImageView *view, const char **names, size_t capacity, char *storage, size_t storageSize)
+{
+    Parsed parsed;
+    if (!parse(view, &parsed)) return 0;
+    for (size_t sectionIndex = 0; sectionIndex < parsed.dataCount; sectionIndex++) {
+        const struct section_64 *section = parsed.data[sectionIndex];
+        const uint8_t *bytes = pointerAt(&parsed.image, section->addr, section->size);
+        if (!bytes || section->size < 16) continue;
+        for (uint64_t offset = 0; offset + 16 <= section->size; offset += 8) {
+            if (memcmp(bytes + offset, kPropertyAnchor, 16) != 0) continue;
+            const uint8_t *text;
+            uint64_t start = offset;
+            while (start >= 16 && decodeString(&parsed, bytes + start - 16, &text)) start -= 16;
+            size_t count = 0, used = 0;
+            for (uint64_t at = start; at + 16 <= section->size && count < capacity; at += 16) {
+                size_t length = decodeString(&parsed, bytes + at, &text);
+                if (!length || used + length + 1 > storageSize) break;
+                memcpy(storage + used, text, length);
+                storage[used + length] = 0;
+                names[count++] = storage + used;
+                used += length + 1;
+            }
+            return count;
+        }
+    }
+    return 0;
 }

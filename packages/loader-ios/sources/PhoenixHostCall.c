@@ -6,6 +6,18 @@
 
 enum { kChunk = 1 << 20, kMaxSlots = 8 };
 
+static unsigned int gLastTag;
+
+unsigned int astral_host_call_last_tag(void)
+{
+    return gLastTag;
+}
+
+static bool isSmallHeapTag(unsigned int tag)
+{
+    return tag == VM_MEMORY_MALLOC_TINY || tag == VM_MEMORY_MALLOC_NANO || tag == VM_MEMORY_MALLOC_SMALL;
+}
+
 static bool isHeapTag(unsigned int tag)
 {
     switch (tag) {
@@ -27,7 +39,7 @@ static bool isRecord(const AstralHostCallImage *image, const uint64_t *words, si
     return words[index - 1] != 0 && drop != image->call && drop >= image->textStart && drop < image->textEnd;
 }
 
-static size_t findSlots(const AstralHostCallImage *image, uint64_t *buffer, vm_address_t *slots, uint64_t *contexts)
+static size_t findSlots(const AstralHostCallImage *image, uint64_t *buffer, vm_address_t *slots, uint64_t *contexts, bool fullScan)
 {
     size_t found = 0;
     vm_address_t address = 0;
@@ -43,7 +55,7 @@ static size_t findSlots(const AstralHostCallImage *image, uint64_t *buffer, vm_a
             continue;
         }
         bool readable = (info.protection & (VM_PROT_READ | VM_PROT_WRITE)) == (VM_PROT_READ | VM_PROT_WRITE);
-        if (readable && isHeapTag(info.user_tag)) {
+        if (readable && (fullScan ? isHeapTag(info.user_tag) : isSmallHeapTag(info.user_tag))) {
             for (vm_size_t offset = 0; offset < size; offset += kChunk) {
                 vm_size_t wanted = size - offset < kChunk ? size - offset : kChunk;
                 vm_size_t copied = 0;
@@ -52,6 +64,7 @@ static size_t findSlots(const AstralHostCallImage *image, uint64_t *buffer, vm_a
                 for (size_t index = 1; index + 1 < count; index++) {
                     if (!isRecord(image, buffer, index, count)) continue;
                     if (found == kMaxSlots) return 0;
+                    gLastTag = info.user_tag;
                     slots[found] = address + offset + index * sizeof(uint64_t);
                     contexts[found] = buffer[index - 1];
                     found++;
@@ -63,14 +76,14 @@ static size_t findSlots(const AstralHostCallImage *image, uint64_t *buffer, vm_a
     return found;
 }
 
-size_t astral_host_call_swap(const AstralHostCallImage *image, AstralHostCall replacement, void **context)
+size_t astral_host_call_swap(const AstralHostCallImage *image, AstralHostCall replacement, void **context, bool fullScan)
 {
     void *mapping = mmap(NULL, kChunk, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, VM_MAKE_TAG(VM_MEMORY_APPLICATION_SPECIFIC_1), 0);
     if (mapping == MAP_FAILED) return 0;
     uint64_t *buffer = mapping;
     vm_address_t slots[kMaxSlots];
     uint64_t contexts[kMaxSlots];
-    size_t found = findSlots(image, buffer, slots, contexts);
+    size_t found = findSlots(image, buffer, slots, contexts, fullScan);
     munmap(mapping, kChunk);
     for (size_t index = 0; index < found; index++) {
         uint64_t expected = image->call;

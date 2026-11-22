@@ -15,7 +15,8 @@ typedef struct {
     uintptr_t call;
 } AstralHostCallImage;
 
-size_t astral_host_call_swap(const AstralHostCallImage *image, AstralHostCall replacement, void **context);
+unsigned int astral_host_call_last_tag(void);
+size_t astral_host_call_swap(const AstralHostCallImage *image, AstralHostCall replacement, void **context, bool fullScan);
 
 #ifdef __cplusplus
 }
