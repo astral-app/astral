@@ -25,6 +25,8 @@ var commands = map[string]command{
 	"prepare-theos": {"prepare-theos [--theos <directory>]", runPrepareTheos},
 	"wire-dump":     {"wire-dump [--device <udid>] <output directory>", runWireDump},
 	"dev":           {"dev <status|push|watch|eval|logs|theme|backup> ...", runDev},
+	"fuzz":          {"fuzz [--seconds 60] [--corpus <directory>]", runFuzz},
+	"bench":         {"bench [captured batch ...]", runBench},
 	"compat":        {"compat --ipa <decrypted Discord.ipa> [--channel stable] [--baseline compat.json] [--results compat.json] [--report report.md]", runCompat},
 }
 

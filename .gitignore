@@ -4,3 +4,4 @@ packages/loader-ios/packages/
 .tools-cache/
 *.ipa
 *.deb
+fuzz-crashes/
