@@ -21,6 +21,10 @@ import (
 )
 
 const vphoneUsage = `usage: astral vphone <command>
+  create [--ipa <IPA>] [--build 24B156]  build a VM with the adhoc preset, bootstrap, ElleKit and optionally Discord and astral
+  snapshot <save|revert|list> [name]      stop, snapshot or revert, and boot again
+  watch                            rebuild and deploy astral on every source change
+  crashes [--process Discord]      the newest crash report, with astral frames symbolicated
   boot [--name vphone]              restart the VM with its guest API on, using a stored token
   status                           bootstrap state and the frontmost app
   call <method> [json params]      call any guest API method
@@ -295,6 +299,12 @@ func runVphone(args []string) error {
 	if len(args) == 0 {
 		return errors.New(vphoneUsage)
 	}
+	switch args[0] {
+	case "create":
+		return runVphoneCreate(args[1:])
+	case "snapshot":
+		return runVphoneSnapshot(args[1:])
+	}
 	if args[0] == "boot" {
 		flags := newFlags("vphone boot")
 		name := flags.String("name", "vphone", "VM name")
@@ -370,6 +380,10 @@ func runVphone(args []string) error {
 		return runVphoneSession(client, args[1:])
 	case "ssh":
 		return runVphoneSSHCommand(args[1:])
+	case "watch":
+		return runVphoneWatch(client)
+	case "crashes":
+		return runVphoneCrashes(client, args[1:])
 	case "setup":
 		return runVphoneSetup(args[1:])
 	case "discord":

@@ -1,9 +1,13 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -82,36 +86,131 @@ func vphoneTweakDeploy(client vphoneClient) error {
 	if err := buildPackage(); err != nil {
 		return err
 	}
-	staged := stagedTweak()
-	dylib := path.Join(tweaks, "astral.dylib")
-	client.call("files.remove", map[string]any{"path": dylib}, nil)
-	if err := client.push(filepath.Join(staged, "Library", "MobileSubstrate", "DynamicLibraries", "astral.dylib"), dylib); err != nil {
-		return err
-	}
-	if err := client.push(filepath.Join(staged, "Library", "MobileSubstrate", "DynamicLibraries", "astral.plist"), path.Join(tweaks, "astral.plist")); err != nil {
-		return err
-	}
-	resources := path.Join(root, "usr", "lib", "astral")
-	client.call("files.remove", map[string]any{"path": resources, "recursive": true}, nil)
-	pushed := 2
-	local := filepath.Join(staged, "usr", "lib", "astral")
-	err = filepath.WalkDir(local, func(file string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil || entry.IsDir() {
-			return walkErr
-		}
-		relative, _ := filepath.Rel(local, file)
-		pushed++
-		return client.push(file, path.Join(resources, filepath.ToSlash(relative)))
-	})
+	files, err := tweakFiles(tweaks, path.Join(root, "usr", "lib", "astral"))
 	if err != nil {
 		return err
+	}
+	pushed, removed, err := syncTweakFiles(client, files, path.Join(root, "usr", "lib", "astral"), tweaks)
+	if err != nil {
+		return err
+	}
+	if _, err := saveVphoneSession(client); err == nil {
+		fmt.Println("refreshed the saved login")
 	}
 	client.call("apps.terminate", map[string]any{"bundle_id": discordBundleID}, nil)
 	if err := launchWhenStopped(client); err != nil {
 		return err
 	}
-	fmt.Printf("deployed astral as an ElleKit tweak (%d files) and relaunched Discord in %.1fs\n", pushed, time.Since(started).Seconds())
+	fmt.Printf("deployed astral as an ElleKit tweak (%d of %d files changed, %d removed) and relaunched Discord in %.1fs\n", pushed, len(files), removed, time.Since(started).Seconds())
 	return nil
+}
+
+type deployFile struct {
+	local  string
+	remote string
+}
+
+func tweakFiles(tweaks string, resources string) ([]deployFile, error) {
+	staged := stagedTweak()
+	libraries := filepath.Join(staged, "Library", "MobileSubstrate", "DynamicLibraries")
+	files := []deployFile{
+		{filepath.Join(libraries, "astral.dylib"), path.Join(tweaks, "astral.dylib")},
+		{filepath.Join(libraries, "astral.plist"), path.Join(tweaks, "astral.plist")},
+	}
+	local := filepath.Join(staged, "usr", "lib", "astral")
+	err := filepath.WalkDir(local, func(file string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil || entry.IsDir() {
+			return walkErr
+		}
+		relative, _ := filepath.Rel(local, file)
+		files = append(files, deployFile{file, path.Join(resources, filepath.ToSlash(relative))})
+		return nil
+	})
+	return files, err
+}
+
+func deployCachePath() string {
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".cache", "astral", "vphone-deploy.json")
+}
+
+func fileHash(file string) (string, error) {
+	data, err := os.ReadFile(file)
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:]), nil
+}
+
+func remoteFiles(client vphoneClient, roots ...string) map[string]bool {
+	present := map[string]bool{}
+	for _, root := range roots {
+		cursor := ""
+		for {
+			params := map[string]any{"root": root, "pattern": "/", "limit": 1000}
+			if cursor != "" {
+				params["cursor"] = cursor
+			}
+			var page struct {
+				Matches    []string `json:"matches"`
+				NextCursor string   `json:"next_cursor"`
+			}
+			if err := client.call("files.find", params, &page); err != nil {
+				break
+			}
+			for _, match := range page.Matches {
+				present[strings.TrimPrefix(match, "/private")] = true
+			}
+			if page.NextCursor == "" {
+				break
+			}
+			cursor = page.NextCursor
+		}
+	}
+	return present
+}
+
+func syncTweakFiles(client vphoneClient, files []deployFile, resources string, tweaks string) (int, int, error) {
+	cache := map[string]string{}
+	if data, err := os.ReadFile(deployCachePath()); err == nil {
+		json.Unmarshal(data, &cache)
+	}
+	present := remoteFiles(client, resources, tweaks)
+	wanted := map[string]bool{}
+	pushed := 0
+	for _, file := range files {
+		wanted[file.remote] = true
+		hash, err := fileHash(file.local)
+		if err != nil {
+			return pushed, 0, err
+		}
+		if cache[file.remote] == hash && present[strings.TrimPrefix(file.remote, "/private")] {
+			continue
+		}
+		if strings.HasSuffix(file.remote, ".dylib") {
+			client.call("files.remove", map[string]any{"path": file.remote}, nil)
+		}
+		if err := client.push(file.local, file.remote); err != nil {
+			return pushed, 0, err
+		}
+		cache[file.remote] = hash
+		pushed++
+	}
+	removed := 0
+	for remote := range present {
+		if strings.HasPrefix(remote, strings.TrimPrefix(resources, "/private")+"/") && !wanted[remote] {
+			if client.call("files.remove", map[string]any{"path": remote}, nil) == nil {
+				delete(cache, remote)
+				removed++
+			}
+		}
+	}
+	if err := os.MkdirAll(filepath.Dir(deployCachePath()), 0o700); err != nil {
+		return pushed, removed, err
+	}
+	encoded, _ := json.Marshal(cache)
+	return pushed, removed, os.WriteFile(deployCachePath(), encoded, 0o600)
 }
 
 func discordRunning(client vphoneClient) bool {

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/pelletier/go-toml/v2"
+	"howett.net/plist"
 )
 
 func writePlugin(t *testing.T) string {
@@ -244,5 +245,25 @@ func TestCheckPicksAffectedSteps(t *testing.T) {
 func TestCheckSkipsFileScopedStepsForDeletions(t *testing.T) {
 	if got := plannedNames("packages/core/src/Removed.cpp"); got != "core tests" {
 		t.Fatalf("got %q", got)
+	}
+}
+
+func TestAdhocPresetUnblocksPrecheckAdmission(t *testing.T) {
+	source := map[string]any{"Identifier": "standard", "Selection": map[string]any{"Kind": "Block", "Patches": []any{"dyld-exp-mis_trust_auth", adhocAdmission}}}
+	data, err := plist.Marshal(source, plist.XMLFormat)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := adhocPreset(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var preset map[string]any
+	if _, err := plist.Unmarshal(result, &preset); err != nil {
+		t.Fatal(err)
+	}
+	patches := preset["Selection"].(map[string]any)["Patches"].([]any)
+	if preset["Identifier"] != "standard-adhoc" || len(patches) != 1 || patches[0] != "dyld-exp-mis_trust_auth" {
+		t.Fatalf("unexpected preset %v", preset)
 	}
 }
