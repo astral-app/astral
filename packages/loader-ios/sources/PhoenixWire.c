@@ -2224,6 +2224,12 @@ static uint8_t *relabel(const uint8_t *bytes, size_t length, const Span *spans, 
 
 enum { kWireVersion = 1 };
 static int gUnsupportedWireVersion;
+static unsigned gRewriteFailures;
+
+unsigned astral_wire_rewrite_failures(void)
+{
+    return gRewriteFailures;
+}
 
 int astral_wire_unsupported_version(void)
 {
@@ -2310,6 +2316,12 @@ int astral_settings_rewrite(const uint8_t *bytes, size_t length, AstralWireBuffe
     free(themed);
     free(relabelled);
     if (!changed || out.failed) {
+        free(out.bytes);
+        return 0;
+    }
+    size_t checked = 0;
+    if (scan(out.bytes, out.length, spans, &checked) != 0) {
+        gRewriteFailures++;
         free(out.bytes);
         return 0;
     }

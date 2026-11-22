@@ -13,9 +13,9 @@ unsigned int astral_host_call_last_tag(void)
     return gLastTag;
 }
 
-static bool isSmallHeapTag(unsigned int tag)
+static bool isRecordHeapTag(unsigned int tag)
 {
-    return tag == VM_MEMORY_MALLOC_TINY || tag == VM_MEMORY_MALLOC_NANO || tag == VM_MEMORY_MALLOC_SMALL;
+    return tag == VM_MEMORY_MALLOC_SMALL;
 }
 
 static bool isHeapTag(unsigned int tag)
@@ -55,7 +55,7 @@ static size_t findSlots(const AstralHostCallImage *image, uint64_t *buffer, vm_a
             continue;
         }
         bool readable = (info.protection & (VM_PROT_READ | VM_PROT_WRITE)) == (VM_PROT_READ | VM_PROT_WRITE);
-        if (readable && (fullScan ? isHeapTag(info.user_tag) : isSmallHeapTag(info.user_tag))) {
+        if (readable && (fullScan ? isHeapTag(info.user_tag) : isRecordHeapTag(info.user_tag))) {
             for (vm_size_t offset = 0; offset < size; offset += kChunk) {
                 vm_size_t wanted = size - offset < kChunk ? size - offset : kChunk;
                 vm_size_t copied = 0;

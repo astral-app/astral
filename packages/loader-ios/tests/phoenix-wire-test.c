@@ -540,6 +540,7 @@ int main(void)
     categoryRowsTest();
     profileRelabelTest();
     gradientThemeTest();
+    assert(astral_wire_rewrite_failures() == 0);
     unsupportedVersionTest();
     puts("ok");
     return 0;

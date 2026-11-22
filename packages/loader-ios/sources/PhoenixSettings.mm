@@ -164,9 +164,43 @@ static void RecordFirstFrame(const uint8_t *batch, size_t length)
     if (changed) dispatch_async(dispatch_get_main_queue(), changed);
 }
 
+static const unsigned kMaxRewriteFailures = 3;
+static std::atomic<bool> gRewriteDisabled{false};
+
+static NSString *HooksPath(void)
+{
+    return [AstralStateDirectory() stringByAppendingPathComponent:@"hooks.json"];
+}
+
+static NSString *DisabledKey(void)
+{
+    return [NSString stringWithFormat:@"rewriteDisabled.%@.%s", AstralPhoenixUUID(), ASTRAL_VERSION];
+}
+
+static BOOL RewriteDisabledForBuild(void)
+{
+    NSData *stored = [NSData dataWithContentsOfFile:HooksPath()];
+    NSDictionary *cache = stored ? [NSJSONSerialization JSONObjectWithData:stored options:0 error:nil] : nil;
+    return [cache isKindOfClass:NSDictionary.class] && [cache[DisabledKey()] boolValue];
+}
+
+static void DisableRewriting(void)
+{
+    if (gRewriteDisabled.exchange(true)) return;
+    NSData *stored = [NSData dataWithContentsOfFile:HooksPath()];
+    id parsed = stored ? [NSJSONSerialization JSONObjectWithData:stored options:0 error:nil] : nil;
+    NSMutableDictionary *cache = [parsed isKindOfClass:NSDictionary.class] ? [parsed mutableCopy] : [NSMutableDictionary dictionary];
+    cache[DisabledKey()] = @YES;
+    [[NSJSONSerialization dataWithJSONObject:cache options:0 error:nil] writeToFile:HooksPath() atomically:YES];
+    RecordTiming(@"rewriteFailures", @(astral_wire_rewrite_failures()));
+    SetRoute(@"rewrite-disabled");
+    Log(@"phoenix: rewritten batches failed to parse; rewriting is off for this Phoenix build until astral updates");
+}
+
 static bool InterceptHostCall(void *context, const uint8_t *frame, size_t length, void *result)
 {
-    if (length < 4 || frame[0] || frame[1] || frame[2] || frame[3]) return gHostOriginal(context, frame, length, result);
+    if (length < 4 || frame[0] || frame[1] || frame[2] || frame[3] || gRewriteDisabled.load())
+        return gHostOriginal(context, frame, length, result);
     pthread_mutex_lock(&gLock);
     gHostContext = context;
     RecordFirstFrame(frame + 4, length - 4);
@@ -183,6 +217,7 @@ static bool InterceptHostCall(void *context, const uint8_t *frame, size_t length
         } else {
             handled = gHostOriginal(context, frame, length, result);
         }
+        if (astral_wire_rewrite_failures() >= kMaxRewriteFailures) DisableRewriting();
         int unsupported = astral_wire_unsupported_version();
         if (unsupported && !unsupportedBefore) SetRoute([NSString stringWithFormat:@"unsupported-wire-v%d", unsupported]);
     }
@@ -448,6 +483,10 @@ static NSString *StartRoute(void)
     HookPoints points = LocateHookPoints(image);
     if (!points.opsArrived) return @"ops-entry-not-found";
     if (!points.hostCall) return @"host-call-not-found";
+    if (RewriteDisabledForBuild()) {
+        SetRoute(@"rewrite-disabled");
+        return @"rewrite-disabled";
+    }
     NSString *propertyRefusal = ResolveProperties(image);
     if (propertyRefusal) return propertyRefusal;
     StartCapture();
