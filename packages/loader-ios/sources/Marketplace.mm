@@ -1,3 +1,4 @@
+#import "StopList.h"
 #import "Marketplace.h"
 
 #import "TomlDocument.h"
@@ -117,16 +118,21 @@ void AstralCatalogRefresh(void (^changed)(void))
             data = nil;
             failure = @"catalog signature does not match";
         }
+        if (data && [url.scheme isEqualToString:@"https"])
+            AstralCacheVerifiedCatalog(data, signature);
+        else if (data)
+            AstralClearCachedCatalog();
         id parsed = AstralParseTOML(data);
         NSDictionary *catalog = nil;
         if ([parsed isKindOfClass:NSDictionary.class]) {
             catalog = @{
                 @"loader" : [parsed[@"loader"] isKindOfClass:NSDictionary.class] ? parsed[@"loader"] : @{},
                 @"plugins" : Entries(parsed, @"plugins"),
-                @"themes" : Entries(parsed, @"themes")
+                @"themes" : Entries(parsed, @"themes"),
+                @"compatibility" : [parsed[@"compatibility"] isKindOfClass:NSDictionary.class] ? parsed[@"compatibility"] : @{}
             };
         } else if (!failure) {
-            failure = @"catalog is not valid JSON";
+            failure = @"catalog is not valid TOML";
         }
         dispatch_async(dispatch_get_main_queue(), ^{
             gCatalog = catalog ?: gCatalog;

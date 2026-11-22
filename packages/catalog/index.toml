@@ -1,6 +1,9 @@
 [loader]
 version = "0.0.1"
 
+[compatibility]
+passive = []
+
 [[plugins]]
 id = "astral.more-user-tags"
 name = "More User Tags"

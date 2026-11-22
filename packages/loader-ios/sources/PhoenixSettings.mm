@@ -17,6 +17,7 @@
 #import "PhoenixLocate.h"
 #import "PhoenixProperties.h"
 #import "PhoenixWire.h"
+#import "StopList.h"
 
 static const char kOpsArrivedNeedle[] = "ops batch dropped";
 
@@ -439,6 +440,11 @@ static NSString *StartRoute(void)
 {
     const struct mach_header *image = AstralPhoenixImage();
     if (!image) return @"unsupported-image";
+    NSString *stopped = AstralStopListReason(AstralPhoenixUUID());
+    if (stopped) {
+        SetRoute(@"stopped-by-catalog");
+        return [@"stopped-by-catalog: " stringByAppendingString:stopped];
+    }
     HookPoints points = LocateHookPoints(image);
     if (!points.opsArrived) return @"ops-entry-not-found";
     if (!points.hostCall) return @"host-call-not-found";
