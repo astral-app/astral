@@ -5,11 +5,16 @@
 #import <string.h>
 #import "ImageIdentity.h"
 
-static NSString *const expectedUUID = @"381f8c42-ad92-3e30-80a4-9599f0b11b50";
+static NSString *const kPhoenixImage = @"/PhoenixFatClient.framework/PhoenixFatClient";
+
+static BOOL PhoenixPath(const char *path)
+{
+    return path && strstr(path, kPhoenixImage.UTF8String) != NULL;
+}
 
 static BOOL PhoenixClass(Class cls)
 {
-    return cls && [AstralImageUUIDForPath(class_getImageName(cls)) isEqualToString:expectedUUID];
+    return cls && PhoenixPath(class_getImageName(cls));
 }
 
 UIWindow *AstralPhoenixWindow(void)
@@ -36,9 +41,7 @@ Method AstralPhoenixOwnedMethod(Class cls, SEL selector, const char *encoding)
         Method method = methods[index];
         if (method_getName(method) == selector && strcmp(method_getTypeEncoding(method), encoding) == 0) {
             Dl_info owner = {0};
-            if (dladdr((const void *)method_getImplementation(method), &owner) &&
-                [AstralImageUUIDForPath(owner.dli_fname) isEqualToString:expectedUUID])
-                match = method;
+            if (dladdr((const void *)method_getImplementation(method), &owner) && PhoenixPath(owner.dli_fname)) match = method;
             break;
         }
     }
@@ -50,19 +53,20 @@ const struct mach_header *AstralPhoenixImage(void)
 {
     for (uint32_t index = 0; index < _dyld_image_count(); index++) {
         const char *name = _dyld_get_image_name(index);
-        if (!name || !strstr(name, "/PhoenixFatClient.framework/PhoenixFatClient")) continue;
-        const struct mach_header *header = _dyld_get_image_header(index);
-        return [AstralImageUUID(header) isEqualToString:expectedUUID] ? header : NULL;
+        if (PhoenixPath(name)) return _dyld_get_image_header(index);
     }
     return NULL;
+}
+
+NSString *AstralPhoenixUUID(void)
+{
+    return AstralImageUUID(AstralPhoenixImage());
 }
 
 NSString *AstralPhoenixCompatibility(void)
 {
     NSBundle *bundle = NSBundle.mainBundle;
-    if (![bundle.bundleIdentifier isEqualToString:@"com.hammerandchisel.discord"] ||
-        ![bundle.infoDictionary[@"CFBundleVersion"] isEqualToString:@"124376"])
-        return @"unsupported-build";
+    if (![bundle.bundleIdentifier hasPrefix:@"com.hammerandchisel.discord"]) return @"unsupported-build";
     Class text = NSClassFromString(@"LibdiscordHost.TextBox");
     if (!text) return @"phoenix-image-unavailable";
     if (!PhoenixClass(text)) return @"unsupported-image";

@@ -31,4 +31,4 @@ make -C packages/loader-ios package FINALPACKAGE=1
 
 Theos and GNU make are required. `tools/deploy.sh` builds and installs on a jailbroken test device (`DEVICE=<udid>`), and `tools/build-ipa.sh --ipa <decrypted Discord.ipa>` produces a sideloadable IPA.
 
-Discord 356.0 (build 124376) is the supported build; the Phoenix image is checked by UUID before anything is hooked.
+astral is not tied to one Discord build: it finds Phoenix's `opsArrived` by the one function that references its `ops batch dropped` diagnostic (via `LC_FUNCTION_STARTS`), caches the offset per Phoenix UUID in `Documents/astral/hooks.json`, and refuses to hook when that search is not unique. Set `ASTRAL_PHOENIX_BINARY` to a PhoenixFatClient binary to run the locator test.

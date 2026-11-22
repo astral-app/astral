@@ -10,6 +10,7 @@ UIWindow *AstralPhoenixWindow(void);
 const struct mach_header *AstralPhoenixImage(void);
 Method AstralPhoenixOwnedMethod(Class cls, SEL selector, const char *encoding);
 NSString *AstralPhoenixCompatibility(void);
+NSString *AstralPhoenixUUID(void);
 
 #ifdef __cplusplus
 }

@@ -11,10 +11,30 @@
 
 #import "AstralState.h"
 #import "PhoenixImage.h"
+#import "PhoenixLocate.h"
 #import "PhoenixWire.h"
 
-static const uintptr_t kOpsArrived = 0x333ce8;
-static const uint32_t kPrologue[] = {0xa9ba6ffc, 0xa90167fa, 0xa9025ff8, 0xa90357f6};
+static const char kOpsArrivedNeedle[] = "ops batch dropped";
+
+static uint64_t LocateOpsArrived(const struct mach_header *image)
+{
+    NSString *uuid = AstralPhoenixUUID();
+    NSString *cachePath = [AstralStateDirectory() stringByAppendingPathComponent:@"hooks.json"];
+    NSDictionary *cache = @{};
+    NSData *stored = [NSData dataWithContentsOfFile:cachePath];
+    id parsed = stored ? [NSJSONSerialization JSONObjectWithData:stored options:0 error:nil] : nil;
+    if ([parsed isKindOfClass:NSDictionary.class]) cache = parsed;
+    NSNumber *cached = cache[uuid];
+    if ([cached isKindOfClass:NSNumber.class] && cached.unsignedLongLongValue) return cached.unsignedLongLongValue;
+    AstralImageView view = {(const uint8_t *)image, 0, 0, 0};
+    uint64_t offset = astral_locate_function_referencing(&view, kOpsArrivedNeedle);
+    if (offset && uuid.length) {
+        NSMutableDictionary *next = [cache mutableCopy];
+        next[uuid] = @(offset);
+        [[NSJSONSerialization dataWithJSONObject:next options:0 error:nil] writeToFile:cachePath atomically:YES];
+    }
+    return offset;
+}
 static NSString *const kOverviewRow = @"settings.row.astral";
 static NSString *const kOverviewRowPrefix = @"settings.row.astral.";
 static NSString *const kBack = @"astral.back";
@@ -286,8 +306,9 @@ NSString *AstralInstallPhoenixSettings(NSDictionary *category, AstralSettingsPag
     if (gPageModel) return nil;
     const struct mach_header *image = AstralPhoenixImage();
     if (!image) return @"unsupported-image";
-    const uint32_t *entry = (const uint32_t *)((const uint8_t *)image + kOpsArrived);
-    if (memcmp(entry, kPrologue, sizeof(kPrologue)) != 0) return @"ops-entry-mismatch";
+    uint64_t opsArrived = LocateOpsArrived(image);
+    if (!opsArrived) return @"ops-entry-not-found";
+    const uint32_t *entry = (const uint32_t *)((const uint8_t *)image + opsArrived);
     gToObjC = (DataToObjC)dlsym(RTLD_DEFAULT, "$s10Foundation4DataV19_bridgeToObjectiveCSo6NSDataCyF");
     gFromObjC = (DataFromObjC)dlsym(RTLD_DEFAULT, "$s10Foundation4DataV36_unconditionallyBridgeFromObjectiveCyACSo6NSDataCSgFZ");
     if (!gToObjC || !gFromObjC) return @"data-bridge-unavailable";

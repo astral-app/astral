@@ -33,3 +33,7 @@ done
   exit 1
 }
 echo "signatures ok"
+if [ -n "${ASTRAL_PHOENIX_BINARY:-}" ]; then
+  clang -Wall -Wextra -Werror -O1 "$root/packages/loader-ios/tests/locate-test.c" "$root/packages/loader-ios/sources/PhoenixLocate.c" -o "$work/locate-test"
+  "$work/locate-test" "$ASTRAL_PHOENIX_BINARY"
+fi
