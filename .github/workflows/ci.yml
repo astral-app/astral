@@ -41,7 +41,6 @@ jobs:
 
   package:
     name: Build the package
-    if: github.event_name == 'push'
     needs: check
     runs-on: macos-latest
     steps:
