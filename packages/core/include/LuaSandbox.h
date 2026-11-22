@@ -7,7 +7,7 @@
 struct lua_State;
 struct lua_Debug;
 
-namespace loader::lua {
+namespace astral::lua {
 struct SandboxLimits {
     size_t memory = 8u << 20;
     int budgetSlices = 40;
@@ -38,4 +38,4 @@ class Sandbox
     size_t used = 0;
     int remaining = 0;
 };
-} // namespace loader::lua
+} // namespace astral::lua

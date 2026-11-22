@@ -18,7 +18,7 @@ func repoRoot() (string, error) {
 	}
 	for {
 		if _, err := os.Stat(filepath.Join(directory, "go.work")); err == nil {
-			if _, err := os.Stat(filepath.Join(directory, "packages", "loader-ios")); err == nil {
+			if _, err := os.Stat(filepath.Join(directory, "packages", "ios")); err == nil {
 				return directory, nil
 			}
 		}

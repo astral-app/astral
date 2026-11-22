@@ -36,13 +36,13 @@ func testTools(work string) error {
 }
 
 func testWire(work string) error {
-	loader := repoPath("packages", "loader-ios")
+	ios := repoPath("packages", "ios")
 	binary := filepath.Join(work, "phoenix-wire-test")
-	if err := run(loader, "clang", "-Wall", "-Wextra", "-Werror", "-g", "-fsanitize=address,undefined",
+	if err := run(ios, "clang", "-Wall", "-Wextra", "-Werror", "-g", "-fsanitize=address,undefined",
 		"tests/phoenix-wire-test.c", "tests/support/wire-parser.c", "sources/PhoenixProperties.c", "-o", binary); err != nil {
 		return err
 	}
-	return run(loader, binary)
+	return run(ios, binary)
 }
 
 var coreLuaSources = []string{"LuaSandbox", "LuaJSON", "LuaLocale", "PluginStorage"}
@@ -134,7 +134,7 @@ func verifyWithMonocypher(work string, folders []string) error {
 	monocypher := repoPath("vendor", "monocypher", "src")
 	verifier := filepath.Join(work, "verify-signature")
 	if err := run(repoPath(), "cc", "-O1", "-w", "-I"+monocypher, "-I"+filepath.Join(monocypher, "optional"), "-o", verifier,
-		repoPath("packages", "loader-ios", "tests", "support", "verify-signature.c"), filepath.Join(monocypher, "monocypher.c"),
+		repoPath("packages", "ios", "tests", "support", "verify-signature.c"), filepath.Join(monocypher, "monocypher.c"),
 		filepath.Join(monocypher, "optional", "monocypher-ed25519.c")); err != nil {
 		return err
 	}
@@ -169,7 +169,7 @@ func verifyWithMonocypher(work string, folders []string) error {
 
 func testLocator(work string, phoenix string) error {
 	binary := filepath.Join(work, "locate-test")
-	sources := repoPath("packages", "loader-ios")
+	sources := repoPath("packages", "ios")
 	if err := run(sources, "clang", "-Wall", "-Wextra", "-Werror", "-O1", "tests/locate-test.c", "sources/PhoenixLocate.c", "sources/PhoenixProperties.c", "-o", binary); err != nil {
 		return err
 	}

@@ -36,7 +36,7 @@ func fuzzClang() (string, error) {
 
 func generateSeeds(work string, corpus string) error {
 	generator := filepath.Join(work, "seeds")
-	tests := repoPath("packages", "loader-ios", "tests")
+	tests := repoPath("packages", "ios", "tests")
 	if err := run(tests, "cc", "-O1", "-w", "-o", generator, "fuzz/seeds.c", "../sources/PhoenixProperties.c"); err != nil {
 		return err
 	}
@@ -69,7 +69,7 @@ func runFuzz(args []string) error {
 		return err
 	}
 	target := filepath.Join(work, "rewrite-fuzz")
-	tests := repoPath("packages", "loader-ios", "tests")
+	tests := repoPath("packages", "ios", "tests")
 	if err := run(tests, clang, "-g", "-O1", "-fsanitize=fuzzer,address,undefined", "-fno-sanitize-recover=all", "-o", target, "fuzz/rewrite-fuzz.c", "../sources/PhoenixProperties.c"); err != nil {
 		return err
 	}
@@ -103,7 +103,7 @@ func runBench(args []string) error {
 	}
 	defer cleanup()
 	binary := filepath.Join(work, "rewrite-bench")
-	tests := repoPath("packages", "loader-ios", "tests")
+	tests := repoPath("packages", "ios", "tests")
 	if err := run(tests, "cc", "-O2", "-w", "-o", binary, "bench/rewrite-bench.c", "../sources/PhoenixProperties.c"); err != nil {
 		return err
 	}

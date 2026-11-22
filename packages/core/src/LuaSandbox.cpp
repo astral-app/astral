@@ -8,7 +8,7 @@ extern "C" {
 #include "lualib.h"
 }
 
-namespace loader::lua {
+namespace astral::lua {
 namespace {
 void openSafeLibraries(lua_State *state)
 {
@@ -90,4 +90,4 @@ std::optional<std::string> Sandbox::run(const std::string &source, const std::st
     if (auto error = load(source, chunk)) return error;
     return call(0, 0);
 }
-} // namespace loader::lua
+} // namespace astral::lua

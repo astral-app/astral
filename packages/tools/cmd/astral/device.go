@@ -100,12 +100,12 @@ func (p pilot) stateDirectory() (string, error) {
 }
 
 func newestDeb() (string, error) {
-	debs, err := filepath.Glob(repoPath("packages", "loader-ios", "packages", "*.deb"))
+	debs, err := filepath.Glob(repoPath("packages", "ios", "packages", "*.deb"))
 	if err != nil {
 		return "", err
 	}
 	if len(debs) == 0 {
-		return "", errors.New("no astral .deb; build packages/loader-ios first")
+		return "", errors.New("no astral .deb; build packages/ios first")
 	}
 	sort.Slice(debs, func(left, right int) bool {
 		leftInfo, _ := os.Stat(debs[left])
@@ -122,7 +122,7 @@ func buildPackage() error {
 		theos = filepath.Join(home, "theos")
 	}
 	path := "/opt/homebrew/opt/make/libexec/gnubin:/opt/homebrew/bin:" + os.Getenv("PATH")
-	return runWithEnv(repoPath("packages", "loader-ios"), []string{"THEOS=" + theos, "PATH=" + path}, "make", "package", "FINALPACKAGE=1")
+	return runWithEnv(repoPath("packages", "ios"), []string{"THEOS=" + theos, "PATH=" + path}, "make", "package", "FINALPACKAGE=1")
 }
 
 func runDeploy(args []string) error {
@@ -243,7 +243,7 @@ func runWireDump(args []string) error {
 		return err
 	}
 	tool := filepath.Join(destination, ".wire-dump")
-	support := repoPath("packages", "loader-ios", "tests", "support")
+	support := repoPath("packages", "ios", "tests", "support")
 	if err := run(repoPath(), "clang", "-O1", "-o", tool, filepath.Join(support, "wire-dump.c"), filepath.Join(support, "wire-parser.c")); err != nil {
 		return err
 	}

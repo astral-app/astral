@@ -48,13 +48,13 @@ jobs:
       - name: Build
         run: |
           export PATH="$(brew --prefix make)/libexec/gnubin:$PATH"
-          make -C packages/loader-ios package FINALPACKAGE=1
+          make -C packages/ios package FINALPACKAGE=1
       - name: Record provenance
         env:
           TAG: ${{ needs.release-please.outputs.tag }}
         run: |
           set -euo pipefail
-          cd packages/loader-ios/packages
+          cd packages/ios/packages
           shasum -a 256 *.deb > SHA256SUMS
           jq -n \
             --arg tag "$TAG" \
@@ -70,9 +70,9 @@ jobs:
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
         if: github.event.repository.visibility == 'public'
         with:
-          subject-path: packages/loader-ios/packages/*.deb
+          subject-path: packages/ios/packages/*.deb
       - name: Attach the package
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload "${{ needs.release-please.outputs.tag }}" packages/loader-ios/packages/*.deb packages/loader-ios/packages/SHA256SUMS packages/loader-ios/packages/provenance.json --clobber
+          gh release upload "${{ needs.release-please.outputs.tag }}" packages/ios/packages/*.deb packages/ios/packages/SHA256SUMS packages/ios/packages/provenance.json --clobber

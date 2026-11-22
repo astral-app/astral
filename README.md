@@ -8,7 +8,7 @@ astral rewrites the ViewWire batches Discord's Rust guest sends to its Swift hos
 
 | Path | Contents |
 | --- | --- |
-| `packages/loader-ios` | The tweak: ViewWire rewriter, settings pages, Lua host, Discord cache reader |
+| `packages/ios` | The tweak: ViewWire rewriter, settings pages, Lua host, Discord cache reader |
 | `packages/core` | Shared C++ core and the Lua prelude every plugin runs on |
 | `packages/plugins` | Bundled Lua plugins and their tests |
 | `packages/sdk` | The plugin API as a lua-language-server addon (`config.json`, `library/`) |
@@ -26,12 +26,12 @@ git submodule update --init
 git config core.hooksPath .githooks
 go run ./packages/tools/cmd/astral lint
 go run ./packages/tools/cmd/astral test
-make -C packages/loader-ios package FINALPACKAGE=1
+make -C packages/ios package FINALPACKAGE=1
 ```
 
-`astral format` formats Lua (StyLua), TOML (Taplo), C and Objective-C (clang-format) and Go (gofmt); `astral lint` checks the same, lints Lua with luacheck and lua-language-server and vets Go. `astral test` runs the ViewWire host test under ASan and UBSan, the prelude and plugin tests, and verifies every signature with Go and with Monocypher (`--phoenix <PhoenixFatClient>` adds the locator test). `astral sign` signs the plugins and the catalog with the key in iCloud. Plugin manifests, themes and the catalog are TOML; internal state the loader writes stays JSON.
+`astral format` formats Lua (StyLua), TOML (Taplo), C and Objective-C (clang-format) and Go (gofmt); `astral lint` checks the same, lints Lua with luacheck and lua-language-server and vets Go. `astral test` runs the ViewWire host test under ASan and UBSan, the prelude and plugin tests, and verifies every signature with Go and with Monocypher (`--phoenix <PhoenixFatClient>` adds the locator test). `astral sign` signs the plugins and the catalog with the key in iCloud. Plugin manifests, themes and the catalog are TOML; internal state astral writes stays JSON.
 
-With Developer mode on, the loader serves a development API on the device's `127.0.0.1:9324`. `astral dev` forwards it over USB (`DEVICE=<udid>`) and offers `status`, `push <plugin folder>` (install and hot reload), `watch <plugin folder>` (push on every save), `eval <plugin id> <lua>`, `logs [-f]`, `theme import` and `backup export|import`. `astral wire-dump` pulls the batches a test device recorded while `Documents/astral/capture-wire` exists and decodes them, with text kept as length and hash.
+With Developer mode on, astral serves a development API on the device's `127.0.0.1:9324`. `astral dev` forwards it over USB (`DEVICE=<udid>`) and offers `status`, `push <plugin folder>` (install and hot reload), `watch <plugin folder>` (push on every save), `eval <plugin id> <lua>`, `logs [-f]`, `theme import` and `backup export|import`. `astral wire-dump` pulls the batches a test device recorded while `Documents/astral/capture-wire` exists and decodes them, with text kept as length and hash.
 
 `astral fuzz` runs libFuzzer over the rewriter (Homebrew LLVM locally) and `astral bench` reports its cost per batch; CI runs both. `astral compat --ipa <Discord.ipa>` checks a Discord build for the hook points and view properties astral needs, and a scheduled workflow runs it on each new stable and beta build. `astral create <id>` scaffolds a plugin with a test and translations, and `astral sdk install` installs the plugin API definitions as a lua-language-server addon for plugins outside this repository.
 

@@ -4,7 +4,7 @@ Host: official `com.hammerandchisel.discord` 356.0 build 124376. Owning image `P
 
 ## Why the current entry is not a Phoenix category
 
-Loader 0.4.0 adds a UIKit button to the overview `ScrollBox` and presents its own table in a sheet. Phoenix does not build settings that way. The Rust guest describes the screen and sends ViewWire batches; the Swift host (`LibdiscordHost`) turns each batch into host views (`FlexBox`, `TextBox`, `ImageBox`, `RowCell`, `ScrollBox`, `NavigatorBox`, `PageSheetController`, `SheetController`). A built-in category, its rows and the detail screens it opens are all guest-described nodes. Navigation is guest-owned: a press goes back to the guest as an event (`UIManager.batchEvents`), and the guest answers with ViewWire edits to the navigator's children.
+astral 0.4.0 adds a UIKit button to the overview `ScrollBox` and presents its own table in a sheet. Phoenix does not build settings that way. The Rust guest describes the screen and sends ViewWire batches; the Swift host (`LibdiscordHost`) turns each batch into host views (`FlexBox`, `TextBox`, `ImageBox`, `RowCell`, `ScrollBox`, `NavigatorBox`, `PageSheetController`, `SheetController`). A built-in category, its rows and the detail screens it opens are all guest-described nodes. Navigation is guest-owned: a press goes back to the guest as an event (`UIManager.batchEvents`), and the guest answers with ViewWire edits to the navigator's children.
 
 ## Host decoder
 
@@ -72,11 +72,11 @@ Known gap: the rewritten `Data` returned by the bridge is not released after the
 
 ## Engine selection
 
-Discord's launcher keeps the engine choice in the `discord_fat_client` defaults suite: `launch_client` (`phoenix` when **Launch Phoenix on next start** is on) and `unhealthy_phoenix_launches`, which makes the launcher fall back to React Native after unhealthy launches. Repeated forced restarts during testing tripped it once. Loader 0.4.1 sets `launch_client` to `phoenix` and resets the counter in its constructor, before `main` and before the launcher reads the suite, and records the previous values in `status.json`. With the suite planted at `react_native` and 5 unhealthy launches, the next cold launch came up in Phoenix and the wire hook installed.
+Discord's launcher keeps the engine choice in the `discord_fat_client` defaults suite: `launch_client` (`phoenix` when **Launch Phoenix on next start** is on) and `unhealthy_phoenix_launches`, which makes the launcher fall back to React Native after unhealthy launches. Repeated forced restarts during testing tripped it once. astral 0.4.1 sets `launch_client` to `phoenix` and resets the counter in its constructor, before `main` and before the launcher reads the suite, and records the previous values in `status.json`. With the suite planted at `react_native` and 5 unhealthy launches, the next cold launch came up in Phoenix and the wire hook installed.
 
 ## Press routing
 
-Property 9 becomes the host view's `accessibilityIdentifier`. Built-in rows carry `GuestTapRecognizer`, `HighlightRecognizer` and `PressWatch`; the first two come from the `press` subscription. The astral row without `press` only had `PressWatch`. The loader will keep `press` for the native highlight and retarget the `GuestTapRecognizer` on views whose identifier starts with `settings.row.astral`, so astral taps never reach the guest.
+Property 9 becomes the host view's `accessibilityIdentifier`. Built-in rows carry `GuestTapRecognizer`, `HighlightRecognizer` and `PressWatch`; the first two come from the `press` subscription. The astral row without `press` only had `PressWatch`. astral will keep `press` for the native highlight and retarget the `GuestTapRecognizer` on views whose identifier starts with `settings.row.astral`, so astral taps never reach the guest.
 
 ## astral page (wire probe 0.5.1)
 
@@ -95,16 +95,16 @@ On the SE the page opened from the astral row with Discord's header, back arrow,
 
 The workspace moved from `/tmp/project-astral`, which the system's periodic `/tmp` cleanup damaged overnight, to a durable clone.
 
-## Loader 0.5.0
+## astral 0.5.0
 
-The Phoenix settings path moved from the probe into the loader:
+The Phoenix settings path moved from the probe into astral:
 
 - `PhoenixWire.c` holds the rewriter, templates, navigator tracking and a page builder driven by a description: sections of link, switch or info rows. Switch rows follow Discord's switch shape: the row has role `switch` and a checked flag (property 3) and subscribes to `accessibilityTap`; the track is a 56 by 28 view with radius 16, a `press` subscription and colour `0xFF5865F2` when on or `0x1F000000` when off; the thumb is a white 20-point circle whose offset (property 535) is 28 when on and 0 when off. A refresh rebuilds the page's sections in place: new section nodes, an op 3 on the list, and op 4 for the old ones.
 - `PhoenixSettings.mm` installs the route after locating `opsArrived` and the host-call entry and checking `GuestTapRecognizer` and the `NavigatorBox` method encoding, and returns the reason when one fails. `PhoenixHostCall.c` finds the guest's `{context, call, drop}` record in the small-allocation heap (read with `vm_read_overwrite`) and swaps `call` atomically; `status.json` reports the route as `host-call`, `host-call-pending` or `host-call-missing`. It delivers open, refresh and close batches under the mutex, routes taps by identifier (`settings.row.astral`, `astral.back`, `astral.row.<key>`, `astral.switch.<key>`) and blocks the navigator's swipe while the page is open.
-- `Bootstrap.mm` builds the page from loader state: a switch per installed plugin, the text style test (an info row while a plugin is active), and diagnostics. Actions reuse the existing plugin and test logic. If the Phoenix path refuses, the reason is written to `status.json` and the earlier UIKit entry is installed as the fallback so recovery stays reachable.
+- `Bootstrap.mm` builds the page from astral's state: a switch per installed plugin, the text style test (an info row while a plugin is active), and diagnostics. Actions reuse the existing plugin and test logic. If the Phoenix path refuses, the reason is written to `status.json` and the earlier UIKit entry is installed as the fallback so recovery stays reachable.
 
-On the SE, 0.5.0 reported `settings: phoenix` with no refusal. The overview showed only the native astral category; the page showed Phoenix switches; switching Cyan Text on started the plugin (`plugin-active`), turned the switch on and made the style test unavailable, and the plugin styled Phoenix text including the page. Switching it off stopped the plugin, Back returned to the overview with one category, and the page reopened. `astral/loader/tests/phoenix_wire_test.c` covers the builder under ASan and UBSan.
+On the SE, 0.5.0 reported `settings: phoenix` with no refusal. The overview showed only the native astral category; the page showed Phoenix switches; switching Cyan Text on started the plugin (`plugin-active`), turned the switch on and made the style test unavailable, and the plugin styled Phoenix text including the page. Switching it off stopped the plugin, Back returned to the overview with one category, and the page reopened. `packages/ios/tests/phoenix-wire-test.c` covers the builder under ASan and UBSan.
 
 ## One route for jailed and jailbroken installs
 
-The Rust guest reaches the host through a callback record Swift builds when Phoenix starts: `{context, call, drop}` (`0x7cf00` and `0x7cfc4` on 356.0). `call(context, frame, length, result)` hands every host call to the dispatcher (`0x3b3c0`), which treats a frame starting with a zero `uint32` as an ops batch and passes the rest to `UIManager.opsArrived`; for those frames it never writes `result`. Discord is a plain arm64 app, so the stored pointer is unsigned and can be replaced with an aligned store. Replacing it needs no writable code, no ElleKit and no JIT, so the loader links only system libraries and the package no longer depends on ElleKit. Batches sent before the swap (the first 20 to 100 ms of the guest's life) pass through unchanged.
+The Rust guest reaches the host through a callback record Swift builds when Phoenix starts: `{context, call, drop}` (`0x7cf00` and `0x7cfc4` on 356.0). `call(context, frame, length, result)` hands every host call to the dispatcher (`0x3b3c0`), which treats a frame starting with a zero `uint32` as an ops batch and passes the rest to `UIManager.opsArrived`; for those frames it never writes `result`. Discord is a plain arm64 app, so the stored pointer is unsigned and can be replaced with an aligned store. Replacing it needs no writable code, no ElleKit and no JIT, so astral links only system libraries and the package no longer depends on ElleKit. Batches sent before the swap (the first 20 to 100 ms of the guest's life) pass through unchanged.

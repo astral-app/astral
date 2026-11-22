@@ -12,7 +12,7 @@ extern "C" {
 #include "lua.h"
 }
 
-using loader::lua::Sandbox;
+using astral::lua::Sandbox;
 
 static void testSandboxRunsCode()
 {
@@ -55,9 +55,9 @@ static void testJSONRoundTrip()
 {
     Sandbox sandbox;
     nlohmann::json value = {{"name", "astral"}, {"count", 3}, {"ratio", 0.5}, {"tags", {"a", "b"}}, {"on", true}};
-    loader::lua::pushJSON(sandbox.state(), value);
+    astral::lua::pushJSON(sandbox.state(), value);
     nlohmann::json back;
-    assert(loader::lua::toJSON(sandbox.state(), -1, back));
+    assert(astral::lua::toJSON(sandbox.state(), -1, back));
     assert(back == value);
 }
 
@@ -67,14 +67,14 @@ static void testJSONRejectsFunctionsAndDeepTables()
     assert(!sandbox.run("callable = { run = function() end } deep = {{{{{{{{{{}}}}}}}}}}", "test"));
     nlohmann::json out;
     lua_getglobal(sandbox.state(), "callable");
-    assert(!loader::lua::toJSON(sandbox.state(), -1, out));
+    assert(!astral::lua::toJSON(sandbox.state(), -1, out));
     lua_getglobal(sandbox.state(), "deep");
-    assert(!loader::lua::toJSON(sandbox.state(), -1, out));
+    assert(!astral::lua::toJSON(sandbox.state(), -1, out));
 }
 
 static void testBestLocale()
 {
-    using loader::lua::bestLocale;
+    using astral::lua::bestLocale;
     assert(bestLocale({"en-US", "de"}, {"de-AT"}) == "de");
     assert(bestLocale({"en-GB", "fr"}, {"ja"}) == "en-GB");
     assert(bestLocale({"pt-BR"}, {"pt-BR"}) == "pt-BR");
@@ -83,12 +83,12 @@ static void testBestLocale()
 
 static void testFillPlaceholders()
 {
-    assert(loader::lua::fillPlaceholders("{count} of {count} by {name}", {{"count", "2"}, {"name", "{count}"}}) == "2 of 2 by {count}");
+    assert(astral::lua::fillPlaceholders("{count} of {count} by {name}", {{"count", "2"}, {"name", "{count}"}}) == "2 of 2 by {count}");
 }
 
 static void testPluginIdentifiers()
 {
-    using loader::lua::validPluginIdentifier;
+    using astral::lua::validPluginIdentifier;
     assert(validPluginIdentifier("dev.astral.pronouns"));
     assert(!validPluginIdentifier("ab"));
     assert(!validPluginIdentifier("dev..astral"));
@@ -99,15 +99,15 @@ static void testPluginStorage(const std::string &directory)
 {
     std::string path = directory + "/storage.sqlite";
     std::filesystem::remove(path);
-    loader::PluginStorage storage(path, 64);
+    astral::PluginStorage storage(path, 64);
     assert(storage.available());
-    assert(storage.set("one", "count", 3) == loader::StorageResult::Saved);
-    assert(storage.set("one", "name", "astral") == loader::StorageResult::Saved);
+    assert(storage.set("one", "count", 3) == astral::StorageResult::Saved);
+    assert(storage.set("one", "name", "astral") == astral::StorageResult::Saved);
     assert(storage.get("one", "count") == nlohmann::json(3));
     assert(!storage.get("two", "count"));
     assert((storage.keys("one") == std::vector<std::string>{"count", "name"}));
-    assert(storage.set("one", "big", std::string(80, 'x')) == loader::StorageResult::OverLimit);
-    assert(storage.set("one", "count", nullptr) == loader::StorageResult::Removed);
+    assert(storage.set("one", "big", std::string(80, 'x')) == astral::StorageResult::OverLimit);
+    assert(storage.set("one", "count", nullptr) == astral::StorageResult::Removed);
     assert(!storage.get("one", "count"));
     assert(storage.removeAll("one"));
     assert(storage.keys("one").empty());

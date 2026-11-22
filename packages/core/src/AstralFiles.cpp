@@ -1,0 +1,282 @@
+#include "AstralFiles.h"
+
+#include <algorithm>
+#include <cerrno>
+#include <cstdlib>
+#include <cstring>
+#include <fcntl.h>
+#include <filesystem>
+#include <sys/stat.h>
+#include <system_error>
+#include <unistd.h>
+
+#include "AstralDiskFull.h"
+#include "AstralPipelineTime.h"
+
+namespace astral {
+std::optional<std::string> readTextFile(const std::string &path)
+{
+    int descriptor = open(path.c_str(), O_RDONLY | O_CLOEXEC);
+    if (descriptor < 0) {
+        return std::nullopt;
+    }
+
+    struct stat status{};
+    size_t capacity = 64 * 1024;
+    if (fstat(descriptor, &status) == 0 && S_ISREG(status.st_mode) && status.st_size > 0) {
+        capacity = static_cast<size_t>(status.st_size) + 1;
+    }
+
+    std::string contents(capacity, '\0');
+    size_t length = 0;
+    while (true) {
+        if (length == contents.size()) {
+            contents.resize(contents.size() * 2);
+        }
+
+        ssize_t count = read(descriptor, contents.data() + length, contents.size() - length);
+        if (count < 0 && errno == EINTR) {
+            continue;
+        }
+
+        if (count < 0) {
+            close(descriptor);
+            return std::nullopt;
+        }
+
+        if (count == 0) {
+            break;
+        }
+
+        length += static_cast<size_t>(count);
+    }
+
+    close(descriptor);
+    contents.resize(length);
+    return contents;
+}
+
+static bool writeAll(int descriptor, const std::string &contents)
+{
+    size_t written = 0;
+    while (written < contents.size()) {
+        ssize_t count = write(descriptor, contents.data() + written, contents.size() - written);
+        if (count < 0 && errno == EINTR) {
+            continue;
+        }
+
+        if (count <= 0) {
+            return false;
+        }
+
+        written += static_cast<size_t>(count);
+    }
+
+    return true;
+}
+
+static void syncDirectory(const std::filesystem::path &directory)
+{
+    int descriptor = open(directory.empty() ? "." : directory.c_str(), O_RDONLY | O_CLOEXEC);
+    if (descriptor < 0) {
+        return;
+    }
+
+    fsync(descriptor);
+    close(descriptor);
+}
+
+std::string unreadableReason(const std::string &path)
+{
+    struct stat status{};
+    if (stat(path.c_str(), &status) != 0) {
+        return errno == ENOENT ? "the file is missing" : std::string(std::strerror(errno));
+    }
+
+    int descriptor = open(path.c_str(), O_RDONLY | O_CLOEXEC);
+    if (descriptor < 0) {
+        int error = errno;
+        std::string reason = std::strerror(error);
+        return error == EACCES ? reason + " (owned by uid " + std::to_string(status.st_uid) + ")" : reason;
+    }
+
+    close(descriptor);
+    return "it could not be read";
+}
+
+bool moveAsideUnreadable(const std::string &path)
+{
+    int descriptor = open(path.c_str(), O_RDONLY | O_CLOEXEC);
+    if (descriptor >= 0) {
+        close(descriptor);
+        return false;
+    }
+
+    if (errno != EACCES && errno != EPERM) {
+        return false;
+    }
+
+    std::string aside = path + ".unreadable";
+    unlink(aside.c_str());
+    return rename(path.c_str(), aside.c_str()) == 0;
+}
+
+bool writeTextFileAtomically(const std::string &path, const std::string &contents)
+{
+    std::error_code error;
+    std::filesystem::path target(path);
+    if (target.has_parent_path()) {
+        std::filesystem::create_directories(target.parent_path(), error);
+    }
+
+    std::string staging = path + ".tmp-XXXXXX";
+    int descriptor = mkstemp(staging.data());
+    if (descriptor < 0) {
+        noteWriteFailure(errno, path, pipeline_time::epochMs());
+        return false;
+    }
+
+    fcntl(descriptor, F_SETFD, FD_CLOEXEC);
+    fchmod(descriptor, 0644);
+
+    bool written = writeAll(descriptor, contents) && fsync(descriptor) == 0;
+    int failure = written ? 0 : errno;
+    written = close(descriptor) == 0 && written;
+    if (!written) {
+        noteWriteFailure(failure != 0 ? failure : errno, path, pipeline_time::epochMs());
+        unlink(staging.c_str());
+        return false;
+    }
+
+    std::filesystem::rename(staging, target, error);
+    if (error) {
+        unlink(staging.c_str());
+        return false;
+    }
+
+    syncDirectory(target.parent_path());
+    return true;
+}
+
+bool copyFile(const std::string &source, const std::string &destination)
+{
+    std::error_code error;
+    std::filesystem::copy_file(source, destination, std::filesystem::copy_options::overwrite_existing, error);
+    return !error;
+}
+
+bool removeFile(const std::string &path)
+{
+    std::error_code error;
+    return std::filesystem::remove(path, error);
+}
+
+bool isContainedRelativePath(const std::filesystem::path &relative)
+{
+    if (relative.empty() || relative.is_absolute()) {
+        return false;
+    }
+
+    for (const auto &component : relative) {
+        if (component == ".." || component == ".") {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool removeTree(const std::string &root, const std::string &relative)
+{
+    const std::filesystem::path path(relative);
+    if (root.empty() || !isContainedRelativePath(path)) {
+        return false;
+    }
+
+    std::error_code error;
+    const auto removed = std::filesystem::remove_all(std::filesystem::path(root) / path, error);
+    return !error && removed > 0;
+}
+
+uint64_t fileSize(const std::string &path)
+{
+    std::error_code error;
+    uintmax_t size = std::filesystem::file_size(path, error);
+    return error ? 0 : static_cast<uint64_t>(size);
+}
+
+bool fileExists(const std::string &path)
+{
+    std::error_code error;
+    return std::filesystem::exists(path, error);
+}
+
+bool isDirectory(const std::string &path)
+{
+    std::error_code error;
+    return std::filesystem::is_directory(path, error);
+}
+
+bool createDirectories(const std::string &path)
+{
+    std::error_code error;
+    std::filesystem::create_directories(path, error);
+    return isDirectory(path);
+}
+
+std::vector<std::string> listDirectory(const std::string &path)
+{
+    std::vector<std::string> entries;
+    std::error_code error;
+    for (const auto &entry : std::filesystem::directory_iterator(path, error)) {
+        entries.push_back(entry.path().filename().string());
+    }
+
+    std::sort(entries.begin(), entries.end());
+    return entries;
+}
+
+static bool containedIn(const std::filesystem::path &root, const std::filesystem::path &path)
+{
+    auto rootEnd = root.end();
+    return std::mismatch(root.begin(), rootEnd, path.begin(), path.end()).first == rootEnd;
+}
+
+std::optional<std::string> resolveInsideDirectory(const std::string &directory, const std::string &relative)
+{
+    const std::filesystem::path normal = std::filesystem::path(relative).lexically_normal();
+    if (relative.empty() || normal.empty() || normal.is_absolute() || normal.has_root_name() || *normal.begin() == "..") {
+        return std::nullopt;
+    }
+
+    std::error_code error;
+    const std::filesystem::path root = std::filesystem::weakly_canonical(directory, error);
+    if (error) {
+        return std::nullopt;
+    }
+
+    const std::filesystem::path resolved = std::filesystem::weakly_canonical(std::filesystem::path(directory) / normal, error);
+    if (error || !containedIn(root, resolved)) {
+        return std::nullopt;
+    }
+
+    return (std::filesystem::path(directory) / normal).string();
+}
+
+std::string joinPath(const std::string &base, const std::string &component)
+{
+    if (component.empty()) {
+        return base;
+    }
+
+    if (!component.empty() && component.front() == '/') {
+        return component;
+    }
+
+    if (base.empty() || base.back() == '/') {
+        return base + component;
+    }
+
+    return base + "/" + component;
+}
+} // namespace astral

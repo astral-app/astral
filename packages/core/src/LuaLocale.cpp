@@ -2,7 +2,7 @@
 
 #include <strings.h>
 
-namespace loader::lua {
+namespace astral::lua {
 namespace {
 std::string languageOf(const std::string &locale)
 {
@@ -59,4 +59,4 @@ bool validPluginIdentifier(const std::string &identifier)
     }
     return true;
 }
-} // namespace loader::lua
+} // namespace astral::lua

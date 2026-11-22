@@ -3,7 +3,7 @@
 #include <initializer_list>
 #include <sqlite3.h>
 
-namespace loader {
+namespace astral {
 namespace {
 class Statement
 {
@@ -102,4 +102,4 @@ bool PluginStorage::removeAll(const std::string &plugin)
     Statement statement(database, "DELETE FROM storage WHERE plugin = ?", {plugin});
     return statement.step() == SQLITE_DONE;
 }
-} // namespace loader
+} // namespace astral

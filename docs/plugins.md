@@ -4,11 +4,11 @@ Plugins are Lua 5.4 files. astral runs no native plugin code, so a plugin works 
 
 ## Translations
 
-A plugin's strings live in `i18n/<locale>.toml` (flat `KEY = "text"` tables); the loader finds them by scanning the folder. `astral.i18n.t(key, { name = value })` returns the string for the best of the device's preferred languages, falling back per key to English and then to the key; `astral.i18n.locale` names the table in use. Translations are part of the plugin's signature, and marketplace installs download and verify them. The two first-party plugins carry Unbound's 32 locales.
+A plugin's strings live in `i18n/<locale>.toml` (flat `KEY = "text"` tables); astral finds them by scanning the folder. `astral.i18n.t(key, { name = value })` returns the string for the best of the device's preferred languages, falling back per key to English and then to the key; `astral.i18n.locale` names the table in use. Translations are part of the plugin's signature, and marketplace installs download and verify them. The two first-party plugins carry Unbound's 32 locales.
 
 ## Icons
 
-A manifest's `iconSvg` carries the plugin's icon, as Unbound's catalog does; the loader rasterises it on device into a template image Phoenix tints like its own icons. Without one, `icon` may name a Discord icon (`TextIcon`), drawn from Phoenix's `ic_mana_*` assets, and otherwise the card shows the plug. astral's own icons (`assets/*.svg`) are drawn the same way.
+A manifest's `iconSvg` carries the plugin's icon, as Unbound's catalog does; astral rasterises it on device into a template image Phoenix tints like its own icons. Without one, `icon` may name a Discord icon (`TextIcon`), drawn from Phoenix's `ic_mana_*` assets, and otherwise the card shows the plug. astral's own icons (`assets/*.svg`) are drawn the same way.
 
 ## Authors
 
@@ -27,7 +27,7 @@ Bundled plugins ship in the package's resource directory (`/var/jb/usr/lib/astra
 
 ## Signing
 
-Marketplace plugins and the catalog are signed with astral's Ed25519 key (`keys/plugin-signing.pub`, compiled into the loader and checked with Monocypher). A plugin's `signature` is a small TOML file listing the SHA-256 of `manifest.toml`, every Lua file outside `tests/` and every `i18n/*.toml`, with an Ed25519 signature over that list (`astral-plugin-v2`); marketplace installs read it first and download exactly the files it names. The catalog's `index.toml.sig` covers the catalog. `astral sign` signs everything and `astral test` fails on a stale signature. Bundled plugins ship inside the package; anything else that is unsigned stays off, marked "unsigned", unless Developer mode is on. Downloads are verified before they are written.
+Marketplace plugins and the catalog are signed with astral's Ed25519 key (`keys/plugin-signing.pub`, compiled into astral and checked with Monocypher). A plugin's `signature` is a small TOML file listing the SHA-256 of `manifest.toml`, every Lua file outside `tests/` and every `i18n/*.toml`, with an Ed25519 signature over that list (`astral-plugin-v2`); marketplace installs read it first and download exactly the files it names. The catalog's `index.toml.sig` covers the catalog. `astral sign` signs everything and `astral test` fails on a stale signature. Bundled plugins ship inside the package; anything else that is unsigned stays off, marked "unsigned", unless Developer mode is on. Downloads are verified before they are written.
 
 ## Sandbox
 
@@ -41,7 +41,7 @@ Each plugin gets its own `lua_State` with `base`, `table`, `string`, `math`, `ut
 | `astral.settings.section(title)` | A settings section; `section:switch(key, title, default, subtitle)` and `section:choice(key, title, options, default, subtitle)` declare rows and return the current value |
 | `astral.settings.switch/choice(key, title, ..., { subtitle, section })` | The same rows without a section object |
 | `astral.settings.option(value, title, subtitle)` | One choice option |
-| `astral.settings.values` | Live values of every declared setting, kept current by the loader |
+| `astral.settings.values` | Live values of every declared setting, kept current by astral |
 | `astral.settings.on_change(key, fn)`, `astral.settings.get/set` | Change listeners and persisted values |
 | `astral.ui.decorate(Target.MessageAuthor, fn)` | `fn(node)` returns a `Pill`, a list of pills, or plain `{ text, color, colors, text_color, shape }` tables, shown after the guild tag |
 | `astral.ui.relabel(target, fn)` | `fn(node)` returns new text; plugins chain. Targets: `MessageAuthor` (authors and reply previews, `node.kind` `NodeKind.Author`/`NodeKind.Reply`), `ChannelName`, `MemberName`, `ComposerPlaceholder`, `ProfileName` (the name on a profile sheet, `node.user_id` from its avatar) |
@@ -57,7 +57,7 @@ A manifest declares what a plugin reads with `permissions = [...]`; calls outsid
 
 ## Builtins
 
-The loader runs a prelude (`packages/core/lua/prelude.lua`, compiled into the loader) before each plugin:
+astral runs a prelude (`packages/core/lua/prelude.lua`, compiled into astral) before each plugin:
 
 | Builtin | Purpose |
 | --- | --- |
@@ -87,7 +87,7 @@ Export settings writes `astral-backup.toml` (format 1) through the share sheet: 
 
 ## Reports
 
-The loader records MetricKit crashes and hangs (using the ported MetricKit parser, which ignores stacks from other apps in the same host) and plugins that stop after errors, with the running plugins and versions, in `Documents/astral/reports.json`. The astral page lists the latest five; tapping one copies the full report and opens a pre-filled issue in astral-app/astral.
+astral records MetricKit crashes and hangs (using the ported MetricKit parser, which ignores stacks from other apps in the same host) and plugins that stop after errors, with the running plugins and versions, in `Documents/astral/reports.json`. The astral page lists the latest five; tapping one copies the full report and opens a pre-filled issue in astral-app/astral.
 
 ## Settings UI
 

@@ -14,7 +14,7 @@ const androidAPILevel = "26"
 
 var androidABIs = map[string]string{"arm64-v8a": "aarch64-linux-android", "x86_64": "x86_64-linux-android"}
 
-var appleOnlyCoreSources = map[string]bool{"LoaderMetricKitCrash": true, "PluginStorage": true}
+var appleOnlyCoreSources = map[string]bool{"AstralMetricKitCrash": true, "PluginStorage": true}
 
 var luaLibrarySources = []string{"lapi", "lcode", "lctype", "ldebug", "ldo", "ldump", "lfunc", "lgc", "llex", "lmem", "lobject", "lopcodes", "lparser", "lstate", "lstring", "ltable", "ltm", "lundump", "lvm", "lzio", "lauxlib", "lbaselib", "lstrlib", "ltablib", "lmathlib", "lutf8lib", "lcorolib"}
 

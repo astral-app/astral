@@ -1,5 +1,5 @@
 include = ["**/*.toml"]
-exclude = ["vendor/**", ".theos/**", "packages/loader-ios/.theos/**"]
+exclude = ["vendor/**", ".theos/**", "packages/ios/.theos/**"]
 
 [formatting]
 indent_string = "\t"

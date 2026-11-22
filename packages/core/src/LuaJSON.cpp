@@ -4,7 +4,7 @@ extern "C" {
 #include "lua.h"
 }
 
-namespace loader::lua {
+namespace astral::lua {
 bool toJSON(lua_State *state, int index, nlohmann::json &out, int depth)
 {
     index = lua_absindex(state, index);
@@ -99,4 +99,4 @@ void pushJSON(lua_State *state, const nlohmann::json &value, int depth)
         }
     }
 }
-} // namespace loader::lua
+} // namespace astral::lua

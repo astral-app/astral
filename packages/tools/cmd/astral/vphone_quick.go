@@ -61,7 +61,7 @@ func discordBundlePath(client vphoneClient) (string, error) {
 }
 
 func stagedTweak() string {
-	return repoPath("packages", "loader-ios", ".theos", "_", "var", "jb")
+	return repoPath("packages", "ios", ".theos", "_", "var", "jb")
 }
 
 func vphoneTweakDeploy(client vphoneClient) error {

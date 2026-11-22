@@ -228,11 +228,11 @@ func plannedNames(changed ...string) string {
 
 func TestCheckPicksAffectedSteps(t *testing.T) {
 	cases := map[string]string{
-		"packages/loader-ios/sources/PhoenixWire.c": "clang-format,wire tests",
-		"packages/core/src/LuaSandbox.cpp":          "clang-format,core tests",
-		"packages/tools/cmd/astral/check.go":        "gofmt,go vet and tests",
-		"packages/loader-ios/sources/Themes.mm":     "clang-format",
-		"README.md":                                 "",
+		"packages/ios/sources/PhoenixWire.c": "clang-format,wire tests",
+		"packages/core/src/LuaSandbox.cpp":   "clang-format,core tests",
+		"packages/tools/cmd/astral/check.go": "gofmt,go vet and tests",
+		"packages/ios/sources/Themes.mm":     "clang-format",
+		"README.md":                          "",
 	}
 	for path, want := range cases {
 		if got := plannedNames(path); got != want {

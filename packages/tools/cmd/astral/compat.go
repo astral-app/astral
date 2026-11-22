@@ -84,7 +84,7 @@ func imageUUID(path string) (string, error) {
 }
 
 func buildProbe(work string) (string, error) {
-	sources := repoPath("packages", "loader-ios")
+	sources := repoPath("packages", "ios")
 	binary := filepath.Join(work, "compat-probe")
 	return binary, run(sources, "cc", "-O1", "-Wall", "-Werror", "-o", binary, "tests/support/compat-probe.c", "sources/PhoenixLocate.c", "sources/PhoenixProperties.c")
 }

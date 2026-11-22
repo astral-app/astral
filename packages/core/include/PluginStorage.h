@@ -8,7 +8,7 @@
 
 struct sqlite3;
 
-namespace loader {
+namespace astral {
 enum class StorageResult { Saved, Removed, Unavailable, OverLimit, Failed };
 
 class PluginStorage
@@ -33,4 +33,4 @@ class PluginStorage
     sqlite3 *database = nullptr;
     size_t limitPerPlugin;
 };
-} // namespace loader
+} // namespace astral

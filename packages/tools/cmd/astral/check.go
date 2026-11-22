@@ -66,7 +66,7 @@ func checkRules() []checkRule {
 			return taplo(append([]string{"format", "--check"}, files...)...)
 		}},
 		{"wire tests", func(path string) bool {
-			return under(path, "packages/loader-ios/sources/PhoenixWire", "packages/loader-ios/sources/PhoenixProperties", "packages/loader-ios/tests/")
+			return under(path, "packages/ios/sources/PhoenixWire", "packages/ios/sources/PhoenixProperties", "packages/ios/tests/")
 		}, func(_ []string, work string) error { return testWire(work) }},
 		{"core tests", func(path string) bool {
 			return nativeExtensions[filepath.Ext(path)] && under(path, "packages/core/")

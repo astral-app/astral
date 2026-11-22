@@ -1,6 +1,6 @@
 .DS_Store
 .theos/
-packages/loader-ios/packages/
+packages/ios/packages/
 .tools-cache/
 *.ipa
 *.deb
