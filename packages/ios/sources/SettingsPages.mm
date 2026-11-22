@@ -1,3 +1,5 @@
+#import "EmojiComposer.h"
+#import "EmojiPacks.h"
 #import "IconPacks.h"
 #import "SoftRestart.h"
 #import "NetworkFilter.h"
@@ -416,9 +418,24 @@ static NSDictionary *DesignPage(void)
             [pack[@"count"] integerValue] ? [NSString stringWithFormat:@"%@ · %@ icons", description, pack[@"count"]] : description;
         [packRows addObject:row];
     }
+    NSString *activeEmoji = AstralActiveEmojiPackID();
+    NSMutableArray *emojiRows = [NSMutableArray array];
+    for (NSDictionary *pack in AstralEmojiPacks()) {
+        BOOL selected = [pack[@"id"] isEqualToString:activeEmoji];
+        NSMutableDictionary *row = [With(Row([@"emoji-pack." stringByAppendingString:pack[@"id"]], pack[@"name"], @"res://ic_mana_reaction",
+                                             selected ? kAstralRowSelected : kAstralRowChoice),
+                                         @{}) mutableCopy];
+        if ([pack[@"description"] isKindOfClass:NSString.class]) row[@"subtitle"] = pack[@"description"];
+        [emojiRows addObject:row];
+    }
+    [emojiRows addObject:With(
+                             Row(@"emoji-animated", @"Animated emoji", @"res://ic_mana_sparkles", kAstralRowSwitch),
+                             @{@"on" : @(AstralEmojiAnimated()),
+                               @"subtitle" : @"Use a pack's animated emoji where it has them"})];
     return Page(@"Design", @[
         Section(@"Themes", rows),
         Section(@"Icon packs", packRows),
+        Section(@"Emoji packs", emojiRows),
         Section(@"How themes apply",
                 @[ With(Row(@"theme-note", @"Recolours Phoenix views right away", @"res://ic_mana_circle_information", kAstralRowInfo),
                         @{@"subtitle" : @"Colours change on screen as soon as you pick a theme"}) ]),
@@ -676,6 +693,15 @@ NSString *AstralSettingsPageAction(NSString *route, NSString *key, void (^change
         for (NSDictionary *plugin in AstralLuaPlugins()) {
             if ([plugin[@"enabled"] boolValue]) AstralLuaSetEnabled(plugin[@"id"], YES);
         }
+        return nil;
+    }
+    if ([key hasPrefix:@"emoji-pack."] && [route isEqualToString:@"design"]) {
+        AstralSelectEmojiPack([key substringFromIndex:@"emoji-pack.".length]);
+        AstralRepaintEmojiComposers();
+        return nil;
+    }
+    if ([key isEqualToString:@"switch.emoji-animated"] && [route isEqualToString:@"design"]) {
+        AstralSetEmojiAnimated(!AstralEmojiAnimated());
         return nil;
     }
     if ([key hasPrefix:@"icon-pack."] && [route isEqualToString:@"design"]) {

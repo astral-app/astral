@@ -1,0 +1,14 @@
+id = "fluent"
+name = "Fluent"
+description = "Microsoft's Fluent emoji, animated where Microsoft drew them"
+version = "0.0.1"
+static = "https://raw.githubusercontent.com/bignutty/fluent-emoji/0afbb62a05537ddd5384d8fc440f01120b595e40/static/{codepoints}.png"
+animated = "https://raw.githubusercontent.com/castdrian/fluent-emoji-webp/f7d3fdd0d4b56f3a681d9ca54a16b032237ed4c6/{codepoints}.webp"
+
+[[authors]]
+name = "Microsoft"
+id = "0"
+
+[[authors]]
+name = "adrian"
+id = "224617799434108928"

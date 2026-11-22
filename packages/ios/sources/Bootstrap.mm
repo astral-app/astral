@@ -1,4 +1,6 @@
 #include <dlfcn.h>
+#import "EmojiComposer.h"
+#import "EmojiPacks.h"
 #import "NetworkFilter.h"
 #import "VirtualCamera.h"
 #import "VirtualSession.h"
@@ -196,6 +198,8 @@ static void StartPlugins(void)
     astral_wire_set_mention_decorator(AstralLuaMention);
     astral_wire_set_message_text_colorizer(AstralLuaMessageTextColor);
     astral_wire_set_name_colorizer(AstralLuaNameColor);
+    astral_wire_set_emoji_resolver(AstralEmojiResolve);
+    AstralInstallEmojiComposer();
     AstralCatalogRefresh(^{
         AstralRefreshPhoenixSettings();
     });

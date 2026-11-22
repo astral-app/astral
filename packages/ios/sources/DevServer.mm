@@ -1,3 +1,5 @@
+#import "EmojiComposer.h"
+#import "EmojiPacks.h"
 #import "IconPacks.h"
 #import "SoftRestart.h"
 #import "NetworkFilter.h"
@@ -197,6 +199,14 @@ static NSData *HandleRequest(NSString *method, NSString *path, NSData *bodyData,
         NSString *message = [[NSString alloc] initWithData:bodyData encoding:NSUTF8StringEncoding];
         BOOL queued = message && AstralInjectGatewayMessage(message);
         return Response(queued ? 200 : 400, @{@"queued" : @(queued), @"needs" : @"Staff DevTools on, for an uncompressed gateway"});
+    }
+    if ([method isEqualToString:@"POST"] && [route isEqualToString:@"/emoji-pack"] && [body isKindOfClass:NSDictionary.class] &&
+        [body[@"id"] isKindOfClass:NSString.class]) {
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            AstralSelectEmojiPack(body[@"id"]);
+            AstralRepaintEmojiComposers();
+        });
+        return Response(200, @{@"active" : AstralActiveEmojiPackID(), @"animated" : @(AstralEmojiAnimated())});
     }
     if ([method isEqualToString:@"POST"] && [route isEqualToString:@"/icon-pack"] && [body isKindOfClass:NSDictionary.class] &&
         [body[@"id"] isKindOfClass:NSString.class]) {

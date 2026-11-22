@@ -187,6 +187,10 @@ typedef struct {
 typedef int (*AstralNameColorizer)(const AstralNameContext *context, uint32_t *color);
 
 void astral_wire_set_name_colorizer(AstralNameColorizer colorizer);
+
+typedef int (*AstralEmojiResolver)(const char *codepoints, char *url, size_t capacity);
+
+void astral_wire_set_emoji_resolver(AstralEmojiResolver resolver);
 int astral_wire_refresh_images(AstralWireBuffer *buffer, unsigned generation);
 int astral_wire_pending_mentions(void);
 int astral_wire_retry_mentions(AstralWireBuffer *buffer);

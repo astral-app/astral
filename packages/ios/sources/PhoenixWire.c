@@ -36,6 +36,13 @@ int astral_settings_rewrite(const uint8_t *bytes, size_t length, AstralWireBuffe
         length = relabelledLength;
         changed = 1;
     }
+    size_t emojiLength = 0;
+    uint8_t *emoji = wireEmojiBatch(bytes, length, spans, &count, &emojiLength);
+    if (emoji) {
+        bytes = emoji;
+        length = emojiLength;
+        changed = 1;
+    }
     wireTrackColors(bytes, spans, count);
     wireTrackImages(bytes, spans, count);
     const uint8_t *raw = bytes;
@@ -61,6 +68,7 @@ int astral_settings_rewrite(const uint8_t *bytes, size_t length, AstralWireBuffe
     wireSettingsBackdrop(bytes, spans, count, &out, &changed, length);
     wireObserveRemovals(bytes, spans, count, &out, &changed, length);
     free(themed);
+    free(emoji);
     free(relabelled);
     if (!changed || out.failed) {
         free(out.bytes);

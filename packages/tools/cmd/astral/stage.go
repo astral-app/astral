@@ -80,6 +80,13 @@ func stageResources(target string) error {
 		{repoPath("packages", "catalog", "themes", "*.toml"), filepath.Join(target, "catalog", "themes")},
 		{repoPath("packages", "assets", "*.svg"), filepath.Join(target, "assets")},
 	}
+	emojiPacks, err := filepath.Glob(repoPath("packages", "emoji-packs", "*"))
+	if err != nil {
+		return err
+	}
+	for _, pack := range emojiPacks {
+		copies = append(copies, [2]string{filepath.Join(pack, "*"), filepath.Join(target, "emoji-packs", filepath.Base(pack))})
+	}
 	packs, err := filepath.Glob(repoPath("packages", "icon-packs", "*"))
 	if err != nil {
 		return err

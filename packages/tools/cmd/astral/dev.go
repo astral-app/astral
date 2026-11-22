@@ -26,6 +26,7 @@ const devUsage = `usage: astral dev <command>
   logs [-f]              print astral's log, following it with -f
   gateway <json file>    deliver a gateway payload to Discord locally, as if the gateway sent it (needs Staff DevTools)
   restart                soft restart: reload plugins, the theme and icons in place without relaunching Discord
+  emoji use <id>         switch emoji pack (discord for Discord's own)
   icons use <id>         switch icon pack (discord for Discord's own) and refresh icons in place
   theme list             the installed themes and the active one
   theme use <id>         switch to a theme; on-screen views recolour at once
@@ -408,6 +409,16 @@ func runDev(args []string) error {
 		return nil
 	case "logs":
 		return d.logs(len(args) > 1 && args[1] == "-f")
+	case "emoji":
+		if len(args) != 3 || args[1] != "use" {
+			return errors.New(devUsage)
+		}
+		reply, err := d.request(http.MethodPost, "/emoji-pack", map[string]any{"id": args[2]})
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(reply))
+		return nil
 	case "icons":
 		if len(args) != 3 || args[1] != "use" {
 			return errors.New(devUsage)
