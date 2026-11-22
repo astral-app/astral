@@ -25,7 +25,10 @@ type probeResult struct {
 	Properties    map[string]uint16 `json:"properties"`
 }
 
+var errNoPhoenix = errors.New("this Discord build ships no Phoenix engine")
+
 type compatResult struct {
+	Phoenix     bool        `json:"phoenix"`
 	Channel     string      `json:"channel"`
 	Version     string      `json:"version"`
 	Build       string      `json:"build"`
@@ -57,7 +60,7 @@ func extractPhoenix(ipa string, work string) (string, string, string, error) {
 	}
 	binary, err := readZipEntry(archive, app+"Frameworks/PhoenixFatClient.framework/PhoenixFatClient")
 	if err != nil {
-		return "", "", "", err
+		return "", bundle.Version, bundle.Build, errNoPhoenix
 	}
 	path := filepath.Join(work, "PhoenixFatClient")
 	return path, bundle.Version, bundle.Build, os.WriteFile(path, binary, 0o644)
@@ -165,6 +168,9 @@ func runCompat(args []string) error {
 	}
 	defer cleanup()
 	phoenix, version, build, err := extractPhoenix(*ipa, work)
+	if errors.Is(err, errNoPhoenix) {
+		return writeNoPhoenix(compatResult{Channel: *channel, Version: version, Build: build}, *resultsPath, *reportPath)
+	}
 	if err != nil {
 		return err
 	}
@@ -180,7 +186,7 @@ func runCompat(args []string) error {
 	if err != nil {
 		return err
 	}
-	result := compatResult{*channel, version, build, uuid, probed, probed.OpsArrived != 0 && probed.HostCall != 0 && probed.Missing == nil}
+	result := compatResult{true, *channel, version, build, uuid, probed, probed.OpsArrived != 0 && probed.HostCall != 0 && probed.Missing == nil}
 	encoded, err := json.MarshalIndent(result, "", "\t")
 	if err != nil {
 		return err
@@ -199,4 +205,22 @@ func runCompat(args []string) error {
 		return errors.New("this Discord build is not supported")
 	}
 	return nil
+}
+
+func writeNoPhoenix(result compatResult, resultsPath string, reportPath string) error {
+	encoded, err := json.MarshalIndent(result, "", "\t")
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(resultsPath, append(encoded, '\n'), 0o644); err != nil {
+		return err
+	}
+	report := fmt.Sprintf("## astral on Discord %s (%s, %s)\n\nThis build ships no Phoenix engine, so astral has nothing to run on.\n", result.Version, result.Build, result.Channel)
+	if reportPath != "" {
+		if err := os.WriteFile(reportPath, []byte(report), 0o644); err != nil {
+			return err
+		}
+	}
+	fmt.Print(report)
+	return errNoPhoenix
 }
