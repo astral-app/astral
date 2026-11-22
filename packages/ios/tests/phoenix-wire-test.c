@@ -369,7 +369,7 @@ static void gradientThemeTest(void)
     astral_wire_set_background_gradient(stops, 3);
     gradientBatch(&batch, 801);
     assert(astral_settings_rewrite(batch.bytes, batch.length, &out));
-    uint32_t first = 0xFF0000AA, last = 0xFFAA00AA, old = 0xFF111111;
+    uint32_t first = 0xFF000022, last = 0xFF440044, old = 0xFF111111;
     assert(memmem(out.bytes, out.length, &first, 4) && memmem(out.bytes, out.length, &last, 4) && !memmem(out.bytes, out.length, &old, 4));
     astral_wire_buffer_free(&out);
     gradientBatch(&batch, 0x7b000010);
@@ -461,7 +461,7 @@ static void liveThemeTest(void)
     astral_wire_set_background_gradient(stops, 2);
     assert(astral_wire_recolor(&out) == 2);
     double doubled = 28, original = 14;
-    uint32_t first = 0xFF0000AA, old = 0xFF111111;
+    uint32_t first = 0xFF000022, old = 0xFF111111;
     assert(memmem(out.bytes, out.length, &doubled, 8) && memmem(out.bytes, out.length, &first, 4) &&
            !memmem(out.bytes, out.length, &old, 4));
     astral_wire_buffer_free(&out);
@@ -496,6 +496,38 @@ static void trackerOverflowTest(void)
     assert(astral_wire_colors_dropped() == 0);
 }
 
+static void fadeOverlayTest(void)
+{
+    AstralWireBuffer out;
+    Batch batch = {.length = 0};
+    b8(&batch, 1);
+    create(&batch, 980, "view", 1);
+    b16(&batch, 91);
+    b8(&batch, 8);
+    b32(&batch, 1);
+    b16(&batch, 577);
+    b8(&batch, 7);
+    b32(&batch, 2);
+    b8(&batch, 3);
+    b32(&batch, 0x00041B2E);
+    b8(&batch, 3);
+    b32(&batch, (int)0xFF041B2E);
+    const uint32_t stops[] = {0xFF3B2380, 0xFF120B2E};
+    astral_wire_set_background_gradient(stops, 2);
+    assert(astral_settings_rewrite(batch.bytes, batch.length, &out));
+    astral_wire_summarise(out.bytes, out.length, sink, NULL);
+    long long first = 0, second = 0;
+    const char *found = strstr(line, "[577,[7,[[3,");
+    assert(found && sscanf(found, "[577,[7,[[3,%lld],[3,%lld]", &first, &second) == 2);
+    uint32_t transparent = (uint32_t)first, opaque = (uint32_t)second;
+    assert((transparent >> 24) == 0 && (opaque >> 24) == 0xFF);
+    unsigned red = (opaque >> 16) & 0xFF, green = (opaque >> 8) & 0xFF, blue = opaque & 0xFF;
+    assert(red > green && blue > green && red + green + blue < 3 * 64);
+    astral_wire_buffer_free(&out);
+    astral_wire_set_background_gradient(NULL, 0);
+    astral_wire_forget_colors();
+}
+
 static void unsupportedVersionTest(void)
 {
     AstralWireBuffer out;
@@ -520,6 +552,7 @@ int main(void)
     recolorTest();
     liveThemeTest();
     trackerOverflowTest();
+    fadeOverlayTest();
     Batch batch;
     overview(&batch);
     AstralWireBuffer out;

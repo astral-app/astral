@@ -21,6 +21,8 @@ const devUsage = `usage: astral dev <command>
   watch <plugin folder>  push the plugin every time a file in it changes
   eval <plugin id> <lua> run Lua inside a running plugin and print the result
   logs [-f]              print astral's log, following it with -f
+  theme list             the installed themes and the active one
+  theme use <id>         switch to a theme; on-screen views recolour at once
   theme import <file>    convert an Unbound theme (JSON) into an astral theme and select it
   backup export [file]   write the device's settings backup (TOML) to a file or stdout
   backup import <file>   restore a settings backup on the device
@@ -330,6 +332,22 @@ func runDev(args []string) error {
 	case "logs":
 		return d.logs(len(args) > 1 && args[1] == "-f")
 	case "theme":
+		if len(args) == 2 && args[1] == "list" {
+			reply, err := d.request(http.MethodGet, "/themes", nil)
+			if err != nil {
+				return err
+			}
+			fmt.Println(string(reply))
+			return nil
+		}
+		if len(args) == 3 && args[1] == "use" {
+			reply, err := d.request(http.MethodPost, "/theme", map[string]any{"id": args[2]})
+			if err != nil {
+				return err
+			}
+			fmt.Println(string(reply))
+			return nil
+		}
 		if len(args) < 3 || args[1] != "import" {
 			return errors.New(devUsage)
 		}

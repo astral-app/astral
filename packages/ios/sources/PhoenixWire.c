@@ -4,6 +4,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 #include <string.h>
 
 enum { kMaxSpans = 8192, kMaxChildren = 4096, kMaxProps = 128 };
@@ -1828,6 +1829,67 @@ static uint32_t backgroundStop(uint32_t index, uint32_t count)
     return gBackgroundStops[position];
 }
 
+typedef struct {
+    double hue;
+    double saturation;
+    double lightness;
+} Hsl;
+
+static Hsl toHsl(uint32_t argb)
+{
+    double red = ((argb >> 16) & 0xFF) / 255.0, green = ((argb >> 8) & 0xFF) / 255.0, blue = (argb & 0xFF) / 255.0;
+    double high = fmax(red, fmax(green, blue)), low = fmin(red, fmin(green, blue)), chroma = high - low;
+    Hsl hsl = {0, 0, (high + low) / 2};
+    if (chroma <= 0) return hsl;
+    hsl.saturation = chroma / (1 - fabs(2 * hsl.lightness - 1));
+    if (high == red)
+        hsl.hue = fmod((green - blue) / chroma, 6);
+    else if (high == green)
+        hsl.hue = (blue - red) / chroma + 2;
+    else
+        hsl.hue = (red - green) / chroma + 4;
+    if (hsl.hue < 0) hsl.hue += 6;
+    return hsl;
+}
+
+static uint32_t fromHsl(Hsl hsl, uint32_t alpha)
+{
+    double chroma = (1 - fabs(2 * hsl.lightness - 1)) * hsl.saturation;
+    double second = chroma * (1 - fabs(fmod(hsl.hue, 2) - 1)), base = hsl.lightness - chroma / 2;
+    double red = 0, green = 0, blue = 0;
+    switch ((int)hsl.hue % 6) {
+    case 0:
+        red = chroma, green = second;
+        break;
+    case 1:
+        red = second, green = chroma;
+        break;
+    case 2:
+        green = chroma, blue = second;
+        break;
+    case 3:
+        green = second, blue = chroma;
+        break;
+    case 4:
+        red = second, blue = chroma;
+        break;
+    default:
+        red = chroma, blue = second;
+        break;
+    }
+    uint32_t r = (uint32_t)lround((red + base) * 255), g = (uint32_t)lround((green + base) * 255),
+             b = (uint32_t)lround((blue + base) * 255);
+    return alpha << 24 | (r > 255 ? 255 : r) << 16 | (g > 255 ? 255 : g) << 8 | (b > 255 ? 255 : b);
+}
+
+static uint32_t recolouredStop(uint32_t original, uint32_t theme)
+{
+    Hsl source = toHsl(original), target = toHsl(theme);
+    target.lightness = source.lightness;
+    uint32_t alpha = ((original >> 24) * (theme >> 24) + 127) / 255;
+    return fromHsl(target, alpha);
+}
+
 static int patchGradientStops(uint8_t *bytes, Cursor *cursor, int replaceAll)
 {
     int patched = 0;
@@ -1848,7 +1910,7 @@ static int patchGradientStops(uint8_t *bytes, Cursor *cursor, int replaceAll)
             uint32_t color, mapped;
             memcpy(&color, bytes + at, 4);
             if (replaceAll)
-                mapped = backgroundStop(index, count);
+                mapped = recolouredStop(color, backgroundStop(index, count));
             else if (!paletteColor(color, &mapped))
                 continue;
             memcpy(bytes + at, &mapped, 4);

@@ -133,6 +133,19 @@ static NSData *HandleRequest(NSString *method, NSString *path, NSData *bodyData)
         });
         return failure ? Response(400, @{@"error" : failure}) : Response(200, @{@"imported" : @YES});
     }
+    if ([method isEqualToString:@"GET"] && [route isEqualToString:@"/themes"]) {
+        NSMutableArray *themes = [NSMutableArray array];
+        for (NSDictionary *theme in AstralThemes()) [themes addObject:theme[@"id"] ?: @""];
+        return Response(200, @{@"active" : AstralActiveThemeID(), @"themes" : themes});
+    }
+    if ([method isEqualToString:@"POST"] && [route isEqualToString:@"/theme"] && [body isKindOfClass:NSDictionary.class] &&
+        [body[@"id"] isKindOfClass:NSString.class]) {
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            AstralApplyTheme(body[@"id"]);
+            if (gChanged) gChanged();
+        });
+        return Response(200, @{@"active" : AstralActiveThemeID()});
+    }
     if ([method isEqualToString:@"POST"] && [route isEqualToString:@"/unbound-theme"] && bodyData.length) {
         __block NSString *failure = nil;
         dispatch_sync(dispatch_get_main_queue(), ^{
