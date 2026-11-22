@@ -19,7 +19,7 @@ func runTest(args []string) error {
 		return err
 	}
 	defer cleanup()
-	steps := []func(string) error{testTools, testWire, testLua, testSignatures}
+	steps := []func(string) error{testTools, testWire, testCore, testLua, testSignatures}
 	if *phoenix != "" {
 		steps = append(steps, func(work string) error { return testLocator(work, *phoenix) })
 	}
@@ -45,13 +45,38 @@ func testWire(work string) error {
 	return run(loader, binary)
 }
 
-func buildLua(work string) (string, error) {
-	platform := "-DLUA_USE_LINUX"
-	if runtime.GOOS == "darwin" {
-		platform = "-DLUA_USE_MACOSX"
+var coreLuaSources = []string{"LuaSandbox", "LuaJSON", "LuaLocale", "PluginStorage"}
+
+func testCore(work string) error {
+	object := filepath.Join(work, "lua-core.o")
+	if err := run(repoPath(), "cc", "-c", "-O1", "-g", "-fsanitize=address,undefined", "-DMAKE_LIB", luaPlatform(), "-w",
+		repoPath("vendor", "lua", "onelua.c"), "-o", object); err != nil {
+		return err
 	}
+	binary := filepath.Join(work, "lua-core-test")
+	arguments := []string{"-std=c++20", "-Wall", "-Wextra", "-Werror", "-g", "-fsanitize=address,undefined",
+		"-I" + repoPath("packages", "core", "include"), "-I" + repoPath("vendor", "lua"),
+		"-isystem", repoPath("vendor", "json", "single_include"), repoPath("packages", "core", "tests", "lua-core-test.cpp")}
+	for _, source := range coreLuaSources {
+		arguments = append(arguments, repoPath("packages", "core", "src", source+".cpp"))
+	}
+	arguments = append(arguments, object, "-lsqlite3", "-o", binary)
+	if err := run(repoPath(), "clang++", arguments...); err != nil {
+		return err
+	}
+	return run(repoPath(), binary, work)
+}
+
+func luaPlatform() string {
+	if runtime.GOOS == "darwin" {
+		return "-DLUA_USE_MACOSX"
+	}
+	return "-DLUA_USE_LINUX"
+}
+
+func buildLua(work string) (string, error) {
 	binary := filepath.Join(work, "lua")
-	return binary, run(repoPath(), "cc", "-O1", platform, "-w", "-o", binary, repoPath("vendor", "lua", "onelua.c"), "-lm")
+	return binary, run(repoPath(), "cc", "-O1", luaPlatform(), "-w", "-o", binary, repoPath("vendor", "lua", "onelua.c"), "-lm")
 }
 
 func testLua(work string) error {

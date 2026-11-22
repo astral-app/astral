@@ -1,0 +1,132 @@
+#include <cassert>
+#include <cstdio>
+#include <filesystem>
+#include <string>
+
+#include "LuaJSON.h"
+#include "LuaLocale.h"
+#include "LuaSandbox.h"
+#include "PluginStorage.h"
+
+extern "C" {
+#include "lua.h"
+}
+
+using loader::lua::Sandbox;
+
+static void testSandboxRunsCode()
+{
+    Sandbox sandbox;
+    assert(!sandbox.run("value = 6 * 7", "test"));
+    lua_getglobal(sandbox.state(), "value");
+    assert(lua_tointeger(sandbox.state(), -1) == 42);
+}
+
+static void testSandboxHidesUnsafeGlobals()
+{
+    Sandbox sandbox;
+    assert(!sandbox.run("assert(io == nil and os == nil and load == nil and require == nil and dofile == nil)", "test"));
+}
+
+static void testSandboxStopsRunawayLoops()
+{
+    Sandbox sandbox;
+    auto error = sandbox.run("while true do end", "test");
+    assert(error && error->find("instruction budget") != std::string::npos);
+    assert(!sandbox.run("value = 1", "test"));
+}
+
+static void testSandboxCapsMemory()
+{
+    Sandbox sandbox({.memory = 512u << 10});
+    auto error = sandbox.run("local parts = {} for index = 1, 1e6 do parts[index] = ('x'):rep(64) .. index end", "test");
+    assert(error);
+    assert(sandbox.memory() <= 512u << 10);
+}
+
+static void testSandboxReportsSyntaxErrors()
+{
+    Sandbox sandbox;
+    auto error = sandbox.load("local =", "broken");
+    assert(error && error->find("broken") != std::string::npos);
+}
+
+static void testJSONRoundTrip()
+{
+    Sandbox sandbox;
+    nlohmann::json value = {{"name", "astral"}, {"count", 3}, {"ratio", 0.5}, {"tags", {"a", "b"}}, {"on", true}};
+    loader::lua::pushJSON(sandbox.state(), value);
+    nlohmann::json back;
+    assert(loader::lua::toJSON(sandbox.state(), -1, back));
+    assert(back == value);
+}
+
+static void testJSONRejectsFunctionsAndDeepTables()
+{
+    Sandbox sandbox;
+    assert(!sandbox.run("callable = { run = function() end } deep = {{{{{{{{{{}}}}}}}}}}", "test"));
+    nlohmann::json out;
+    lua_getglobal(sandbox.state(), "callable");
+    assert(!loader::lua::toJSON(sandbox.state(), -1, out));
+    lua_getglobal(sandbox.state(), "deep");
+    assert(!loader::lua::toJSON(sandbox.state(), -1, out));
+}
+
+static void testBestLocale()
+{
+    using loader::lua::bestLocale;
+    assert(bestLocale({"en-US", "de"}, {"de-AT"}) == "de");
+    assert(bestLocale({"en-GB", "fr"}, {"ja"}) == "en-GB");
+    assert(bestLocale({"pt-BR"}, {"pt-BR"}) == "pt-BR");
+    assert(!bestLocale({"fr"}, {"ja"}));
+}
+
+static void testFillPlaceholders()
+{
+    assert(loader::lua::fillPlaceholders("{count} of {count} by {name}", {{"count", "2"}, {"name", "{count}"}}) == "2 of 2 by {count}");
+}
+
+static void testPluginIdentifiers()
+{
+    using loader::lua::validPluginIdentifier;
+    assert(validPluginIdentifier("dev.astral.pronouns"));
+    assert(!validPluginIdentifier("ab"));
+    assert(!validPluginIdentifier("dev..astral"));
+    assert(!validPluginIdentifier("Dev.Astral"));
+}
+
+static void testPluginStorage(const std::string &directory)
+{
+    std::string path = directory + "/storage.sqlite";
+    std::filesystem::remove(path);
+    loader::PluginStorage storage(path, 64);
+    assert(storage.available());
+    assert(storage.set("one", "count", 3) == loader::StorageResult::Saved);
+    assert(storage.set("one", "name", "astral") == loader::StorageResult::Saved);
+    assert(storage.get("one", "count") == nlohmann::json(3));
+    assert(!storage.get("two", "count"));
+    assert((storage.keys("one") == std::vector<std::string>{"count", "name"}));
+    assert(storage.set("one", "big", std::string(80, 'x')) == loader::StorageResult::OverLimit);
+    assert(storage.set("one", "count", nullptr) == loader::StorageResult::Removed);
+    assert(!storage.get("one", "count"));
+    assert(storage.removeAll("one"));
+    assert(storage.keys("one").empty());
+}
+
+int main(int argc, char **argv)
+{
+    assert(argc == 2);
+    testSandboxRunsCode();
+    testSandboxHidesUnsafeGlobals();
+    testSandboxStopsRunawayLoops();
+    testSandboxCapsMemory();
+    testSandboxReportsSyntaxErrors();
+    testJSONRoundTrip();
+    testJSONRejectsFunctionsAndDeepTables();
+    testBestLocale();
+    testFillPlaceholders();
+    testPluginIdentifiers();
+    testPluginStorage(argv[1]);
+    puts("ok");
+    return 0;
+}

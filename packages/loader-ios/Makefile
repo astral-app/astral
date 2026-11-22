@@ -11,7 +11,7 @@ MONOCYPHER := $(ROOT)/vendor/monocypher/src
 CORE := $(abspath ../core)
 LUA := $(ROOT)/vendor/lua
 LUA_SOURCES := lapi lcode lctype ldebug ldo ldump lfunc lgc llex lmem lobject lopcodes lparser lstate lstring ltable ltm lundump lvm lzio lauxlib lbaselib lstrlib ltablib lmathlib lutf8lib lcorolib
-CORE_SOURCES := LoaderMetricKitCrash LoaderSettings LoaderSettingsCache LoaderSettingsFile LoaderFiles LoaderJSON LoaderJSONMembers LoaderDiskFull LoaderLog LoaderExitRecord LoaderLaunchGuard LoaderStrings
+CORE_SOURCES := LoaderMetricKitCrash LoaderSettings LoaderSettingsCache LoaderSettingsFile LoaderFiles LoaderJSON LoaderJSONMembers LoaderDiskFull LoaderLog LoaderExitRecord LoaderLaunchGuard LoaderStrings LuaSandbox LuaJSON LuaLocale PluginStorage
 
 GENERATED := $(abspath .theos/generated)
 PRELUDE := $(CORE)/lua/prelude.lua

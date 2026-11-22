@@ -3,14 +3,18 @@
 #import "TomlDocument.h"
 
 #include <map>
+#include <memory>
 #include <mutex>
 #include <set>
-#include <sqlite3.h>
 #include <string>
 #include <vector>
 
 #include "LoaderLog.h"
 #include "LoaderSettings.h"
+#include "LuaJSON.h"
+#include "LuaLocale.h"
+#include "LuaSandbox.h"
+#include "PluginStorage.h"
 #import "AstralState.h"
 #import "CrashReports.h"
 #import "DevServer.h"
@@ -61,9 +65,8 @@ struct LuaPlugin {
     bool bundled = false;
     bool signedByAstral = false;
     std::string source;
+    std::unique_ptr<loader::lua::Sandbox> sandbox;
     lua_State *state = nullptr;
-    size_t memory = 0;
-    int budget = 0;
     int errors = 0;
     bool enabled = false;
     bool failed = false;
@@ -114,31 +117,9 @@ static void Store(const std::string &key, const nlohmann::json &value)
     gStore->save();
 }
 
-static void *Allocate(void *user, void *pointer, size_t old, size_t size)
-{
-    LuaPlugin *plugin = static_cast<LuaPlugin *>(user);
-    size_t previous = pointer ? old : 0;
-    if (size == 0) {
-        plugin->memory -= previous;
-        free(pointer);
-        return nullptr;
-    }
-    if (plugin->memory - previous + size > kMemoryLimit) return nullptr;
-    void *grown = realloc(pointer, size);
-    if (grown) plugin->memory = plugin->memory - previous + size;
-    return grown;
-}
-
 static LuaPlugin *Self(lua_State *state)
 {
     return static_cast<LuaPlugin *>(lua_touserdata(state, lua_upvalueindex(1)));
-}
-
-static void Budget(lua_State *state, lua_Debug *)
-{
-    LuaPlugin *plugin = nullptr;
-    lua_getallocf(state, reinterpret_cast<void **>(&plugin));
-    if (plugin && --plugin->budget <= 0) luaL_error(state, "astral: plugin exceeded its instruction budget");
 }
 
 static void MarkFailed(LuaPlugin *plugin)
@@ -148,11 +129,9 @@ static void MarkFailed(LuaPlugin *plugin)
     AstralRecordPluginFailure(Native(plugin->identifier), Native(plugin->name), Native(plugin->lastError));
 }
 
-static void Report(LuaPlugin *plugin, const char *stage)
+static void Report(LuaPlugin *plugin, const char *stage, const std::string &message)
 {
-    const char *message = lua_tostring(plugin->state, -1);
-    plugin->lastError = std::string(stage) + ": " + (message ?: "unknown error");
-    lua_pop(plugin->state, 1);
+    plugin->lastError = std::string(stage) + ": " + message;
     loader::log(loader::LogLevel::Error, "plugin", plugin->identifier + " " + plugin->lastError);
     AstralDevAppendLog(Native(plugin->identifier + " error: " + plugin->lastError));
     if (++plugin->errors >= kMaxErrors) MarkFailed(plugin);
@@ -160,12 +139,9 @@ static void Report(LuaPlugin *plugin, const char *stage)
 
 static bool Call(LuaPlugin *plugin, int arguments, int results, const char *stage)
 {
-    plugin->budget = kBudgetSlices;
-    lua_sethook(plugin->state, Budget, LUA_MASKCOUNT, kSliceInstructions);
-    int status = lua_pcall(plugin->state, arguments, results, 0);
-    lua_sethook(plugin->state, nullptr, 0, 0);
-    if (status == LUA_OK) return true;
-    Report(plugin, stage);
+    auto error = plugin->sandbox->call(arguments, results);
+    if (!error) return true;
+    Report(plugin, stage, *error);
     return false;
 }
 
@@ -382,227 +358,71 @@ static void InstallRequire(LuaPlugin *plugin)
     lua_setglobal(plugin->state, "require");
 }
 
-static bool LuaToJSON(lua_State *state, int index, nlohmann::json &out, int depth)
+static loader::PluginStorage &Storage(void)
 {
-    index = lua_absindex(state, index);
-    switch (lua_type(state, index)) {
-    case LUA_TNIL:
-        out = nullptr;
-        return true;
-    case LUA_TBOOLEAN:
-        out = (bool)lua_toboolean(state, index);
-        return true;
-    case LUA_TNUMBER:
-        if (lua_isinteger(state, index))
-            out = (int64_t)lua_tointeger(state, index);
-        else
-            out = lua_tonumber(state, index);
-        return true;
-    case LUA_TSTRING: {
-        size_t length = 0;
-        const char *text = lua_tolstring(state, index, &length);
-        out = std::string(text, length);
-        return true;
-    }
-    case LUA_TTABLE: {
-        if (depth > 8) return false;
-        lua_Integer length = (lua_Integer)lua_rawlen(state, index);
-        bool array = length > 0;
-        lua_pushnil(state);
-        while (array && lua_next(state, index)) {
-            if (!lua_isinteger(state, -2) || lua_tointeger(state, -2) < 1 || lua_tointeger(state, -2) > length) array = false;
-            lua_pop(state, 1);
-            if (!array) lua_pop(state, 1);
-        }
-        if (array) {
-            out = nlohmann::json::array();
-            for (lua_Integer position = 1; position <= length; position++) {
-                lua_rawgeti(state, index, position);
-                nlohmann::json item;
-                bool converted = LuaToJSON(state, -1, item, depth + 1);
-                lua_pop(state, 1);
-                if (!converted) return false;
-                out.push_back(item);
-            }
-            return true;
-        }
-        out = nlohmann::json::object();
-        lua_pushnil(state);
-        while (lua_next(state, index)) {
-            if (lua_type(state, -2) != LUA_TSTRING) {
-                lua_pop(state, 2);
-                return false;
-            }
-            nlohmann::json item;
-            if (!LuaToJSON(state, -1, item, depth + 1)) {
-                lua_pop(state, 2);
-                return false;
-            }
-            out[lua_tostring(state, -2)] = item;
-            lua_pop(state, 1);
-        }
-        return true;
-    }
-    default:
-        return false;
-    }
+    static loader::PluginStorage *storage = new loader::PluginStorage(
+        [AstralStateDirectory() stringByAppendingPathComponent:@"plugin-storage.sqlite"].fileSystemRepresentation, kStorageLimit);
+    return *storage;
 }
 
-static void PushJSON(lua_State *state, const nlohmann::json &value, int depth)
+static loader::PluginStorage &AvailableStorage(lua_State *state)
 {
-    if (depth > 8 || value.is_null()) {
-        lua_pushnil(state);
-    } else if (value.is_boolean()) {
-        lua_pushboolean(state, value.get<bool>());
-    } else if (value.is_number_integer()) {
-        lua_pushinteger(state, value.get<int64_t>());
-    } else if (value.is_number()) {
-        lua_pushnumber(state, value.get<double>());
-    } else if (value.is_string()) {
-        const std::string &text = value.get_ref<const std::string &>();
-        lua_pushlstring(state, text.data(), text.size());
-    } else if (value.is_array()) {
-        lua_createtable(state, (int)value.size(), 0);
-        lua_Integer position = 1;
-        for (const auto &item : value) {
-            PushJSON(state, item, depth + 1);
-            lua_rawseti(state, -2, position++);
-        }
-    } else {
-        lua_createtable(state, 0, (int)value.size());
-        for (auto entry = value.begin(); entry != value.end(); ++entry) {
-            PushJSON(state, entry.value(), depth + 1);
-            lua_setfield(state, -2, entry.key().c_str());
-        }
-    }
-}
-
-static sqlite3 *StorageDatabase(void)
-{
-    static sqlite3 *database;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        NSString *path = [AstralStateDirectory() stringByAppendingPathComponent:@"plugin-storage.sqlite"];
-        if (sqlite3_open_v2(path.fileSystemRepresentation, &database, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX,
-                            NULL) != SQLITE_OK) {
-            sqlite3_close(database);
-            database = NULL;
-            return;
-        }
-        sqlite3_exec(
-            database,
-            "PRAGMA journal_mode=WAL;"
-            "CREATE TABLE IF NOT EXISTS storage (plugin TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL, PRIMARY KEY (plugin, key))",
-            NULL, NULL, NULL);
-    });
-    return database;
-}
-
-static sqlite3_stmt *Prepare(lua_State *state, const char *sql)
-{
-    sqlite3 *database = StorageDatabase();
-    sqlite3_stmt *statement = NULL;
-    if (!database || sqlite3_prepare_v2(database, sql, -1, &statement, NULL) != SQLITE_OK)
-        luaL_error(state, "astral.storage is unavailable");
-    return statement;
+    RequirePermission(state, "storage");
+    if (!Storage().available()) luaL_error(state, "astral.storage is unavailable");
+    return Storage();
 }
 
 static int StorageGet(lua_State *state)
 {
-    RequirePermission(state, "storage");
-    LuaPlugin *plugin = Self(state);
-    const char *key = luaL_checkstring(state, 1);
-    sqlite3_stmt *statement = Prepare(state, "SELECT value FROM storage WHERE plugin = ? AND key = ?");
-    sqlite3_bind_text(statement, 1, plugin->identifier.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(statement, 2, key, -1, SQLITE_TRANSIENT);
-    std::string text;
-    bool found = sqlite3_step(statement) == SQLITE_ROW;
-    if (found) text = reinterpret_cast<const char *>(sqlite3_column_text(statement, 0));
-    sqlite3_finalize(statement);
-    nlohmann::json value = found ? nlohmann::json::parse(text, nullptr, false) : nlohmann::json();
-    if (!found || value.is_discarded())
-        lua_pushvalue(state, 2);
+    auto value = AvailableStorage(state).get(Self(state)->identifier, luaL_checkstring(state, 1));
+    if (value)
+        loader::lua::pushJSON(state, *value);
     else
-        PushJSON(state, value, 0);
+        lua_pushvalue(state, 2);
     return 1;
-}
-
-static size_t StoredBytes(lua_State *state, LuaPlugin *plugin, const char *except)
-{
-    sqlite3_stmt *statement =
-        Prepare(state, "SELECT COALESCE(SUM(LENGTH(key) + LENGTH(value)), 0) FROM storage WHERE plugin = ? AND key != ?");
-    sqlite3_bind_text(statement, 1, plugin->identifier.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(statement, 2, except, -1, SQLITE_TRANSIENT);
-    size_t total = sqlite3_step(statement) == SQLITE_ROW ? (size_t)sqlite3_column_int64(statement, 0) : 0;
-    sqlite3_finalize(statement);
-    return total;
-}
-
-static void DeleteKey(lua_State *state, LuaPlugin *plugin, const char *key)
-{
-    sqlite3_stmt *statement = Prepare(state, "DELETE FROM storage WHERE plugin = ? AND key = ?");
-    sqlite3_bind_text(statement, 1, plugin->identifier.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(statement, 2, key, -1, SQLITE_TRANSIENT);
-    sqlite3_step(statement);
-    sqlite3_finalize(statement);
 }
 
 static int StorageSet(lua_State *state)
 {
-    RequirePermission(state, "storage");
+    loader::PluginStorage &storage = AvailableStorage(state);
     LuaPlugin *plugin = Self(state);
     const char *key = luaL_checkstring(state, 1);
     nlohmann::json value;
-    if (!LuaToJSON(state, 2, value, 0)) return luaL_error(state, "astral.storage.set: '%s' holds a value that cannot be stored", key);
-    if (value.is_null()) {
-        DeleteKey(state, plugin, key);
+    if (!loader::lua::toJSON(state, 2, value))
+        return luaL_error(state, "astral.storage.set: '%s' holds a value that cannot be stored", key);
+    switch (storage.set(plugin->identifier, key, value)) {
+    case loader::StorageResult::Saved:
+    case loader::StorageResult::Removed:
         return 0;
-    }
-    std::string text = value.dump();
-    if (StoredBytes(state, plugin, key) + strlen(key) + text.size() > kStorageLimit)
+    case loader::StorageResult::OverLimit:
         return luaL_error(state, "astral.storage: %s would exceed %d KB", plugin->identifier.c_str(), (int)(kStorageLimit >> 10));
-    sqlite3_stmt *statement = Prepare(
-        state, "INSERT INTO storage (plugin, key, value) VALUES (?, ?, ?) ON CONFLICT (plugin, key) DO UPDATE SET value = excluded.value");
-    sqlite3_bind_text(statement, 1, plugin->identifier.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(statement, 2, key, -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(statement, 3, text.c_str(), (int)text.size(), SQLITE_TRANSIENT);
-    int result = sqlite3_step(statement);
-    sqlite3_finalize(statement);
-    if (result != SQLITE_DONE) return luaL_error(state, "astral.storage.set: could not save '%s'", key);
-    return 0;
+    case loader::StorageResult::Unavailable:
+    case loader::StorageResult::Failed:
+        return luaL_error(state, "astral.storage.set: could not save '%s'", key);
+    }
 }
 
 static int StorageRemove(lua_State *state)
 {
-    RequirePermission(state, "storage");
-    DeleteKey(state, Self(state), luaL_checkstring(state, 1));
+    AvailableStorage(state).remove(Self(state)->identifier, luaL_checkstring(state, 1));
     return 0;
 }
 
 static int StorageKeys(lua_State *state)
 {
-    RequirePermission(state, "storage");
-    LuaPlugin *plugin = Self(state);
-    sqlite3_stmt *statement = Prepare(state, "SELECT key FROM storage WHERE plugin = ? ORDER BY key");
-    sqlite3_bind_text(statement, 1, plugin->identifier.c_str(), -1, SQLITE_TRANSIENT);
-    lua_newtable(state);
+    auto keys = AvailableStorage(state).keys(Self(state)->identifier);
+    lua_createtable(state, (int)keys.size(), 0);
     lua_Integer position = 1;
-    while (sqlite3_step(statement) == SQLITE_ROW) {
-        lua_pushstring(state, reinterpret_cast<const char *>(sqlite3_column_text(statement, 0)));
+    for (const auto &key : keys) {
+        lua_pushlstring(state, key.data(), key.size());
         lua_rawseti(state, -2, position++);
     }
-    sqlite3_finalize(statement);
     return 1;
 }
 
 void AstralLuaRemoveStorage(NSString *identifier)
 {
-    sqlite3 *database = StorageDatabase();
-    sqlite3_stmt *statement = NULL;
-    if (!database || sqlite3_prepare_v2(database, "DELETE FROM storage WHERE plugin = ?", -1, &statement, NULL) != SQLITE_OK) return;
-    sqlite3_bind_text(statement, 1, identifier.UTF8String, -1, SQLITE_TRANSIENT);
-    sqlite3_step(statement);
-    sqlite3_finalize(statement);
+    Storage().removeAll(identifier.UTF8String ?: "");
 }
 
 static NSString *Argument(lua_State *state, int index)
@@ -745,26 +565,11 @@ static void InstallAPI(LuaPlugin *plugin)
     lua_setglobal(state, "astral");
 }
 
-static void OpenSafeLibraries(lua_State *state)
-{
-    static const luaL_Reg libraries[] = {
-        {LUA_GNAME, luaopen_base},       {LUA_TABLIBNAME, luaopen_table}, {LUA_STRLIBNAME, luaopen_string},
-        {LUA_MATHLIBNAME, luaopen_math}, {LUA_UTF8LIBNAME, luaopen_utf8}, {LUA_COLIBNAME, luaopen_coroutine},
-    };
-    for (const auto &library : libraries) {
-        luaL_requiref(state, library.name, library.func, 1);
-        lua_pop(state, 1);
-    }
-    for (const char *name : {"dofile", "loadfile", "load", "require", "collectgarbage"}) {
-        lua_pushnil(state);
-        lua_setglobal(state, name);
-    }
-}
-
 static bool RunPrelude(LuaPlugin *plugin)
 {
-    if (luaL_loadbufferx(plugin->state, kAstralPrelude, sizeof(kAstralPrelude) - 1, "=astral", "t") != LUA_OK) {
-        Report(plugin, "prelude");
+    auto error = plugin->sandbox->load(std::string(kAstralPrelude, sizeof(kAstralPrelude) - 1), "astral");
+    if (error) {
+        Report(plugin, "prelude", *error);
         return false;
     }
     return Call(plugin, 0, 0, "prelude");
@@ -772,9 +577,8 @@ static bool RunPrelude(LuaPlugin *plugin)
 
 static void Stop(LuaPlugin *plugin)
 {
-    if (plugin->state) lua_close(plugin->state);
+    plugin->sandbox.reset();
     plugin->state = nullptr;
-    plugin->memory = 0;
     plugin->switches.clear();
     plugin->decorators.clear();
     plugin->relabelers.clear();
@@ -797,9 +601,12 @@ static bool Start(LuaPlugin *plugin)
     plugin->errors = 0;
     plugin->failed = false;
     plugin->lastError.clear();
-    plugin->state = lua_newstate(Allocate, plugin);
-    if (!plugin->state) return false;
-    OpenSafeLibraries(plugin->state);
+    plugin->sandbox = std::make_unique<loader::lua::Sandbox>(loader::lua::SandboxLimits{kMemoryLimit, kBudgetSlices, kSliceInstructions});
+    plugin->state = plugin->sandbox->state();
+    if (!plugin->state) {
+        Stop(plugin);
+        return false;
+    }
     InstallAPI(plugin);
     InstallRequire(plugin);
     if (!RunPrelude(plugin)) {
@@ -807,8 +614,8 @@ static bool Start(LuaPlugin *plugin)
         Stop(plugin);
         return false;
     }
-    if (luaL_loadbufferx(plugin->state, plugin->source.data(), plugin->source.size(), ("=" + plugin->identifier).c_str(), "t") != LUA_OK) {
-        Report(plugin, "load");
+    if (auto error = plugin->sandbox->load(plugin->source, plugin->identifier)) {
+        Report(plugin, "load", *error);
         MarkFailed(plugin);
         Stop(plugin);
         return false;
@@ -821,13 +628,6 @@ static bool Start(LuaPlugin *plugin)
     return true;
 }
 
-static bool ValidIdentifier(NSString *identifier)
-{
-    if (identifier.length < 3 || identifier.length > 80 || [identifier containsString:@".."]) return false;
-    NSCharacterSet *allowed = [NSCharacterSet characterSetWithCharactersInString:@"abcdefghijklmnopqrstuvwxyz0123456789.-"];
-    return [identifier rangeOfCharacterFromSet:allowed.invertedSet].location == NSNotFound;
-}
-
 static std::map<std::string, std::string> LoadStrings(NSString *path)
 {
     std::map<std::string, std::string> strings;
@@ -838,24 +638,19 @@ static std::map<std::string, std::string> LoadStrings(NSString *path)
     return strings;
 }
 
+static std::vector<std::string> PreferredLanguages(void)
+{
+    std::vector<std::string> languages;
+    for (NSString *language in NSLocale.preferredLanguages) languages.push_back(language.UTF8String);
+    return languages;
+}
+
 static NSString *BestLocale(NSArray<NSString *> *available)
 {
-    NSMutableArray<NSString *> *wanted = [NSMutableArray array];
-    for (NSString *language in NSLocale.preferredLanguages) {
-        [wanted addObject:language];
-        NSString *base = [language componentsSeparatedByString:@"-"].firstObject;
-        if (base) [wanted addObject:base];
-    }
-    [wanted addObjectsFromArray:@[ @"en-US", @"en-GB", @"en" ]];
-    for (NSString *candidate in wanted) {
-        for (NSString *locale in available) {
-            if ([locale caseInsensitiveCompare:candidate] == NSOrderedSame) return locale;
-        }
-        for (NSString *locale in available) {
-            if ([[locale componentsSeparatedByString:@"-"].firstObject caseInsensitiveCompare:candidate] == NSOrderedSame) return locale;
-        }
-    }
-    return nil;
+    std::vector<std::string> names;
+    for (NSString *locale in available) names.push_back(locale.UTF8String);
+    auto best = loader::lua::bestLocale(names, PreferredLanguages());
+    return best ? Native(*best) : nil;
 }
 
 static void LoadTranslations(LuaPlugin *plugin, NSString *directory)
@@ -885,19 +680,19 @@ static int Translate(lua_State *state)
         auto fallback = plugin->fallbackStrings.find(key);
         if (fallback != plugin->fallbackStrings.end()) text = fallback->second;
     }
+    std::vector<std::pair<std::string, std::string>> values;
     if (lua_istable(state, 2)) {
         lua_pushnil(state);
         while (lua_next(state, 2)) {
             if (lua_type(state, -2) == LUA_TSTRING) {
-                std::string token = std::string("{") + lua_tostring(state, -2) + "}";
-                std::string value = luaL_tolstring(state, -1, nullptr);
+                std::string name = lua_tostring(state, -2);
+                values.push_back({name, luaL_tolstring(state, -1, nullptr)});
                 lua_pop(state, 1);
-                for (size_t at = text.find(token); at != std::string::npos; at = text.find(token, at + value.size()))
-                    text.replace(at, token.size(), value);
             }
             lua_pop(state, 1);
         }
     }
+    text = loader::lua::fillPlaceholders(text, values);
     lua_pushstring(state, text.c_str());
     return 1;
 }
@@ -928,8 +723,8 @@ static LuaPlugin *Load(NSString *directory)
     NSDictionary *manifest = AstralParseTOML(manifestData);
     if (![manifest isKindOfClass:NSDictionary.class]) return nullptr;
     NSString *identifier = manifest[@"id"], *name = manifest[@"name"], *main = manifest[@"main"] ?: @"main.lua";
-    if (![identifier isKindOfClass:NSString.class] || !ValidIdentifier(identifier) || ![name isKindOfClass:NSString.class] ||
-        ![main isKindOfClass:NSString.class] || [main containsString:@"/"])
+    if (![identifier isKindOfClass:NSString.class] || !loader::lua::validPluginIdentifier(identifier.UTF8String) ||
+        ![name isKindOfClass:NSString.class] || ![main isKindOfClass:NSString.class] || [main containsString:@"/"])
         return nullptr;
     NSData *source = [NSData dataWithContentsOfFile:[directory stringByAppendingPathComponent:main]];
     if (!source || source.length > kSourceLimit) return nullptr;
@@ -1089,27 +884,23 @@ NSString *AstralLuaEval(NSString *pluginID, NSString *code)
     lua_State *state = plugin->state;
     int top = lua_gettop(state);
     std::string source = code.UTF8String ?: "";
-    std::string expression = "return " + source;
-    if (luaL_loadbufferx(state, expression.data(), expression.size(), "=eval", "t") != LUA_OK) {
-        lua_pop(state, 1);
-        if (luaL_loadbufferx(state, source.data(), source.size(), "=eval", "t") != LUA_OK) {
-            NSString *message = Native(lua_tostring(state, -1) ?: "syntax error");
+    if (plugin->sandbox->load("return " + source, "eval")) {
+        if (auto error = plugin->sandbox->load(source, "eval")) {
             lua_settop(state, top);
-            return [@"error: " stringByAppendingString:message];
+            return [@"error: " stringByAppendingString:Native(*error)];
         }
     }
-    plugin->budget = kBudgetSlices;
-    lua_sethook(state, Budget, LUA_MASKCOUNT, kSliceInstructions);
-    int status = lua_pcall(state, 0, LUA_MULTRET, 0);
-    lua_sethook(state, nullptr, 0, 0);
+    if (auto error = plugin->sandbox->call(0, LUA_MULTRET)) {
+        lua_settop(state, top);
+        return [@"error: " stringByAppendingString:Native(*error)];
+    }
     NSMutableArray *parts = [NSMutableArray array];
     for (int index = top + 1; index <= lua_gettop(state); index++) {
         [parts addObject:Native(luaL_tolstring(state, index, nullptr))];
         lua_pop(state, 1);
     }
     lua_settop(state, top);
-    NSString *joined = [parts componentsJoinedByString:@"\t"];
-    return status == LUA_OK ? joined : [@"error: " stringByAppendingString:joined];
+    return [parts componentsJoinedByString:@"\t"];
 }
 
 void AstralLuaRemove(NSString *pluginID)
