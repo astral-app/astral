@@ -1,5 +1,5 @@
 name = "Discord semantic colours"
-source = "Discord 355.0 generated-definitions"
+source = "Discord 356.0 generated-definitions"
 
 [colors]
 ACTIVITY_TIMEBAR_PROGRESS_BACKGROUND = { ash = [
@@ -4561,6 +4561,19 @@ SHARE_CHAT_INPUT_BACKGROUND = { ash = [
 	1,
 ], onyx = [
 	"NEUTRAL_93",
+	1,
+] }
+SLIDER_INDICATOR_BACKGROUND = { ash = [
+	"BLURPLE_50",
+	1,
+], dark = [
+	"BLURPLE_50",
+	1,
+], light = [
+	"BLURPLE_50",
+	1,
+], onyx = [
+	"BLURPLE_50",
 	1,
 ] }
 SLIDER_TRACK_BACKGROUND = { ash = [
