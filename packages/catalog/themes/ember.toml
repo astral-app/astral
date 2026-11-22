@@ -1,6 +1,6 @@
 id = "ember"
 name = "Ember"
-version = "0.0.1"
+version = "0.0.2"
 description = "Warm amber accents"
 
 [colors]
@@ -16,3 +16,12 @@ FF4D96EE = "FFFDBA74"
 
 [background]
 gradient = ["#2A120B", "#1A0C08"]
+
+[tint]
+color = "#F97316"
+saturation = 0.42
+neutral = 0.3
+
+[tint.text]
+color = "#FFEDD5"
+saturation = 0.45

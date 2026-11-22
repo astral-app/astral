@@ -137,14 +137,27 @@ static uint32_t recolouredStop(uint32_t original, uint32_t theme)
     return fromHsl(target, alpha);
 }
 
+typedef struct {
+    uint32_t color;
+    double saturation;
+} SurfaceTint;
+
 static uint32_t gTintColor;
 static double gTintSaturation, gTintNeutral;
+static SurfaceTint gSurfaceTints[kAstralSurfaceCount];
 
 void astral_wire_set_tint(uint32_t color, double saturation, double neutral)
 {
     gTintColor = color;
     gTintSaturation = saturation > 0 ? saturation : 0.45;
     gTintNeutral = neutral > 0 ? neutral : 0.3;
+    memset(gSurfaceTints, 0, sizeof(gSurfaceTints));
+}
+
+void astral_wire_set_surface_tint(AstralSurface surface, uint32_t color, double saturation)
+{
+    if ((unsigned)surface >= kAstralSurfaceCount) return;
+    gSurfaceTints[surface] = (SurfaceTint){color, saturation};
 }
 
 static double chromaOf(uint32_t argb)
@@ -155,14 +168,51 @@ static double chromaOf(uint32_t argb)
     return (high - low) / 255.0;
 }
 
+static double neutralLimit(void)
+{
+    return gTintNeutral > 0 ? gTintNeutral : 0.3;
+}
+
+AstralSurface astral_wire_surface_of(uint32_t color)
+{
+    if (chromaOf(color) > neutralLimit()) return kAstralSurfaceAccents;
+    return toHsl(color).lightness < 0.5 ? kAstralSurfaceBackgrounds : kAstralSurfaceText;
+}
+
+static int surfaceTint(uint32_t color, uint32_t *tint, double *saturation)
+{
+    AstralSurface surface = astral_wire_surface_of(color);
+    const SurfaceTint *own = &gSurfaceTints[surface];
+    if (own->color) {
+        *tint = own->color;
+        *saturation = own->saturation > 0 ? own->saturation : toHsl(own->color).saturation;
+        return 1;
+    }
+    if (!gTintColor || surface == kAstralSurfaceAccents) return 0;
+    *tint = gTintColor;
+    *saturation = gTintSaturation;
+    return 1;
+}
+
 static int tintedColor(uint32_t color, uint32_t *mapped)
 {
-    if (!gTintColor || !(color >> 24) || chromaOf(color) > gTintNeutral) return 0;
-    Hsl source = toHsl(color), target = toHsl(gTintColor);
+    uint32_t tint;
+    double saturation;
+    if (!(color >> 24) || !surfaceTint(color, &tint, &saturation)) return 0;
+    Hsl source = toHsl(color), target = toHsl(tint);
     target.lightness = source.lightness;
-    target.saturation = gTintSaturation;
+    target.saturation = saturation;
     *mapped = fromHsl(target, color >> 24);
     return 1;
+}
+
+static int anyTint(void)
+{
+    if (gTintColor) return 1;
+    for (int surface = 0; surface < kAstralSurfaceCount; surface++) {
+        if (gSurfaceTints[surface].color) return 1;
+    }
+    return 0;
 }
 
 static int themedColor(uint32_t color, uint32_t *mapped)
@@ -255,7 +305,7 @@ int wirePatchColors(uint8_t *bytes, const Span *spans, size_t count)
             if (!cursor.failed && property == P(backgroundGradient) && tag == 8) {
                 Cursor gradient = {bytes, cursor.offset, at, 0};
                 int replaceAll = gBackgroundStopCount > 0 && span->id > 0 && span->id < kFirstId;
-                if ((replaceAll || gPaletteCount || gTintColor) && patchGradientStops(bytes, &gradient, replaceAll)) patched = 1;
+                if ((replaceAll || gPaletteCount || anyTint()) && patchGradientStops(bytes, &gradient, replaceAll)) patched = 1;
                 continue;
             }
             if (cursor.failed || !colorProperty(property) || (tag != 3 && tag != 4)) continue;
@@ -455,7 +505,7 @@ static void putTrackedValue(Out *out, const TrackedValue *tracked)
     }
     memcpy(copy, tracked->value.bytes, tracked->length);
     Cursor gradient = {copy, tracked->length, 0, 0};
-    if (gBackgroundStopCount > 0 || gPaletteCount || gTintColor) patchGradientStops(copy, &gradient, gBackgroundStopCount > 0);
+    if (gBackgroundStopCount > 0 || gPaletteCount || anyTint()) patchGradientStops(copy, &gradient, gBackgroundStopCount > 0);
     wirePut(out, copy, tracked->length);
     free(copy);
 }
@@ -504,5 +554,5 @@ void astral_wire_forget_colors(void)
 
 int wireThemeActive(void)
 {
-    return gPaletteCount || gTintColor || gRadiusScale != 1 || gFontScale != 1 || gBackgroundStopCount;
+    return gPaletteCount || anyTint() || gRadiusScale != 1 || gFontScale != 1 || gBackgroundStopCount;
 }

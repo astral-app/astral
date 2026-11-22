@@ -1,6 +1,6 @@
 id = "soft"
 name = "Soft"
-version = "0.0.1"
+version = "0.0.2"
 description = "Rounder corners and slightly larger text"
 
 [colors]
@@ -11,3 +11,8 @@ scale = 1.6
 
 [font]
 scale = 1.06
+
+[tint]
+color = "#7C83F7"
+saturation = 0.2
+neutral = 0.3

@@ -545,6 +545,27 @@ static void tintTest(void)
     astral_wire_forget_colors();
 }
 
+static void surfaceTintTest(void)
+{
+    AstralWireBuffer out;
+    astral_wire_set_palette(NULL, NULL, 0);
+    astral_wire_set_tint(0, 0, 0);
+    assert(astral_wire_surface_of(0xFF2B2D31) == kAstralSurfaceBackgrounds);
+    assert(astral_wire_surface_of(0xFFDBDEE1) == kAstralSurfaceText);
+    assert(astral_wire_surface_of(0xFF5865F2) == kAstralSurfaceAccents);
+    astral_wire_set_surface_tint(kAstralSurfaceAccents, 0xFFF59E0B, 0.9);
+    Batch batch = {.length = 0};
+    b8(&batch, 1);
+    coloredView(&batch, 992, 0xFF2B2D31);
+    coloredView(&batch, 993, 0xFF5865F2);
+    assert(astral_settings_rewrite(batch.bytes, batch.length, &out));
+    uint32_t grey = 0xFF2B2D31, blurple = 0xFF5865F2;
+    assert(memmem(out.bytes, out.length, &grey, 4) && !memmem(out.bytes, out.length, &blurple, 4));
+    astral_wire_buffer_free(&out);
+    astral_wire_set_tint(0, 0, 0);
+    astral_wire_forget_colors();
+}
+
 static void unsupportedVersionTest(void)
 {
     AstralWireBuffer out;
@@ -567,6 +588,7 @@ int main(void)
     relabelTest();
     paletteTest();
     recolorTest();
+    surfaceTintTest();
     liveThemeTest();
     trackerOverflowTest();
     fadeOverlayTest();

@@ -12,6 +12,16 @@ typedef struct {
 } AstralWireBuffer;
 
 typedef enum {
+    kAstralSurfaceBackgrounds,
+    kAstralSurfaceText,
+    kAstralSurfaceAccents,
+    kAstralSurfaceCount,
+} AstralSurface;
+
+void astral_wire_set_surface_tint(AstralSurface surface, uint32_t color, double saturation);
+AstralSurface astral_wire_surface_of(uint32_t color);
+
+typedef enum {
     kAstralRowLink,
     kAstralRowSwitch,
     kAstralRowInfo,

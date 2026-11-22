@@ -13,6 +13,12 @@
 #import "AstralState.h"
 #import "PhoenixWire.h"
 
+struct SurfaceTintSpec {
+    AstralSurface surface;
+    uint32_t color;
+    double saturation;
+};
+
 static NSString *const kDefaultTheme = @"discord";
 
 NSString *AstralLocalThemesDirectory(void)
@@ -103,11 +109,22 @@ void AstralApplyTheme(NSString *themeID)
     NSDictionary *tint = [selected[@"tint"] isKindOfClass:NSDictionary.class] ? selected[@"tint"] : nil;
     uint32_t tintColor = [tint[@"color"] isKindOfClass:NSString.class] ? ParseColor(tint[@"color"]) : 0;
     double tintSaturation = [tint[@"saturation"] doubleValue], tintNeutral = [tint[@"neutral"] doubleValue];
+    std::vector<SurfaceTintSpec> surfaces;
+    NSDictionary<NSString *, NSNumber *> *surfaceNames =
+        @{@"backgrounds" : @(kAstralSurfaceBackgrounds),
+          @"text" : @(kAstralSurfaceText),
+          @"accents" : @(kAstralSurfaceAccents)};
+    for (NSString *name in surfaceNames) {
+        NSDictionary *entry = [tint[name] isKindOfClass:NSDictionary.class] ? tint[name] : nil;
+        uint32_t color = [entry[@"color"] isKindOfClass:NSString.class] ? ParseColor(entry[@"color"]) : 0;
+        if (color) surfaces.push_back({(AstralSurface)surfaceNames[name].intValue, color, [entry[@"saturation"] doubleValue]});
+    }
     AstralPhoenixUpdateTheme(^{
         astral_wire_set_palette(from.data(), to.data(), from.size());
         astral_wire_set_scales(radiusScale, fontScale);
         astral_wire_set_background_gradient(stops.data(), stops.size());
         astral_wire_set_tint(tintColor, tintSaturation, tintNeutral);
+        for (auto &surface : surfaces) astral_wire_set_surface_tint(surface.surface, surface.color, surface.saturation);
     });
     if (AstralSettings()->set("astral", "theme", std::string([selected[@"id"] UTF8String]))) AstralSettings()->save();
 }
@@ -198,6 +215,47 @@ static NSString *Slug(NSString *name)
     return slug.length ? slug : @"imported";
 }
 
+static double ChromaOf(uint32_t color)
+{
+    unsigned red = (color >> 16) & 0xFF, green = (color >> 8) & 0xFF, blue = color & 0xFF;
+    unsigned high = MAX(red, MAX(green, blue)), low = MIN(red, MIN(green, blue));
+    return (high - low) / 255.0;
+}
+
+static NSString *TintHex(uint32_t color)
+{
+    return [NSString stringWithFormat:@"#%06X", color & 0xFFFFFF];
+}
+
+static NSString *DerivedTint(NSDictionary<NSString *, NSString *> *colors)
+{
+    uint32_t accent = 0, background = 0, text = 0;
+    double accentChroma = 0, backgroundChroma = 0, textChroma = 0;
+    for (NSString *original in colors) {
+        uint32_t from = ParseColor(original), to = ParseColor(colors[original]);
+        double chroma = ChromaOf(to);
+        if (from == 0xFF5865F2) chroma += 1;
+        switch (astral_wire_surface_of(from)) {
+        case kAstralSurfaceAccents:
+            if (chroma > accentChroma) accent = to, accentChroma = chroma;
+            break;
+        case kAstralSurfaceBackgrounds:
+            if (chroma > backgroundChroma) background = to, backgroundChroma = chroma;
+            break;
+        default:
+            if (chroma > textChroma) text = to, textChroma = chroma;
+            break;
+        }
+    }
+    if (!accent && !background && !text) return @"";
+    NSMutableString *tint = [NSMutableString stringWithFormat:@"\n[tint]\ncolor = \"%@\"\nsaturation = 0.4\nneutral = 0.3\n",
+                                                               TintHex(accent ?: background ?: text)];
+    if (background && backgroundChroma > 0.03)
+        [tint appendFormat:@"\n[tint.backgrounds]\ncolor = \"%@\"\nsaturation = 0.35\n", TintHex(background)];
+    if (text && textChroma > 0.03) [tint appendFormat:@"\n[tint.text]\ncolor = \"%@\"\nsaturation = 0.4\n", TintHex(text)];
+    return tint;
+}
+
 NSString *AstralImportUnboundTheme(NSData *json, NSString *fallbackName)
 {
     id parsed = [NSJSONSerialization JSONObjectWithData:json options:0 error:nil];
@@ -227,6 +285,7 @@ NSString *AstralImportUnboundTheme(NSData *json, NSString *fallbackName)
                          identifier, [name stringByReplacingOccurrencesOfString:@"\"" withString:@"'"]];
     for (NSString *key in [colors.allKeys sortedArrayUsingSelector:@selector(compare:)])
         [toml appendFormat:@"%@ = \"%@\"\n", key, colors[key]];
+    [toml appendString:DerivedTint(colors)];
     NSString *directory = AstralLocalThemesDirectory();
     [NSFileManager.defaultManager createDirectoryAtPath:directory withIntermediateDirectories:YES attributes:nil error:nil];
     if (![toml writeToFile:[directory stringByAppendingPathComponent:[identifier stringByAppendingPathExtension:@"toml"]]

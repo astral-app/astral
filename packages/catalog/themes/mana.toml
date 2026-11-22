@@ -1,6 +1,6 @@
 id = "mana"
 name = "Mana"
-version = "0.0.1"
+version = "0.0.2"
 description = "Teal accents and cool text"
 
 [colors]
@@ -13,3 +13,15 @@ FFABACB2 = "FF9CC7C0"
 1FD6EDFF = "2A14B8A6"
 FF277ECD = "FF2DD4BF"
 FF4D96EE = "FF5EEAD4"
+
+[background]
+gradient = ["#0B2A2A", "#061818"]
+
+[tint]
+color = "#14B8A6"
+saturation = 0.4
+neutral = 0.3
+
+[tint.text]
+color = "#CCFBF1"
+saturation = 0.35

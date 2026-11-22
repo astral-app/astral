@@ -28,20 +28,20 @@ base = "plugins/astral.settings-theme/"
 [[themes]]
 id = "mana"
 name = "Mana"
-version = "0.0.1"
+version = "0.0.2"
 description = "Teal accents and cool text"
 base = "themes/mana.toml"
 
 [[themes]]
 id = "ember"
 name = "Ember"
-version = "0.0.1"
+version = "0.0.2"
 description = "Warm amber accents"
 base = "themes/ember.toml"
 
 [[themes]]
 id = "soft"
 name = "Soft"
-version = "0.0.1"
+version = "0.0.2"
 description = "Rounder corners and slightly larger text"
 base = "themes/soft.toml"
