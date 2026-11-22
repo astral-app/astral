@@ -10,7 +10,6 @@ for plugin in "$root"/plugins/*/; do
     mkdir -p "$destination"
     cp "$plugin/manifest.toml" "$plugin/main.lua" "$plugin/signature" "$destination/"
     if [ -d "$plugin/i18n" ]; then cp -R "$plugin/i18n" "$destination/"; fi
-    (cd "$plugin" && find i18n -name '*.toml' 2>/dev/null | sort) >"$destination/files.txt"
   done
 done
 cp "$root"/themes/*.toml "$target/themes/"

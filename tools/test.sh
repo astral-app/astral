@@ -20,16 +20,23 @@ cc -O1 -w -I"$root/vendor/monocypher/src" -I"$root/vendor/monocypher/src/optiona
   "$root/vendor/monocypher/src/optional/monocypher-ed25519.c"
 key="$(cat "$root/keys/plugin-signing.pub")"
 for plugin in "$root"/plugins/*/; do
-  manifest_digest="$(sha256sum "$plugin/manifest.toml" 2>/dev/null || shasum -a 256 "$plugin/manifest.toml")"
-  source_digest="$(sha256sum "$plugin/main.lua" 2>/dev/null || shasum -a 256 "$plugin/main.lua")"
-  printf 'astral-plugin-v1\n%s\n%s\n' "${manifest_digest%% *}" "${source_digest%% *}" >"$work/message"
-  for translation in "$plugin"i18n/*.toml; do
-    [ -e "$translation" ] || continue
-    digest="$(sha256sum "$translation" 2>/dev/null || shasum -a 256 "$translation")"
-    printf 'i18n/%s %s\n' "$(basename "$translation")" "${digest%% *}" >>"$work/message"
-  done
-  "$work/verify-signature" "$work/message" "$plugin/signature" "$key" || {
-    echo "stale or invalid signature: $plugin (run tools/sign-plugins.sh)" >&2
+  python3 - "$plugin" "$work/message" "$work/signature" <<'PYTHON'
+import hashlib, pathlib, sys, tomllib
+folder = pathlib.Path(sys.argv[1])
+document = tomllib.loads((folder / "signature").read_text())
+files = document["files"]
+main = tomllib.loads((folder / "manifest.toml").read_text()).get("main", "main.lua")
+expected = {"manifest.toml", main} | {f"i18n/{path.name}" for path in (folder / "i18n").glob("*.toml")}
+if set(files) != expected:
+    sys.exit(f"{folder.name}: signature lists {sorted(set(files) ^ expected)} differently from the folder (run tools/sign-plugins.sh)")
+for path, digest in files.items():
+    if hashlib.sha256((folder / path).read_bytes()).hexdigest() != digest:
+        sys.exit(f"{folder.name}: {path} changed since it was signed (run tools/sign-plugins.sh)")
+pathlib.Path(sys.argv[2]).write_text("astral-plugin-v2\n" + "".join(f"{path} {files[path]}\n" for path in sorted(files)))
+pathlib.Path(sys.argv[3]).write_text(document["signature"])
+PYTHON
+  "$work/verify-signature" "$work/message" "$work/signature" "$key" || {
+    echo "invalid signature: $plugin (run tools/sign-plugins.sh)" >&2
     exit 1
   }
 done

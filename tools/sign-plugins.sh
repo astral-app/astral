@@ -13,14 +13,26 @@ sign() {
   "$openssl" pkeyutl -sign -rawin -inkey "$key" -in "$1" | base64 | tr -d '\n'
 }
 for plugin in "$root"/plugins/*/; do
-  manifest_digest="$(shasum -a 256 "$plugin/manifest.toml" | awk '{ print $1 }')"
-  source_digest="$(shasum -a 256 "$plugin/main.lua" | awk '{ print $1 }')"
-  printf 'astral-plugin-v1\n%s\n%s\n' "$manifest_digest" "$source_digest" >"$work/message"
-  for translation in "$plugin"i18n/*.toml; do
-    [ -e "$translation" ] || continue
-    digest="$(shasum -a 256 "$translation" | awk '{ print $1 }')"
-    printf 'i18n/%s %s\n' "$(basename "$translation")" "$digest" >>"$work/message"
-  done
-  sign "$work/message" >"$plugin/signature"
+  main="$(python3 -c 'import sys, tomllib; print(tomllib.load(open(sys.argv[1], "rb")).get("main", "main.lua"))' "$plugin/manifest.toml")"
+  (
+    cd "$plugin"
+    {
+      echo manifest.toml
+      echo "$main"
+      find i18n -name '*.toml' 2>/dev/null
+    } | sort -u | while read -r path; do
+      printf '%s %s\n' "$path" "$(shasum -a 256 "$path" | awk '{ print $1 }')"
+    done
+  ) >"$work/files"
+  {
+    echo "astral-plugin-v2"
+    cat "$work/files"
+  } >"$work/message"
+  {
+    echo "signature = \"$(sign "$work/message")\""
+    echo
+    echo "[files]"
+    while read -r path digest; do echo "\"$path\" = \"$digest\""; done <"$work/files"
+  } >"$plugin/signature"
 done
 sign "$root/catalog/index.toml" >"$root/catalog/index.toml.sig"

@@ -4,7 +4,7 @@ Plugins are Lua 5.4 files. astral runs no native plugin code, so a plugin works 
 
 ## Translations
 
-A plugin's strings live in `i18n/<locale>.toml` (flat `KEY = "text"` tables); the loader finds them by scanning the folder, and the build writes a `files.txt` next to each catalog plugin so marketplace installs know what to download. `astral.i18n.t(key, { name = value })` returns the string for the best of the device's preferred languages, falling back per key to English and then to the key; `astral.i18n.locale` names the table in use. Translations are part of the plugin's signature, and marketplace installs download and verify them. The two first-party plugins carry Unbound's 32 locales.
+A plugin's strings live in `i18n/<locale>.toml` (flat `KEY = "text"` tables); the loader finds them by scanning the folder. `astral.i18n.t(key, { name = value })` returns the string for the best of the device's preferred languages, falling back per key to English and then to the key; `astral.i18n.locale` names the table in use. Translations are part of the plugin's signature, and marketplace installs download and verify them. The two first-party plugins carry Unbound's 32 locales.
 
 ## Icons
 
@@ -26,7 +26,7 @@ Bundled plugins ship in the package's resource directory (`/var/jb/usr/lib/astra
 
 ## Signing
 
-Marketplace plugins and the catalog are signed with astral's Ed25519 key (`keys/plugin-signing.pub`, compiled into the loader and checked with Monocypher). A plugin's `signature` covers `astral-plugin-v1`, the SHA-256 of `manifest.toml` and the SHA-256 of `main.lua`; the catalog's `index.toml.sig` covers the file. `tools/sign-plugins.sh` signs everything and `tools/test.sh` fails on a stale signature. Bundled plugins ship inside the package; anything else that is unsigned stays off, marked "unsigned", unless Developer mode is on. Downloads are verified before they are written.
+Marketplace plugins and the catalog are signed with astral's Ed25519 key (`keys/plugin-signing.pub`, compiled into the loader and checked with Monocypher). A plugin's `signature` is a small TOML file listing the SHA-256 of `manifest.toml`, `main.lua` and every `i18n/*.toml`, with an Ed25519 signature over that list (`astral-plugin-v2`); marketplace installs read it first and download exactly the files it names. The catalog's `index.toml.sig` covers the catalog. `tools/sign-plugins.sh` signs everything and `tools/test.sh` fails on a stale signature. Bundled plugins ship inside the package; anything else that is unsigned stays off, marked "unsigned", unless Developer mode is on. Downloads are verified before they are written.
 
 ## Sandbox
 

@@ -143,50 +143,39 @@ static NSString *InstallPlugin(NSDictionary *package)
     NSString *identifier = package[@"id"];
     NSString *base = [package[@"base"] hasSuffix:@"/"] ? package[@"base"] : [package[@"base"] stringByAppendingString:@"/"];
     NSString *failure = nil;
+    NSData *signatureData = Fetch(Resolve([base stringByAppendingString:@"signature"]), &failure);
+    NSDictionary<NSString *, NSString *> *signed_ = AstralSignedFiles(signatureData);
+    if (!signed_) return failure ?: @"signature does not match";
     NSData *manifestData = Fetch(Resolve([base stringByAppendingString:@"manifest.toml"]), &failure);
     NSDictionary *manifest = AstralParseTOML(manifestData);
     if (![manifest isKindOfClass:NSDictionary.class] || ![manifest[@"id"] isEqual:identifier]) return failure ?: @"manifest does not match";
     NSString *main = [manifest[@"main"] isKindOfClass:NSString.class] ? manifest[@"main"] : @"main.lua";
-    if ([main containsString:@"/"]) return @"invalid main file";
-    NSData *source = Fetch(Resolve([base stringByAppendingString:main]), &failure);
-    if (!source) return failure ?: @"missing source";
-    NSData *signatureData = Fetch(Resolve([base stringByAppendingString:@"signature"]), &failure);
-    NSString *signature = signatureData ? [[NSString alloc] initWithData:signatureData encoding:NSUTF8StringEncoding] : nil;
-    if (!signature) return failure ?: @"missing signature";
-    NSMutableDictionary<NSString *, NSData *> *translations = [NSMutableDictionary dictionary];
-    NSData *listing = Fetch(Resolve([base stringByAppendingString:@"files.txt"]), &failure);
-    NSString *listingText = listing ? [[NSString alloc] initWithData:listing encoding:NSUTF8StringEncoding] : @"";
-    for (NSString *line in [listingText componentsSeparatedByCharactersInSet:NSCharacterSet.newlineCharacterSet]) {
-        if (![line hasPrefix:@"i18n/"] || ![line hasSuffix:@".toml"]) continue;
-        NSString *locale = [[line substringFromIndex:5] stringByDeletingPathExtension];
-        if (!locale.length || [locale containsString:@"/"] || [locale containsString:@".."]) return @"invalid translation name";
-        NSData *data = Fetch(Resolve([NSString stringWithFormat:@"%@i18n/%@.toml", base, locale]), &failure);
-        if (!data) return failure ?: @"missing translation";
-        translations[locale] = data;
-    }
+    if ([main containsString:@"/"] || !signed_[main]) return @"invalid main file";
     NSString *plugins = [AstralStateDirectory() stringByAppendingPathComponent:@"plugins"];
     NSString *staging = [plugins stringByAppendingPathComponent:[@"." stringByAppendingString:identifier]];
     NSString *target = [plugins stringByAppendingPathComponent:identifier];
     NSFileManager *files = NSFileManager.defaultManager;
     [files removeItemAtPath:staging error:nil];
     if (![files createDirectoryAtPath:staging withIntermediateDirectories:YES attributes:nil error:nil] ||
-        ![manifestData writeToFile:[staging stringByAppendingPathComponent:@"manifest.toml"] atomically:YES] ||
-        ![source writeToFile:[staging stringByAppendingPathComponent:main] atomically:YES] ||
-        ![signatureData writeToFile:[staging stringByAppendingPathComponent:@"signature"] atomically:YES])
+        ![signatureData writeToFile:[staging stringByAppendingPathComponent:@"signature"] atomically:YES]) {
         return @"could not write files";
-    if (translations.count)
-        [files createDirectoryAtPath:[staging stringByAppendingPathComponent:@"i18n"]
+    }
+    for (NSString *path in signed_) {
+        NSData *data =
+            [path isEqualToString:@"manifest.toml"] ? manifestData : Fetch(Resolve([base stringByAppendingString:path]), &failure);
+        NSString *destination = [staging stringByAppendingPathComponent:path];
+        [files createDirectoryAtPath:destination.stringByDeletingLastPathComponent
             withIntermediateDirectories:YES
                              attributes:nil
                                   error:nil];
-    for (NSString *locale in translations) {
-        NSString *path = [[staging stringByAppendingPathComponent:@"i18n"]
-            stringByAppendingPathComponent:[locale stringByAppendingPathExtension:@"toml"]];
-        if (![translations[locale] writeToFile:path atomically:YES]) return @"could not write translations";
+        if (!data || ![data writeToFile:destination atomically:YES]) {
+            [files removeItemAtPath:staging error:nil];
+            return failure ?: [@"could not download " stringByAppendingString:path];
+        }
     }
-    if (!AstralVerifySignature(AstralPluginSigningMessage(manifestData, source, staging), signature)) {
+    if (!AstralVerifyPluginDirectory(staging, main)) {
         [files removeItemAtPath:staging error:nil];
-        return @"signature does not match";
+        return @"downloaded files do not match the signature";
     }
     [files removeItemAtPath:target error:nil];
     if (![files moveItemAtPath:staging toPath:target error:nil]) return @"could not move files";

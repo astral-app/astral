@@ -614,11 +614,8 @@ static LuaPlugin *Load(NSString *directory)
         return nullptr;
     NSData *source = [NSData dataWithContentsOfFile:[directory stringByAppendingPathComponent:main]];
     if (!source || source.length > kSourceLimit) return nullptr;
-    NSString *signature = [NSString stringWithContentsOfFile:[directory stringByAppendingPathComponent:@"signature"]
-                                                    encoding:NSUTF8StringEncoding
-                                                       error:nil];
     LuaPlugin *plugin = new LuaPlugin();
-    plugin->signedByAstral = AstralVerifySignature(AstralPluginSigningMessage(manifestData, source, directory), signature);
+    plugin->signedByAstral = AstralVerifyPluginDirectory(directory, main);
     LoadTranslations(plugin, directory);
     plugin->identifier = identifier.UTF8String;
     plugin->name = [name substringToIndex:MIN(name.length, (NSUInteger)48)].UTF8String;
