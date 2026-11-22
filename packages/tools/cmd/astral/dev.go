@@ -11,11 +11,14 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
 const devUsage = `usage: astral dev <command>
+  pair <code>            save the pairing code shown under Developer mode (the vphone needs none)
   status                 the device's astral version and plugins
   push <plugin folder>   install a plugin and hot reload it
   watch <plugin folder>  push the plugin every time a file in it changes
@@ -29,9 +32,50 @@ const devUsage = `usage: astral dev <command>
 Needs Developer mode on. With DEVICE set the port is forwarded over USB; without it, over SSH to the vphone.`
 
 type devClient struct {
-	base   string
-	port   string
-	client *http.Client
+	base    string
+	port    string
+	pairing string
+	client  *http.Client
+}
+
+func devPairingPath() string {
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".config", "astral", "dev-pairing")
+}
+
+func storedPairing() string {
+	if code := os.Getenv("ASTRAL_DEV_PAIRING"); code != "" {
+		return strings.ToUpper(strings.TrimSpace(code))
+	}
+	data, _ := os.ReadFile(devPairingPath())
+	return strings.ToUpper(strings.TrimSpace(string(data)))
+}
+
+func savePairing(code string) error {
+	code = strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(code), "-", ""))
+	if len(code) != 8 {
+		return errors.New("a pairing code has 8 characters; it is shown under Developer mode in astral's settings")
+	}
+	if err := os.MkdirAll(filepath.Dir(devPairingPath()), 0o700); err != nil {
+		return err
+	}
+	return os.WriteFile(devPairingPath(), []byte(code+"\n"), 0o600)
+}
+
+func vphonePairing() (string, error) {
+	client, err := newVphoneClient()
+	if err != nil {
+		return "", err
+	}
+	data, err := discordDataPath(client)
+	if err != nil {
+		return "", err
+	}
+	output, err := vphoneRun("vphone", "cat "+shellQuote(path.Join(data, "Documents", "astral", "dev-pairing-code")), true)
+	if err != nil {
+		return "", fmt.Errorf("read the pairing code: %w", err)
+	}
+	return strings.ToUpper(strings.TrimSpace(output)), nil
 }
 
 func newDevClient() devClient {
@@ -39,7 +83,7 @@ func newDevClient() devClient {
 	if port == "" {
 		port = "9324"
 	}
-	return devClient{"http://127.0.0.1:" + port, port, &http.Client{Timeout: 20 * time.Second}}
+	return devClient{"http://127.0.0.1:" + port, port, storedPairing(), &http.Client{Timeout: 20 * time.Second}}
 }
 
 func (d devClient) reachable() bool {
@@ -52,12 +96,15 @@ func (d devClient) reachable() bool {
 	return response.StatusCode < 500
 }
 
-func (d devClient) forward() error {
+func (d *devClient) forward() error {
 	if d.reachable() {
 		return nil
 	}
 	device := os.Getenv("DEVICE")
 	if device == "" {
+		if code, err := vphonePairing(); err == nil && code != "" {
+			d.pairing = code
+		}
 		return d.forwardOverVphoneSSH()
 	}
 	proxy := exec.Command("iproxy", d.port, d.port, "-u", device)
@@ -74,7 +121,7 @@ func (d devClient) forward() error {
 	return errors.New("astral's development server is not reachable; turn on Developer mode")
 }
 
-func (d devClient) forwardOverVphoneSSH() error {
+func (d *devClient) forwardOverVphoneSSH() error {
 	client, err := vphoneSSH("vphone")
 	if err != nil {
 		return fmt.Errorf("set DEVICE for a USB device, or boot the vphone: %w", err)
@@ -128,6 +175,9 @@ func (d devClient) request(method string, path string, body any) ([]byte, error)
 	}
 	if body != nil {
 		request.Header.Set("Content-Type", "application/json")
+	}
+	if d.pairing != "" {
+		request.Header.Set("X-Astral-Pairing", d.pairing)
 	}
 	response, err := d.client.Do(request)
 	if err != nil {
@@ -290,6 +340,16 @@ func (d devClient) backup(args []string) error {
 func runDev(args []string) error {
 	if len(args) == 0 {
 		return errors.New(devUsage)
+	}
+	if args[0] == "pair" {
+		if len(args) != 2 {
+			return errors.New(devUsage)
+		}
+		if err := savePairing(args[1]); err != nil {
+			return err
+		}
+		fmt.Println("saved the pairing code to " + devPairingPath())
+		return nil
 	}
 	d := newDevClient()
 	if err := d.forward(); err != nil {

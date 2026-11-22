@@ -1,4 +1,5 @@
 #import "SettingsPages.h"
+#import "DevServer.h"
 
 #include "AstralSettings.h"
 #import "AstralState.h"
@@ -115,7 +116,9 @@ static NSDictionary *GeneralPage(AstralPageContext context)
                     With(
                         Row(@"developer-mode", @"Developer mode", @"res://ic_mana_bug", kAstralRowSwitch), @{
                             @"on" : @(AstralSettings()->getBoolean("astral", "developer-mode", false)),
-                            @"subtitle" : @"Run plugins that astral has not signed"
+                            @"subtitle" : AstralSettings()->getBoolean("astral", "developer-mode", false)
+                                ? [NSString stringWithFormat:@"Pairing code %@ for astral dev", AstralDevPairingCode()]
+                                : @"Run plugins that astral has not signed"
                         }),
                     With(Row(@"force-phoenix", @"Force Phoenix", @"res://ic_mana_settings_arrow_up", kAstralRowInfo),
                          @{@"detail" : @"On", @"subtitle" : @"The React Native fallback stays off"}),

@@ -6,6 +6,10 @@
 #import <unistd.h>
 
 #import "AstralState.h"
+
+#include <string>
+
+#include "AstralSettings.h"
 #import "Backup.h"
 #import "Themes.h"
 #import "LuaHost.h"
@@ -97,9 +101,48 @@ static NSData *PutPlugin(NSDictionary *body)
     return Response(500, @{@"error" : @"the plugin did not load"});
 }
 
-static NSData *HandleRequest(NSString *method, NSString *path, NSData *bodyData)
+static NSString *const kPairingAlphabet = @"ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+NSString *AstralDevPairingCode(void)
+{
+    static NSString *code;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        std::string stored = AstralSettings()->getString("astral", "dev-pairing-code", "");
+        if (stored.size() == 8) {
+            code = [NSString stringWithUTF8String:stored.c_str()];
+        } else {
+            NSMutableString *generated = [NSMutableString stringWithCapacity:8];
+            for (int index = 0; index < 8; index++) {
+                unichar character = [kPairingAlphabet characterAtIndex:arc4random_uniform((uint32_t)kPairingAlphabet.length)];
+                [generated appendFormat:@"%C", character];
+            }
+            code = [generated copy];
+            if (AstralSettings()->set("astral", "dev-pairing-code", std::string(code.UTF8String))) AstralSettings()->save();
+        }
+        NSString *file = [AstralStateDirectory() stringByAppendingPathComponent:@"dev-pairing-code"];
+        [code writeToFile:file atomically:YES encoding:NSUTF8StringEncoding error:nil];
+        [NSFileManager.defaultManager setAttributes:@{NSFilePosixPermissions : @0600} ofItemAtPath:file error:nil];
+    });
+    return code;
+}
+
+static BOOL PairingMatches(NSString *offered)
+{
+    NSData *expected = [AstralDevPairingCode() dataUsingEncoding:NSUTF8StringEncoding];
+    NSData *given = [[offered ?: @"" uppercaseString] dataUsingEncoding:NSUTF8StringEncoding];
+    if (given.length != expected.length) return NO;
+    const uint8_t *left = (const uint8_t *)expected.bytes, *right = (const uint8_t *)given.bytes;
+    uint8_t difference = 0;
+    for (NSUInteger index = 0; index < expected.length; index++) difference |= left[index] ^ right[index];
+    return difference == 0;
+}
+
+static NSData *HandleRequest(NSString *method, NSString *path, NSData *bodyData, NSString *pairing)
 {
     if (!gEnabled()) return Response(403, @{@"error" : @"turn on developer mode in astral's settings"});
+    if (!PairingMatches(pairing))
+        return Response(401, @{@"error" : @"pairing code missing or wrong; run astral dev pair <code> with the code under Developer mode"});
     NSDictionary *query = QueryOf(path);
     NSString *route = query[@"_path"];
     id body = bodyData.length ? [NSJSONSerialization JSONObjectWithData:bodyData options:0 error:nil] : nil;
@@ -170,7 +213,7 @@ static void Serve(int client)
     NSMutableData *request = [NSMutableData data];
     uint8_t buffer[16384];
     NSUInteger expected = NSUIntegerMax, headerEnd = 0;
-    NSString *method = @"", *path = @"/";
+    NSString *method = @"", *path = @"/", *pairing = nil;
     while (request.length < kMaxRequest) {
         ssize_t received = recv(client, buffer, sizeof(buffer), 0);
         if (received <= 0) break;
@@ -192,6 +235,8 @@ static void Serve(int client)
             NSUInteger length = 0;
             for (NSString *line in lines) {
                 if ([line.lowercaseString hasPrefix:@"content-length:"]) length = (NSUInteger)[[line substringFromIndex:15] integerValue];
+                if ([line.lowercaseString hasPrefix:@"x-astral-pairing:"])
+                    pairing = [[line substringFromIndex:17] stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
             }
             expected = headerEnd + length;
         }
@@ -200,7 +245,7 @@ static void Serve(int client)
     NSData *body =
         headerEnd && request.length >= headerEnd ? [request subdataWithRange:NSMakeRange(headerEnd, request.length - headerEnd)] : nil;
     NSData *response =
-        request.length >= kMaxRequest ? Response(413, @{@"error" : @"request too large"}) : HandleRequest(method, path, body);
+        request.length >= kMaxRequest ? Response(413, @{@"error" : @"request too large"}) : HandleRequest(method, path, body, pairing);
     send(client, response.bytes, response.length, 0);
     close(client);
 }
@@ -211,6 +256,7 @@ void AstralStartDevServer(BOOL (^enabled)(void), void (^changed)(void))
     gEnabled = [enabled copy];
     gChanged = [changed copy];
     dispatch_once(&once, ^{
+        AstralDevPairingCode();
         gLog = [NSMutableArray array];
         gLogLock = [NSLock new];
         dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
