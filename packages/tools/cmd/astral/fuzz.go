@@ -104,7 +104,7 @@ func runBench(args []string) error {
 	defer cleanup()
 	binary := filepath.Join(work, "rewrite-bench")
 	tests := repoPath("packages", "ios", "tests")
-	if err := run(tests, "cc", append([]string{"-O2", "-flto=thin", "-w", "-o", binary, "bench/rewrite-bench.c"}, append(wireSources("../sources/"), "-lm")...)...); err != nil {
+	if err := run(tests, "cc", append([]string{"-O2", "-flto", "-w", "-o", binary, "bench/rewrite-bench.c"}, append(wireSources("../sources/"), "-lm")...)...); err != nil {
 		return err
 	}
 	return run(repoPath(), binary, flags.Args()...)
