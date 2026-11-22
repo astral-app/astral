@@ -380,7 +380,9 @@ void AstralPhoenixUpdateTheme(void (^apply)(void))
         pthread_mutex_lock(&gLock);
         AstralWireBuffer buffer = {};
         bool live = gHostOriginal && gHostContext && !astral_wire_unsupported_version() && !gRewriteDisabled.load();
-        if (live && astral_wire_recolor(&buffer)) Send(&buffer);
+        int updates = live ? astral_wire_recolor(&buffer) : 0;
+        RecordTiming(@"recolorUpdates", @(updates));
+        if (updates) Send(&buffer);
         pthread_mutex_unlock(&gLock);
     });
 }

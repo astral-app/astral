@@ -2035,7 +2035,7 @@ int astral_wire_recolor(AstralWireBuffer *buffer)
     }
     buffer->bytes = out.bytes;
     buffer->length = out.length;
-    return 1;
+    return updates > INT32_MAX ? INT32_MAX : (int)updates;
 }
 
 void astral_wire_forget_colors(void)

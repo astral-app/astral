@@ -1,4 +1,6 @@
+#include <dlfcn.h>
 #import "VirtualCamera.h"
+#import "VirtualSession.h"
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 
@@ -101,14 +103,22 @@ NSString *AstralStateDirectory(void)
     return [NSString stringWithUTF8String:stateDirectory.c_str()] ?: @"";
 }
 
+static NSString *TweakResourceDirectory(void)
+{
+    Dl_info info;
+    if (!dladdr((const void *)AstralResourceDirectory, &info) || !info.dli_fname) return nil;
+    NSString *loadedFrom = [[NSString stringWithUTF8String:info.dli_fname] stringByDeletingLastPathComponent];
+    return [loadedFrom stringByAppendingPathComponent:@"../../../usr/lib/astral"].stringByStandardizingPath;
+}
+
 NSString *AstralResourceDirectory(void)
 {
     static NSString *directory;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        NSString *jailbroken = @"/var/jb/usr/lib/astral";
-        BOOL exists = [NSFileManager.defaultManager fileExistsAtPath:jailbroken];
-        directory = exists ? jailbroken : [NSBundle.mainBundle.bundlePath stringByAppendingPathComponent:@"astral.bundle"];
+        NSString *tweak = TweakResourceDirectory();
+        BOOL exists = tweak && [NSFileManager.defaultManager fileExistsAtPath:tweak];
+        directory = exists ? tweak : [NSBundle.mainBundle.bundlePath stringByAppendingPathComponent:@"astral.bundle"];
     });
     return directory;
 }
@@ -241,6 +251,7 @@ __attribute__((constructor)) static void AstralBootstrap(void)
     if (!documents) return;
     stateDirectory = String([documents.path stringByAppendingPathComponent:@"astral"]);
     if (!loader::createDirectories(stateDirectory)) return;
+    AstralSyncVirtualSession([documents.path stringByAppendingPathComponent:@"astral"]);
     runID = NSUUID.UUID.UUIDString;
     loader::setSystemLogSink([](loader::LogLevel, const std::string &message) {
         NSString *line = [NSString stringWithUTF8String:message.c_str()] ?: @"";

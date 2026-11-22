@@ -370,8 +370,8 @@ static NSDictionary *DesignPage(void)
     return Page(@"Design", @[
         Section(@"Themes", rows),
         Section(@"How themes apply",
-                @[ With(Row(@"theme-note", @"Recolours Phoenix views as they draw", @"res://ic_mana_circle_information", kAstralRowInfo),
-                        @{@"subtitle" : @"Screens already on display update when Discord redraws them"}) ]),
+                @[ With(Row(@"theme-note", @"Recolours Phoenix views right away", @"res://ic_mana_circle_information", kAstralRowInfo),
+                        @{@"subtitle" : @"Colours change on screen as soon as you pick a theme"}) ]),
         Section(@"Get more",
                 @[
                     With(Row(@"import-unbound-theme", @"Import Unbound theme", @"res://ic_mana_download", kAstralRowLink),

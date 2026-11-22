@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -20,15 +21,19 @@ import (
 )
 
 const vphoneUsage = `usage: astral vphone <command>
-  boot [--name ios27]              restart the VM with its guest API on, using a stored token
+  boot [--name vphone]              restart the VM with its guest API on, using a stored token
   status                           bootstrap state and the frontmost app
+  call <method> [json params]      call any guest API method
+  setup                            install ElleKit on a fresh bootstrap and check that injection works
+  ssh [--root] <command>           run a command in the guest over SSH (mobile, or root with --root)
+  session <save|restore>           back up or restore Discord's login (kept in ~/.config/astral/vphone-session)
   install <ipa>                    upload and install an IPA
   launch <bundle id>               open an app
   info <bundle id>                 an app's version, bundle and data paths
-  shell <executable> [args...]     run launchctl, log or ps in the guest and print the output
   push <local file> <guest path>   copy a file into the guest
   pull <guest path> <local file>   copy a file out of the guest
-  deploy --ipa <Discord.ipa>       build astral into the IPA, install it and open Discord
+  discord --ipa <Discord.ipa>      install stock Discord, keeping the saved login
+  deploy                           build astral, install it as an ElleKit tweak and relaunch Discord
 The guest API listens on VPHONE_API (default 127.0.0.1:8765) with the token in VPHONE_API_TOKEN or ~/.config/astral/vphone-token.`
 
 type vphoneClient struct {
@@ -166,17 +171,15 @@ func (v vphoneClient) install(ipa string) error {
 	return v.call("apps.install", map[string]any{"path": remote}, nil)
 }
 
-type spawnResult struct {
-	ExitCode int    `json:"exit_code"`
-	Status   int    `json:"status"`
-	Stdout   string `json:"stdout"`
-	Stderr   string `json:"stderr"`
-}
-
-func (v vphoneClient) shell(executable string, arguments []string) (spawnResult, error) {
-	var result spawnResult
-	err := v.call("processes.spawn", map[string]any{"executable": executable, "arguments": arguments, "timeout_ms": 10000}, &result)
-	return result, err
+func waitForFreePort(address string) {
+	for attempt := 0; attempt < 60; attempt++ {
+		listener, err := net.Listen("tcp", address)
+		if err == nil {
+			listener.Close()
+			return
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
 }
 
 func bootVphone(name string) error {
@@ -201,6 +204,7 @@ func bootVphone(name string) error {
 		return errors.New("the Android emulator is running; stop it first (the Mac cannot run both)")
 	}
 	exec.Command("vphone-cli", "vm", "stop", name).Run()
+	waitForFreePort("127.0.0.1:8765")
 	home, _ := os.UserHomeDir()
 	config := filepath.Join(home, ".vphone", "machines", name, "config.plist")
 	logPath := filepath.Join(os.TempDir(), "astral-vphone-"+name+".log")
@@ -293,7 +297,7 @@ func runVphone(args []string) error {
 	}
 	if args[0] == "boot" {
 		flags := newFlags("vphone boot")
-		name := flags.String("name", "ios27", "VM name")
+		name := flags.String("name", "vphone", "VM name")
 		if err := flags.Parse(args[1:]); err != nil {
 			return err
 		}
@@ -304,6 +308,23 @@ func runVphone(args []string) error {
 		return err
 	}
 	switch args[0] {
+	case "call":
+		if len(args) < 2 || len(args) > 3 {
+			return errors.New(vphoneUsage)
+		}
+		params := map[string]any{}
+		if len(args) == 3 {
+			if err := json.Unmarshal([]byte(args[2]), &params); err != nil {
+				return fmt.Errorf("params must be a JSON object: %w", err)
+			}
+		}
+		var result any
+		if err := client.call(args[1], params, &result); err != nil {
+			return err
+		}
+		encoded, _ := json.MarshalIndent(result, "", "  ")
+		fmt.Println(string(encoded))
+		return nil
 	case "status":
 		var status any
 		if err := client.call("bootstrap.status", nil, &status); err != nil {
@@ -333,20 +354,6 @@ func runVphone(args []string) error {
 			return errors.New(vphoneUsage)
 		}
 		return client.call("apps.launch", map[string]any{"bundle_id": args[1]}, nil)
-	case "shell":
-		if len(args) < 2 {
-			return errors.New(vphoneUsage)
-		}
-		result, err := client.shell(args[1], args[2:])
-		if err != nil {
-			return err
-		}
-		fmt.Print(result.Stdout)
-		fmt.Fprint(os.Stderr, result.Stderr)
-		if result.ExitCode != 0 {
-			return fmt.Errorf("exited with %d", result.ExitCode)
-		}
-		return nil
 	case "push":
 		if len(args) != 3 {
 			return errors.New(vphoneUsage)
@@ -359,6 +366,14 @@ func runVphone(args []string) error {
 		return client.pull(args[1], args[2])
 	case "deploy":
 		return vphoneDeploy(client, args[1:])
+	case "session":
+		return runVphoneSession(client, args[1:])
+	case "ssh":
+		return runVphoneSSHCommand(args[1:])
+	case "setup":
+		return runVphoneSetup(args[1:])
+	case "discord":
+		return vphoneInstallDiscord(client, args[1:])
 	}
 	return errors.New(vphoneUsage)
 }
@@ -424,38 +439,41 @@ func adhocSign(ipa string, team string, bundleID string, work string) (string, e
 }
 
 func vphoneDeploy(client vphoneClient, args []string) error {
-	flags := newFlags("vphone deploy")
+	if len(args) > 0 {
+		return errors.New("usage: astral vphone deploy (install Discord first with astral vphone discord --ipa <IPA>)")
+	}
+	return vphoneTweakDeploy(client)
+}
+
+func vphoneInstallDiscord(client vphoneClient, args []string) error {
+	flags := newFlags("vphone discord")
 	ipa := flags.String("ipa", "", "decrypted Discord IPA")
-	name := flags.String("name", "ios27", "VM name")
+	name := flags.String("name", "vphone", "VM name")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	if *ipa == "" {
-		return errors.New("usage: astral vphone deploy --ipa <decrypted Discord.ipa> [--name ios27]")
-	}
-	if err := buildPackage(); err != nil {
-		return err
+		return errors.New("usage: astral vphone discord --ipa <decrypted Discord.ipa> [--name vphone]")
 	}
 	work, cleanup, err := temporaryDirectory()
 	if err != nil {
 		return err
 	}
 	defer cleanup()
-	built := filepath.Join(work, "astral.ipa")
-	if err := runBuildIPA([]string{"--ipa", *ipa, "--output", built}); err != nil {
-		return err
-	}
-	ready, err := vphoneReadyIPA(built, work)
+	ready, err := vphoneReadyIPA(*ipa, work)
 	if err != nil {
 		return err
 	}
-	const bundleID = "com.hammerandchisel.discord"
-	if team := installedTeam(client, bundleID); team != "" {
+	team := installedTeam(client, discordBundleID)
+	if team != "" {
+		if saved, err := saveVphoneSession(client); err == nil {
+			fmt.Printf("saved the login (%d files)\n", saved)
+		}
 		udid, err := vphoneUDID(*name)
 		if err != nil {
 			return err
 		}
-		signed, err := adhocSign(ready, team, bundleID, work)
+		signed, err := adhocSign(ready, team, discordBundleID, work)
 		if err != nil {
 			return err
 		}
@@ -465,9 +483,9 @@ func vphoneDeploy(client vphoneClient, args []string) error {
 	} else if err := client.install(ready); err != nil {
 		return err
 	}
-	if err := client.call("apps.launch", map[string]any{"bundle_id": bundleID}, nil); err != nil {
-		return err
+	if restored, err := restoreVphoneSession(client, *name); err == nil {
+		fmt.Printf("restored the login (%d files)\n", restored)
 	}
-	fmt.Println("installed astral in Discord on the vphone and opened it")
+	fmt.Println("installed stock Discord on the vphone; run astral vphone deploy to add astral")
 	return nil
 }
