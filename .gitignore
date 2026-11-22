@@ -5,3 +5,4 @@ packages/loader-ios/packages/
 *.ipa
 *.deb
 fuzz-crashes/
+packages/core/build/
