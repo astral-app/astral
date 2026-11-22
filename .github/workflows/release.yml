@@ -16,7 +16,7 @@ jobs:
       tag: ${{ steps.release.outputs.tag_name }}
     steps:
       - id: release
-        uses: googleapis/release-please-action@v4
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
@@ -26,13 +26,20 @@ jobs:
     if: needs.release-please.outputs.created == 'true'
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           submodules: true
-      - uses: Randomblock1/theos-action@v1
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ${{ github.workspace }}/theos
+          key: theos-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: theos-${{ runner.os }}-
+      - name: Prepare Theos
+        run: |
+          echo "THEOS=${{ github.workspace }}/theos" >> "$GITHUB_ENV"
+          THEOS="${{ github.workspace }}/theos" tools/prepare-theos.sh
       - name: Build
         run: |
-          brew install make
           export PATH="$(brew --prefix make)/libexec/gnubin:$PATH"
           make -C packages/loader-ios package FINALPACKAGE=1
       - name: Attach the package

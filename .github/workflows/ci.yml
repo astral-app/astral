@@ -14,7 +14,7 @@ jobs:
     name: Lint and test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           submodules: true
       - name: Install tools
@@ -38,16 +38,23 @@ jobs:
     needs: check
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           submodules: true
-      - uses: Randomblock1/theos-action@v1
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ${{ github.workspace }}/theos
+          key: theos-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: theos-${{ runner.os }}-
+      - name: Prepare Theos
+        run: |
+          echo "THEOS=${{ github.workspace }}/theos" >> "$GITHUB_ENV"
+          THEOS="${{ github.workspace }}/theos" tools/prepare-theos.sh
       - name: Build
         run: |
-          brew install make
           export PATH="$(brew --prefix make)/libexec/gnubin:$PATH"
           make -C packages/loader-ios package FINALPACKAGE=1
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: astral-deb
           path: packages/loader-ios/packages/*.deb
