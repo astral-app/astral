@@ -1,3 +1,4 @@
+#import "VirtualCamera.h"
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 
@@ -73,6 +74,7 @@ static void Status(NSString *stage)
         @"settings" : settingsIntegration ?: @"",
         @"settingsRefusal" : settingsRefusal ?: @"",
         @"route" : AstralPhoenixRoute(),
+        @"device" : AstralDeviceModel(),
         @"timings" : AstralPhoenixTimings(),
         @"plugins" : PluginSummaries()
     };
@@ -232,6 +234,7 @@ static void CheckReadiness(void)
 __attribute__((constructor)) static void AstralBootstrap(void)
 {
     if (!AstralIsDiscordApp()) return;
+    AstralFixVirtualCamera();
     engineSelection = AstralForcePhoenix();
     AstralInstallImageAssets();
     NSURL *documents = [NSFileManager.defaultManager URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask].firstObject;

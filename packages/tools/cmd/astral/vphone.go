@@ -175,7 +175,7 @@ type spawnResult struct {
 
 func (v vphoneClient) shell(executable string, arguments []string) (spawnResult, error) {
 	var result spawnResult
-	err := v.call("processes.spawn", map[string]any{"executable": executable, "arguments": arguments, "timeout_ms": 120000}, &result)
+	err := v.call("processes.spawn", map[string]any{"executable": executable, "arguments": arguments, "timeout_ms": 10000}, &result)
 	return result, err
 }
 
