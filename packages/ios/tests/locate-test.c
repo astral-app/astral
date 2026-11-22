@@ -9,7 +9,7 @@
 #include <string.h>
 
 #include "../sources/PhoenixLocate.h"
-#include "../sources/PhoenixProperties.h"
+#include "PhoenixProperties.h"
 
 int main(int count, char **arguments)
 {

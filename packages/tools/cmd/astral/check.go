@@ -66,10 +66,10 @@ func checkRules() []checkRule {
 			return taplo(append([]string{"format", "--check"}, files...)...)
 		}},
 		{"wire tests", func(path string) bool {
-			return under(path, "packages/ios/sources/PhoenixWire", "packages/ios/sources/PhoenixProperties", "packages/ios/tests/")
+			return under(path, "packages/core/wire/", "packages/ios/tests/")
 		}, func(_ []string, work string) error { return testWire(work) }},
 		{"core tests", func(path string) bool {
-			return nativeExtensions[filepath.Ext(path)] && under(path, "packages/core/")
+			return nativeExtensions[filepath.Ext(path)] && under(path, "packages/core/") && !under(path, "packages/core/wire/")
 		}, func(_ []string, work string) error { return testCore(work) }},
 		{"lua tests", func(path string) bool {
 			return under(path, "packages/core/lua/", "packages/core/tests/", "packages/addons/plugins/") && !nativeExtensions[filepath.Ext(path)]

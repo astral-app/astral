@@ -39,7 +39,7 @@ func testWire(work string) error {
 	ios := repoPath("packages", "ios")
 	binary := filepath.Join(work, "phoenix-wire-test")
 	arguments := []string{"-Wall", "-Wextra", "-Werror", "-g", "-fsanitize=address,undefined", "tests/phoenix-wire-test.c", "tests/support/wire-parser.c"}
-	arguments = append(append(arguments, wireSources("sources/")...), "-lm", "-o", binary)
+	arguments = append(append(arguments, wireSources()...), "-lm", "-o", binary)
 	if err := run(ios, "clang", arguments...); err != nil {
 		return err
 	}
@@ -48,10 +48,10 @@ func testWire(work string) error {
 
 var wireSourceFiles = []string{"PhoenixWire.c", "PhoenixWireFormat.c", "PhoenixWirePages.c", "PhoenixWireDecorate.c", "PhoenixWireTheme.c", "PhoenixWireLabels.c", "PhoenixWireBackdrop.c", "PhoenixWireMentions.c", "PhoenixWireImages.c", "PhoenixWireNames.c", "PhoenixWireEmoji.c", "PhoenixWireReactions.c", "PhoenixProperties.c"}
 
-func wireSources(prefix string) []string {
-	paths := make([]string, len(wireSourceFiles))
-	for index, file := range wireSourceFiles {
-		paths[index] = prefix + file
+func wireSources() []string {
+	paths := []string{"-I" + repoPath("packages", "core", "wire")}
+	for _, file := range wireSourceFiles {
+		paths = append(paths, repoPath("packages", "core", "wire", file))
 	}
 	return paths
 }
@@ -182,7 +182,7 @@ func verifyWithMonocypher(work string, folders []string) error {
 func testLocator(work string, phoenix string) error {
 	binary := filepath.Join(work, "locate-test")
 	sources := repoPath("packages", "ios")
-	if err := run(sources, "clang", "-Wall", "-Wextra", "-Werror", "-O1", "tests/locate-test.c", "sources/PhoenixLocate.c", "sources/PhoenixProperties.c", "-o", binary); err != nil {
+	if err := run(sources, "clang", "-Wall", "-Wextra", "-Werror", "-O1", "tests/locate-test.c", "sources/PhoenixLocate.c", "-I"+repoPath("packages", "core", "wire"), repoPath("packages", "core", "wire", "PhoenixProperties.c"), "-o", binary); err != nil {
 		return err
 	}
 	return run(sources, binary, phoenix)

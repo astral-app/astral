@@ -4,7 +4,7 @@
 #include <string.h>
 
 #include "support/wire-parser.h"
-#include "../sources/PhoenixWireInternal.h"
+#include "PhoenixWireInternal.h"
 #include "support/batch-builder.h"
 
 static char line[1 << 20];

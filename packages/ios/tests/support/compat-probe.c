@@ -6,7 +6,7 @@
 #include <unistd.h>
 
 #include "../../sources/PhoenixLocate.h"
-#include "../../sources/PhoenixProperties.h"
+#include "PhoenixProperties.h"
 
 static void printString(const char *value)
 {

@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "../../sources/PhoenixWireInternal.h"
+#include "PhoenixWireInternal.h"
 #include "../support/batch-builder.h"
 
 static void save(const char *directory, const char *name, const Batch *batch)

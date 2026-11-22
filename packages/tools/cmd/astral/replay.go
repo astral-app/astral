@@ -43,7 +43,8 @@ func buildReplay(work string) (string, error) {
 		return "", err
 	}
 	objects := []string{lua}
-	for _, source := range wireSources(repoPath("packages", "ios", "sources") + "/") {
+	for _, file := range wireSourceFiles {
+		source := repoPath("packages", "core", "wire", file)
 		object := filepath.Join(work, strings.TrimSuffix(filepath.Base(source), ".c")+".o")
 		if err := run(repoPath(), "cc", "-c", "-O1", "-std=c11", source, "-o", object); err != nil {
 			return "", err
@@ -52,7 +53,7 @@ func buildReplay(work string) (string, error) {
 	}
 	binary := filepath.Join(work, "replay")
 	arguments := []string{"-std=c++20", "-O1", "-I" + repoPath("packages", "core", "include"), "-I" + repoPath("vendor", "lua"),
-		"-I" + repoPath("packages", "ios", "sources"), "-isystem", repoPath("vendor", "json", "single_include"),
+		"-I" + repoPath("packages", "core", "wire"), "-isystem", repoPath("vendor", "json", "single_include"),
 		"-isystem", repoPath("vendor", "tomlplusplus", "include"), repoPath("packages", "core", "replay", "replay.cpp")}
 	for _, source := range []string{"LuaSandbox", "LuaJSON", "LuaLocale", "PluginPackage"} {
 		arguments = append(arguments, repoPath("packages", "core", "src", source+".cpp"))

@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <time.h>
 
-#include "../../sources/PhoenixWireInternal.h"
+#include "PhoenixWireInternal.h"
 #include "../support/batch-builder.h"
 #include "../support/rewriter-setup.h"
 
