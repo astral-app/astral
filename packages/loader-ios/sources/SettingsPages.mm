@@ -3,6 +3,8 @@
 #include "LoaderSettings.h"
 #import "AstralState.h"
 #import "AuthorAvatars.h"
+#import "CrashReports.h"
+#import <UIKit/UIKit.h>
 #import "ImageAssets.h"
 #import "DiscordCache.h"
 #import "LuaHost.h"
@@ -62,6 +64,33 @@ static BOOL SafeMode(void)
     return AstralSettings()->getBoolean("astral", "safe-mode", false);
 }
 
+static NSDictionary *ReportsSection(void)
+{
+    NSArray<NSDictionary *> *reports = AstralCrashReports();
+    NSMutableArray *rows = [NSMutableArray array];
+    NSDateFormatter *formatter = [NSDateFormatter new];
+    formatter.dateStyle = NSDateFormatterShortStyle;
+    formatter.timeStyle = NSDateFormatterShortStyle;
+    for (NSUInteger index = 0; index < reports.count && index < 5; index++) {
+        NSDictionary *report = reports[index];
+        NSString *icon = [report[@"kind"] isEqualToString:@"plugin"] ? @"res://ic_mana_puzzle_piece_retry" : @"res://ic_mana_bug";
+        NSDate *date = [NSDate dateWithTimeIntervalSince1970:[report[@"time"] doubleValue]];
+        [rows addObject:With(Row([NSString stringWithFormat:@"report.%lu", (unsigned long)index], report[@"title"], icon, kAstralRowLink),
+                             @{@"subtitle" : [NSString stringWithFormat:@"%@ · tap to copy and report", [formatter stringFromDate:date]]})];
+    }
+    if (!rows.count) [rows addObject:Row(@"no-reports", @"No crashes or plugin failures", @"res://ic_mana_circle_check", kAstralRowInfo)];
+    return Section(@"Reports", rows);
+}
+
+static void OpenReport(NSUInteger index)
+{
+    NSArray<NSDictionary *> *reports = AstralCrashReports();
+    if (index >= reports.count) return;
+    UIPasteboard.generalPasteboard.string = AstralCrashReportText(reports[index]);
+    NSURL *url = AstralCrashReportIssueURL(reports[index]);
+    if (url) [UIApplication.sharedApplication openURL:url options:@{} completionHandler:nil];
+}
+
 static NSDictionary *GeneralPage(AstralPageContext context)
 {
     AstralWireStats stats = astral_wire_stats();
@@ -89,6 +118,7 @@ static NSDictionary *GeneralPage(AstralPageContext context)
                     With(Row(@"force-phoenix", @"Force Phoenix", @"res://ic_mana_settings_arrow_up", kAstralRowInfo),
                          @{@"detail" : @"On", @"subtitle" : @"The React Native fallback stays off"}),
                 ]),
+        ReportsSection(),
         Section(@"Diagnostics",
                 @[
                     With(Row(@"recovery", @"Recovery", @"res://ic_mana_refresh", kAstralRowInfo), @{@"detail" : recovery}),
@@ -498,6 +528,10 @@ NSString *AstralSettingsPageAction(NSString *route, NSString *key, void (^change
     if ([key hasPrefix:@"more.plugin."]) return [kPluginRoute stringByAppendingString:[key substringFromIndex:@"more.plugin.".length]];
     if ([key hasPrefix:@"filter."]) {
         gPluginFilter = [key substringFromIndex:@"filter.".length];
+        return nil;
+    }
+    if ([key hasPrefix:@"report."]) {
+        OpenReport((NSUInteger)[[key substringFromIndex:@"report.".length] integerValue]);
         return nil;
     }
     if ([key isEqualToString:@"switch.developer-mode"]) {

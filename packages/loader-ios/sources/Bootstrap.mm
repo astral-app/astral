@@ -9,6 +9,7 @@
 #include "LoaderLog.h"
 #include "LoaderSettings.h"
 #import "AstralState.h"
+#import "CrashReports.h"
 #import "AuthorAvatars.h"
 #import "EngineSelection.h"
 #import "ImageAssets.h"

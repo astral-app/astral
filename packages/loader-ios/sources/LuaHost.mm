@@ -9,6 +9,7 @@
 #include "LoaderLog.h"
 #include "LoaderSettings.h"
 #import "AstralState.h"
+#import "CrashReports.h"
 #import "DiscordCache.h"
 #import "PluginSignature.h"
 
@@ -125,13 +126,20 @@ static void Budget(lua_State *state, lua_Debug *)
     if (plugin && --plugin->budget <= 0) luaL_error(state, "astral: plugin exceeded its instruction budget");
 }
 
+static void MarkFailed(LuaPlugin *plugin)
+{
+    if (plugin->failed) return;
+    plugin->failed = true;
+    AstralRecordPluginFailure(Native(plugin->identifier), Native(plugin->name), Native(plugin->lastError));
+}
+
 static void Report(LuaPlugin *plugin, const char *stage)
 {
     const char *message = lua_tostring(plugin->state, -1);
     plugin->lastError = std::string(stage) + ": " + (message ?: "unknown error");
     lua_pop(plugin->state, 1);
     loader::log(loader::LogLevel::Error, "plugin", plugin->identifier + " " + plugin->lastError);
-    if (++plugin->errors >= kMaxErrors) plugin->failed = true;
+    if (++plugin->errors >= kMaxErrors) MarkFailed(plugin);
 }
 
 static bool Call(LuaPlugin *plugin, int arguments, int results, const char *stage)
@@ -485,12 +493,12 @@ static bool Start(LuaPlugin *plugin)
     InstallAPI(plugin);
     if (luaL_loadbufferx(plugin->state, plugin->source.data(), plugin->source.size(), ("=" + plugin->identifier).c_str(), "t") != LUA_OK) {
         Report(plugin, "load");
-        plugin->failed = true;
+        MarkFailed(plugin);
         Stop(plugin);
         return false;
     }
     if (!Call(plugin, 0, 0, "start")) {
-        plugin->failed = true;
+        MarkFailed(plugin);
         Stop(plugin);
         return false;
     }
