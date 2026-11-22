@@ -1,4 +1,8 @@
 #import "Themes.h"
+
+#include <set>
+
+#include <map>
 #import "PhoenixSettings.h"
 
 #import "TomlDocument.h"
@@ -24,6 +28,8 @@ static uint32_t ParseColor(NSString *text)
     unsigned int value = 0;
     return [[NSScanner scannerWithString:hex] scanHexInt:&value] ? value : 0;
 }
+
+static void AddBaseThemeEquivalents(std::vector<uint32_t> &from, std::vector<uint32_t> &to);
 
 static NSDictionary *LoadTheme(NSString *path, BOOL bundled)
 {
@@ -84,6 +90,7 @@ void AstralApplyTheme(NSString *themeID)
         from.push_back(source);
         to.push_back(target);
     }
+    AddBaseThemeEquivalents(from, to);
     NSDictionary *radius = [selected[@"radius"] isKindOfClass:NSDictionary.class] ? selected[@"radius"] : nil;
     NSDictionary *font = [selected[@"font"] isKindOfClass:NSDictionary.class] ? selected[@"font"] : nil;
     NSDictionary *background = [selected[@"background"] isKindOfClass:NSDictionary.class] ? selected[@"background"] : nil;
@@ -131,12 +138,40 @@ static NSString *WithOpacity(NSString *argb, double opacity)
     return [NSString stringWithFormat:@"%02X%@", (unsigned)lround(alpha * MAX(opacity, 0.0)), [argb substringFromIndex:2]];
 }
 
+static NSString *SemanticValue(NSDictionary *entry, NSString *theme, NSDictionary *palette)
+{
+    NSArray *value = [entry isKindOfClass:NSDictionary.class] ? entry[theme] : nil;
+    if (![value isKindOfClass:NSArray.class] || value.count != 2 || ![value[0] isKindOfClass:NSString.class]) return nil;
+    NSString *base = OpaqueHex(palette[value[0]] ?: @"");
+    return base ? WithOpacity(base, [value[1] doubleValue]) : nil;
+}
+
 static NSString *SemanticOriginal(NSDictionary *entry, NSDictionary *palette)
 {
-    NSArray *dark = [entry isKindOfClass:NSDictionary.class] ? entry[@"dark"] : nil;
-    if (![dark isKindOfClass:NSArray.class] || dark.count != 2 || ![dark[0] isKindOfClass:NSString.class]) return nil;
-    NSString *base = OpaqueHex(palette[dark[0]] ?: @"");
-    return base ? WithOpacity(base, [dark[1] doubleValue]) : nil;
+    return SemanticValue(entry, @"dark", palette);
+}
+
+static void AddBaseThemeEquivalents(std::vector<uint32_t> &from, std::vector<uint32_t> &to)
+{
+    NSDictionary *raw = DiscordPalette();
+    NSDictionary *semantic = DiscordSemanticColors();
+    std::map<uint32_t, uint32_t> mapped;
+    for (size_t index = 0; index < from.size(); index++) mapped.emplace(from[index], to[index]);
+    std::set<uint32_t> known(from.begin(), from.end());
+    for (NSString *token in semantic) {
+        NSDictionary *entry = semantic[token];
+        NSString *dark = SemanticValue(entry, @"dark", raw);
+        auto found = dark ? mapped.find(ParseColor(dark)) : mapped.end();
+        if (found == mapped.end()) continue;
+        for (NSString *theme in @[ @"ash", @"onyx", @"light" ]) {
+            NSString *equivalent = SemanticValue(entry, theme, raw);
+            uint32_t value = equivalent ? ParseColor(equivalent) : 0;
+            if (!value || known.count(value)) continue;
+            known.insert(value);
+            from.push_back(value);
+            to.push_back(found->second);
+        }
+    }
 }
 
 static NSString *SemanticReplacement(id value)

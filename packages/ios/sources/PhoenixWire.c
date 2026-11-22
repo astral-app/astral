@@ -1764,27 +1764,48 @@ static void observe(const uint8_t *bytes, const Span *spans, size_t count)
     }
 }
 
-enum { kMaxPalette = 64 };
+enum { kMaxPalette = 1024 };
 
-static uint32_t gPaletteFrom[kMaxPalette];
-static uint32_t gPaletteTo[kMaxPalette];
+typedef struct {
+    uint32_t from;
+    uint32_t to;
+} PaletteEntry;
+
+static PaletteEntry gPalette[kMaxPalette];
 static size_t gPaletteCount;
+
+static int comparePaletteEntries(const void *left, const void *right)
+{
+    uint32_t a = ((const PaletteEntry *)left)->from, b = ((const PaletteEntry *)right)->from;
+    return a < b ? -1 : a > b;
+}
 
 void astral_wire_set_palette(const uint32_t *from, const uint32_t *to, size_t count)
 {
-    gPaletteCount = count < kMaxPalette ? count : kMaxPalette;
-    if (!gPaletteCount) return;
-    memcpy(gPaletteFrom, from, sizeof(uint32_t) * gPaletteCount);
-    memcpy(gPaletteTo, to, sizeof(uint32_t) * gPaletteCount);
+    size_t kept = 0;
+    for (size_t index = 0; index < count && kept < kMaxPalette; index++) gPalette[kept++] = (PaletteEntry){from[index], to[index]};
+    qsort(gPalette, kept, sizeof(*gPalette), comparePaletteEntries);
+    size_t unique = 0;
+    for (size_t index = 0; index < kept; index++) {
+        if (unique && gPalette[unique - 1].from == gPalette[index].from) continue;
+        gPalette[unique++] = gPalette[index];
+    }
+    gPaletteCount = unique;
 }
 
 static int paletteColor(uint32_t color, uint32_t *mapped)
 {
-    for (size_t index = 0; index < gPaletteCount; index++) {
-        if (gPaletteFrom[index] == color) {
-            *mapped = gPaletteTo[index];
+    size_t low = 0, high = gPaletteCount;
+    while (low < high) {
+        size_t middle = (low + high) / 2;
+        if (gPalette[middle].from == color) {
+            *mapped = gPalette[middle].to;
             return 1;
         }
+        if (gPalette[middle].from < color)
+            low = middle + 1;
+        else
+            high = middle;
     }
     return 0;
 }
