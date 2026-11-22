@@ -213,7 +213,7 @@ static void putReactionImage(Out *out, int32_t text, const char *glyph, const ch
     wirePropNumber(out, P(size), 20);
 }
 
-static void glyphOf(const char *codepoints, char *glyph, size_t capacity)
+void wireGlyphOf(const char *codepoints, char *glyph, size_t capacity)
 {
     size_t used = 0;
     const char *cursor = codepoints;
@@ -248,7 +248,7 @@ void wireReactionEmoji(const uint8_t *bytes, const Span *spans, size_t count, Ou
         if (span->op != 1 || !reactionCodepoints(bytes, span, codepoints, sizeof(codepoints))) continue;
         int32_t text = glyphText(bytes, spans, count, span->id, 0);
         if (!text || gEmojiResolver(codepoints, url, sizeof(url)) <= 0) continue;
-        glyphOf(codepoints, glyph, sizeof(glyph));
+        wireGlyphOf(codepoints, glyph, sizeof(glyph));
         if (!*changed) wirePut(out, bytes, length);
         *changed = 1;
         putReactionImage(out, text, glyph, url);

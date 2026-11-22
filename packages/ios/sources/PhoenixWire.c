@@ -66,6 +66,7 @@ int astral_settings_rewrite(const uint8_t *bytes, size_t length, AstralWireBuffe
     wireDecorateMentions(bytes, spans, count, &out, &changed, length);
     wireColorNames(bytes, spans, count, &out, &changed, length);
     wireReactionEmoji(bytes, spans, count, &out, &changed, length);
+    wireReactionAvatars(bytes, spans, count, &out, &changed, length);
     wireSettingsBackdrop(bytes, spans, count, &out, &changed, length);
     wireObserveRemovals(bytes, spans, count, &out, &changed, length);
     free(themed);

@@ -199,19 +199,21 @@ static void DisableRewriting(void)
 }
 
 static void Send(AstralWireBuffer *buffer);
-static std::atomic<bool> gMentionRetryScheduled;
+static std::atomic<bool> gRetryScheduled;
 
-static void ScheduleMentionRetry(void)
+static void ScheduleRetry(void)
 {
-    if (!gQueue || !astral_wire_pending_mentions() || gMentionRetryScheduled.exchange(true)) return;
+    if (!gQueue || !(astral_wire_pending_mentions() || astral_wire_pending_reactions()) || gRetryScheduled.exchange(true)) return;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC), gQueue, ^{
         pthread_mutex_lock(&gLock);
         AstralWireBuffer buffer = {};
         bool live = gHostOriginal && gHostContext && !astral_wire_unsupported_version() && !gRewriteDisabled.load();
         if (live && astral_wire_retry_mentions(&buffer)) Send(&buffer);
+        AstralWireBuffer reactions = {};
+        if (live && astral_wire_retry_reactions(&reactions)) Send(&reactions);
         pthread_mutex_unlock(&gLock);
-        gMentionRetryScheduled = false;
-        ScheduleMentionRetry();
+        gRetryScheduled = false;
+        ScheduleRetry();
     });
 }
 
@@ -240,7 +242,7 @@ static bool InterceptHostCall(void *context, const uint8_t *frame, size_t length
         if (unsupported && !unsupportedBefore) SetRoute([NSString stringWithFormat:@"unsupported-wire-v%d", unsupported]);
     }
     pthread_mutex_unlock(&gLock);
-    ScheduleMentionRetry();
+    ScheduleRetry();
     return handled;
 }
 
@@ -426,6 +428,19 @@ int AstralPhoenixRefreshImages(void)
         pthread_mutex_unlock(&gLock);
     });
     return updates;
+}
+
+void AstralPhoenixRefreshDecorations(void)
+{
+    if (!gQueue) return;
+    dispatch_async(gQueue, ^{
+        pthread_mutex_lock(&gLock);
+        AstralWireBuffer buffer = {};
+        bool live = gHostOriginal && gHostContext && !astral_wire_unsupported_version() && !gRewriteDisabled.load();
+        if (live && astral_wire_refresh_reactions(&buffer)) Send(&buffer);
+        pthread_mutex_unlock(&gLock);
+        ScheduleRetry();
+    });
 }
 
 static void Push(NSString *route)

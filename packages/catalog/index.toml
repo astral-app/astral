@@ -46,6 +46,13 @@ version = "0.0.1"
 description = "Shows the avatar of each person typing in front of their name."
 base = "plugins/astral.typing-avatars/"
 
+[[plugins]]
+id = "astral.reaction-avatars"
+name = "Reaction Avatars"
+version = "0.0.1"
+description = "Shows the people who reacted beside each message reaction."
+base = "plugins/astral.reaction-avatars/"
+
 [[themes]]
 id = "mana"
 name = "Mana"

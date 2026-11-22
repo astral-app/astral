@@ -1,0 +1,31 @@
+id = "astral.reaction-avatars"
+name = "Reaction Avatars"
+description = "Shows the people who reacted beside each message reaction."
+version = "0.0.1"
+icon = "ReactionIcon"
+main = "main.lua"
+permissions = ["discord.messages"]
+
+[[authors]]
+name = "V"
+id = "343383572805058560"
+
+[[authors]]
+name = "Kanna"
+id = "317728561106518019"
+
+[[authors]]
+name = "newwares"
+id = "421405303951851520"
+
+[[authors]]
+name = "paige"
+id = "1375697625864601650"
+
+[[authors]]
+name = "adrian"
+id = "224617799434108928"
+
+[[authors]]
+name = "eternal"
+id = "263689920210534400"

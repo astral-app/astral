@@ -199,6 +199,7 @@ static void StartPlugins(void)
     astral_wire_set_message_text_colorizer(AstralLuaMessageTextColor);
     astral_wire_set_name_colorizer(AstralLuaNameColor);
     astral_wire_set_typing_decorator(AstralLuaTyping);
+    astral_wire_set_reaction_decorator(AstralLuaReaction);
     astral_wire_set_emoji_resolver(AstralEmojiResolve);
     AstralInstallEmojiComposer();
     AstralCatalogRefresh(^{

@@ -48,6 +48,9 @@
 ---@field channel_id? astral.Snowflake
 ---@field guild_id? astral.Snowflake
 ---@field message_id? astral.Snowflake
+---@field emoji? string
+---@field burst? boolean
+---@field count? integer
 local Node = {}
 ---@return astral.Message?
 function Node:message() end
@@ -355,6 +358,11 @@ function astral.ui.message_color(colorizer) end
 function astral.ui.name_color(colorizer) end
 ---@param decorator fun(node: astral.Node): { image: string, round?: boolean }?
 function astral.ui.typing(decorator) end
+---@class astral.ReactionDecoration
+---@field images string[]
+---@field total? integer
+---@param decorator fun(node: astral.Node): astral.ReactionDecoration?
+function astral.ui.reaction(decorator) end
 ---@param options? { dim: number }
 function astral.ui.settings_backdrop(options) end
 
@@ -378,6 +386,13 @@ function astral.discord.permissions(guild, user, channel) end
 ---@param message astral.Snowflake
 ---@return astral.Message?
 function astral.discord.message(channel, message) end
+---@param channel astral.Snowflake
+---@param message astral.Snowflake
+---@param emoji string
+---@param burst? boolean
+---@param count? integer
+---@return astral.User[]?
+function astral.discord.reactors(channel, message, emoji, burst, count) end
 ---@param id astral.Snowflake
 ---@return astral.User?
 function astral.discord.user(id) end

@@ -50,8 +50,10 @@ Each plugin gets its own `lua_State` with `base`, `table`, `string`, `math`, `ut
 | `astral.ui.message_color(fn)` | `fn(node)` returns a colour for a message's text; its alpha says how strongly it blends into each span's own colour. A mention decoration's `color` recolours the whole chip |
 | `astral.ui.name_color(fn)` | `fn(node)` returns a colour for a name: `node.kind` is `header` for member list role headers ("Dev — 1"), `voter` for poll voters, `typing` for names in the typing indicator (matched to members by name), or `avatar` for a name beside a member's avatar such as reaction users; `node.user_id` names the member |
 | `astral.ui.typing(fn)` | `fn(node)` gets each name in the typing indicator, with `node.user_id` matched through Discord's cache, and returns `{ image, round }` to draw before the name |
+| `astral.ui.reaction(fn)` | `fn(node)` gets each reaction pill under a message (`node.emoji`, `node.burst`, `node.count`, `node.message_id`) and returns `{ images, total }` to draw up to five overlapping faces after the count, with a `+N` badge when `total` is larger; return `nil` until the faces are known and astral asks again |
 | `astral.ui.settings_backdrop({ dim })` | Lays the Nitro or astral theme gradient, darkened by `dim` percent, behind Discord's and astral's settings screens; `nil` removes it |
 | `node:message()`, `node:guild()`, `node:member()`, `node:user()`, `node:permissions()`, `node:is_bot()` | Cached lookups for the node a callback receives |
+| `astral.discord.reactors(channel, message, emoji, burst, count)` | The first five people who reacted with `emoji`, fetched once per count and `nil` until they arrive |
 | `astral.discord.guild/member/message/user/nickname/channel_guild/permissions` | Read-only views of Discord's own cache; messages carry `type`, `author`, `reference`, `mentions` (`id`, `username`, `global_name`, `nick`, `avatar`) and `mention_roles`; guild roles carry `icon`, permissions apply channel overwrites |
 | `astral.permissions.any/all/combine(granted, Permission.X, ...)` | Permission bit checks |
 | `astral.storage.get/set/remove/keys` | The plugin's own data (strings, numbers, booleans, tables), kept in a SQLite database on the device, up to 512 KB per plugin and removed on uninstall |
@@ -59,7 +61,7 @@ Each plugin gets its own `lua_State` with `base`, `table`, `string`, `math`, `ut
 
 ## Permissions
 
-A manifest declares what a plugin reads with `permissions = [...]`; calls outside it raise an error, and the plugin page lists them. `discord.guilds` (`guild`, `channel_guild`), `discord.members` (`member`), `discord.permissions` (`permissions`), `discord.messages` (`message`), `discord.users` (`user`), `discord.relationships` (`nickname`) and `storage` (`astral.storage`).
+A manifest declares what a plugin reads with `permissions = [...]`; calls outside it raise an error, and the plugin page lists them. `discord.guilds` (`guild`, `channel_guild`), `discord.members` (`member`), `discord.permissions` (`permissions`), `discord.messages` (`message`, `reactors`), `discord.users` (`user`), `discord.relationships` (`nickname`) and `storage` (`astral.storage`).
 
 ## Builtins
 

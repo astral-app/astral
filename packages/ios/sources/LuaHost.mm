@@ -25,7 +25,9 @@
 #import "CrashReports.h"
 #import "DevServer.h"
 #import "DiscordCache.h"
+#import "PhoenixSettings.h"
 #import "PluginSignature.h"
+#import "ReactionReactors.h"
 
 extern "C" {
 #include "lauxlib.h"
@@ -78,6 +80,7 @@ struct LuaPlugin : astral::PluginPackage, astral::PluginHealth {
     std::vector<int> colorizers;
     std::vector<int> nameColorizers;
     std::vector<int> typingDecorators;
+    std::vector<int> reactionDecorators;
 };
 
 static int Translate(lua_State *state);
@@ -366,6 +369,15 @@ static int TypingDecorator(lua_State *state)
     return 0;
 }
 
+static int ReactionDecorator(lua_State *state)
+{
+    LuaPlugin *plugin = Self(state);
+    luaL_checktype(state, 1, LUA_TFUNCTION);
+    lua_pushvalue(state, 1);
+    plugin->reactionDecorators.push_back(luaL_ref(state, LUA_REGISTRYINDEX));
+    return 0;
+}
+
 static uint32_t Opaque(lua_Integer value)
 {
     uint32_t color = (uint32_t)value;
@@ -601,6 +613,19 @@ static int Message(lua_State *state)
     return 1;
 }
 
+static bool gReactorsStale;
+
+static int Reactors(lua_State *state)
+{
+    RequirePermission(state, "discord.messages");
+    BOOL fresh = NO;
+    NSArray *users = AstralReactors(Argument(state, 1), Argument(state, 2), Argument(state, 3), lua_toboolean(state, 4),
+                                    (NSUInteger)std::max<lua_Integer>(0, luaL_optinteger(state, 5, 0)), &fresh);
+    if (!fresh) gReactorsStale = true;
+    PushObject(state, users, 0);
+    return 1;
+}
+
 static int Permissions(lua_State *state)
 {
     RequirePermission(state, "discord.permissions");
@@ -657,6 +682,7 @@ static void InstallAPI(LuaPlugin *plugin)
     Function(state, plugin, "message_color", MessageColor);
     Function(state, plugin, "name_color", NameColor);
     Function(state, plugin, "typing", TypingDecorator);
+    Function(state, plugin, "reaction", ReactionDecorator);
     lua_setfield(state, -2, "ui");
 
     lua_newtable(state);
@@ -672,6 +698,7 @@ static void InstallAPI(LuaPlugin *plugin)
     Function(state, plugin, "channel_guild", ChannelGuild);
     Function(state, plugin, "permissions", Permissions);
     Function(state, plugin, "message", Message);
+    Function(state, plugin, "reactors", Reactors);
     Function(state, plugin, "user", User);
     Function(state, plugin, "nickname", Nickname);
     lua_newtable(state);
@@ -716,6 +743,7 @@ static void Stop(LuaPlugin *plugin)
     plugin->colorizers.clear();
     plugin->nameColorizers.clear();
     plugin->typingDecorators.clear();
+    plugin->reactionDecorators.clear();
     ApplySettingsBackdrop();
 }
 
@@ -908,6 +936,7 @@ void AstralLuaSetEnabled(NSString *pluginID, BOOL enabled)
         Start(plugin);
     else
         Stop(plugin);
+    AstralPhoenixRefreshDecorations();
 }
 
 void AstralLuaResetSettings(NSString *pluginID)
@@ -1004,6 +1033,7 @@ void AstralLuaRemove(NSString *pluginID)
         Stop(*iterator);
         delete *iterator;
         gPlugins.erase(iterator);
+        AstralPhoenixRefreshDecorations();
         return;
     }
 }
@@ -1352,6 +1382,68 @@ int AstralLuaTyping(const AstralNameContext *context, AstralMentionDecoration *d
                 }
                 lua_pop(state, 1);
                 if (decoration->image[0]) return 1;
+            }
+            if (plugin->failed) break;
+        }
+        if (plugin->failed) Stop(plugin);
+    }
+    return 0;
+}
+
+static uint32_t ReadReactionImages(lua_State *state, AstralReactionDecoration *decoration)
+{
+    lua_getfield(state, -1, "images");
+    if (lua_istable(state, -1)) {
+        lua_Integer length = (lua_Integer)lua_rawlen(state, -1);
+        for (lua_Integer index = 1; index <= length && decoration->image_count < kAstralReactionFaces; index++) {
+            lua_rawgeti(state, -1, index);
+            const char *image = lua_tostring(state, -1);
+            if (image && strncmp(image, "https://", 8) == 0)
+                snprintf(decoration->images[decoration->image_count++], sizeof(decoration->images[0]), "%s", image);
+            lua_pop(state, 1);
+        }
+    }
+    lua_pop(state, 1);
+    lua_getfield(state, -1, "total");
+    if (lua_isinteger(state, -1)) decoration->total = (uint32_t)std::max<lua_Integer>(0, lua_tointeger(state, -1));
+    lua_pop(state, 1);
+    return decoration->image_count;
+}
+
+int AstralLuaReaction(const AstralReactionContext *context, AstralReactionDecoration *decoration)
+{
+    std::unique_lock<std::recursive_mutex> lock(gMutex, std::try_to_lock);
+    if (!lock.owns_lock()) return 0;
+    std::string channel = Snowflake(context->channel_id);
+    std::string message = Snowflake(context->message_id);
+    if (channel.empty() || message.empty()) return 0;
+    NSString *guild = AstralDiscordChannelGuild(Native(channel));
+    for (auto *plugin : gPlugins) {
+        if (!plugin->state || plugin->failed) continue;
+        for (int decorator : plugin->reactionDecorators) {
+            lua_State *state = plugin->state;
+            gReactorsStale = false;
+            lua_rawgeti(state, LUA_REGISTRYINDEX, decorator);
+            lua_createtable(state, 0, 6);
+            lua_pushstring(state, channel.c_str());
+            lua_setfield(state, -2, "channel_id");
+            lua_pushstring(state, message.c_str());
+            lua_setfield(state, -2, "message_id");
+            if (guild) {
+                lua_pushstring(state, guild.UTF8String);
+                lua_setfield(state, -2, "guild_id");
+            }
+            lua_pushstring(state, context->emoji);
+            lua_setfield(state, -2, "emoji");
+            lua_pushboolean(state, context->burst);
+            lua_setfield(state, -2, "burst");
+            lua_pushinteger(state, context->count);
+            lua_setfield(state, -2, "count");
+            if (Call(plugin, 1, 1, "reaction")) {
+                if (lua_istable(state, -1)) ReadReactionImages(state, decoration);
+                lua_pop(state, 1);
+                decoration->stale = gReactorsStale;
+                if (decoration->image_count) return 1;
             }
             if (plugin->failed) break;
         }

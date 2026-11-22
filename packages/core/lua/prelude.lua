@@ -9,6 +9,7 @@ local native = {
 	message_color = astral.ui.message_color,
 	name_color = astral.ui.name_color,
 	typing = astral.ui.typing,
+	reaction = astral.ui.reaction,
 	permission = astral.discord.permission,
 }
 
@@ -508,6 +509,12 @@ end
 
 function astral.ui.typing(decorator)
 	return native.typing(function(node)
+		return decorator(wrapNode(node))
+	end)
+end
+
+function astral.ui.reaction(decorator)
+	return native.reaction(function(node)
 		return decorator(wrapNode(node))
 	end)
 end
