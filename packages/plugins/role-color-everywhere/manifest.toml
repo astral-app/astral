@@ -1,6 +1,6 @@
 id = "astral.role-color-everywhere"
 name = "Role Color Everywhere"
-description = "Colors mentions and message text with members' role colors."
+description = "Colors mentions, message text, role headers and names beside avatars with members' role colors."
 version = "0.0.1"
 icon = "PaintPaletteIcon"
 main = "main.lua"

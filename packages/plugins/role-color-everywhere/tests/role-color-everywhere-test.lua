@@ -1,4 +1,4 @@
-local mention, colorize = nil, nil
+local mention, colorize, names = nil, nil, nil
 local messages = {
 	["c:m1"] = {
 		author = { id = "u1" },
@@ -42,6 +42,9 @@ astral = {
 		message_color = function(fn)
 			colorize = fn
 		end,
+		name_color = function(fn)
+			names = fn
+		end,
 	},
 	discord = {
 		permission = {},
@@ -74,5 +77,14 @@ assert(colorize(node()) == ((77 << 24) | 0x277ECD))
 
 astral.on_setting("chatMentions", false)
 assert(mention(node("@Rae")) == nil)
+
+assert(names({ kind = "header", text = "Dev \u{2014} 1", guild_id = "g" }) == 0x277ECD)
+assert(names({ kind = "header", text = "Online \u{2014} 1", guild_id = "g" }) == nil)
+assert(names({ kind = "avatar", text = "adrian", user_id = "u1", guild_id = "g" }) == 0x277ECD)
+assert(names({ kind = "avatar", text = "nobody", user_id = "u9", guild_id = "g" }) == nil)
+
+assert(names({ kind = "voter", text = "adrian", user_id = "u1", guild_id = "g" }) == 0x277ECD)
+astral.on_setting("pollResults", false)
+assert(names({ kind = "voter", text = "adrian", user_id = "u1", guild_id = "g" }) == nil)
 
 print("role-color-everywhere ok")

@@ -7,6 +7,7 @@ local native = {
 	relabel = astral.ui.relabel,
 	mention = astral.ui.mention,
 	message_color = astral.ui.message_color,
+	name_color = astral.ui.name_color,
 	permission = astral.discord.permission,
 }
 
@@ -486,6 +487,16 @@ end
 
 function astral.ui.message_color(colorizer)
 	return native.message_color(function(node)
+		local color = colorizer(wrapNode(node))
+		if color == nil then
+			return nil
+		end
+		return astral.Color.from(color).value
+	end)
+end
+
+function astral.ui.name_color(colorizer)
+	return native.name_color(function(node)
 		local color = colorizer(wrapNode(node))
 		if color == nil then
 			return nil

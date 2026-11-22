@@ -351,6 +351,8 @@ function astral.ui.relabel(target, relabeler) end
 function astral.ui.mention(decorator) end
 ---@param colorizer fun(node: astral.Node): astral.Color|integer|string|nil
 function astral.ui.message_color(colorizer) end
+---@param colorizer fun(node: astral.Node): astral.Color|integer|string|nil
+function astral.ui.name_color(colorizer) end
 ---@param options? { dim: number }
 function astral.ui.settings_backdrop(options) end
 

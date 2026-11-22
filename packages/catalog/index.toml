@@ -36,7 +36,7 @@ base = "plugins/astral.mention-avatars/"
 id = "astral.role-color-everywhere"
 name = "Role Color Everywhere"
 version = "0.0.1"
-description = "Colors mentions and message text with members' role colors."
+description = "Colors mentions, message text, role headers and names beside avatars with members' role colors."
 base = "plugins/astral.role-color-everywhere/"
 
 [[themes]]

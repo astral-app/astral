@@ -76,6 +76,7 @@ struct LuaPlugin : astral::PluginPackage, astral::PluginHealth {
     std::optional<double> settingsBackdrop;
     std::vector<int> mentioners;
     std::vector<int> colorizers;
+    std::vector<int> nameColorizers;
 };
 
 static int Translate(lua_State *state);
@@ -343,6 +344,15 @@ static int MessageColor(lua_State *state)
     luaL_checktype(state, 1, LUA_TFUNCTION);
     lua_pushvalue(state, 1);
     plugin->colorizers.push_back(luaL_ref(state, LUA_REGISTRYINDEX));
+    return 0;
+}
+
+static int NameColor(lua_State *state)
+{
+    LuaPlugin *plugin = Self(state);
+    luaL_checktype(state, 1, LUA_TFUNCTION);
+    lua_pushvalue(state, 1);
+    plugin->nameColorizers.push_back(luaL_ref(state, LUA_REGISTRYINDEX));
     return 0;
 }
 
@@ -635,6 +645,7 @@ static void InstallAPI(LuaPlugin *plugin)
     Function(state, plugin, "settings_backdrop", SettingsBackdrop);
     Function(state, plugin, "mention", Mention);
     Function(state, plugin, "message_color", MessageColor);
+    Function(state, plugin, "name_color", NameColor);
     lua_setfield(state, -2, "ui");
 
     lua_newtable(state);
@@ -692,6 +703,7 @@ static void Stop(LuaPlugin *plugin)
     plugin->settingsBackdrop.reset();
     plugin->mentioners.clear();
     plugin->colorizers.clear();
+    plugin->nameColorizers.clear();
     ApplySettingsBackdrop();
 }
 
@@ -1280,6 +1292,45 @@ int AstralLuaMessageTextColor(uint64_t messageID, uint64_t channelID, uint32_t *
             if (Call(plugin, 1, 1, "message_color")) {
                 bool found = lua_isinteger(state, -1);
                 if (found) *color = (uint32_t)lua_tointeger(state, -1);
+                lua_pop(state, 1);
+                if (found) return 1;
+            }
+            if (plugin->failed) break;
+        }
+        if (plugin->failed) Stop(plugin);
+    }
+    return 0;
+}
+
+int AstralLuaNameColor(const AstralNameContext *context, uint32_t *color)
+{
+    std::unique_lock<std::recursive_mutex> lock(gMutex, std::try_to_lock);
+    if (!lock.owns_lock()) return 0;
+    std::string channel = Snowflake(context->channel_id);
+    NSString *guild = channel.empty() ? nil : AstralDiscordChannelGuild(Native(channel));
+    if (!guild) return 0;
+    std::string user = Snowflake(context->user_id);
+    for (auto *plugin : gPlugins) {
+        if (!plugin->state || plugin->failed) continue;
+        for (int colorizer : plugin->nameColorizers) {
+            lua_State *state = plugin->state;
+            lua_rawgeti(state, LUA_REGISTRYINDEX, colorizer);
+            lua_createtable(state, 0, 5);
+            lua_pushstring(state, context->kind == kAstralNameHeader ? "header" : context->kind == kAstralNameVoter ? "voter" : "avatar");
+            lua_setfield(state, -2, "kind");
+            lua_pushstring(state, context->text);
+            lua_setfield(state, -2, "text");
+            if (!user.empty()) {
+                lua_pushstring(state, user.c_str());
+                lua_setfield(state, -2, "user_id");
+            }
+            lua_pushstring(state, channel.c_str());
+            lua_setfield(state, -2, "channel_id");
+            lua_pushstring(state, guild.UTF8String);
+            lua_setfield(state, -2, "guild_id");
+            if (Call(plugin, 1, 1, "name_color")) {
+                bool found = lua_isinteger(state, -1);
+                if (found) *color = Opaque(lua_tointeger(state, -1));
                 lua_pop(state, 1);
                 if (found) return 1;
             }

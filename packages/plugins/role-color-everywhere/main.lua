@@ -13,6 +13,15 @@ astral.settings.number(
 	{ min = 0, max = 100, step = 10, default = 30 }
 )
 
+astral.settings.switch(
+	"memberList",
+	t("MEMBER_LIST_ROLE_HEADERS"),
+	true,
+	{ subtitle = t("MEMBER_LIST_ROLE_HEADERS_SUBTITLE") }
+)
+astral.settings.switch("pollResults", t("POLL_VOTERS"), true, { subtitle = t("POLL_VOTERS_SUBTITLE") })
+astral.settings.switch("avatarNames", t("AVATAR_NAMES"), true, { subtitle = t("AVATAR_NAMES_SUBTITLE") })
+
 local function roleColor(guild, roleIds)
 	if not guild or not guild.roles then
 		return nil
@@ -93,4 +102,35 @@ astral.ui.message_color(function(node)
 	end
 	local intensity = math.floor((astral.settings.values.messageSaturation or 30) * 255 / 100 + 0.5)
 	return astral.Color.argb(color):with_alpha(intensity)
+end)
+
+local COUNT_SEPARATOR = " \u{2014} "
+
+local function headerRole(guild, text)
+	local name = text:match("^(.-)" .. COUNT_SEPARATOR .. "%d+$")
+	if not name or not guild or not guild.roles then
+		return nil
+	end
+	for _, role in pairs(guild.roles) do
+		if role.name == name then
+			return role
+		end
+	end
+	return nil
+end
+
+astral.ui.name_color(function(node)
+	if node.kind == "header" then
+		if not astral.settings.values.memberList then
+			return nil
+		end
+		local role = headerRole(node:guild(), node.text)
+		local color = role and math.tointeger(role.color) or 0
+		return color > 0 and color or nil
+	end
+	local setting = node.kind == "voter" and "pollResults" or "avatarNames"
+	if not astral.settings.values[setting] then
+		return nil
+	end
+	return memberColor(node.guild_id, node:guild(), node.user_id)
 end)
