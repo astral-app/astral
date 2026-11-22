@@ -20,6 +20,10 @@ plugins/<name>/tests/*.lua     run by tools/test.sh against a mocked `astral` ta
 
 Bundled plugins ship in the package's resource directory (`/var/jb/usr/lib/astral` when jailbroken, `Astral.bundle` inside the app when sideloaded). Plugins installed from the marketplace live in `Documents/astral/plugins` and take precedence over bundled ones with the same id.
 
+## Signing
+
+Marketplace plugins and the catalog are signed with astral's Ed25519 key (`keys/plugin-signing.pub`, compiled into the loader and checked with Monocypher). A plugin's `signature` covers `astral-plugin-v1`, the SHA-256 of `manifest.json` and the SHA-256 of `main.lua`; the catalog's `index.json.sig` covers the file. `tools/sign-plugins.sh` signs everything and `tools/test.sh` fails on a stale signature. Bundled plugins ship inside the package; anything else that is unsigned stays off, marked "unsigned", unless Developer mode is on. Downloads are verified before they are written.
+
 ## Sandbox
 
 Each plugin gets its own `lua_State` with `base`, `table`, `string`, `math`, `utf8` and `coroutine`. `dofile`, `loadfile`, `load`, `require` and `collectgarbage` are removed. A state has an 8 MB heap and a 200,000-instruction budget per call; five errors stop the plugin, and its card shows the error.

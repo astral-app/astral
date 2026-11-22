@@ -4,6 +4,7 @@
 #include "LoaderSettings.h"
 #import "AstralState.h"
 #import "LuaHost.h"
+#import "PluginSignature.h"
 #import "Themes.h"
 
 static const NSUInteger kMaxDownload = 512u << 10;
@@ -107,6 +108,13 @@ void AstralCatalogRefresh(void (^changed)(void))
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         NSString *failure = nil;
         NSData *data = url ? Fetch(url, &failure) : nil;
+        NSURL *signatureURL = url ? [NSURL URLWithString:[url.absoluteString stringByAppendingString:@".sig"]] : nil;
+        NSData *signatureData = data ? Fetch(signatureURL, &failure) : nil;
+        NSString *signature = signatureData ? [[NSString alloc] initWithData:signatureData encoding:NSUTF8StringEncoding] : nil;
+        if (data && !AstralVerifySignature(data, signature)) {
+            data = nil;
+            failure = @"catalog signature does not match";
+        }
         id parsed = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
         NSDictionary *catalog = nil;
         if ([parsed isKindOfClass:NSDictionary.class]) {
@@ -140,6 +148,9 @@ static NSString *InstallPlugin(NSDictionary *package)
     if ([main containsString:@"/"]) return @"invalid main file";
     NSData *source = Fetch(Resolve([base stringByAppendingString:main]), &failure);
     if (!source) return failure ?: @"missing source";
+    NSData *signatureData = Fetch(Resolve([base stringByAppendingString:@"signature"]), &failure);
+    NSString *signature = signatureData ? [[NSString alloc] initWithData:signatureData encoding:NSUTF8StringEncoding] : nil;
+    if (!AstralVerifySignature(AstralPluginSigningMessage(manifestData, source), signature)) return @"signature does not match";
     NSString *plugins = [AstralStateDirectory() stringByAppendingPathComponent:@"plugins"];
     NSString *staging = [plugins stringByAppendingPathComponent:[@"." stringByAppendingString:identifier]];
     NSString *target = [plugins stringByAppendingPathComponent:identifier];
@@ -147,7 +158,8 @@ static NSString *InstallPlugin(NSDictionary *package)
     [files removeItemAtPath:staging error:nil];
     if (![files createDirectoryAtPath:staging withIntermediateDirectories:YES attributes:nil error:nil] ||
         ![manifestData writeToFile:[staging stringByAppendingPathComponent:@"manifest.json"] atomically:YES] ||
-        ![source writeToFile:[staging stringByAppendingPathComponent:main] atomically:YES])
+        ![source writeToFile:[staging stringByAppendingPathComponent:main] atomically:YES] ||
+        ![signatureData writeToFile:[staging stringByAppendingPathComponent:@"signature"] atomically:YES])
         return @"could not write files";
     [files removeItemAtPath:target error:nil];
     if (![files moveItemAtPath:staging toPath:target error:nil]) return @"could not move files";

@@ -8,6 +8,7 @@
 #include "LoaderSettings.h"
 #import "AstralState.h"
 #import "DiscordCache.h"
+#import "PluginSignature.h"
 
 extern "C" {
 #include "lauxlib.h"
@@ -47,6 +48,7 @@ struct LuaPlugin {
     std::vector<std::pair<std::string, std::string>> authors;
     std::string directory;
     bool bundled = false;
+    bool signedByAstral = false;
     std::string source;
     lua_State *state = nullptr;
     size_t memory = 0;
@@ -458,8 +460,19 @@ static void Stop(LuaPlugin *plugin)
     plugin->relabelers.clear();
 }
 
+static bool Runnable(LuaPlugin *plugin)
+{
+    return plugin->bundled || plugin->signedByAstral || gStore->getBoolean("astral", "developer-mode", false);
+}
+
 static bool Start(LuaPlugin *plugin)
 {
+    if (!Runnable(plugin)) {
+        Stop(plugin);
+        plugin->failed = true;
+        plugin->lastError = "unsigned; turn on developer mode in astral's settings to run it";
+        return false;
+    }
     Stop(plugin);
     plugin->errors = 0;
     plugin->failed = false;
@@ -500,7 +513,11 @@ static LuaPlugin *Load(NSString *directory)
         return nullptr;
     NSData *source = [NSData dataWithContentsOfFile:[directory stringByAppendingPathComponent:main]];
     if (!source || source.length > kSourceLimit) return nullptr;
+    NSString *signature = [NSString stringWithContentsOfFile:[directory stringByAppendingPathComponent:@"signature"]
+                                                    encoding:NSUTF8StringEncoding
+                                                       error:nil];
     LuaPlugin *plugin = new LuaPlugin();
+    plugin->signedByAstral = AstralVerifySignature(AstralPluginSigningMessage(manifestData, source), signature);
     plugin->identifier = identifier.UTF8String;
     plugin->name = [name substringToIndex:MIN(name.length, (NSUInteger)48)].UTF8String;
     plugin->version = [manifest[@"version"] isKindOfClass:NSString.class] ? [manifest[@"version"] UTF8String] : "";
@@ -598,7 +615,8 @@ NSArray<NSDictionary *> *AstralLuaPlugins(void)
             @"iconSvg" : Native(plugin->iconSvg),
             @"authors" : authors,
             @"directory" : Native(plugin->directory),
-            @"bundled" : @(plugin->bundled)
+            @"bundled" : @(plugin->bundled),
+            @"signed" : @(plugin->bundled || plugin->signedByAstral)
         }];
     }
     return plugins;

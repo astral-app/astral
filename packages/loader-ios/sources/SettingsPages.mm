@@ -81,6 +81,11 @@ static NSDictionary *GeneralPage(AstralPageContext context)
                         Row(@"safe-mode", @"Safe mode", @"res://ic_mana_shield", kAstralRowSwitch),
                         @{@"on" : @(SafeMode()),
                           @"subtitle" : @"Start without plugins on the next launch"}),
+                    With(
+                        Row(@"developer-mode", @"Developer mode", @"res://ic_mana_bug", kAstralRowSwitch), @{
+                            @"on" : @(AstralSettings()->getBoolean("astral", "developer-mode", false)),
+                            @"subtitle" : @"Run plugins that astral has not signed"
+                        }),
                     With(Row(@"force-phoenix", @"Force Phoenix", @"res://ic_mana_settings_arrow_up", kAstralRowInfo),
                          @{@"detail" : @"On", @"subtitle" : @"The React Native fallback stays off"}),
                 ]),
@@ -157,7 +162,8 @@ static NSDictionary *PluginCard(NSDictionary *plugin)
         @"avatars" : AuthorAvatars(plugin),
         @"hasSettings" : @([plugin[@"switches"] count] > 0),
         @"description" : plugin[@"description"] ?: @"",
-        @"version" : [@"v" stringByAppendingString:plugin[@"version"]],
+        @"version" : [plugin[@"signed"] boolValue] ? [@"v" stringByAppendingString:plugin[@"version"]]
+                                                   : [NSString stringWithFormat:@"v%@ · unsigned", plugin[@"version"]],
         @"icon" : PluginIcon(plugin),
         @"on" : @(PluginEnabled(plugin)),
         @"failed" : plugin[@"failed"],
@@ -492,6 +498,14 @@ NSString *AstralSettingsPageAction(NSString *route, NSString *key, void (^change
     if ([key hasPrefix:@"more.plugin."]) return [kPluginRoute stringByAppendingString:[key substringFromIndex:@"more.plugin.".length]];
     if ([key hasPrefix:@"filter."]) {
         gPluginFilter = [key substringFromIndex:@"filter.".length];
+        return nil;
+    }
+    if ([key isEqualToString:@"switch.developer-mode"]) {
+        BOOL next = !AstralSettings()->getBoolean("astral", "developer-mode", false);
+        if (AstralSettings()->set("astral", "developer-mode", (bool)next)) AstralSettings()->save();
+        for (NSDictionary *plugin in AstralLuaPlugins()) {
+            if ([plugin[@"enabled"] boolValue] && ![plugin[@"signed"] boolValue]) AstralLuaSetEnabled(plugin[@"id"], YES);
+        }
         return nil;
     }
     if ([key isEqualToString:@"switch.safe-mode"]) {
