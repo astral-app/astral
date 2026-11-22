@@ -157,6 +157,39 @@ NSDictionary *AstralDiscordMember(NSString *guildID, NSString *userID)
         key, @{@"user_id" : userID, @"roles" : roles, @"nick" : [record[@"nick"] isKindOfClass:NSString.class] ? record[@"nick"] : @""});
 }
 
+static NSString *MemberWhere(NSString *sql, NSString *guildKey, NSString *name)
+{
+    sqlite3 *database = Database();
+    sqlite3_stmt *statement = nullptr;
+    if (!database || sqlite3_prepare_v2(database, sql.UTF8String, -1, &statement, nullptr) != SQLITE_OK) return nil;
+    sqlite3_bind_text(statement, 1, [guildKey stringByAppendingString:@":%"].UTF8String, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(statement, 2, name.UTF8String, -1, SQLITE_TRANSIENT);
+    NSString *user = nil;
+    if (sqlite3_step(statement) == SQLITE_ROW) {
+        const unsigned char *key = sqlite3_column_text(statement, 0);
+        NSString *text = key ? [NSString stringWithUTF8String:(const char *)key] : nil;
+        user = Unpadded([text componentsSeparatedByString:@":"].lastObject ?: @"");
+    }
+    sqlite3_finalize(statement);
+    return Snowflake(user) ? user : nil;
+}
+
+NSString *AstralDiscordMemberNamed(NSString *guildID, NSString *name)
+{
+    if (!Snowflake(guildID) || !name.length) return nil;
+    NSString *cacheKey = [NSString stringWithFormat:@"member-named:%@:%@", guildID, name];
+    id cached = Cached(cacheKey);
+    if (cached) return cached == NSNull.null ? nil : cached;
+    NSString *guildKey = Key(guildID);
+    NSString *user = MemberWhere(@"SELECT k FROM members WHERE k LIKE ? AND json_extract(v, '$.nick') = ? LIMIT 1", guildKey, name);
+    if (!user) {
+        user = MemberWhere(@"SELECT m.k FROM members m JOIN users u ON u.k = substr(m.k, 22) WHERE m.k LIKE ? AND "
+                           @"(json_extract(u.v, '$.global_name') = ?2 OR json_extract(u.v, '$.username') = ?2) LIMIT 1",
+                           guildKey, name);
+    }
+    return Remember(cacheKey, user);
+}
+
 NSString *AstralDiscordChannelGuild(NSString *channelID)
 {
     if (!Snowflake(channelID)) return nil;

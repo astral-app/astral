@@ -19,6 +19,7 @@ astral.settings.switch(
 	true,
 	{ subtitle = t("MEMBER_LIST_ROLE_HEADERS_SUBTITLE") }
 )
+astral.settings.switch("typingUsers", t("TYPING_NAMES"), true, { subtitle = t("TYPING_NAMES_SUBTITLE") })
 astral.settings.switch("pollResults", t("POLL_VOTERS"), true, { subtitle = t("POLL_VOTERS_SUBTITLE") })
 astral.settings.switch("avatarNames", t("AVATAR_NAMES"), true, { subtitle = t("AVATAR_NAMES_SUBTITLE") })
 
@@ -128,7 +129,7 @@ astral.ui.name_color(function(node)
 		local color = role and math.tointeger(role.color) or 0
 		return color > 0 and color or nil
 	end
-	local setting = node.kind == "voter" and "pollResults" or "avatarNames"
+	local setting = ({ voter = "pollResults", typing = "typingUsers" })[node.kind] or "avatarNames"
 	if not astral.settings.values[setting] then
 		return nil
 	end

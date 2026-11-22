@@ -6,6 +6,7 @@ extern "C" {
 
 NSDictionary *_Nullable AstralDiscordGuild(NSString *_Nonnull guildID);
 NSDictionary *_Nullable AstralDiscordMember(NSString *_Nonnull guildID, NSString *_Nonnull userID);
+NSString *_Nullable AstralDiscordMemberNamed(NSString *_Nonnull guildID, NSString *_Nonnull name);
 NSString *_Nullable AstralDiscordChannelGuild(NSString *_Nonnull channelID);
 NSDictionary *_Nullable AstralDiscordUser(NSString *_Nonnull userID);
 NSString *_Nullable AstralDiscordFriendNickname(NSString *_Nonnull userID);

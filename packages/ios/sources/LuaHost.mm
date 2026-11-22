@@ -1310,13 +1310,19 @@ int AstralLuaNameColor(const AstralNameContext *context, uint32_t *color)
     NSString *guild = channel.empty() ? nil : AstralDiscordChannelGuild(Native(channel));
     if (!guild) return 0;
     std::string user = Snowflake(context->user_id);
+    if (user.empty() && context->kind == kAstralNameTyping) {
+        NSString *named = AstralDiscordMemberNamed(guild, Native(context->text));
+        if (!named) return 0;
+        user = named.UTF8String;
+    }
     for (auto *plugin : gPlugins) {
         if (!plugin->state || plugin->failed) continue;
         for (int colorizer : plugin->nameColorizers) {
             lua_State *state = plugin->state;
             lua_rawgeti(state, LUA_REGISTRYINDEX, colorizer);
             lua_createtable(state, 0, 5);
-            lua_pushstring(state, context->kind == kAstralNameHeader ? "header" : context->kind == kAstralNameVoter ? "voter" : "avatar");
+            static const char *const kinds[] = {"avatar", "header", "voter", "typing"};
+            lua_pushstring(state, kinds[context->kind]);
             lua_setfield(state, -2, "kind");
             lua_pushstring(state, context->text);
             lua_setfield(state, -2, "text");

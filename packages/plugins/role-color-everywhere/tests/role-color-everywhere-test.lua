@@ -87,4 +87,8 @@ assert(names({ kind = "voter", text = "adrian", user_id = "u1", guild_id = "g" }
 astral.on_setting("pollResults", false)
 assert(names({ kind = "voter", text = "adrian", user_id = "u1", guild_id = "g" }) == nil)
 
+assert(names({ kind = "typing", text = "adrian", user_id = "u1", guild_id = "g" }) == 0x277ECD)
+astral.on_setting("typingUsers", false)
+assert(names({ kind = "typing", text = "adrian", user_id = "u1", guild_id = "g" }) == nil)
+
 print("role-color-everywhere ok")

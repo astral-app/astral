@@ -167,6 +167,7 @@ static id SessionWithConfiguration(id self, SEL selector, NSURLSessionConfigurat
 typedef void (^MessageHandler)(NSURLSessionWebSocketMessage *, NSError *);
 
 static void (*gOriginalReceive)(id, SEL, MessageHandler);
+static NSMutableArray<NSString *> *gInjected;
 
 static NSURLSessionWebSocketMessage *WithStaffReady(NSURLSessionWebSocketMessage *message)
 {
@@ -182,8 +183,26 @@ static NSURLSessionWebSocketMessage *WithStaffReady(NSURLSessionWebSocketMessage
     return [[NSURLSessionWebSocketMessage alloc] initWithString:[NSString stringWithUTF8String:marked->c_str()] ?: message.string];
 }
 
+static NSString *NextInjected(void)
+{
+    @synchronized(NSMutableArray.class) {
+        if (!gInjected.count) return nil;
+        NSString *message = gInjected.firstObject;
+        [gInjected removeObjectAtIndex:0];
+        return message;
+    }
+}
+
 static void Receive(id self, SEL selector, MessageHandler handler)
 {
+    NSString *injected = handler ? NextInjected() : nil;
+    if (injected) {
+        NSURLSessionWebSocketMessage *message = [[NSURLSessionWebSocketMessage alloc] initWithString:injected];
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+            handler(message, nil);
+        });
+        return;
+    }
     if (!handler) {
         gOriginalReceive(self, selector, handler);
         return;
@@ -261,6 +280,16 @@ void AstralInstallNetworkFilter(BOOL (^staffDevTools)(void))
         Class webSocket = NSClassFromString(@"__NSURLSessionWebSocketTask") ?: NSClassFromString(@"NSURLSessionWebSocketTask");
         Swizzle(webSocket, @selector(receiveMessageWithCompletionHandler:), (IMP)Receive, (IMP *)&gOriginalReceive);
     });
+}
+
+BOOL AstralInjectGatewayMessage(NSString *message)
+{
+    if (!StaffDevTools() || !message.length) return NO;
+    @synchronized(NSMutableArray.class) {
+        if (!gInjected) gInjected = [NSMutableArray array];
+        [gInjected addObject:message];
+    }
+    return YES;
 }
 
 NSDictionary *AstralNetworkFilterStats(void)

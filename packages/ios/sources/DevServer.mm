@@ -193,6 +193,11 @@ static NSData *HandleRequest(NSString *method, NSString *path, NSData *bodyData,
         });
         return Response(200, @{@"active" : AstralActiveThemeID()});
     }
+    if ([method isEqualToString:@"POST"] && [route isEqualToString:@"/gateway"] && bodyData.length) {
+        NSString *message = [[NSString alloc] initWithData:bodyData encoding:NSUTF8StringEncoding];
+        BOOL queued = message && AstralInjectGatewayMessage(message);
+        return Response(queued ? 200 : 400, @{@"queued" : @(queued), @"needs" : @"Staff DevTools on, for an uncompressed gateway"});
+    }
     if ([method isEqualToString:@"POST"] && [route isEqualToString:@"/icon-pack"] && [body isKindOfClass:NSDictionary.class] &&
         [body[@"id"] isKindOfClass:NSString.class]) {
         __block NSDictionary *result = nil;

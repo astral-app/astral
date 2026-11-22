@@ -24,6 +24,7 @@ const devUsage = `usage: astral dev <command>
   watch <plugin folder>  push the plugin every time a file in it changes
   eval <plugin id> <lua> run Lua inside a running plugin and print the result
   logs [-f]              print astral's log, following it with -f
+  gateway <json file>    deliver a gateway payload to Discord locally, as if the gateway sent it (needs Staff DevTools)
   restart                soft restart: reload plugins, the theme and icons in place without relaunching Discord
   icons use <id>         switch icon pack (discord for Discord's own) and refresh icons in place
   theme list             the installed themes and the active one
@@ -412,6 +413,20 @@ func runDev(args []string) error {
 			return errors.New(devUsage)
 		}
 		reply, err := d.request(http.MethodPost, "/icon-pack", map[string]any{"id": args[2]})
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(reply))
+		return nil
+	case "gateway":
+		if len(args) != 2 {
+			return errors.New(devUsage)
+		}
+		payload, err := os.ReadFile(args[1])
+		if err != nil {
+			return err
+		}
+		reply, err := d.request(http.MethodPost, "/gateway", payload)
 		if err != nil {
 			return err
 		}

@@ -73,6 +73,7 @@ extern "C" {
     X(translateX, 535)                                                                                                                     \
     X(uri, 542)                                                                                                                            \
     X(value, 543)                                                                                                                          \
+    X(weight, 551)                                                                                                                         \
     X(width, 553)                                                                                                                          \
     X(baseline, 572)                                                                                                                       \
     X(colors, 577)                                                                                                                         \

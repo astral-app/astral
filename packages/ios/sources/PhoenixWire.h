@@ -174,6 +174,7 @@ typedef enum {
     kAstralNameAvatar,
     kAstralNameHeader,
     kAstralNameVoter,
+    kAstralNameTyping,
 } AstralNameKind;
 
 typedef struct {
