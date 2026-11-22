@@ -19,6 +19,7 @@ Cards show each author's avatar the way Unbound does: Discord's local user cache
 ```
 packages/plugins/<name>/manifest.toml   {"id", "name", "description", "authors": [{"name", "id"}], "version", "main": "main.lua"}
 packages/plugins/<name>/main.lua        at most 256 KB
+packages/plugins/<name>/**/*.lua        modules, loaded with require("lib.util"), at most 1 MB together
 packages/plugins/<name>/tests/*.lua     run by astral test against a mocked `astral` table and the prelude
 ```
 
@@ -26,7 +27,7 @@ Bundled plugins ship in the package's resource directory (`/var/jb/usr/lib/astra
 
 ## Signing
 
-Marketplace plugins and the catalog are signed with astral's Ed25519 key (`keys/plugin-signing.pub`, compiled into the loader and checked with Monocypher). A plugin's `signature` is a small TOML file listing the SHA-256 of `manifest.toml`, `main.lua` and every `i18n/*.toml`, with an Ed25519 signature over that list (`astral-plugin-v2`); marketplace installs read it first and download exactly the files it names. The catalog's `index.toml.sig` covers the catalog. `astral sign` signs everything and `astral test` fails on a stale signature. Bundled plugins ship inside the package; anything else that is unsigned stays off, marked "unsigned", unless Developer mode is on. Downloads are verified before they are written.
+Marketplace plugins and the catalog are signed with astral's Ed25519 key (`keys/plugin-signing.pub`, compiled into the loader and checked with Monocypher). A plugin's `signature` is a small TOML file listing the SHA-256 of `manifest.toml`, every Lua file outside `tests/` and every `i18n/*.toml`, with an Ed25519 signature over that list (`astral-plugin-v2`); marketplace installs read it first and download exactly the files it names. The catalog's `index.toml.sig` covers the catalog. `astral sign` signs everything and `astral test` fails on a stale signature. Bundled plugins ship inside the package; anything else that is unsigned stays off, marked "unsigned", unless Developer mode is on. Downloads are verified before they are written.
 
 ## Sandbox
 
@@ -46,7 +47,13 @@ Each plugin gets its own `lua_State` with `base`, `table`, `string`, `math`, `ut
 | `astral.ui.relabel(target, fn)` | `fn(node)` returns new text; plugins chain. Targets: `MessageAuthor` (authors and reply previews, `node.kind` `NodeKind.Author`/`NodeKind.Reply`), `ChannelName`, `MemberName`, `ComposerPlaceholder` |
 | `node:message()`, `node:guild()`, `node:member()`, `node:user()`, `node:permissions()`, `node:is_bot()` | Cached lookups for the node a callback receives |
 | `astral.discord.guild/member/message/user/nickname/channel_guild/permissions` | Read-only views of Discord's own cache; messages carry `type`, `author` and `reference`, permissions apply channel overwrites |
-| `astral.permissions.any/all/combine(granted, Permission.X, ...)` | Permission checks |
+| `astral.permissions.any/all/combine(granted, Permission.X, ...)` | Permission bit checks |
+| `astral.storage.get/set/remove/keys` | The plugin's own data (strings, numbers, booleans, tables), kept in a SQLite database on the device, up to 512 KB per plugin and removed on uninstall |
+| `require("lib.util")` | Loads `lib/util.lua` from the plugin's folder once and returns what it returns |
+
+## Permissions
+
+A manifest declares what a plugin reads with `permissions = [...]`; calls outside it raise an error, and the plugin page lists them. `discord.guilds` (`guild`, `channel_guild`), `discord.members` (`member`), `discord.permissions` (`permissions`), `discord.messages` (`message`), `discord.users` (`user`), `discord.relationships` (`nickname`) and `storage` (`astral.storage`).
 
 ## Builtins
 

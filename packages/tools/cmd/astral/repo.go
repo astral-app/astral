@@ -39,13 +39,21 @@ func repoPath(parts ...string) string {
 	return filepath.Join(append([]string{root}, parts...)...)
 }
 
+func describeCommand(name string, args []string) string {
+	text := name + " " + strings.Join(args, " ")
+	if len(text) > 160 {
+		text = text[:160] + "…"
+	}
+	return text
+}
+
 func run(directory string, name string, args ...string) error {
 	command := exec.Command(name, args...)
 	command.Dir = directory
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
 	if err := command.Run(); err != nil {
-		return fmt.Errorf("%s %s: %w", name, strings.Join(args, " "), err)
+		return fmt.Errorf("%s: %w", describeCommand(name, args), err)
 	}
 	return nil
 }
@@ -57,7 +65,7 @@ func runWithEnv(directory string, env []string, name string, args ...string) err
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
 	if err := command.Run(); err != nil {
-		return fmt.Errorf("%s %s: %w", name, strings.Join(args, " "), err)
+		return fmt.Errorf("%s: %w", describeCommand(name, args), err)
 	}
 	return nil
 }
@@ -69,7 +77,7 @@ func output(directory string, name string, args ...string) (string, error) {
 	command.Stderr = &stderr
 	result, err := command.Output()
 	if err != nil {
-		return string(result), fmt.Errorf("%s %s: %w: %s", name, strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
+		return string(result), fmt.Errorf("%s: %w: %s", describeCommand(name, args), err, strings.TrimSpace(stderr.String()))
 	}
 	return string(result), nil
 }

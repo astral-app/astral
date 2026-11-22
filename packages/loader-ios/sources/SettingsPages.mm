@@ -175,6 +175,20 @@ static NSString *PluginIcon(NSDictionary *plugin)
     return asset;
 }
 
+static NSArray<NSString *> *PermissionDescription(NSString *permission)
+{
+    NSDictionary<NSString *, NSArray<NSString *> *> *known = @{
+        @"discord.guilds" : @[ @"Reads servers and their roles", @"res://ic_mana_server" ],
+        @"discord.members" : @[ @"Reads server members", @"res://ic_mana_group" ],
+        @"discord.permissions" : @[ @"Reads member permissions", @"res://ic_mana_shield" ],
+        @"discord.messages" : @[ @"Reads messages in the cache", @"res://ic_mana_chat" ],
+        @"discord.users" : @[ @"Reads user profiles", @"res://ic_mana_user" ],
+        @"discord.relationships" : @[ @"Reads friend nicknames", @"res://ic_mana_friends" ],
+        @"storage" : @[ @"Keeps its own data on this device", @"res://ic_mana_download" ],
+    };
+    return known[permission] ?: @[ [@"Unknown permission: " stringByAppendingString:permission], @"res://ic_mana_circle_information" ];
+}
+
 static NSString *AuthorNames(NSDictionary *plugin)
 {
     NSMutableArray *names = [NSMutableArray array];
@@ -266,6 +280,17 @@ static NSDictionary *PluginPage(NSString *identifier)
     [about addObject:With(Row(@"source", @"Source", @"res://ic_mana_download", kAstralRowInfo),
                           @{@"detail" : [plugin[@"bundled"] boolValue] ? @"Bundled" : @"Marketplace"})];
     [sections addObject:Section(@"About", about)];
+
+    NSMutableArray *permissions = [NSMutableArray array];
+    for (NSString *permission in plugin[@"permissions"]) {
+        NSArray *described = PermissionDescription(permission);
+        [permissions
+            addObject:With(Row([@"permission." stringByAppendingString:permission], described[0], described[1], kAstralRowInfo), @{})];
+    }
+    if (!permissions.count) {
+        [permissions addObject:With(Row(@"permission.none", @"No access to Discord data", @"res://ic_mana_shield", kAstralRowInfo), @{})];
+    }
+    [sections addObject:Section(@"Permissions", permissions)];
 
     NSMutableArray *status =
         [NSMutableArray arrayWithObject:With(
@@ -518,6 +543,7 @@ static NSString *PluginAction(NSString *identifier, NSString *key, void (^change
         AstralLuaResetSettings(identifier);
     } else if ([key isEqualToString:@"uninstall"] && ![plugin[@"bundled"] boolValue]) {
         [NSFileManager.defaultManager removeItemAtPath:plugin[@"directory"] error:nil];
+        AstralLuaRemoveStorage(identifier);
         AstralLuaRemove(identifier);
         AstralLuaRescan();
         changed();

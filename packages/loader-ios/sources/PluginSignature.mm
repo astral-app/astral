@@ -65,5 +65,13 @@ BOOL AstralVerifyPluginDirectory(NSString *directory, NSString *main)
     for (NSString *entry in [NSFileManager.defaultManager contentsOfDirectoryAtPath:translations error:nil]) {
         if (!files[[@"i18n/" stringByAppendingString:entry]]) return NO;
     }
+    NSDirectoryEnumerator *walker = [NSFileManager.defaultManager enumeratorAtPath:directory];
+    for (NSString *path in walker) {
+        if ([path isEqualToString:@"tests"]) {
+            [walker skipDescendants];
+            continue;
+        }
+        if ([path.pathExtension isEqualToString:@"lua"] && !files[path]) return NO;
+    }
     return YES;
 }

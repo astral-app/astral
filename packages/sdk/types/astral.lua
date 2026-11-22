@@ -343,6 +343,24 @@ function astral.discord.user(id) end
 ---@return string?
 function astral.discord.nickname(id) end
 
+astral.storage = {}
+---@alias astral.StorageValue string|number|boolean|table
+---@param key string
+---@param fallback? astral.StorageValue
+---@return astral.StorageValue?
+function astral.storage.get(key, fallback) end
+---@param key string
+---@param value astral.StorageValue?
+function astral.storage.set(key, value) end
+---@param key string
+function astral.storage.remove(key) end
+---@return string[]
+function astral.storage.keys() end
+
+---@param name string
+---@return any
+function require(name) end
+
 astral.permissions = {}
 ---@param ... astral.Permission
 ---@return integer

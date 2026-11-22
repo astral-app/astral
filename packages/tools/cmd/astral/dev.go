@@ -113,7 +113,22 @@ func (d devClient) push(folder string) error {
 	if err != nil {
 		return err
 	}
-	reply, err := d.request(http.MethodPut, "/plugin", map[string]string{"manifest": string(manifestText), "main": string(main)})
+	modules := map[string]string{}
+	paths, err := pluginModules(folder)
+	if err != nil {
+		return err
+	}
+	for _, path := range paths {
+		if path == manifest.Main {
+			continue
+		}
+		text, err := os.ReadFile(filepath.Join(folder, path))
+		if err != nil {
+			return err
+		}
+		modules[path] = string(text)
+	}
+	reply, err := d.request(http.MethodPut, "/plugin", map[string]any{"manifest": string(manifestText), "main": string(main), "modules": modules})
 	if err != nil {
 		return err
 	}

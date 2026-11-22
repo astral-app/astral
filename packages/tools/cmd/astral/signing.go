@@ -9,6 +9,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -20,8 +21,9 @@ import (
 const signatureVersion = "astral-plugin-v2"
 
 type pluginManifest struct {
-	ID   string `toml:"id"`
-	Main string `toml:"main"`
+	ID          string   `toml:"id"`
+	Main        string   `toml:"main"`
+	Permissions []string `toml:"permissions"`
 }
 
 type pluginSignature struct {
@@ -57,12 +59,40 @@ func signedPaths(folder string) ([]string, error) {
 	for _, translation := range translations {
 		paths["i18n/"+filepath.Base(translation)] = true
 	}
+	modules, err := pluginModules(folder)
+	if err != nil {
+		return nil, err
+	}
+	for _, module := range modules {
+		paths[module] = true
+	}
 	sorted := make([]string, 0, len(paths))
 	for path := range paths {
 		sorted = append(sorted, path)
 	}
 	sort.Strings(sorted)
 	return sorted, nil
+}
+
+func pluginModules(folder string) ([]string, error) {
+	var modules []string
+	err := filepath.WalkDir(folder, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		relative, err := filepath.Rel(folder, path)
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() && relative == "tests" {
+			return filepath.SkipDir
+		}
+		if !entry.IsDir() && filepath.Ext(path) == ".lua" {
+			modules = append(modules, filepath.ToSlash(relative))
+		}
+		return nil
+	})
+	return modules, err
 }
 
 func digest(path string) (string, error) {

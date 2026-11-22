@@ -72,6 +72,19 @@ static NSData *PutPlugin(NSDictionary *body)
     [NSFileManager.defaultManager createDirectoryAtPath:directory withIntermediateDirectories:YES attributes:nil error:nil];
     [manifestData writeToFile:[directory stringByAppendingPathComponent:@"manifest.toml"] atomically:YES];
     [[source dataUsingEncoding:NSUTF8StringEncoding] writeToFile:[directory stringByAppendingPathComponent:main] atomically:YES];
+    NSDictionary *modules = [body[@"modules"] isKindOfClass:NSDictionary.class] ? body[@"modules"] : @{};
+    for (NSString *path in modules) {
+        NSString *text = modules[path];
+        if (![path isKindOfClass:NSString.class] || ![text isKindOfClass:NSString.class] || ![path.pathExtension isEqualToString:@"lua"] ||
+            [path hasPrefix:@"/"] || [path containsString:@".."])
+            continue;
+        NSString *destination = [directory stringByAppendingPathComponent:path];
+        [NSFileManager.defaultManager createDirectoryAtPath:destination.stringByDeletingLastPathComponent
+                                withIntermediateDirectories:YES
+                                                 attributes:nil
+                                                      error:nil];
+        [[text dataUsingEncoding:NSUTF8StringEncoding] writeToFile:destination atomically:YES];
+    }
     [NSFileManager.defaultManager removeItemAtPath:[directory stringByAppendingPathComponent:@"signature"] error:nil];
     dispatch_sync(dispatch_get_main_queue(), ^{
         AstralLuaRemove(identifier);
