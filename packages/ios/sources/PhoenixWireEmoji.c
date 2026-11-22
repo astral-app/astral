@@ -151,3 +151,106 @@ uint8_t *wireEmojiBatch(const uint8_t *bytes, size_t length, Span *spans, size_t
     *newLength = out.length;
     return out.bytes;
 }
+
+static const char kReactionPrefix[] = "message.reaction:";
+static const char kUnicodeMarker[] = ":unicode:";
+
+static int reactionCodepoints(const uint8_t *bytes, const Span *span, char *codepoints, size_t capacity)
+{
+    Cursor cursor = {bytes, span->end, span->start + 1 + 4, 0};
+    wireSkip(&cursor, wireRead16(&cursor));
+    uint16_t count = wireRead16(&cursor);
+    for (uint16_t index = 0; index < count && !cursor.failed; index++) {
+        uint16_t property = wireRead16(&cursor);
+        uint8_t tag = wireRead8(&cursor);
+        if (property != P(accessibilityId) || tag != 6) {
+            wireSkipValue(&cursor, tag, 0);
+            continue;
+        }
+        uint32_t length = wireRead32(&cursor);
+        if (!wireNeed(&cursor, length)) return 0;
+        const char *text = (const char *)bytes + cursor.offset;
+        size_t prefix = sizeof(kReactionPrefix) - 1, marker = sizeof(kUnicodeMarker) - 1;
+        if (length <= prefix || memcmp(text, kReactionPrefix, prefix) != 0) return 0;
+        for (uint32_t at = (uint32_t)prefix; at + marker < length; at++) {
+            if (memcmp(text + at, kUnicodeMarker, marker) != 0) continue;
+            size_t pointsLength = length - at - marker;
+            if (pointsLength == 0 || pointsLength >= capacity) return 0;
+            memcpy(codepoints, text + at + marker, pointsLength);
+            codepoints[pointsLength] = 0;
+            return 1;
+        }
+        return 0;
+    }
+    return 0;
+}
+
+static int32_t glyphText(const uint8_t *bytes, const Span *spans, size_t count, int32_t id, int depth)
+{
+    const Span *list = depth < 3 ? wireChildList(bytes, spans, count, id) : NULL;
+    if (!list || list->childCount == 0) return 0;
+    int32_t first = wireChildAt(bytes, list, 0);
+    const Span *creation = wireCreation(spans, count, first);
+    if (creation && wireTypeIs(bytes, creation, "text")) return first;
+    return glyphText(bytes, spans, count, first, depth + 1);
+}
+
+static void putReactionImage(Out *out, int32_t text, const char *glyph, const char *url)
+{
+    wirePut8(out, 2);
+    wirePut32(out, (uint32_t)text);
+    wirePut16(out, 1);
+    wirePut16(out, P(spans));
+    wirePut8(out, 7);
+    wirePut32(out, 1);
+    wirePut8(out, 8);
+    wirePut32(out, 2);
+    wirePropString(out, P(text), glyph);
+    wirePut16(out, P(image));
+    wirePut8(out, 8);
+    wirePut32(out, 2);
+    wirePropString(out, P(uri), url);
+    wirePropNumber(out, P(size), 20);
+}
+
+static void glyphOf(const char *codepoints, char *glyph, size_t capacity)
+{
+    size_t used = 0;
+    const char *cursor = codepoints;
+    while (*cursor && used + 4 < capacity) {
+        unsigned long point = strtoul(cursor, (char **)&cursor, 16);
+        if (point < 0x80) {
+            glyph[used++] = (char)point;
+        } else if (point < 0x800) {
+            glyph[used++] = (char)(0xC0 | (point >> 6));
+            glyph[used++] = (char)(0x80 | (point & 0x3F));
+        } else if (point < 0x10000) {
+            glyph[used++] = (char)(0xE0 | (point >> 12));
+            glyph[used++] = (char)(0x80 | ((point >> 6) & 0x3F));
+            glyph[used++] = (char)(0x80 | (point & 0x3F));
+        } else {
+            glyph[used++] = (char)(0xF0 | (point >> 18));
+            glyph[used++] = (char)(0x80 | ((point >> 12) & 0x3F));
+            glyph[used++] = (char)(0x80 | ((point >> 6) & 0x3F));
+            glyph[used++] = (char)(0x80 | (point & 0x3F));
+        }
+        if (*cursor == '-') cursor++;
+    }
+    glyph[used] = 0;
+}
+
+void wireReactionEmoji(const uint8_t *bytes, const Span *spans, size_t count, Out *out, int *changed, size_t length)
+{
+    if (!gEmojiResolver) return;
+    for (size_t index = 0; index < count; index++) {
+        const Span *span = &spans[index];
+        char codepoints[128], url[kMaxEmojiUrl], glyph[64];
+        if (span->op != 1 || !reactionCodepoints(bytes, span, codepoints, sizeof(codepoints))) continue;
+        int32_t text = glyphText(bytes, spans, count, span->id, 0);
+        if (!text || gEmojiResolver(codepoints, url, sizeof(url)) <= 0) continue;
+        glyphOf(codepoints, glyph, sizeof(glyph));
+        if (!*changed) wirePut(out, bytes, length);
+        *changed = 1;
+        putReactionImage(out, text, glyph, url);
+    }
+}

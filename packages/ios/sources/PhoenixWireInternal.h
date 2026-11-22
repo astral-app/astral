@@ -110,6 +110,7 @@ void wirePropGradient(Out *out, uint16_t property, double angle, const uint32_t 
 int wireColorProperty(const uint8_t *bytes, const Span *span, uint16_t wanted, uint32_t *color);
 size_t wireBackgroundStops(uint32_t *colors, size_t capacity);
 void wireTrackImages(const uint8_t *bytes, const Span *spans, size_t count);
+void wireReactionEmoji(const uint8_t *bytes, const Span *spans, size_t count, Out *out, int *changed, size_t length);
 uint8_t *wireEmojiBatch(const uint8_t *bytes, size_t length, Span *spans, size_t *count, size_t *newLength);
 void wireColorNames(const uint8_t *bytes, const Span *spans, size_t count, Out *out, int *changed, size_t length);
 void wireDecorateMentions(const uint8_t *bytes, const Span *spans, size_t count, Out *out, int *changed, size_t length);
