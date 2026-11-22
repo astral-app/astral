@@ -330,6 +330,56 @@ static void profileRelabelTest(void)
     astral_wire_set_relabeler(NULL);
 }
 
+static void gradientBatch(Batch *batch, int id)
+{
+    batch->length = 0;
+    b8(batch, 1);
+    create(batch, id, "view", 1);
+    b16(batch, 91);
+    b8(batch, 8);
+    b32(batch, 2);
+    b16(batch, 70);
+    b8(batch, 5);
+    double angle = 90;
+    memcpy(batch->bytes + batch->length, &angle, 8);
+    batch->length += 8;
+    b16(batch, 577);
+    b8(batch, 7);
+    b32(batch, 2);
+    b8(batch, 3);
+    b32(batch, (int)0xFF111111);
+    b8(batch, 3);
+    b32(batch, (int)0xFF222222);
+}
+
+static void gradientThemeTest(void)
+{
+    AstralWireBuffer out;
+    Batch batch = {.length = 0};
+    const uint32_t from[] = {0xFF111111}, to[] = {0xFFAA0000};
+    astral_wire_set_palette(from, to, 1);
+    gradientBatch(&batch, 800);
+    assert(astral_settings_rewrite(batch.bytes, batch.length, &out));
+    uint32_t mapped = 0xFFAA0000, kept = 0xFF222222;
+    assert(memmem(out.bytes, out.length, &mapped, 4) && memmem(out.bytes, out.length, &kept, 4));
+    astral_wire_buffer_free(&out);
+    astral_wire_set_palette(NULL, NULL, 0);
+
+    const uint32_t stops[] = {0xFF0000AA, 0xFF00AA00, 0xFFAA00AA};
+    astral_wire_set_background_gradient(stops, 3);
+    gradientBatch(&batch, 801);
+    assert(astral_settings_rewrite(batch.bytes, batch.length, &out));
+    uint32_t first = 0xFF0000AA, last = 0xFFAA00AA, old = 0xFF111111;
+    assert(memmem(out.bytes, out.length, &first, 4) && memmem(out.bytes, out.length, &last, 4) && !memmem(out.bytes, out.length, &old, 4));
+    astral_wire_buffer_free(&out);
+    gradientBatch(&batch, 0x7b000010);
+    if (astral_settings_rewrite(batch.bytes, batch.length, &out)) {
+        assert(memmem(out.bytes, out.length, &old, 4));
+        astral_wire_buffer_free(&out);
+    }
+    astral_wire_set_background_gradient(NULL, 0);
+}
+
 static void unsupportedVersionTest(void)
 {
     AstralWireBuffer out;
@@ -489,6 +539,7 @@ int main(void)
     cardPageTest();
     categoryRowsTest();
     profileRelabelTest();
+    gradientThemeTest();
     unsupportedVersionTest();
     puts("ok");
     return 0;

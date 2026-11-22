@@ -87,6 +87,13 @@ void AstralApplyTheme(NSString *themeID)
     NSDictionary *radius = [selected[@"radius"] isKindOfClass:NSDictionary.class] ? selected[@"radius"] : nil;
     NSDictionary *font = [selected[@"font"] isKindOfClass:NSDictionary.class] ? selected[@"font"] : nil;
     astral_wire_set_scales([radius[@"scale"] doubleValue], [font[@"scale"] doubleValue]);
+    NSDictionary *background = [selected[@"background"] isKindOfClass:NSDictionary.class] ? selected[@"background"] : nil;
+    std::vector<uint32_t> stops;
+    for (id stop in [background[@"gradient"] isKindOfClass:NSArray.class] ? background[@"gradient"] : @[]) {
+        uint32_t color = [stop isKindOfClass:NSString.class] ? ParseColor(stop) : 0;
+        if (color) stops.push_back(color);
+    }
+    astral_wire_set_background_gradient(stops.data(), stops.size());
     if (AstralSettings()->set("astral", "theme", std::string([selected[@"id"] UTF8String]))) AstralSettings()->save();
 }
 

@@ -1789,6 +1789,53 @@ static int paletteColor(uint32_t color, uint32_t *mapped)
 }
 
 static double gRadiusScale = 1, gFontScale = 1;
+enum { kMaxBackgroundStops = 8 };
+static uint32_t gBackgroundStops[kMaxBackgroundStops];
+static size_t gBackgroundStopCount;
+
+void astral_wire_set_background_gradient(const uint32_t *colors, size_t count)
+{
+    gBackgroundStopCount = count > kMaxBackgroundStops ? kMaxBackgroundStops : count;
+    for (size_t index = 0; index < gBackgroundStopCount; index++) gBackgroundStops[index] = colors[index];
+}
+
+static uint32_t backgroundStop(uint32_t index, uint32_t count)
+{
+    if (gBackgroundStopCount == 1 || count <= 1) return gBackgroundStops[0];
+    size_t position = (size_t)index * (gBackgroundStopCount - 1) / (count - 1);
+    return gBackgroundStops[position];
+}
+
+static int patchGradientStops(uint8_t *bytes, Cursor *cursor, int replaceAll)
+{
+    int patched = 0;
+    uint32_t entries = read32(cursor);
+    for (uint32_t entry = 0; entry < entries && !cursor->failed; entry++) {
+        uint16_t key = read16(cursor);
+        uint8_t tag = read8(cursor);
+        if (key != P(colors) || tag != 7) {
+            skipValue(cursor, tag, 1);
+            continue;
+        }
+        uint32_t count = read32(cursor);
+        for (uint32_t index = 0; index < count && !cursor->failed; index++) {
+            uint8_t stopTag = read8(cursor);
+            size_t at = cursor->offset;
+            skipValue(cursor, stopTag, 2);
+            if (cursor->failed || (stopTag != 3 && stopTag != 4)) continue;
+            uint32_t color, mapped;
+            memcpy(&color, bytes + at, 4);
+            if (replaceAll)
+                mapped = backgroundStop(index, count);
+            else if (!paletteColor(color, &mapped))
+                continue;
+            memcpy(bytes + at, &mapped, 4);
+            if (stopTag == 4) memset(bytes + at + 4, 0, 4);
+            patched = 1;
+        }
+    }
+    return patched;
+}
 
 void astral_wire_set_scales(double radius, double font)
 {
@@ -1839,6 +1886,12 @@ static int patchColors(uint8_t *bytes, const Span *spans, size_t count)
                     memcpy(bytes + at, &value, 8);
                     patched = 1;
                 }
+                continue;
+            }
+            if (!cursor.failed && property == P(backgroundGradient) && tag == 8) {
+                Cursor gradient = {bytes, cursor.offset, at, 0};
+                int replaceAll = gBackgroundStopCount > 0 && span->id > 0 && span->id < kFirstId;
+                if ((replaceAll || gPaletteCount) && patchGradientStops(bytes, &gradient, replaceAll)) patched = 1;
                 continue;
             }
             if (cursor.failed || !colorProperty(property) || (tag != 3 && tag != 4)) continue;
@@ -2202,7 +2255,7 @@ int astral_settings_rewrite(const uint8_t *bytes, size_t length, AstralWireBuffe
         }
     }
     uint8_t *themed = NULL;
-    if (gPaletteCount || gRadiusScale != 1 || gFontScale != 1) {
+    if (gPaletteCount || gRadiusScale != 1 || gFontScale != 1 || gBackgroundStopCount) {
         themed = malloc(length);
         if (themed) {
             memcpy(themed, bytes, length);
