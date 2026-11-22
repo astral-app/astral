@@ -1,3 +1,4 @@
+#import "NetworkFilter.h"
 #import "DevServer.h"
 
 #import <arpa/inet.h>
@@ -147,7 +148,7 @@ static NSData *HandleRequest(NSString *method, NSString *path, NSData *bodyData,
     NSString *route = query[@"_path"];
     id body = bodyData.length ? [NSJSONSerialization JSONObjectWithData:bodyData options:0 error:nil] : nil;
     if ([method isEqualToString:@"GET"] && [route isEqualToString:@"/status"]) {
-        return Response(200, @{@"astral" : AstralVersion(), @"plugins" : AstralLuaPlugins()});
+        return Response(200, @{@"astral" : AstralVersion(), @"plugins" : AstralLuaPlugins(), @"network" : AstralNetworkFilterStats()});
     }
     if ([method isEqualToString:@"GET"] && [route isEqualToString:@"/logs"]) {
         NSUInteger since = (NSUInteger)[query[@"since"] integerValue];

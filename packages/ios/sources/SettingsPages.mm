@@ -1,3 +1,4 @@
+#import "NetworkFilter.h"
 #import "SettingsPages.h"
 #import "DevServer.h"
 
@@ -120,6 +121,11 @@ static NSDictionary *GeneralPage(AstralPageContext context)
                                 ? [NSString stringWithFormat:@"Pairing code %@ for astral dev", AstralDevPairingCode()]
                                 : @"Run plugins that astral has not signed"
                         }),
+                    With(
+                        Row(@"staff-devtools", @"Staff DevTools", @"res://ic_mana_wrench", kAstralRowSwitch), @{
+                            @"on" : @(AstralSettings()->getBoolean("astral", "staff-devtools", false)),
+                            @"subtitle" : @"Unlock Discord's staff Dev Tools; relaunch Discord to apply"
+                        }),
                     With(Row(@"force-phoenix", @"Force Phoenix", @"res://ic_mana_settings_arrow_up", kAstralRowInfo),
                          @{@"detail" : @"On", @"subtitle" : @"The React Native fallback stays off"}),
                 ]),
@@ -138,6 +144,10 @@ static NSDictionary *GeneralPage(AstralPageContext context)
                         @"detail" : [NSString stringWithFormat:@"%llu", stats.tagged],
                         @"subtitle" : [NSString stringWithFormat:@"%llu authors, %llu users, %llu channels resolved", stats.authors,
                                                                  stats.with_user, stats.with_channel]
+                    }),
+                    With(Row(@"telemetry", @"Telemetry blocked", @"res://ic_mana_shield", kAstralRowInfo), @{
+                        @"detail" : [AstralNetworkFilterStats()[@"blocked"] stringValue],
+                        @"subtitle" : @"Requests to Discord's analytics and Sentry dropped this launch"
                     }),
                     With(Row(@"reload", @"Reload plugins", @"res://ic_mana_refresh", kAstralRowLink),
                          @{@"subtitle" : @"Restart every enabled plugin"}),
@@ -599,6 +609,11 @@ NSString *AstralSettingsPageAction(NSString *route, NSString *key, void (^change
         for (NSDictionary *plugin in AstralLuaPlugins()) {
             if ([plugin[@"enabled"] boolValue] && ![plugin[@"signed"] boolValue]) AstralLuaSetEnabled(plugin[@"id"], YES);
         }
+        return nil;
+    }
+    if ([key isEqualToString:@"switch.staff-devtools"]) {
+        bool next = !AstralSettings()->getBoolean("astral", "staff-devtools", false);
+        if (AstralSettings()->set("astral", "staff-devtools", next)) AstralSettings()->save();
         return nil;
     }
     if ([key isEqualToString:@"switch.safe-mode"]) {

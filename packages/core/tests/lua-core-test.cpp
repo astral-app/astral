@@ -4,6 +4,7 @@
 #include <fstream>
 #include <string>
 
+#include "AstralNetworkPolicy.h"
 #include "LuaJSON.h"
 #include "LuaLocale.h"
 #include "LuaSandbox.h"
@@ -156,6 +157,28 @@ static void testPluginHealth()
     assert(!health.failed && health.errors == 0 && health.lastError.empty());
 }
 
+static void testTelemetryRequests()
+{
+    assert(astral::isTelemetryRequest("discord.com", "/api/v9/science"));
+    assert(astral::isTelemetryRequest("discord.com", "/api/v10/metrics/v2?x=1"));
+    assert(astral::isTelemetryRequest("o64374.ingest.sentry.io", "/api/230973/envelope/"));
+    assert(!astral::isTelemetryRequest("discord.com", "/api/v9/users/@me"));
+    assert(!astral::isTelemetryRequest("discord.com", "/api/v9/channels/1/messages"));
+    assert(!astral::isTelemetryRequest("example.com", "/api/v9/science"));
+}
+
+static void testStaffUser()
+{
+    assert(astral::isCurrentUserRequest("discord.com", "/api/v9/users/@me"));
+    assert(!astral::isCurrentUserRequest("discord.com", "/api/v9/users/@me/settings"));
+    auto user = nlohmann::json::parse(*astral::withStaffUser(R"({"id":"1","flags":64})"));
+    assert(user["flags"] == 65 && user["public_flags"] == 1);
+    assert(!astral::withStaffUser("[1]"));
+    auto ready = nlohmann::json::parse(*astral::withStaffReady(R"({"op":0,"t":"READY","d":{"user":{"id":"1","flags":0}}})"));
+    assert(ready["d"]["user"]["flags"] == 1);
+    assert(!astral::withStaffReady(R"({"op":0,"t":"MESSAGE_CREATE","d":{"content":"READY"}})"));
+}
+
 int main(int argc, char **argv)
 {
     assert(argc == 2);
@@ -172,6 +195,8 @@ int main(int argc, char **argv)
     testPluginStorage(argv[1]);
     testPluginPackage(argv[1]);
     testPluginHealth();
+    testTelemetryRequests();
+    testStaffUser();
     puts("ok");
     return 0;
 }

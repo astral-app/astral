@@ -1,4 +1,5 @@
 #include <dlfcn.h>
+#import "NetworkFilter.h"
 #import "VirtualCamera.h"
 #import "VirtualSession.h"
 #import <Foundation/Foundation.h>
@@ -244,6 +245,9 @@ static void CheckReadiness(void)
 __attribute__((constructor)) static void AstralBootstrap(void)
 {
     if (!AstralIsDiscordApp()) return;
+    AstralInstallNetworkFilter(^BOOL {
+        return settings && settings->getBoolean("astral", "staff-devtools", false);
+    });
     AstralFixVirtualCamera();
     engineSelection = AstralForcePhoenix();
     AstralInstallImageAssets();

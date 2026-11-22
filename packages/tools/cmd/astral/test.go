@@ -56,7 +56,7 @@ func wireSources(prefix string) []string {
 	return paths
 }
 
-var coreLuaSources = []string{"LuaSandbox", "LuaJSON", "LuaLocale", "PluginPackage", "PluginStorage"}
+var coreLuaSources = []string{"AstralNetworkPolicy", "LuaSandbox", "LuaJSON", "LuaLocale", "PluginPackage", "PluginStorage"}
 
 func testCore(work string) error {
 	object := filepath.Join(work, "lua-core.o")

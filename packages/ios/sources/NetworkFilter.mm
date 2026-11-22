@@ -1,0 +1,274 @@
+#import "NetworkFilter.h"
+
+#import <objc/runtime.h>
+#import <atomic>
+#import <string>
+
+#import "AstralNetworkPolicy.h"
+#import "DevServer.h"
+
+static NSString *const kHandledKey = @"app.astral.network-filter";
+
+static BOOL (^gStaffDevTools)(void);
+static std::atomic<unsigned long long> gBlocked;
+static std::atomic<unsigned long long> gStaffUsers;
+static std::atomic<unsigned long long> gStaffReadies;
+static std::atomic<unsigned long long> gCompressedFrames;
+
+static BOOL StaffDevTools(void)
+{
+    return gStaffDevTools && gStaffDevTools();
+}
+
+static std::string Text(NSString *value)
+{
+    return value ? std::string(value.UTF8String ?: "") : std::string();
+}
+
+static BOOL IsTelemetry(NSURL *url)
+{
+    return url && astral::isTelemetryRequest(Text(url.host), Text(url.path));
+}
+
+static BOOL IsCurrentUser(NSURLRequest *request)
+{
+    NSURL *url = request.URL;
+    BOOL reading = !request.HTTPMethod || [request.HTTPMethod isEqualToString:@"GET"];
+    return reading && url && astral::isCurrentUserRequest(Text(url.host), Text(url.path));
+}
+
+@interface AstralNetworkFilter : NSURLProtocol
+@property (nonatomic, strong) NSURLSessionDataTask *forwarded;
+@end
+
+@implementation AstralNetworkFilter
+
++ (BOOL)canInitWithRequest:(NSURLRequest *)request
+{
+    if ([NSURLProtocol propertyForKey:kHandledKey inRequest:request]) return NO;
+    return IsTelemetry(request.URL) || (StaffDevTools() && IsCurrentUser(request));
+}
+
++ (BOOL)canInitWithTask:(NSURLSessionTask *)task
+{
+    if ([task isKindOfClass:NSClassFromString(@"NSURLSessionWebSocketTask")]) return NO;
+    return task.currentRequest && [self canInitWithRequest:task.currentRequest];
+}
+
++ (NSURLRequest *)canonicalRequestForRequest:(NSURLRequest *)request
+{
+    return request;
+}
+
++ (NSURLSession *)forwardingSession
+{
+    static NSURLSession *session;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        NSURLSessionConfiguration *configuration = NSURLSessionConfiguration.defaultSessionConfiguration;
+        configuration.protocolClasses = @[];
+        session = [NSURLSession sessionWithConfiguration:configuration];
+    });
+    return session;
+}
+
+- (void)finishEmpty
+{
+    NSHTTPURLResponse *response = [[NSHTTPURLResponse alloc] initWithURL:self.request.URL
+                                                              statusCode:204
+                                                             HTTPVersion:@"HTTP/1.1"
+                                                            headerFields:@{@"Content-Length" : @"0"}];
+    [self.client URLProtocol:self didReceiveResponse:response cacheStoragePolicy:NSURLCacheStorageNotAllowed];
+    [self.client URLProtocolDidFinishLoading:self];
+}
+
+- (void)forwardMarkingStaff
+{
+    NSMutableURLRequest *request = [self.request mutableCopy];
+    [NSURLProtocol setProperty:@YES forKey:kHandledKey inRequest:request];
+    __weak AstralNetworkFilter *weakSelf = self;
+    self.forwarded = [[AstralNetworkFilter forwardingSession]
+        dataTaskWithRequest:request
+          completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+              AstralNetworkFilter *strongSelf = weakSelf;
+              if (!strongSelf) return;
+              if (error || !response) {
+                  [strongSelf.client URLProtocol:strongSelf
+                                didFailWithError:error ?: [NSError errorWithDomain:NSURLErrorDomain code:NSURLErrorUnknown userInfo:nil]];
+                  return;
+              }
+              NSData *body = data ?: [NSData data];
+              NSURLResponse *delivered = response;
+              NSHTTPURLResponse *http = [response isKindOfClass:NSHTTPURLResponse.class] ? (NSHTTPURLResponse *)response : nil;
+              if (http.statusCode == 200 && body.length) {
+                  auto marked = astral::withStaffUser(std::string_view((const char *)body.bytes, body.length));
+                  if (marked) {
+                      body = [NSData dataWithBytes:marked->data() length:marked->size()];
+                      NSMutableDictionary *headers = [http.allHeaderFields mutableCopy];
+                      [headers removeObjectForKey:@"Content-Encoding"];
+                      headers[@"Content-Length"] = [NSString stringWithFormat:@"%lu", (unsigned long)body.length];
+                      delivered = [[NSHTTPURLResponse alloc] initWithURL:http.URL
+                                                              statusCode:200
+                                                             HTTPVersion:@"HTTP/1.1"
+                                                            headerFields:headers];
+                      gStaffUsers++;
+                  }
+              }
+              [strongSelf.client URLProtocol:strongSelf didReceiveResponse:delivered cacheStoragePolicy:NSURLCacheStorageNotAllowed];
+              [strongSelf.client URLProtocol:strongSelf didLoadData:body];
+              [strongSelf.client URLProtocolDidFinishLoading:strongSelf];
+          }];
+    [self.forwarded resume];
+}
+
+- (void)startLoading
+{
+    if (IsTelemetry(self.request.URL)) {
+        gBlocked++;
+        [self finishEmpty];
+        return;
+    }
+    [self forwardMarkingStaff];
+}
+
+- (void)stopLoading
+{
+    [self.forwarded cancel];
+    self.forwarded = nil;
+}
+
+@end
+
+static NSURLSessionConfiguration *Filtered(NSURLSessionConfiguration *configuration)
+{
+    if (!configuration) return configuration;
+    NSArray *classes = configuration.protocolClasses ?: @[];
+    if ([classes containsObject:AstralNetworkFilter.class]) return configuration;
+    NSURLSessionConfiguration *copy = [configuration copy];
+    copy.protocolClasses = [@[ AstralNetworkFilter.class ] arrayByAddingObjectsFromArray:classes];
+    return copy;
+}
+
+static id (*gOriginalSessionWithConfigurationDelegate)(id, SEL, NSURLSessionConfiguration *, id, NSOperationQueue *);
+
+static id SessionWithConfigurationDelegate(id self, SEL selector, NSURLSessionConfiguration *configuration, id delegate,
+                                           NSOperationQueue *queue)
+{
+    return gOriginalSessionWithConfigurationDelegate(self, selector, Filtered(configuration), delegate, queue);
+}
+
+static id (*gOriginalSessionWithConfiguration)(id, SEL, NSURLSessionConfiguration *);
+
+static id SessionWithConfiguration(id self, SEL selector, NSURLSessionConfiguration *configuration)
+{
+    return gOriginalSessionWithConfiguration(self, selector, Filtered(configuration));
+}
+
+typedef void (^MessageHandler)(NSURLSessionWebSocketMessage *, NSError *);
+
+static void (*gOriginalReceive)(id, SEL, MessageHandler);
+
+static NSURLSessionWebSocketMessage *WithStaffReady(NSURLSessionWebSocketMessage *message)
+{
+    if (!message || !StaffDevTools()) return message;
+    if (message.type != NSURLSessionWebSocketMessageTypeString) {
+        gCompressedFrames++;
+        return message;
+    }
+    auto marked = astral::withStaffReady(Text(message.string));
+    if (!marked) return message;
+    gStaffReadies++;
+    AstralDevAppendLog(@"network filter: marked the account as staff in READY");
+    return [[NSURLSessionWebSocketMessage alloc] initWithString:[NSString stringWithUTF8String:marked->c_str()] ?: message.string];
+}
+
+static void Receive(id self, SEL selector, MessageHandler handler)
+{
+    if (!handler) {
+        gOriginalReceive(self, selector, handler);
+        return;
+    }
+    gOriginalReceive(self, selector, ^(NSURLSessionWebSocketMessage *message, NSError *error) {
+        handler(WithStaffReady(message), error);
+    });
+}
+
+static NSURL *WithoutGatewayCompression(NSURL *url)
+{
+    if (!url || !StaffDevTools() || ![url.host hasPrefix:@"gateway"]) return url;
+    NSURLComponents *components = [NSURLComponents componentsWithURL:url resolvingAgainstBaseURL:NO];
+    NSMutableArray<NSURLQueryItem *> *items = [NSMutableArray array];
+    for (NSURLQueryItem *item in components.queryItems) {
+        if (![item.name isEqualToString:@"compress"]) [items addObject:item];
+    }
+    components.queryItems = items;
+    AstralDevAppendLog([NSString stringWithFormat:@"network filter: gateway %@ -> %@", url.query ?: @"", components.query ?: @""]);
+    return components.URL ?: url;
+}
+
+static id (*gOriginalWebSocketWithURL)(id, SEL, NSURL *);
+
+static id WebSocketWithURL(id self, SEL selector, NSURL *url)
+{
+    return gOriginalWebSocketWithURL(self, selector, WithoutGatewayCompression(url));
+}
+
+static id (*gOriginalWebSocketWithURLProtocols)(id, SEL, NSURL *, NSArray *);
+
+static id WebSocketWithURLProtocols(id self, SEL selector, NSURL *url, NSArray *protocols)
+{
+    return gOriginalWebSocketWithURLProtocols(self, selector, WithoutGatewayCompression(url), protocols);
+}
+
+static id (*gOriginalWebSocketWithRequest)(id, SEL, NSURLRequest *);
+
+static id WebSocketWithRequest(id self, SEL selector, NSURLRequest *request)
+{
+    NSURL *url = WithoutGatewayCompression(request.URL);
+    if (url == request.URL) return gOriginalWebSocketWithRequest(self, selector, request);
+    NSMutableURLRequest *changed = [request mutableCopy];
+    changed.URL = url;
+    return gOriginalWebSocketWithRequest(self, selector, changed);
+}
+
+static void Swizzle(Class cls, SEL selector, IMP replacement, IMP *original)
+{
+    Method method = cls ? class_getInstanceMethod(cls, selector) : nil;
+    if (!method) return;
+    if (class_addMethod(cls, selector, replacement, method_getTypeEncoding(method))) {
+        *original = method_getImplementation(method);
+        return;
+    }
+    *original = method_setImplementation(method, replacement);
+}
+
+void AstralInstallNetworkFilter(BOOL (^staffDevTools)(void))
+{
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        gStaffDevTools = [staffDevTools copy];
+        [NSURLProtocol registerClass:AstralNetworkFilter.class];
+        Class sessionMeta = object_getClass(NSURLSession.class);
+        Swizzle(sessionMeta, @selector(sessionWithConfiguration:delegate:delegateQueue:), (IMP)SessionWithConfigurationDelegate,
+                (IMP *)&gOriginalSessionWithConfigurationDelegate);
+        Swizzle(sessionMeta, @selector(sessionWithConfiguration:), (IMP)SessionWithConfiguration,
+                (IMP *)&gOriginalSessionWithConfiguration);
+        Class session = NSClassFromString(@"__NSURLSessionLocal") ?: NSURLSession.class;
+        Swizzle(session, @selector(webSocketTaskWithURL:), (IMP)WebSocketWithURL, (IMP *)&gOriginalWebSocketWithURL);
+        Swizzle(session, @selector(webSocketTaskWithURL:protocols:), (IMP)WebSocketWithURLProtocols,
+                (IMP *)&gOriginalWebSocketWithURLProtocols);
+        Swizzle(session, @selector(webSocketTaskWithRequest:), (IMP)WebSocketWithRequest, (IMP *)&gOriginalWebSocketWithRequest);
+        Class webSocket = NSClassFromString(@"__NSURLSessionWebSocketTask") ?: NSClassFromString(@"NSURLSessionWebSocketTask");
+        Swizzle(webSocket, @selector(receiveMessageWithCompletionHandler:), (IMP)Receive, (IMP *)&gOriginalReceive);
+    });
+}
+
+NSDictionary *AstralNetworkFilterStats(void)
+{
+    return @{
+        @"blocked" : @(gBlocked.load()),
+        @"staffUsers" : @(gStaffUsers.load()),
+        @"staffReadies" : @(gStaffReadies.load()),
+        @"compressedFrames" : @(gCompressedFrames.load()),
+    };
+}
