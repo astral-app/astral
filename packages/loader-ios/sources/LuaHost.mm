@@ -21,6 +21,8 @@ extern "C" {
 #include "lualib.h"
 }
 
+#include "AstralPrelude.h"
+
 static const size_t kMemoryLimit = 8u << 20;
 static const size_t kSourceLimit = 256u << 10;
 static const int kBudgetSlices = 40;
@@ -477,6 +479,15 @@ static void OpenSafeLibraries(lua_State *state)
     }
 }
 
+static bool RunPrelude(LuaPlugin *plugin)
+{
+    if (luaL_loadbufferx(plugin->state, kAstralPrelude, sizeof(kAstralPrelude) - 1, "=astral", "t") != LUA_OK) {
+        Report(plugin, "prelude");
+        return false;
+    }
+    return Call(plugin, 0, 0, "prelude");
+}
+
 static void Stop(LuaPlugin *plugin)
 {
     if (plugin->state) lua_close(plugin->state);
@@ -508,6 +519,11 @@ static bool Start(LuaPlugin *plugin)
     if (!plugin->state) return false;
     OpenSafeLibraries(plugin->state);
     InstallAPI(plugin);
+    if (!RunPrelude(plugin)) {
+        MarkFailed(plugin);
+        Stop(plugin);
+        return false;
+    }
     if (luaL_loadbufferx(plugin->state, plugin->source.data(), plugin->source.size(), ("=" + plugin->identifier).c_str(), "t") != LUA_OK) {
         Report(plugin, "load");
         MarkFailed(plugin);

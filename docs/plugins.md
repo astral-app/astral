@@ -19,7 +19,7 @@ Cards show each author's avatar the way Unbound does: Discord's local user cache
 ```
 plugins/<name>/manifest.toml   {"id", "name", "description", "authors": [{"name", "id"}], "version", "main": "main.lua"}
 plugins/<name>/main.lua        at most 256 KB
-plugins/<name>/tests/*.lua     run by tools/test.sh against a mocked `astral` table
+plugins/<name>/tests/*.lua     run by tools/test.sh against a mocked `astral` table and the prelude
 ```
 
 Bundled plugins ship in the package's resource directory (`/var/jb/usr/lib/astral` when jailbroken, `Astral.bundle` inside the app when sideloaded). Plugins installed from the marketplace live in `Documents/astral/plugins` and take precedence over bundled ones with the same id.
@@ -37,15 +37,34 @@ Each plugin gets its own `lua_State` with `base`, `table`, `string`, `math`, `ut
 | Call | Purpose |
 | --- | --- |
 | `astral.log(...)`, `astral.id`, `astral.api` | Logging and identity |
-| `astral.settings.switch(key, title, default, { subtitle, section })` | A switch on the plugin's settings page, grouped by section |
-| `astral.settings.choice(key, title, options, default, { section })` | Radio rows; `options` are `{ value, title, subtitle }` |
-| `astral.settings.get/set`, `astral.on_setting(key, value)` | Persisted values |
-| `astral.ui.decorate("message.author", fn)` | `fn(node)` returns pills `{ text, color, text_color, colors, shape }` shown after the guild tag |
-| `astral.ui.relabel(target, fn)` | `fn(node)` returns new text; plugins chain. Targets: `message.author` (authors and reply previews, `node.kind` `"author"`/`"reply"`), `channel.name` (channel list rows, `node.channel_id`), `member.name` (member list rows, `node.user_id`), `composer.placeholder` |
+| `astral.settings.section(title)` | A settings section; `section:switch(key, title, default, subtitle)` and `section:choice(key, title, options, default, subtitle)` declare rows and return the current value |
+| `astral.settings.switch/choice(key, title, ..., { subtitle, section })` | The same rows without a section object |
+| `astral.settings.option(value, title, subtitle)` | One choice option |
+| `astral.settings.values` | Live values of every declared setting, kept current by the loader |
+| `astral.settings.on_change(key, fn)`, `astral.settings.get/set` | Change listeners and persisted values |
+| `astral.ui.decorate(Target.MessageAuthor, fn)` | `fn(node)` returns a `Pill`, a list of pills, or plain `{ text, color, colors, text_color, shape }` tables, shown after the guild tag |
+| `astral.ui.relabel(target, fn)` | `fn(node)` returns new text; plugins chain. Targets: `MessageAuthor` (authors and reply previews, `node.kind` `NodeKind.Author`/`NodeKind.Reply`), `ChannelName`, `MemberName`, `ComposerPlaceholder` |
+| `node:message()`, `node:guild()`, `node:member()`, `node:user()`, `node:permissions()`, `node:is_bot()` | Cached lookups for the node a callback receives |
 | `astral.discord.guild/member/message/user/nickname/channel_guild/permissions` | Read-only views of Discord's own cache; messages carry `type`, `author` and `reference`, permissions apply channel overwrites |
-| `astral.discord.permission.*` | Permission bits |
+| `astral.permissions.any/all/combine(granted, Permission.X, ...)` | Permission checks |
 
-A pill with two or three `colors` draws Phoenix's native `backgroundGradient`; `shape = "op"` draws Discord's original poster style.
+## Builtins
+
+The loader runs a prelude (`packages/core/lua/prelude.lua`, compiled into the loader) before each plugin:
+
+| Builtin | Purpose |
+| --- | --- |
+| `astral.Target`, `NodeKind`, `Shape`, `MessageType`, `Permission` | Read-only enums; reading a member that does not exist is an error |
+| `astral.Color` | `Color.hex("#5865F2")`, `Color.rgb(r, g, b, a)`, `Color.from(value)`, `:opaque()`, `:with_alpha(a)`, `:luminance()`, `Color.contrasting(backgrounds)`, `Color.Black/White/Blurple` |
+| `astral.Pill` | `Pill("Mod"):color("#4E7FFF")`, `:gradient(colors)`, `:shaped(Shape.Op)`, `:text_colored(color)`; the text colour defaults to the best contrast |
+| `astral.class(name, parent)`, `astral.enum(name, members)` | Classes with `.new`/call construction, `init`, `is` and inheritance; frozen enums |
+| `astral.list.map/filter/find/contains/push_unique` | List helpers |
+
+A pill with two or three colours draws Phoenix's native `backgroundGradient`; `Shape.Op` draws Discord's original poster style.
+
+## Autocomplete
+
+`sdk/types/astral.lua` describes the whole API for lua-language-server (the Lua extension in VS Code, Zed, Neovim and others), and `.luarc.json` loads it, so `astral.` completes, enums list their members and typos are flagged. Plugins outside this repository copy `sdk/types` and point `workspace.library` at it. `tools/lint.sh` runs the same checks on every plugin.
 
 ## Decorations
 

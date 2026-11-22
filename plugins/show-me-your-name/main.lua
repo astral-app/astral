@@ -1,31 +1,17 @@
-local AUTOMOD_MESSAGE_TYPE = 24
+local MessageType, NodeKind = astral.MessageType, astral.NodeKind
+local option = astral.settings.option
+local settings = astral.settings.values
 local t = astral.i18n.t
 
-local MODES = {
-	{ value = "nick-user", title = t("MODE_NICK_USER"), subtitle = t("MODE_NICK_USER_SUBTITLE") },
-	{ value = "user-nick", title = t("MODE_USER_NICK"), subtitle = t("MODE_USER_NICK_SUBTITLE") },
-	{ value = "user", title = t("MODE_USER"), subtitle = t("MODE_USER_SUBTITLE") },
-}
-
-local settings = {
-	mode = astral.settings.choice("mode", t("DISPLAY_MODE"), MODES, "nick-user", { section = t("PREFERENCES") }),
-	friendNicknames = astral.settings.switch("friendNicknames", t("FRIEND_NICKNAMES"), true, {
-		subtitle = t("FRIEND_NICKNAMES_SUBTITLE"),
-		section = t("PREFERENCES"),
-	}),
-	displayNames = astral.settings.switch("displayNames", t("DISPLAY_NAMES"), false, {
-		subtitle = t("DISPLAY_NAMES_SUBTITLE"),
-		section = t("PREFERENCES"),
-	}),
-	inReplies = astral.settings.switch("inReplies", t("IN_REPLIES"), false, {
-		subtitle = t("IN_REPLIES_SUBTITLE"),
-		section = t("PREFERENCES"),
-	}),
-}
-
-function astral.on_setting(key, value)
-	settings[key] = value
-end
+local preferences = astral.settings.section(t("PREFERENCES"))
+preferences:choice("mode", t("DISPLAY_MODE"), {
+	option("nick-user", t("MODE_NICK_USER"), t("MODE_NICK_USER_SUBTITLE")),
+	option("user-nick", t("MODE_USER_NICK"), t("MODE_USER_NICK_SUBTITLE")),
+	option("user", t("MODE_USER"), t("MODE_USER_SUBTITLE")),
+}, "nick-user")
+preferences:switch("friendNicknames", t("FRIEND_NICKNAMES"), true, t("FRIEND_NICKNAMES_SUBTITLE"))
+preferences:switch("displayNames", t("DISPLAY_NAMES"), false, t("DISPLAY_NAMES_SUBTITLE"))
+preferences:switch("inReplies", t("IN_REPLIES"), false, t("IN_REPLIES_SUBTITLE"))
 
 local function formatName(displayed, username, nickname, mode)
 	local prefix = displayed:sub(1, 1) == "@" and "@" or ""
@@ -45,11 +31,11 @@ local function formatName(displayed, username, nickname, mode)
 end
 
 local function isAutomod(message)
-	return message ~= nil and message.type == AUTOMOD_MESSAGE_TYPE
+	return message ~= nil and message.type == MessageType.AutoModerationAction
 end
 
 local function authorOf(node, message)
-	if node.kind ~= "reply" then
+	if node.kind ~= NodeKind.Reply then
 		if isAutomod(message) then
 			return nil
 		end
@@ -65,11 +51,8 @@ local function authorOf(node, message)
 	return replied.author
 end
 
-astral.ui.relabel("message.author", function(node)
-	if not node.channel_id then
-		return nil
-	end
-	local message = astral.discord.message(node.channel_id, node.message_id)
+astral.ui.relabel(astral.Target.MessageAuthor, function(node)
+	local message = node:message()
 	if not message then
 		return nil
 	end

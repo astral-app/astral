@@ -54,6 +54,7 @@ astral = {
 		end,
 	},
 	discord = {
+		permission = {},
 		message = function(channel, message)
 			return messages[channel .. ":" .. message]
 		end,
@@ -63,6 +64,7 @@ astral = {
 	},
 }
 
+dofile(arg[2])
 dofile(arg[1])
 
 local function label(kind, message, text)

@@ -83,6 +83,7 @@ astral = {
 		end,
 	},
 }
+dofile(arg[2])
 dofile(arg[1])
 local function node(user)
 	return { user_id = user, guild_id = "g", channel_id = "c", message_id = "m" }

@@ -9,10 +9,11 @@ clang -Wall -Wextra -Werror -g -fsanitize=address,undefined tests/phoenix-wire-t
 lua_platform="-DLUA_USE_LINUX"
 [ "$(uname)" = "Darwin" ] && lua_platform="-DLUA_USE_MACOSX"
 cc -O1 "$lua_platform" -w -o "$work/lua" "$root/vendor/lua/onelua.c" -lm
+"$work/lua" "$root/packages/core/tests/prelude-test.lua" "$root/packages/core/lua/prelude.lua"
 for plugin in "$root"/plugins/*/; do
   for test in "$plugin"tests/*.lua; do
     [ -e "$test" ] || continue
-    "$work/lua" "$test" "$plugin/main.lua"
+    "$work/lua" "$test" "$plugin/main.lua" "$root/packages/core/lua/prelude.lua"
   done
 done
 cc -O1 -w -I"$root/vendor/monocypher/src" -I"$root/vendor/monocypher/src/optional" -o "$work/verify-signature" \
