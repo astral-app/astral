@@ -91,7 +91,7 @@ func trackedFiles(patterns ...string) ([]string, error) {
 }
 
 func pluginFolders() ([]string, error) {
-	manifests, err := filepath.Glob(repoPath("packages", "plugins", "*", "manifest.toml"))
+	manifests, err := filepath.Glob(repoPath("packages", "addons", "plugins", "*", "manifest.toml"))
 	if err != nil {
 		return nil, err
 	}

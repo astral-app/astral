@@ -105,7 +105,7 @@ func runPalette(args []string) error {
 	flags := newFlags("palette")
 	source := flags.String("source", "", "decompiled generated-definitions.tsx from Discord's tokens package")
 	origin := flags.String("origin", "", "where the definitions came from, such as \"Discord 355.0 generated-definitions\"")
-	destination := flags.String("output", repoPath("packages", "themes", "palettes", "discord-semantic.toml"), "where to write the palette")
+	destination := flags.String("output", repoPath("packages", "addons", "themes", "palettes", "discord-semantic.toml"), "where to write the palette")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}

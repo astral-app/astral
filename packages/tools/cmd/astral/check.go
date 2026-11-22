@@ -53,7 +53,7 @@ func checkRules() []checkRule {
 			return run(repoPath(), "stylua", append([]string{"--check"}, files...)...)
 		}},
 		{"luacheck", func(path string) bool {
-			return isLua(path) && under(path, "packages/plugins/", "packages/core/lua/", "packages/core/tests/")
+			return isLua(path) && under(path, "packages/addons/plugins/", "packages/core/lua/", "packages/core/tests/")
 		}, func(files []string, _ string) error {
 			return run(repoPath(), "luacheck", append([]string{"--quiet"}, files...)...)
 		}},
@@ -72,9 +72,9 @@ func checkRules() []checkRule {
 			return nativeExtensions[filepath.Ext(path)] && under(path, "packages/core/")
 		}, func(_ []string, work string) error { return testCore(work) }},
 		{"lua tests", func(path string) bool {
-			return under(path, "packages/core/lua/", "packages/core/tests/", "packages/plugins/") && !nativeExtensions[filepath.Ext(path)]
+			return under(path, "packages/core/lua/", "packages/core/tests/", "packages/addons/plugins/") && !nativeExtensions[filepath.Ext(path)]
 		}, func(_ []string, work string) error { return testLua(work) }},
-		{"signatures", func(path string) bool { return under(path, "packages/plugins/", "packages/catalog/", "keys/") },
+		{"signatures", func(path string) bool { return under(path, "packages/addons/plugins/", "packages/catalog/", "keys/") },
 			func(_ []string, work string) error { return testSignatures(work) }},
 	}
 }

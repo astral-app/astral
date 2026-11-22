@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-var luaPaths = []string{"packages/plugins", "packages/core/lua", "packages/core/tests", "packages/sdk"}
+var luaPaths = []string{"packages/addons/plugins", "packages/core/lua", "packages/core/tests", "packages/sdk"}
 
 var nativePatterns = []string{"packages/*.c", "packages/*.h", "packages/*.m", "packages/*.mm", "packages/*.cpp"}
 
@@ -72,7 +72,7 @@ func runLint(args []string) error {
 		func() error { return taplo("lint") },
 		func() error { return taplo("format", "--check") },
 		func() error {
-			return run(repoPath(), "luacheck", "--quiet", "packages/plugins", "packages/core/lua", "packages/core/tests")
+			return run(repoPath(), "luacheck", "--quiet", "packages/addons/plugins", "packages/core/lua", "packages/core/tests")
 		},
 		typecheckLua,
 		func() error { return clangFormat("--dry-run", "-Werror") },

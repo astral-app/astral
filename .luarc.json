@@ -2,7 +2,7 @@
 	"$schema": "https://raw.githubusercontent.com/LuaLS/vscode-lua/master/setting/schema.json",
 	"runtime.version": "Lua 5.4",
 	"workspace.library": ["packages/sdk/library"],
-	"workspace.ignoreDir": ["vendor", "packages/core/lua", "packages/core/tests", "packages/plugins/*/tests", ".theos"],
+	"workspace.ignoreDir": ["vendor", "packages/core/lua", "packages/core/tests", "packages/addons/plugins/*/tests", ".theos"],
 	"workspace.checkThirdParty": false,
 	"diagnostics.globals": ["astral", "arg"]
 }

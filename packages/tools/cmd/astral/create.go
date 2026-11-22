@@ -123,7 +123,7 @@ func runCreate(args []string) error {
 	flags := newFlags("create")
 	name := flags.String("name", "", "display name (default: from the id)")
 	author := flags.String("author", "adrian", "author name")
-	directory := flags.String("dir", "", "where to create it (default: packages/plugins/<slug> in this repository)")
+	directory := flags.String("dir", "", "where to create it (default: packages/addons/plugins/<slug> in this repository)")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -142,7 +142,7 @@ func runCreate(args []string) error {
 	folder := *directory
 	inRepository := folder == ""
 	if inRepository {
-		folder = repoPath("packages", "plugins", slug)
+		folder = repoPath("packages", "addons", "plugins", slug)
 	}
 	if fileExists(folder) {
 		return errors.New(folder + " already exists")

@@ -17,10 +17,10 @@ Cards show each author's avatar the way Unbound does: Discord's local user cache
 ## Package
 
 ```
-packages/plugins/<name>/manifest.toml   {"id", "name", "description", "authors": [{"name", "id"}], "version", "main": "main.lua"}
-packages/plugins/<name>/main.lua        at most 256 KB
-packages/plugins/<name>/**/*.lua        modules, loaded with require("lib.util"), at most 1 MB together
-packages/plugins/<name>/tests/*.lua     run by astral test against a mocked `astral` table and the prelude
+packages/addons/plugins/<name>/manifest.toml   {"id", "name", "description", "authors": [{"name", "id"}], "version", "main": "main.lua"}
+packages/addons/plugins/<name>/main.lua        at most 256 KB
+packages/addons/plugins/<name>/**/*.lua        modules, loaded with require("lib.util"), at most 1 MB together
+packages/addons/plugins/<name>/tests/*.lua     run by astral test against a mocked `astral` table and the prelude
 ```
 
 Bundled plugins ship in the package's resource directory (`/var/jb/usr/lib/astral` when jailbroken, `astral.bundle` inside the app when sideloaded). Plugins installed from the marketplace live in `Documents/astral/plugins` and take precedence over bundled ones with the same id.
@@ -106,4 +106,4 @@ The astral category in Discord's settings has astral, Plugins, Design, Marketpla
 
 A theme (TOML) maps ARGB colours to ARGB colours under `[colors]` (gradient stops included), can replace the stops of Discord's own background gradients, which Nitro app themes draw with, using `[background] gradient = ["#RRGGBB", ...]`, and can scale corner radii (`[radius] scale`) and font sizes and line heights (`[font] scale`). The rewriter applies all of it in place in each batch before Discord's host decodes it, so Discord draws its own views with the theme; astral's own cards are built separately and keep their sizes.
 
-"Import Unbound theme" on the Design page (or `astral dev theme import`) converts an Unbound theme's `raw` and `semanticColors` overrides into colour mappings. Raw names resolve through Discord's raw palette (`packages/themes/palettes/discord-raw.toml`) and semantic tokens through Discord's semantic table (`packages/themes/palettes/discord-semantic.toml`, from `astral palette semantic`), using each token's dark-theme raw colour and opacity, which is what Phoenix sends. Overrides apply wherever Phoenix draws with those values; Nitro app themes paint their own gradient backgrounds, which stay.
+"Import Unbound theme" on the Design page (or `astral dev theme import`) converts an Unbound theme's `raw` and `semanticColors` overrides into colour mappings. Raw names resolve through Discord's raw palette (`packages/addons/themes/palettes/discord-raw.toml`) and semantic tokens through Discord's semantic table (`packages/addons/themes/palettes/discord-semantic.toml`, from `astral palette semantic`), using each token's dark-theme raw colour and opacity, which is what Phoenix sends. Overrides apply wherever Phoenix draws with those values; Nitro app themes paint their own gradient backgrounds, which stay.

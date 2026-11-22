@@ -154,30 +154,35 @@ func fileHash(file string) (string, error) {
 	return hex.EncodeToString(sum[:]), nil
 }
 
+func listRemote(client vphoneClient, directory string, depth int, present map[string]bool) {
+	if depth > 6 {
+		return
+	}
+	var listing struct {
+		Entries []struct {
+			Name string `json:"name"`
+			Type string `json:"type"`
+		} `json:"entries"`
+	}
+	if client.call("files.list", map[string]any{"path": directory, "limit": 1000}, &listing) != nil {
+		return
+	}
+	for _, entry := range listing.Entries {
+		full := path.Join(directory, entry.Name)
+		switch entry.Type {
+		case "directory", "dir":
+			listRemote(client, full, depth+1, present)
+		case "link":
+		default:
+			present[strings.TrimPrefix(full, "/private")] = true
+		}
+	}
+}
+
 func remoteFiles(client vphoneClient, roots ...string) map[string]bool {
 	present := map[string]bool{}
 	for _, root := range roots {
-		cursor := ""
-		for {
-			params := map[string]any{"root": root, "pattern": "/", "limit": 1000}
-			if cursor != "" {
-				params["cursor"] = cursor
-			}
-			var page struct {
-				Matches    []string `json:"matches"`
-				NextCursor string   `json:"next_cursor"`
-			}
-			if err := client.call("files.find", params, &page); err != nil {
-				break
-			}
-			for _, match := range page.Matches {
-				present[strings.TrimPrefix(match, "/private")] = true
-			}
-			if page.NextCursor == "" {
-				break
-			}
-			cursor = page.NextCursor
-		}
+		listRemote(client, root, 0, present)
 	}
 	return present
 }

@@ -239,7 +239,7 @@ func runVphoneSnapshot(args []string) error {
 }
 
 func watchedSources() []string {
-	return []string{repoPath("packages", "ios", "sources"), repoPath("packages", "core"), repoPath("packages", "themes"), repoPath("packages", "plugins")}
+	return []string{repoPath("packages", "ios", "sources"), repoPath("packages", "core"), repoPath("packages", "addons", "themes"), repoPath("packages", "addons", "plugins")}
 }
 
 func newestChange(roots []string) time.Time {

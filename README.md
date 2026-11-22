@@ -10,9 +10,10 @@ astral rewrites the ViewWire batches Discord's Rust guest sends to its Swift hos
 | --- | --- |
 | `packages/ios` | The tweak: ViewWire rewriter, settings pages, Lua host, Discord cache reader |
 | `packages/core` | Shared C++ core and the Lua prelude every plugin runs on |
-| `packages/plugins` | Bundled Lua plugins and their tests |
+| `packages/addons/plugins` | Bundled Lua plugins and their tests |
+| `packages/addons/icon-packs`, `packages/addons/emoji-packs` | Bundled icon packs (PNGs named after Phoenix's icons) and emoji packs (image URL templates and coverage lists) |
 | `packages/sdk` | The plugin API as a lua-language-server addon (`config.json`, `library/`) |
-| `packages/themes`, `packages/catalog` | Bundled themes, Discord's raw palette and the default marketplace catalog |
+| `packages/addons/themes`, `packages/catalog` | Bundled themes, Discord's raw palette and the default marketplace catalog |
 | `packages/assets` | Icon SVGs served as `res://astral_<name>` |
 | `packages/tools` | The `astral` command (Go): tests, lint, signing, packaging, sideload IPAs and device helpers |
 | `keys/` | The public key plugins and the catalog are verified against |

@@ -74,20 +74,20 @@ func stageResources(target string) error {
 		}
 	}
 	copies := [][2]string{
-		{repoPath("packages", "themes", "*.toml"), filepath.Join(target, "themes")},
-		{repoPath("packages", "themes", "palettes", "*.toml"), filepath.Join(target, "palettes")},
+		{repoPath("packages", "addons", "themes", "*.toml"), filepath.Join(target, "themes")},
+		{repoPath("packages", "addons", "themes", "palettes", "*.toml"), filepath.Join(target, "palettes")},
 		{repoPath("packages", "catalog", "index.toml*"), filepath.Join(target, "catalog")},
 		{repoPath("packages", "catalog", "themes", "*.toml"), filepath.Join(target, "catalog", "themes")},
 		{repoPath("packages", "assets", "*.svg"), filepath.Join(target, "assets")},
 	}
-	emojiPacks, err := filepath.Glob(repoPath("packages", "emoji-packs", "*"))
+	emojiPacks, err := filepath.Glob(repoPath("packages", "addons", "emoji-packs", "*"))
 	if err != nil {
 		return err
 	}
 	for _, pack := range emojiPacks {
 		copies = append(copies, [2]string{filepath.Join(pack, "*"), filepath.Join(target, "emoji-packs", filepath.Base(pack))})
 	}
-	packs, err := filepath.Glob(repoPath("packages", "icon-packs", "*"))
+	packs, err := filepath.Glob(repoPath("packages", "addons", "icon-packs", "*"))
 	if err != nil {
 		return err
 	}
