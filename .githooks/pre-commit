@@ -1,5 +1,4 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
-go run ./packages/tools/cmd/astral lint
-go run ./packages/tools/cmd/astral test >/dev/null
+go run ./packages/tools/cmd/astral check --staged

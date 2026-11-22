@@ -84,7 +84,7 @@ func diagnoses(pins map[string]string) []diagnosis {
 	return append(items,
 		diagnosis{"theos", advisory, checkTheos, "run: astral prepare-theos --theos ~/theos"},
 		diagnosis{"gnu make", advisory, checkFile("/opt/homebrew/opt/make/libexec/gnubin/make"), "run: brew install make"},
-		diagnosis{"ldid", advisory, checkTool("ldid", "-h"), "run: brew install ldid"},
+		diagnosis{"ldid", advisory, checkTool("ldid"), "run: brew install ldid"},
 		diagnosis{"android ndk", advisory, checkNDK, "install an NDK with Android Studio or set ANDROID_NDK_HOME"},
 		diagnosis{"vphone-cli", advisory, checkTool("vphone-cli", "--help"), "install vphone-cli for astral vphone"},
 		diagnosis{"ideviceinstaller", advisory, checkTool("ideviceinstaller", "--help"), "run: brew install ideviceinstaller"},

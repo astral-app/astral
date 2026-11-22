@@ -217,3 +217,32 @@ func TestDoctorVersionMatching(t *testing.T) {
 		}
 	}
 }
+
+func plannedNames(changed ...string) string {
+	var names []string
+	for _, step := range affectedChecks(checkRules(), changed) {
+		names = append(names, step.rule.name)
+	}
+	return strings.Join(names, ",")
+}
+
+func TestCheckPicksAffectedSteps(t *testing.T) {
+	cases := map[string]string{
+		"packages/loader-ios/sources/PhoenixWire.c": "clang-format,wire tests",
+		"packages/core/src/LuaSandbox.cpp":          "clang-format,core tests",
+		"packages/tools/cmd/astral/check.go":        "gofmt,go vet and tests",
+		"packages/loader-ios/sources/Themes.mm":     "clang-format",
+		"README.md":                                 "",
+	}
+	for path, want := range cases {
+		if got := plannedNames(path); got != want {
+			t.Fatalf("%s: got %q, want %q", path, got, want)
+		}
+	}
+}
+
+func TestCheckSkipsFileScopedStepsForDeletions(t *testing.T) {
+	if got := plannedNames("packages/core/src/Removed.cpp"); got != "core tests" {
+		t.Fatalf("got %q", got)
+	}
+}
