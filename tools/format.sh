@@ -5,4 +5,4 @@ cd "$root"
 stylua plugins
 RUST_LOG=warn taplo format
 git ls-files -z -- 'packages/*.c' 'packages/*.h' 'packages/*.m' 'packages/*.mm' 'packages/*.cpp' | xargs -0 clang-format -i
-git ls-files -z -- 'tools/*.sh' | xargs -0 shfmt -w -i 2 -ci
+git ls-files -z -- 'tools/*.sh' 'tools/astral-dev' | xargs -0 shfmt -w -i 2 -ci

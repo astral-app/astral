@@ -9,6 +9,7 @@
 #include "LoaderLog.h"
 #include "LoaderSettings.h"
 #import "AstralState.h"
+#import "DevServer.h"
 #import "CrashReports.h"
 #import "AuthorAvatars.h"
 #import "EngineSelection.h"
@@ -180,6 +181,23 @@ static void StartPlugins(void)
     AstralCatalogRefresh(^{
         AstralRefreshPhoenixSettings();
     });
+    AstralAuthorAvatarsOnChange(^{
+        AstralRefreshPhoenixSettings();
+    });
+    AstralStartDevServer(
+        ^BOOL {
+            return settings->getBoolean("astral", "developer-mode", false);
+        },
+        ^{
+            AstralRefreshPhoenixSettings();
+        });
+    AstralStartCrashReports(^NSArray<NSString *> * {
+        NSMutableArray *running = [NSMutableArray array];
+        for (NSDictionary *plugin in AstralLuaPlugins()) {
+            if ([plugin[@"running"] boolValue]) [running addObject:[NSString stringWithFormat:@"%@@%@", plugin[@"id"], plugin[@"version"]]];
+        }
+        return running;
+    });
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 30 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
         loader::LaunchGuard(stateDirectory).succeed();
     });
@@ -220,7 +238,11 @@ __attribute__((constructor)) static void AstralBootstrap(void)
         stateDirectory = String([documents.path stringByAppendingPathComponent:@"astral"]);
         if (!loader::createDirectories(stateDirectory)) return;
         runID = NSUUID.UUID.UUIDString;
-        loader::setSystemLogSink([](loader::LogLevel, const std::string &message) { NSLog(@"astral %s", message.c_str()); });
+        loader::setSystemLogSink([](loader::LogLevel, const std::string &message) {
+            NSString *line = [NSString stringWithUTF8String:message.c_str()] ?: @"";
+            NSLog(@"astral %@", line);
+            AstralDevAppendLog(line);
+        });
         settings = std::make_unique<loader::SettingsStore>(loader::joinPath(stateDirectory, "settings.json"));
         settings->load();
         AstralApplyTheme(AstralActiveThemeID());

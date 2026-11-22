@@ -27,7 +27,7 @@ tools/test.sh
 make -C packages/loader-ios package FINALPACKAGE=1
 ```
 
-`tools/format.sh` formats Lua (StyLua), TOML (Taplo), C and Objective-C (clang-format) and shell (shfmt); `tools/lint.sh` checks the same and lints Lua with luacheck, TOML with Taplo and shell with shellcheck. Plugin manifests, themes and the catalog are TOML; internal state the loader writes stays JSON. `tools/wire-dump.sh` pulls the batches a test device recorded while `Documents/astral/capture-wire` exists and decodes them, with text kept as length and hash.
+`tools/format.sh` formats Lua (StyLua), TOML (Taplo), C and Objective-C (clang-format) and shell (shfmt); `tools/lint.sh` checks the same and lints Lua with luacheck, TOML with Taplo and shell with shellcheck. Plugin manifests, themes and the catalog are TOML; internal state the loader writes stays JSON. With Developer mode on, the loader serves a development API on the device's `127.0.0.1:9324`. `tools/astral-dev` forwards it over USB (`DEVICE=<udid>`) and offers `status`, `push <plugin folder>` (install and hot reload), `watch <plugin folder>` (push on every save), `eval <plugin id> <lua>` (run Lua inside a running plugin) and `logs [-f]`. `tools/wire-dump.sh` pulls the batches a test device recorded while `Documents/astral/capture-wire` exists and decodes them, with text kept as length and hash.
 
 Theos and GNU make are required. `tools/deploy.sh` builds and installs on a jailbroken test device (`DEVICE=<udid>`), and `tools/build-ipa.sh --ipa <decrypted Discord.ipa>` produces a sideloadable IPA.
 

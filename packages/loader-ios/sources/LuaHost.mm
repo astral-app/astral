@@ -10,6 +10,7 @@
 #include "LoaderSettings.h"
 #import "AstralState.h"
 #import "CrashReports.h"
+#import "DevServer.h"
 #import "DiscordCache.h"
 #import "PluginSignature.h"
 
@@ -139,6 +140,7 @@ static void Report(LuaPlugin *plugin, const char *stage)
     plugin->lastError = std::string(stage) + ": " + (message ?: "unknown error");
     lua_pop(plugin->state, 1);
     loader::log(loader::LogLevel::Error, "plugin", plugin->identifier + " " + plugin->lastError);
+    AstralDevAppendLog(Native(plugin->identifier + " error: " + plugin->lastError));
     if (++plugin->errors >= kMaxErrors) MarkFailed(plugin);
 }
 
@@ -162,6 +164,7 @@ static int Log(lua_State *state)
         lua_pop(state, 1);
     }
     loader::log(loader::LogLevel::Info, "plugin", Self(state)->identifier + ": " + line);
+    AstralDevAppendLog(Native(Self(state)->identifier + ": " + line));
     return 0;
 }
 
@@ -660,6 +663,38 @@ void AstralLuaResetSettings(NSString *pluginID)
     for (auto &entry : plugin->switches) gStore->remove("plugins", SettingKey(plugin, entry.key));
     gStore->save();
     if (plugin->state) Start(plugin);
+}
+
+NSString *AstralLuaEval(NSString *pluginID, NSString *code)
+{
+    std::lock_guard<std::recursive_mutex> lock(gMutex);
+    LuaPlugin *plugin = Find(pluginID);
+    if (!plugin) return @"error: no such plugin";
+    if (!plugin->state) return @"error: the plugin is not running";
+    lua_State *state = plugin->state;
+    int top = lua_gettop(state);
+    std::string source = code.UTF8String ?: "";
+    std::string expression = "return " + source;
+    if (luaL_loadbufferx(state, expression.data(), expression.size(), "=eval", "t") != LUA_OK) {
+        lua_pop(state, 1);
+        if (luaL_loadbufferx(state, source.data(), source.size(), "=eval", "t") != LUA_OK) {
+            NSString *message = Native(lua_tostring(state, -1) ?: "syntax error");
+            lua_settop(state, top);
+            return [@"error: " stringByAppendingString:message];
+        }
+    }
+    plugin->budget = kBudgetSlices;
+    lua_sethook(state, Budget, LUA_MASKCOUNT, kSliceInstructions);
+    int status = lua_pcall(state, 0, LUA_MULTRET, 0);
+    lua_sethook(state, nullptr, 0, 0);
+    NSMutableArray *parts = [NSMutableArray array];
+    for (int index = top + 1; index <= lua_gettop(state); index++) {
+        [parts addObject:Native(luaL_tolstring(state, index, nullptr))];
+        lua_pop(state, 1);
+    }
+    lua_settop(state, top);
+    NSString *joined = [parts componentsJoinedByString:@"\t"];
+    return status == LUA_OK ? joined : [@"error: " stringByAppendingString:joined];
 }
 
 void AstralLuaRemove(NSString *pluginID)
