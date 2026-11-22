@@ -1,0 +1,9 @@
+Package: app.astral.ios
+Name: astral
+Version: 0.0.1
+Architecture: iphoneos-arm64
+Description: Native Phoenix client mod with Lua plugins
+Maintainer: astral
+Author: astral
+Section: Tweaks
+Depends: ellekit, firmware (>= 18.0)
