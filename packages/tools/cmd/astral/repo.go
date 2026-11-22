@@ -83,7 +83,7 @@ func output(directory string, name string, args ...string) (string, error) {
 }
 
 func trackedFiles(patterns ...string) ([]string, error) {
-	listing, err := output(repoPath(), "git", append([]string{"ls-files", "--"}, patterns...)...)
+	listing, err := output(repoPath(), "git", append([]string{"ls-files", "--cached", "--others", "--exclude-standard", "--"}, patterns...)...)
 	if err != nil {
 		return nil, err
 	}

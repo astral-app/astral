@@ -1,11 +1,13 @@
 #include <cassert>
 #include <cstdio>
 #include <filesystem>
+#include <fstream>
 #include <string>
 
 #include "LuaJSON.h"
 #include "LuaLocale.h"
 #include "LuaSandbox.h"
+#include "PluginPackage.h"
 #include "PluginStorage.h"
 
 extern "C" {
@@ -113,6 +115,47 @@ static void testPluginStorage(const std::string &directory)
     assert(storage.keys("one").empty());
 }
 
+static void writeText(const std::filesystem::path &path, const std::string &text)
+{
+    std::filesystem::create_directories(path.parent_path());
+    std::ofstream(path) << text;
+}
+
+static void testPluginPackage(const std::string &directory)
+{
+    std::filesystem::path root = std::filesystem::path(directory) / "plugin";
+    std::filesystem::remove_all(root);
+    writeText(root / "manifest.toml", "id = \"astral.sample\"\nname = \"Sample\"\nversion = \"1.0\"\nauthors = [\"adrian\", { name = "
+                                      "\"rae\", id = \"42\" }]\npermissions = [\"storage\"]\n");
+    writeText(root / "main.lua", "return 1");
+    writeText(root / "lib" / "util.lua", "return {}");
+    writeText(root / "tests" / "sample.lua", "print(1)");
+    writeText(root / "i18n" / "en-US.toml", "HELLO = \"Hello {name}\"\nONLY = \"English only\"\n");
+    writeText(root / "i18n" / "de.toml", "HELLO = \"Hallo {name}\"\n");
+    auto package = astral::loadPluginPackage(root.string(), {"de-AT"});
+    assert(package);
+    assert(package->identifier == "astral.sample" && package->version == "1.0" && package->main == "main.lua");
+    assert(package->authors.size() == 2 && package->authors[1].second == "42");
+    assert(package->permissions.count("storage"));
+    assert(package->modules.size() == 1 && package->modules.count("lib.util"));
+    assert(package->locale == "de");
+    assert(package->translate("HELLO", {{"name", "astral"}}) == "Hallo astral");
+    assert(package->translate("ONLY", {}) == "English only");
+    assert(package->translate("MISSING", {}) == "MISSING");
+    writeText(root / "manifest.toml", "id = \"Bad Id\"\nname = \"Sample\"\n");
+    assert(!astral::loadPluginPackage(root.string(), {}));
+}
+
+static void testPluginHealth()
+{
+    astral::PluginHealth health;
+    assert(!health.recordError("start", "boom", 2));
+    assert(health.recordError("start", "again", 2) && health.failed && health.lastError == "start: again");
+    assert(!health.markFailed());
+    health.reset();
+    assert(!health.failed && health.errors == 0 && health.lastError.empty());
+}
+
 int main(int argc, char **argv)
 {
     assert(argc == 2);
@@ -127,6 +170,8 @@ int main(int argc, char **argv)
     testFillPlaceholders();
     testPluginIdentifiers();
     testPluginStorage(argv[1]);
+    testPluginPackage(argv[1]);
+    testPluginHealth();
     puts("ok");
     return 0;
 }

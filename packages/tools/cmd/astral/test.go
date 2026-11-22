@@ -45,7 +45,7 @@ func testWire(work string) error {
 	return run(ios, binary)
 }
 
-var coreLuaSources = []string{"LuaSandbox", "LuaJSON", "LuaLocale", "PluginStorage"}
+var coreLuaSources = []string{"LuaSandbox", "LuaJSON", "LuaLocale", "PluginPackage", "PluginStorage"}
 
 func testCore(work string) error {
 	object := filepath.Join(work, "lua-core.o")
@@ -56,7 +56,8 @@ func testCore(work string) error {
 	binary := filepath.Join(work, "lua-core-test")
 	arguments := []string{"-std=c++20", "-Wall", "-Wextra", "-Werror", "-g", "-fsanitize=address,undefined",
 		"-I" + repoPath("packages", "core", "include"), "-I" + repoPath("vendor", "lua"),
-		"-isystem", repoPath("vendor", "json", "single_include"), repoPath("packages", "core", "tests", "lua-core-test.cpp")}
+		"-isystem", repoPath("vendor", "json", "single_include"), "-isystem", repoPath("vendor", "tomlplusplus", "include"),
+		repoPath("packages", "core", "tests", "lua-core-test.cpp")}
 	for _, source := range coreLuaSources {
 		arguments = append(arguments, repoPath("packages", "core", "src", source+".cpp"))
 	}

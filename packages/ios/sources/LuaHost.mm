@@ -15,6 +15,7 @@
 #include "LuaJSON.h"
 #include "LuaLocale.h"
 #include "LuaSandbox.h"
+#include "PluginPackage.h"
 #include "PluginStorage.h"
 #import "AstralState.h"
 #import "CrashReports.h"
@@ -54,32 +55,15 @@ struct LuaSwitch {
     std::string fallbackChoice;
 };
 
-struct LuaPlugin {
-    std::string identifier;
-    std::string name;
-    std::string version;
-    std::string description;
-    std::string icon;
-    std::string iconSvg;
-    std::vector<std::pair<std::string, std::string>> authors;
-    std::string directory;
+struct LuaPlugin : astral::PluginPackage, astral::PluginHealth {
     bool bundled = false;
     bool signedByAstral = false;
-    std::string source;
+    bool enabled = false;
     std::unique_ptr<astral::lua::Sandbox> sandbox;
     lua_State *state = nullptr;
-    int errors = 0;
-    bool enabled = false;
-    bool failed = false;
-    std::string lastError;
     std::vector<LuaSwitch> switches;
     std::vector<std::pair<std::string, int>> decorators;
-    std::map<std::string, std::string> strings;
-    std::map<std::string, std::string> fallbackStrings;
-    std::string locale;
     std::vector<std::pair<std::string, int>> relabelers;
-    std::map<std::string, std::string> modules;
-    std::set<std::string> permissions;
 };
 
 static int Translate(lua_State *state);
@@ -123,19 +107,22 @@ static LuaPlugin *Self(lua_State *state)
     return static_cast<LuaPlugin *>(lua_touserdata(state, lua_upvalueindex(1)));
 }
 
+static void RecordFailure(LuaPlugin *plugin)
+{
+    AstralRecordPluginFailure(Native(plugin->identifier), Native(plugin->name), Native(plugin->lastError));
+}
+
 static void MarkFailed(LuaPlugin *plugin)
 {
-    if (plugin->failed) return;
-    plugin->failed = true;
-    AstralRecordPluginFailure(Native(plugin->identifier), Native(plugin->name), Native(plugin->lastError));
+    if (plugin->markFailed()) RecordFailure(plugin);
 }
 
 static void Report(LuaPlugin *plugin, const char *stage, const std::string &message)
 {
-    plugin->lastError = std::string(stage) + ": " + message;
+    bool failedNow = plugin->recordError(stage, message, kMaxErrors);
     astral::log(astral::LogLevel::Error, "plugin", plugin->identifier + " " + plugin->lastError);
     AstralDevAppendLog(Native(plugin->identifier + " error: " + plugin->lastError));
-    if (++plugin->errors >= kMaxErrors) MarkFailed(plugin);
+    if (failedNow) RecordFailure(plugin);
 }
 
 static bool Call(LuaPlugin *plugin, int arguments, int results, const char *stage)
@@ -599,9 +586,7 @@ static bool Start(LuaPlugin *plugin)
         return false;
     }
     Stop(plugin);
-    plugin->errors = 0;
-    plugin->failed = false;
-    plugin->lastError.clear();
+    plugin->reset();
     plugin->sandbox = std::make_unique<astral::lua::Sandbox>(astral::lua::SandboxLimits{kMemoryLimit, kBudgetSlices, kSliceInstructions});
     plugin->state = plugin->sandbox->state();
     if (!plugin->state) {
@@ -629,16 +614,6 @@ static bool Start(LuaPlugin *plugin)
     return true;
 }
 
-static std::map<std::string, std::string> LoadStrings(NSString *path)
-{
-    std::map<std::string, std::string> strings;
-    NSDictionary *table = AstralParseTOML([NSData dataWithContentsOfFile:path]);
-    for (NSString *key in table) {
-        if ([table[key] isKindOfClass:NSString.class]) strings[key.UTF8String] = [table[key] UTF8String];
-    }
-    return strings;
-}
-
 static std::vector<std::string> PreferredLanguages(void)
 {
     std::vector<std::string> languages;
@@ -646,41 +621,10 @@ static std::vector<std::string> PreferredLanguages(void)
     return languages;
 }
 
-static NSString *BestLocale(NSArray<NSString *> *available)
-{
-    std::vector<std::string> names;
-    for (NSString *locale in available) names.push_back(locale.UTF8String);
-    auto best = astral::lua::bestLocale(names, PreferredLanguages());
-    return best ? Native(*best) : nil;
-}
-
-static void LoadTranslations(LuaPlugin *plugin, NSString *directory)
-{
-    NSString *folder = [directory stringByAppendingPathComponent:@"i18n"];
-    NSMutableArray<NSString *> *available = [NSMutableArray array];
-    for (NSString *entry in [NSFileManager.defaultManager contentsOfDirectoryAtPath:folder error:nil]) {
-        if ([entry.pathExtension isEqualToString:@"toml"]) [available addObject:entry.stringByDeletingPathExtension];
-    }
-    NSString *locale = BestLocale(available);
-    NSString *english = BestLocale([available filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"SELF BEGINSWITH 'en'"]]);
-    if (locale) {
-        plugin->locale = locale.UTF8String;
-        plugin->strings = LoadStrings([folder stringByAppendingPathComponent:[locale stringByAppendingPathExtension:@"toml"]]);
-    }
-    if (english)
-        plugin->fallbackStrings = LoadStrings([folder stringByAppendingPathComponent:[english stringByAppendingPathExtension:@"toml"]]);
-}
-
 static int Translate(lua_State *state)
 {
     LuaPlugin *plugin = Self(state);
     std::string key = luaL_checkstring(state, 1);
-    auto found = plugin->strings.find(key);
-    std::string text = found != plugin->strings.end() ? found->second : key;
-    if (found == plugin->strings.end()) {
-        auto fallback = plugin->fallbackStrings.find(key);
-        if (fallback != plugin->fallbackStrings.end()) text = fallback->second;
-    }
     std::vector<std::pair<std::string, std::string>> values;
     if (lua_istable(state, 2)) {
         lua_pushnil(state);
@@ -693,70 +637,18 @@ static int Translate(lua_State *state)
             lua_pop(state, 1);
         }
     }
-    text = astral::lua::fillPlaceholders(text, values);
+    std::string text = plugin->translate(key, values);
     lua_pushstring(state, text.c_str());
     return 1;
 }
 
-static bool LoadModules(LuaPlugin *plugin, NSString *directory, NSString *main)
-{
-    size_t total = 0;
-    NSDirectoryEnumerator *walker = [NSFileManager.defaultManager enumeratorAtPath:directory];
-    for (NSString *path in walker) {
-        if (walker.level > 4 || [path hasPrefix:@"tests/"] || [path isEqualToString:@"tests"]) {
-            if ([path isEqualToString:@"tests"]) [walker skipDescendants];
-            continue;
-        }
-        if (![path.pathExtension isEqualToString:@"lua"] || [path isEqualToString:main]) continue;
-        NSData *data = [NSData dataWithContentsOfFile:[directory stringByAppendingPathComponent:path]];
-        if (!data) return false;
-        total += data.length;
-        if (total > kModulesLimit) return false;
-        NSString *name = [path.stringByDeletingPathExtension stringByReplacingOccurrencesOfString:@"/" withString:@"."];
-        plugin->modules[name.UTF8String] = std::string(static_cast<const char *>(data.bytes), data.length);
-    }
-    return true;
-}
-
 static LuaPlugin *Load(NSString *directory)
 {
-    NSData *manifestData = [NSData dataWithContentsOfFile:[directory stringByAppendingPathComponent:@"manifest.toml"]];
-    NSDictionary *manifest = AstralParseTOML(manifestData);
-    if (![manifest isKindOfClass:NSDictionary.class]) return nullptr;
-    NSString *identifier = manifest[@"id"], *name = manifest[@"name"], *main = manifest[@"main"] ?: @"main.lua";
-    if (![identifier isKindOfClass:NSString.class] || !astral::lua::validPluginIdentifier(identifier.UTF8String) ||
-        ![name isKindOfClass:NSString.class] || ![main isKindOfClass:NSString.class] || [main containsString:@"/"])
-        return nullptr;
-    NSData *source = [NSData dataWithContentsOfFile:[directory stringByAppendingPathComponent:main]];
-    if (!source || source.length > kSourceLimit) return nullptr;
+    auto package = astral::loadPluginPackage(directory.fileSystemRepresentation ?: "", PreferredLanguages(), {kSourceLimit, kModulesLimit});
+    if (!package) return nullptr;
     LuaPlugin *plugin = new LuaPlugin();
-    plugin->signedByAstral = AstralVerifyPluginDirectory(directory, main);
-    LoadTranslations(plugin, directory);
-    plugin->identifier = identifier.UTF8String;
-    plugin->name = [name substringToIndex:MIN(name.length, (NSUInteger)48)].UTF8String;
-    plugin->version = [manifest[@"version"] isKindOfClass:NSString.class] ? [manifest[@"version"] UTF8String] : "";
-    plugin->description = [manifest[@"description"] isKindOfClass:NSString.class] ? [manifest[@"description"] UTF8String] : "";
-    plugin->icon = [manifest[@"icon"] isKindOfClass:NSString.class] ? [manifest[@"icon"] UTF8String] : "";
-    plugin->iconSvg = [manifest[@"iconSvg"] isKindOfClass:NSString.class] && [manifest[@"iconSvg"] length] < 16384
-                          ? [manifest[@"iconSvg"] UTF8String]
-                          : "";
-    for (id author in [manifest[@"authors"] isKindOfClass:NSArray.class] ? manifest[@"authors"] : @[]) {
-        NSString *authorName = [author isKindOfClass:NSDictionary.class] ? author[@"name"] : author;
-        NSString *authorID =
-            [author isKindOfClass:NSDictionary.class] && [author[@"id"] isKindOfClass:NSString.class] ? author[@"id"] : @"";
-        if ([authorName isKindOfClass:NSString.class] && plugin->authors.size() < 12) {
-            plugin->authors.push_back({authorName.UTF8String, authorID.UTF8String});
-        }
-    }
-    plugin->directory = directory.UTF8String;
-    plugin->source.assign(static_cast<const char *>(source.bytes), source.length);
-    for (id permission in [manifest[@"permissions"] isKindOfClass:NSArray.class] ? manifest[@"permissions"] : @[]) {
-        if ([permission isKindOfClass:NSString.class]) plugin->permissions.insert([permission UTF8String]);
-    }
-    if (!LoadModules(plugin, directory, main)) {
-        delete plugin;
-        return nullptr;
-    }
+    static_cast<astral::PluginPackage &>(*plugin) = std::move(*package);
+    plugin->signedByAstral = AstralVerifyPluginDirectory(directory, Native(plugin->main));
     return plugin;
 }
 
