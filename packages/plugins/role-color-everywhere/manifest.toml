@@ -1,0 +1,39 @@
+id = "astral.role-color-everywhere"
+name = "Role Color Everywhere"
+description = "Colors mentions and message text with members' role colors."
+version = "0.0.1"
+icon = "PaintPaletteIcon"
+main = "main.lua"
+permissions = ["discord.messages", "discord.guilds", "discord.members"]
+
+[[authors]]
+name = "King Fish"
+id = "499400512559382538"
+
+[[authors]]
+name = "lewisakura"
+id = "96269247411400704"
+
+[[authors]]
+name = "AutumnVN"
+id = "393694671383166998"
+
+[[authors]]
+name = "Kyuuhachi"
+id = "236588665420251137"
+
+[[authors]]
+name = "jamesbt365"
+id = "158567567487795200"
+
+[[authors]]
+name = "fres"
+id = "843448897737064448"
+
+[[authors]]
+name = "adrian"
+id = "224617799434108928"
+
+[[authors]]
+name = "eternal"
+id = "263689920210534400"

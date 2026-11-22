@@ -6,6 +6,7 @@ local native = {
 	decorate = astral.ui.decorate,
 	relabel = astral.ui.relabel,
 	mention = astral.ui.mention,
+	message_color = astral.ui.message_color,
 	permission = astral.discord.permission,
 }
 
@@ -480,6 +481,16 @@ end
 function astral.ui.mention(decorator)
 	return native.mention(function(node)
 		return decorator(wrapNode(node))
+	end)
+end
+
+function astral.ui.message_color(colorizer)
+	return native.message_color(function(node)
+		local color = colorizer(wrapNode(node))
+		if color == nil then
+			return nil
+		end
+		return astral.Color.from(color).value
 	end)
 end
 

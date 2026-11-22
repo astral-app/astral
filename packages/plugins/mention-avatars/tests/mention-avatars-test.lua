@@ -67,7 +67,7 @@ assert(fallback.image == "https://cdn.discordapp.com/embed/avatars/" .. ((263689
 local role = call("@Mods")
 assert(role.image == "https://cdn.discordapp.com/role-icons/r1/i1.png?size=32&quality=lossless" and role.round == false)
 assert(call("@Helpers").image == "res://astral_tinted_1ABC9C_people" and role.after == true)
-assert(call("@Members").image == "res://astral_tinted_label_people")
+assert(call("@Members").image == "res://astral_tinted_chip_people")
 
 assert(call("@nobody") == nil)
 

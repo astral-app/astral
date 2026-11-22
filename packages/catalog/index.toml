@@ -32,6 +32,13 @@ version = "0.0.1"
 description = "Shows user avatars and role icons inside mentions."
 base = "plugins/astral.mention-avatars/"
 
+[[plugins]]
+id = "astral.role-color-everywhere"
+name = "Role Color Everywhere"
+version = "0.0.1"
+description = "Colors mentions and message text with members' role colors."
+base = "plugins/astral.role-color-everywhere/"
+
 [[themes]]
 id = "mana"
 name = "Mana"

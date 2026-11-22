@@ -346,8 +346,11 @@ function astral.ui.relabel(target, relabeler) end
 ---@field round? boolean
 ---@field hide_at? boolean
 ---@field after? boolean
+---@field color? integer
 ---@param decorator fun(node: astral.Node): astral.MentionDecoration?
 function astral.ui.mention(decorator) end
+---@param colorizer fun(node: astral.Node): astral.Color|integer|string|nil
+function astral.ui.message_color(colorizer) end
 ---@param options? { dim: number }
 function astral.ui.settings_backdrop(options) end
 

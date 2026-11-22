@@ -159,11 +159,16 @@ typedef struct {
     int round;
     int hide_at;
     int after;
+    uint32_t color;
 } AstralMentionDecoration;
 
 typedef int (*AstralMentionDecorator)(const AstralMentionContext *context, AstralMentionDecoration *decoration);
 
 void astral_wire_set_mention_decorator(AstralMentionDecorator decorator);
+
+typedef int (*AstralMessageTextColorizer)(uint64_t message_id, uint64_t channel_id, uint32_t *color);
+
+void astral_wire_set_message_text_colorizer(AstralMessageTextColorizer colorizer);
 int astral_wire_refresh_images(AstralWireBuffer *buffer, unsigned generation);
 int astral_wire_pending_mentions(void);
 int astral_wire_retry_mentions(AstralWireBuffer *buffer);

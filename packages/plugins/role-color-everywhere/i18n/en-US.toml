@@ -1,0 +1,5 @@
+COLOR_MENTIONS = "Color Mentions"
+COLOR_MENTIONS_SUBTITLE = "Show the mentioned member’s role colors in chat"
+COLOR_MESSAGE_CONTENT = "Color Message Content"
+COLOR_MESSAGE_CONTENT_SUBTITLE = "Tint message text with the author’s role color"
+MESSAGE_COLOR_INTENSITY = "Message color intensity"

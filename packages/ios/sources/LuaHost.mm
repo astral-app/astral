@@ -75,6 +75,7 @@ struct LuaPlugin : astral::PluginPackage, astral::PluginHealth {
     std::vector<std::pair<std::string, int>> relabelers;
     std::optional<double> settingsBackdrop;
     std::vector<int> mentioners;
+    std::vector<int> colorizers;
 };
 
 static int Translate(lua_State *state);
@@ -334,6 +335,21 @@ static int Mention(lua_State *state)
     lua_pushvalue(state, 1);
     plugin->mentioners.push_back(luaL_ref(state, LUA_REGISTRYINDEX));
     return 0;
+}
+
+static int MessageColor(lua_State *state)
+{
+    LuaPlugin *plugin = Self(state);
+    luaL_checktype(state, 1, LUA_TFUNCTION);
+    lua_pushvalue(state, 1);
+    plugin->colorizers.push_back(luaL_ref(state, LUA_REGISTRYINDEX));
+    return 0;
+}
+
+static uint32_t Opaque(lua_Integer value)
+{
+    uint32_t color = (uint32_t)value;
+    return color >> 24 ? color : color | 0xFF000000u;
 }
 
 static void ApplySettingsBackdrop(void)
@@ -618,6 +634,7 @@ static void InstallAPI(LuaPlugin *plugin)
     Function(state, plugin, "relabel", Relabel);
     Function(state, plugin, "settings_backdrop", SettingsBackdrop);
     Function(state, plugin, "mention", Mention);
+    Function(state, plugin, "message_color", MessageColor);
     lua_setfield(state, -2, "ui");
 
     lua_newtable(state);
@@ -674,6 +691,7 @@ static void Stop(LuaPlugin *plugin)
     plugin->relabelers.clear();
     plugin->settingsBackdrop.reset();
     plugin->mentioners.clear();
+    plugin->colorizers.clear();
     ApplySettingsBackdrop();
 }
 
@@ -1209,6 +1227,9 @@ int AstralLuaMention(const AstralMentionContext *context, AstralMentionDecoratio
                     lua_getfield(state, -1, "after");
                     if (lua_toboolean(state, -1)) decoration->after = 1;
                     lua_pop(state, 1);
+                    lua_getfield(state, -1, "color");
+                    if (lua_isinteger(state, -1) && !decoration->color) decoration->color = Opaque(lua_tointeger(state, -1));
+                    lua_pop(state, 1);
                     lua_getfield(state, -1, "image");
                     lua_getfield(state, -2, "round");
                     lua_getfield(state, -3, "hide_at");
@@ -1229,6 +1250,44 @@ int AstralLuaMention(const AstralMentionContext *context, AstralMentionDecoratio
         if (plugin->failed) Stop(plugin);
     }
     return decorated;
+}
+
+int AstralLuaMessageTextColor(uint64_t messageID, uint64_t channelID, uint32_t *color)
+{
+    std::unique_lock<std::recursive_mutex> lock(gMutex, std::try_to_lock);
+    if (!lock.owns_lock()) return 0;
+    bool wanted = false;
+    for (auto *plugin : gPlugins) wanted = wanted || (plugin->state && !plugin->failed && !plugin->colorizers.empty());
+    if (!wanted) return 0;
+    std::string message = Snowflake(messageID);
+    std::string channel = ResolveChannel(channelID, message);
+    if (channel.empty() || !AstralDiscordMessage(Native(channel), Native(message))) return -1;
+    NSString *guild = AstralDiscordChannelGuild(Native(channel));
+    for (auto *plugin : gPlugins) {
+        if (!plugin->state || plugin->failed) continue;
+        for (int colorizer : plugin->colorizers) {
+            lua_State *state = plugin->state;
+            lua_rawgeti(state, LUA_REGISTRYINDEX, colorizer);
+            lua_createtable(state, 0, 3);
+            lua_pushstring(state, message.c_str());
+            lua_setfield(state, -2, "message_id");
+            lua_pushstring(state, channel.c_str());
+            lua_setfield(state, -2, "channel_id");
+            if (guild) {
+                lua_pushstring(state, guild.UTF8String);
+                lua_setfield(state, -2, "guild_id");
+            }
+            if (Call(plugin, 1, 1, "message_color")) {
+                bool found = lua_isinteger(state, -1);
+                if (found) *color = (uint32_t)lua_tointeger(state, -1);
+                lua_pop(state, 1);
+                if (found) return 1;
+            }
+            if (plugin->failed) break;
+        }
+        if (plugin->failed) Stop(plugin);
+    }
+    return 0;
 }
 
 size_t AstralLuaDecorate(const AstralDecorationContext *context, AstralTag *tags, size_t capacity)

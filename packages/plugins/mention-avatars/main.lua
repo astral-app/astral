@@ -57,7 +57,7 @@ local function roleImage(role)
 		return string.format("%s/role-icons/%s/%s.png?size=32&quality=lossless", CDN, role.id, role.icon), false
 	end
 	local color = math.tointeger(role.color) or 0
-	local tint = color > 0 and string.format("%06X", color & 0xFFFFFF) or "label"
+	local tint = color > 0 and string.format("%06X", color & 0xFFFFFF) or "chip"
 	return string.format("res://astral_tinted_%s_people", tint), false
 end
 
