@@ -2147,7 +2147,31 @@ static void labelRows(const uint8_t *bytes, const Span *spans, size_t count, con
     }
 }
 
-static uint8_t *relabel(const uint8_t *bytes, size_t length, const Span *spans, size_t count, size_t *newLength)
+typedef struct {
+    size_t edit;
+    ptrdiff_t delta;
+} ShiftCursor;
+
+static size_t shiftForward(ShiftCursor *cursor, size_t position, const LabelEdit *edits, size_t editCount)
+{
+    while (cursor->edit < editCount && edits[cursor->edit].offset + 4 + edits[cursor->edit].oldLength <= position) {
+        cursor->delta += (ptrdiff_t)edits[cursor->edit].newLength - (ptrdiff_t)edits[cursor->edit].oldLength;
+        cursor->edit++;
+    }
+    return (size_t)((ptrdiff_t)position + cursor->delta);
+}
+
+static void shiftSpans(Span *spans, size_t count, const LabelEdit *edits, size_t editCount)
+{
+    ShiftCursor starts = {0, 0}, ends = {0, 0}, children = {0, 0};
+    for (size_t index = 0; index < count; index++) {
+        spans[index].start = shiftForward(&starts, spans[index].start, edits, editCount);
+        spans[index].end = shiftForward(&ends, spans[index].end, edits, editCount);
+        if (spans[index].children) spans[index].children = shiftForward(&children, spans[index].children, edits, editCount);
+    }
+}
+
+static uint8_t *relabel(const uint8_t *bytes, size_t length, Span *spans, size_t count, size_t *newLength)
 {
     if (!gRelabeler) return NULL;
     static LabelLink links[kMaxChildren];
@@ -2218,6 +2242,7 @@ static uint8_t *relabel(const uint8_t *bytes, size_t length, const Span *spans, 
         read = edit->offset + 4 + edit->oldLength;
     }
     memcpy(result + written, bytes + read, length - read);
+    shiftSpans(spans, count, edits, editCount);
     *newLength = total;
     return result;
 }
@@ -2250,15 +2275,9 @@ int astral_settings_rewrite(const uint8_t *bytes, size_t length, AstralWireBuffe
     size_t relabelledLength = 0;
     uint8_t *relabelled = relabel(bytes, length, spans, count, &relabelledLength);
     if (relabelled) {
-        if (scan(relabelled, relabelledLength, spans, &count) != 0) {
-            free(relabelled);
-            relabelled = NULL;
-            scan(bytes, length, spans, &count);
-        } else {
-            bytes = relabelled;
-            length = relabelledLength;
-            changed = 1;
-        }
+        bytes = relabelled;
+        length = relabelledLength;
+        changed = 1;
     }
     uint8_t *themed = NULL;
     if (gPaletteCount || gRadiusScale != 1 || gFontScale != 1 || gBackgroundStopCount) {
