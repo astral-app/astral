@@ -1,24 +1,25 @@
 local AUTOMOD_MESSAGE_TYPE = 24
+local t = astral.i18n.t
 
 local MODES = {
-	{ value = "nick-user", title = "Display name then username", subtitle = "Display Name (@username)" },
-	{ value = "user-nick", title = "Username then display name", subtitle = "@username (Display Name)" },
-	{ value = "user", title = "Username only", subtitle = "@username" },
+	{ value = "nick-user", title = t("MODE_NICK_USER"), subtitle = t("MODE_NICK_USER_SUBTITLE") },
+	{ value = "user-nick", title = t("MODE_USER_NICK"), subtitle = t("MODE_USER_NICK_SUBTITLE") },
+	{ value = "user", title = t("MODE_USER"), subtitle = t("MODE_USER_SUBTITLE") },
 }
 
 local settings = {
-	mode = astral.settings.choice("mode", "Display Mode", MODES, "nick-user", { section = "Preferences" }),
-	friendNicknames = astral.settings.switch("friendNicknames", "Show Friend Nicknames", true, {
-		subtitle = "Prefer a friend's nickname wherever it applies",
-		section = "Preferences",
+	mode = astral.settings.choice("mode", t("DISPLAY_MODE"), MODES, "nick-user", { section = t("PREFERENCES") }),
+	friendNicknames = astral.settings.switch("friendNicknames", t("FRIEND_NICKNAMES"), true, {
+		subtitle = t("FRIEND_NICKNAMES_SUBTITLE"),
+		section = t("PREFERENCES"),
 	}),
-	displayNames = astral.settings.switch("displayNames", "Use Global Names", false, {
-		subtitle = "Show the account's global name instead of its username",
-		section = "Preferences",
+	displayNames = astral.settings.switch("displayNames", t("DISPLAY_NAMES"), false, {
+		subtitle = t("DISPLAY_NAMES_SUBTITLE"),
+		section = t("PREFERENCES"),
 	}),
-	inReplies = astral.settings.switch("inReplies", "Apply To Replies", false, {
-		subtitle = "Also apply to reply previews",
-		section = "Preferences",
+	inReplies = astral.settings.switch("inReplies", t("IN_REPLIES"), false, {
+		subtitle = t("IN_REPLIES_SUBTITLE"),
+		section = t("PREFERENCES"),
 	}),
 }
 

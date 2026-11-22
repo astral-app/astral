@@ -23,6 +23,11 @@ for plugin in "$root"/plugins/*/; do
   manifest_digest="$(sha256sum "$plugin/manifest.toml" 2>/dev/null || shasum -a 256 "$plugin/manifest.toml")"
   source_digest="$(sha256sum "$plugin/main.lua" 2>/dev/null || shasum -a 256 "$plugin/main.lua")"
   printf 'astral-plugin-v1\n%s\n%s\n' "${manifest_digest%% *}" "${source_digest%% *}" >"$work/message"
+  for translation in "$plugin"i18n/*.toml; do
+    [ -e "$translation" ] || continue
+    digest="$(sha256sum "$translation" 2>/dev/null || shasum -a 256 "$translation")"
+    printf 'i18n/%s %s\n' "$(basename "$translation")" "${digest%% *}" >>"$work/message"
+  done
   "$work/verify-signature" "$work/message" "$plugin/signature" "$key" || {
     echo "stale or invalid signature: $plugin (run tools/sign-plugins.sh)" >&2
     exit 1
@@ -37,3 +42,14 @@ if [ -n "${ASTRAL_PHOENIX_BINARY:-}" ]; then
   clang -Wall -Wextra -Werror -O1 "$root/packages/loader-ios/tests/locate-test.c" "$root/packages/loader-ios/sources/PhoenixLocate.c" -o "$work/locate-test"
   "$work/locate-test" "$ASTRAL_PHOENIX_BINARY"
 fi
+for plugin in "$root"/plugins/*/; do
+  python3 - "$plugin" <<'PYTHON'
+import pathlib, sys, tomllib
+folder = pathlib.Path(sys.argv[1])
+listed = sorted(tomllib.loads((folder / "manifest.toml").read_text()).get("translations", []))
+present = sorted(path.stem for path in (folder / "i18n").glob("*.toml"))
+if listed != present:
+    sys.exit(f"{folder.name}: manifest translations {listed} do not match i18n/ {present}")
+PYTHON
+done
+echo "translations listed"

@@ -2,6 +2,10 @@
 
 Plugins are Lua 5.4 files. astral runs no native plugin code, so a plugin works the same on jailbroken and sideloaded installs and cannot crash Discord.
 
+## Translations
+
+A plugin's strings live in `i18n/<locale>.toml` (flat `KEY = "text"` tables) and its manifest lists them under `translations`. `astral.i18n.t(key, { name = value })` returns the string for the best of the device's preferred languages, falling back per key to English and then to the key; `astral.i18n.locale` names the table in use. Translations are part of the plugin's signature, and marketplace installs download and verify them. The two first-party plugins carry Unbound's 32 locales.
+
 ## Icons
 
 A manifest's `iconSvg` carries the plugin's icon, as Unbound's catalog does; the loader rasterises it on device into a template image Phoenix tints like its own icons. Without one, `icon` may name a Discord icon (`TextIcon`), drawn from Phoenix's `ic_mana_*` assets, and otherwise the card shows the plug. astral's own icons (`assets/*.svg`) are drawn the same way.

@@ -16,6 +16,11 @@ for plugin in "$root"/plugins/*/; do
   manifest_digest="$(shasum -a 256 "$plugin/manifest.toml" | awk '{ print $1 }')"
   source_digest="$(shasum -a 256 "$plugin/main.lua" | awk '{ print $1 }')"
   printf 'astral-plugin-v1\n%s\n%s\n' "$manifest_digest" "$source_digest" >"$work/message"
+  for translation in "$plugin"i18n/*.toml; do
+    [ -e "$translation" ] || continue
+    digest="$(shasum -a 256 "$translation" | awk '{ print $1 }')"
+    printf 'i18n/%s %s\n' "$(basename "$translation")" "$digest" >>"$work/message"
+  done
   sign "$work/message" >"$plugin/signature"
 done
 sign "$root/catalog/index.toml" >"$root/catalog/index.toml.sig"

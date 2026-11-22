@@ -1,52 +1,53 @@
 local P = astral.discord.permission
+local t = astral.i18n.t
 
 local TAGS = {
 	{
 		key = "WEBHOOK",
-		text = "Webhook",
+		text = t("TAG_WEBHOOK"),
 		color = 0xFF5865F2,
-		title = "Webhook",
-		subtitle = "Messages sent by webhooks",
+		title = t("TAG_WEBHOOK"),
+		subtitle = t("TAG_WEBHOOK_SUBTITLE"),
 	},
 	{ key = "OWNER", text = "Owner", color = 0xFFF0B232, title = "Owner", subtitle = "Owns the server" },
 	{
 		key = "ADMINISTRATOR",
-		text = "Admin",
+		text = t("TAG_ADMINISTRATOR"),
 		color = 0xFFDA373C,
-		title = "Admin",
-		subtitle = "Has the administrator permission",
+		title = t("TAG_ADMINISTRATOR"),
+		subtitle = t("TAG_ADMINISTRATOR_SUBTITLE"),
 		permissions = P.ADMINISTRATOR,
 	},
 	{
 		key = "MODERATOR_STAFF",
-		text = "Staff",
+		text = t("TAG_MODERATOR_STAFF"),
 		color = 0xFF248046,
-		title = "Staff",
-		subtitle = "Can manage the server, channels or roles",
+		title = t("TAG_MODERATOR_STAFF"),
+		subtitle = t("TAG_MODERATOR_STAFF_SUBTITLE"),
 		permissions = P.MANAGE_GUILD | P.MANAGE_CHANNELS | P.MANAGE_ROLES | P.MANAGE_WEBHOOKS,
 	},
 	{
 		key = "MODERATOR",
-		text = "Mod",
+		text = t("TAG_MODERATOR"),
 		color = 0xFF4E7FFF,
-		title = "Mod",
-		subtitle = "Can manage messages or kick/ban people",
+		title = t("TAG_MODERATOR"),
+		subtitle = t("TAG_MODERATOR_SUBTITLE"),
 		permissions = P.MANAGE_MESSAGES | P.KICK_MEMBERS | P.BAN_MEMBERS,
 	},
 	{
 		key = "VOICE_MODERATOR",
-		text = "VC Mod",
+		text = t("TAG_VOICE_MODERATOR"),
 		color = 0xFF059669,
-		title = "VC Mod",
-		subtitle = "Can manage voice chats",
+		title = t("TAG_VOICE_MODERATOR"),
+		subtitle = t("TAG_VOICE_MODERATOR_SUBTITLE"),
 		permissions = P.MOVE_MEMBERS | P.MUTE_MEMBERS | P.DEAFEN_MEMBERS,
 	},
 	{
 		key = "CHAT_MODERATOR",
-		text = "Chat Mod",
+		text = t("TAG_CHAT_MODERATOR"),
 		color = 0xFFC27C0E,
-		title = "Chat Mod",
-		subtitle = "Can time people out",
+		title = t("TAG_CHAT_MODERATOR"),
+		subtitle = t("TAG_CHAT_MODERATOR_SUBTITLE"),
 		permissions = P.MODERATE_MEMBERS,
 	},
 }
@@ -54,26 +55,26 @@ local TAGS = {
 local APPEARANCE = {
 	{
 		key = "coloredTags",
-		title = "Coloured Tags",
-		subtitle = "Give each tag its own colour instead of the default styling",
+		title = t("COLORED_TAGS"),
+		subtitle = t("COLORED_TAGS_SUBTITLE"),
 		default = true,
 	},
 	{
 		key = "useRoleColor",
-		title = "Use Role Colour",
-		subtitle = "Colour tags with the member's role colour where they have one",
+		title = t("USE_ROLE_COLOR"),
+		subtitle = t("USE_ROLE_COLOR_SUBTITLE"),
 		default = true,
 	},
 	{
 		key = "useEnhancedRoleColors",
-		title = "Use Enhanced Role Colours",
-		subtitle = "Use gradient and holographic role colours across all generated tags when available",
+		title = t("USE_ENHANCED_ROLE_COLORS"),
+		subtitle = t("USE_ENHANCED_ROLE_COLORS_SUBTITLE"),
 		default = true,
 	},
 	{
 		key = "useOpTagStyle",
-		title = "Use Original Poster Tag Style",
-		subtitle = "Show staff tags with Discord's original poster badge styling",
+		title = t("USE_OP_TAG_STYLE"),
+		subtitle = t("USE_OP_TAG_STYLE_SUBTITLE"),
 		default = false,
 	},
 }
@@ -81,14 +82,14 @@ local APPEARANCE = {
 local ROLE_NAME = {
 	{
 		key = "showRoleName",
-		title = "Show Role Name",
-		subtitle = "Add a tag with the member's top coloured role",
+		title = t("SHOW_ROLE_NAME"),
+		subtitle = t("SHOW_ROLE_NAME_SUBTITLE"),
 		default = false,
 	},
 	{
 		key = "roleNameOnBots",
-		title = "Role Name on Bots",
-		subtitle = "Also show the role name tag for bot accounts",
+		title = t("ROLE_NAME_ON_BOTS"),
+		subtitle = t("ROLE_NAME_ON_BOTS_SUBTITLE"),
 		default = false,
 	},
 }
@@ -97,14 +98,15 @@ local DEFAULT_TAG_COLOR = 0xFF5865F2
 local settings = {}
 
 for _, tag in ipairs(TAGS) do
-	settings[tag.key] = astral.settings.switch(tag.key, tag.title, true, { subtitle = tag.subtitle, section = "Tags" })
+	settings[tag.key] =
+		astral.settings.switch(tag.key, tag.title, true, { subtitle = tag.subtitle, section = t("TAGS") })
 end
 for _, option in ipairs(APPEARANCE) do
 	settings[option.key] = astral.settings.switch(
 		option.key,
 		option.title,
 		option.default,
-		{ subtitle = option.subtitle, section = "Appearance" }
+		{ subtitle = option.subtitle, section = t("APPEARANCE") }
 	)
 end
 for _, option in ipairs(ROLE_NAME) do
@@ -112,7 +114,7 @@ for _, option in ipairs(ROLE_NAME) do
 		option.key,
 		option.title,
 		option.default,
-		{ subtitle = option.subtitle, section = "Role Name" }
+		{ subtitle = option.subtitle, section = t("ROLE_NAME") }
 	)
 end
 

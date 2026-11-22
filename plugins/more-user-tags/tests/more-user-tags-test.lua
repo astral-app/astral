@@ -1,6 +1,29 @@
+local function englishStrings()
+	local strings = {}
+	local folder = arg[1]:match("(.*/)") or "./"
+	local file = io.open(folder .. "i18n/en-US.toml")
+	if file then
+		for line in file:lines() do
+			local key, value = line:match('^([%w_]+) = "(.*)"$')
+			if key then
+				strings[key] = value
+			end
+		end
+		file:close()
+	end
+	return strings
+end
+
+local english = englishStrings()
+
 local decorator, stored = nil, {}
 astral = {
 	log = function() end,
+	i18n = {
+		t = function(key)
+			return english[key] or key
+		end,
+	},
 	settings = {
 		switch = function(key, _, default)
 			if stored[key] == nil then

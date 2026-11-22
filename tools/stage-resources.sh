@@ -9,6 +9,7 @@ for plugin in "$root"/plugins/*/; do
   for destination in "$target/plugins/$id" "$target/catalog/plugins/$id"; do
     mkdir -p "$destination"
     cp "$plugin/manifest.toml" "$plugin/main.lua" "$plugin/signature" "$destination/"
+    if [ -d "$plugin/i18n" ]; then cp -R "$plugin/i18n" "$destination/"; fi
   done
 done
 cp "$root"/themes/*.toml "$target/themes/"

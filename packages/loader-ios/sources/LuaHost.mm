@@ -2,6 +2,7 @@
 
 #import "TomlDocument.h"
 
+#include <map>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -63,8 +64,13 @@ struct LuaPlugin {
     std::string lastError;
     std::vector<LuaSwitch> switches;
     std::vector<std::pair<std::string, int>> decorators;
+    std::map<std::string, std::string> strings;
+    std::map<std::string, std::string> fallbackStrings;
+    std::string locale;
     std::vector<int> relabelers;
 };
+
+static int Translate(lua_State *state);
 
 static std::recursive_mutex gMutex;
 static std::vector<LuaPlugin *> gPlugins;
@@ -415,6 +421,12 @@ static void InstallAPI(LuaPlugin *plugin)
     lua_setfield(state, -2, "settings");
 
     lua_newtable(state);
+    Function(state, plugin, "t", Translate);
+    lua_pushstring(state, plugin->locale.c_str());
+    lua_setfield(state, -2, "locale");
+    lua_setfield(state, -2, "i18n");
+
+    lua_newtable(state);
     Function(state, plugin, "decorate", Decorate);
     Function(state, plugin, "relabel", Relabel);
     lua_setfield(state, -2, "ui");
@@ -515,6 +527,80 @@ static bool ValidIdentifier(NSString *identifier)
     return [identifier rangeOfCharacterFromSet:allowed.invertedSet].location == NSNotFound;
 }
 
+static std::map<std::string, std::string> LoadStrings(NSString *path)
+{
+    std::map<std::string, std::string> strings;
+    NSDictionary *table = AstralParseTOML([NSData dataWithContentsOfFile:path]);
+    for (NSString *key in table) {
+        if ([table[key] isKindOfClass:NSString.class]) strings[key.UTF8String] = [table[key] UTF8String];
+    }
+    return strings;
+}
+
+static NSString *BestLocale(NSArray<NSString *> *available)
+{
+    NSMutableArray<NSString *> *wanted = [NSMutableArray array];
+    for (NSString *language in NSLocale.preferredLanguages) {
+        [wanted addObject:language];
+        NSString *base = [language componentsSeparatedByString:@"-"].firstObject;
+        if (base) [wanted addObject:base];
+    }
+    [wanted addObjectsFromArray:@[ @"en-US", @"en-GB", @"en" ]];
+    for (NSString *candidate in wanted) {
+        for (NSString *locale in available) {
+            if ([locale caseInsensitiveCompare:candidate] == NSOrderedSame) return locale;
+        }
+        for (NSString *locale in available) {
+            if ([[locale componentsSeparatedByString:@"-"].firstObject caseInsensitiveCompare:candidate] == NSOrderedSame) return locale;
+        }
+    }
+    return nil;
+}
+
+static void LoadTranslations(LuaPlugin *plugin, NSString *directory)
+{
+    NSString *folder = [directory stringByAppendingPathComponent:@"i18n"];
+    NSMutableArray<NSString *> *available = [NSMutableArray array];
+    for (NSString *entry in [NSFileManager.defaultManager contentsOfDirectoryAtPath:folder error:nil]) {
+        if ([entry.pathExtension isEqualToString:@"toml"]) [available addObject:entry.stringByDeletingPathExtension];
+    }
+    NSString *locale = BestLocale(available);
+    NSString *english = BestLocale([available filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"SELF BEGINSWITH 'en'"]]);
+    if (locale) {
+        plugin->locale = locale.UTF8String;
+        plugin->strings = LoadStrings([folder stringByAppendingPathComponent:[locale stringByAppendingPathExtension:@"toml"]]);
+    }
+    if (english)
+        plugin->fallbackStrings = LoadStrings([folder stringByAppendingPathComponent:[english stringByAppendingPathExtension:@"toml"]]);
+}
+
+static int Translate(lua_State *state)
+{
+    LuaPlugin *plugin = Self(state);
+    std::string key = luaL_checkstring(state, 1);
+    auto found = plugin->strings.find(key);
+    std::string text = found != plugin->strings.end() ? found->second : key;
+    if (found == plugin->strings.end()) {
+        auto fallback = plugin->fallbackStrings.find(key);
+        if (fallback != plugin->fallbackStrings.end()) text = fallback->second;
+    }
+    if (lua_istable(state, 2)) {
+        lua_pushnil(state);
+        while (lua_next(state, 2)) {
+            if (lua_type(state, -2) == LUA_TSTRING) {
+                std::string token = std::string("{") + lua_tostring(state, -2) + "}";
+                std::string value = luaL_tolstring(state, -1, nullptr);
+                lua_pop(state, 1);
+                for (size_t at = text.find(token); at != std::string::npos; at = text.find(token, at + value.size()))
+                    text.replace(at, token.size(), value);
+            }
+            lua_pop(state, 1);
+        }
+    }
+    lua_pushstring(state, text.c_str());
+    return 1;
+}
+
 static LuaPlugin *Load(NSString *directory)
 {
     NSData *manifestData = [NSData dataWithContentsOfFile:[directory stringByAppendingPathComponent:@"manifest.toml"]];
@@ -530,7 +616,8 @@ static LuaPlugin *Load(NSString *directory)
                                                     encoding:NSUTF8StringEncoding
                                                        error:nil];
     LuaPlugin *plugin = new LuaPlugin();
-    plugin->signedByAstral = AstralVerifySignature(AstralPluginSigningMessage(manifestData, source), signature);
+    plugin->signedByAstral = AstralVerifySignature(AstralPluginSigningMessage(manifestData, source, directory), signature);
+    LoadTranslations(plugin, directory);
     plugin->identifier = identifier.UTF8String;
     plugin->name = [name substringToIndex:MIN(name.length, (NSUInteger)48)].UTF8String;
     plugin->version = [manifest[@"version"] isKindOfClass:NSString.class] ? [manifest[@"version"] UTF8String] : "";

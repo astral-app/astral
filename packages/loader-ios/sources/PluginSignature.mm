@@ -15,9 +15,17 @@ static NSString *HexDigest(NSData *data)
     return hex;
 }
 
-NSData *AstralPluginSigningMessage(NSData *manifest, NSData *source)
+NSData *AstralPluginSigningMessage(NSData *manifest, NSData *source, NSString *directory)
 {
-    NSString *message = [NSString stringWithFormat:@"astral-plugin-v1\n%@\n%@\n", HexDigest(manifest), HexDigest(source)];
+    NSMutableString *message = [NSMutableString stringWithFormat:@"astral-plugin-v1\n%@\n%@\n", HexDigest(manifest), HexDigest(source)];
+    NSString *folder = [directory stringByAppendingPathComponent:@"i18n"];
+    NSArray<NSString *> *entries =
+        [[NSFileManager.defaultManager contentsOfDirectoryAtPath:folder error:nil] sortedArrayUsingSelector:@selector(compare:)];
+    for (NSString *entry in entries) {
+        if (![entry.pathExtension isEqualToString:@"toml"]) continue;
+        NSData *data = [NSData dataWithContentsOfFile:[folder stringByAppendingPathComponent:entry]] ?: [NSData data];
+        [message appendFormat:@"i18n/%@ %@\n", entry, HexDigest(data)];
+    }
     return [message dataUsingEncoding:NSUTF8StringEncoding];
 }
 
