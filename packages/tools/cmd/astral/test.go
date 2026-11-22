@@ -19,7 +19,7 @@ func runTest(args []string) error {
 		return err
 	}
 	defer cleanup()
-	steps := []func(string) error{testWire, testLua, testSignatures}
+	steps := []func(string) error{testTools, testWire, testLua, testSignatures}
 	if *phoenix != "" {
 		steps = append(steps, func(work string) error { return testLocator(work, *phoenix) })
 	}
@@ -29,6 +29,10 @@ func runTest(args []string) error {
 		}
 	}
 	return nil
+}
+
+func testTools(work string) error {
+	return run(repoPath("packages", "tools"), "go", "test", "./...")
 }
 
 func testWire(work string) error {

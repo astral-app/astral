@@ -71,7 +71,7 @@ A pill with two or three colours draws Phoenix's native `backgroundGradient`; `S
 
 ## Autocomplete
 
-`packages/sdk/types/astral.lua` describes the whole API for lua-language-server (the Lua extension in VS Code, Zed, Neovim and others), and `.luarc.json` loads it, so `astral.` completes, enums list their members and typos are flagged. Plugins outside this repository copy `packages/sdk/types` and point `workspace.library` at it. `astral lint` runs the same checks on every plugin.
+`packages/sdk/library/astral.lua` describes the whole API for lua-language-server (the Lua extension in VS Code, Zed, Neovim and others), and `.luarc.json` loads it, so `astral.` completes, enums list their members and typos are flagged. Plugins outside this repository copy `packages/sdk/library` and point `workspace.library` at it. `astral lint` runs the same checks on every plugin.
 
 ## Decorations
 

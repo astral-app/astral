@@ -27,6 +27,9 @@ var commands = map[string]command{
 	"dev":           {"dev <status|push|watch|eval|logs|theme|backup> ...", runDev},
 	"fuzz":          {"fuzz [--seconds 60] [--corpus <directory>]", runFuzz},
 	"bench":         {"bench [captured batch ...]", runBench},
+	"create":        {"create [--name <name>] [--author <name>] [--dir <directory>] <id>", runCreate},
+	"sideload":      {"sideload --ipa <IPA> --bundle-id <id> [--device <udid>] [--profile <mobileprovision>]", runSideload},
+	"sdk":           {"sdk install", runSDK},
 	"compat":        {"compat --ipa <decrypted Discord.ipa> [--channel stable] [--baseline compat.json] [--results compat.json] [--report report.md]", runCompat},
 }
 
