@@ -3,12 +3,12 @@ TARGET := iphone:clang:latest:18.0
 ARCHS := arm64 arm64e
 THEOS_PACKAGE_SCHEME := rootless
 
-ROOT := ../..
+ROOT := $(abspath ../..)
 ASTRAL_VERSION := $(shell cat $(ROOT)/version.txt)
 PACKAGE_VERSION := $(ASTRAL_VERSION)
 SIGNING_KEY := $(shell cat $(ROOT)/keys/plugin-signing.pub)
 MONOCYPHER := $(ROOT)/vendor/monocypher/src
-CORE := ../core
+CORE := $(abspath ../core)
 LUA := $(ROOT)/vendor/lua
 LUA_SOURCES := lapi lcode lctype ldebug ldo ldump lfunc lgc llex lmem lobject lopcodes lparser lstate lstring ltable ltm lundump lvm lzio lauxlib lbaselib lstrlib ltablib lmathlib lutf8lib lcorolib
 CORE_SOURCES := LoaderMetricKitCrash LoaderSettings LoaderSettingsCache LoaderSettingsFile LoaderFiles LoaderJSON LoaderJSONMembers LoaderDiskFull LoaderLog LoaderExitRecord LoaderLaunchGuard LoaderStrings
