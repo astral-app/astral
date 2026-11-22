@@ -144,6 +144,9 @@ static void FallbackAction(NSString *key)
 static BOOL InstallSettings(void)
 {
     if (settingsIntegration) return YES;
+    AstralOnPhoenixRouteChange(^{
+        Status(lastStage ?: @"route-changed");
+    });
     NSString *refusal = AstralInstallPhoenixSettings(
         AstralSettingsCategory(),
         ^NSDictionary *(NSString *route) {

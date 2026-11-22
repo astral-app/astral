@@ -110,6 +110,19 @@ static bool InterceptHostCall(void *context, const uint8_t *frame, size_t length
 }
 
 static NSString *gRoute = @"none";
+static void (^gRouteChanged)(void);
+
+static void SetRoute(NSString *route)
+{
+    gRoute = route;
+    void (^changed)(void) = gRouteChanged;
+    if (changed) dispatch_async(dispatch_get_main_queue(), changed);
+}
+
+void AstralOnPhoenixRouteChange(void (^changed)(void))
+{
+    gRouteChanged = [changed copy];
+}
 
 static void Log(NSString *line)
 {
@@ -143,13 +156,13 @@ static void InstallHostCall(const struct mach_header *image, uint64_t hostCall)
                 pthread_mutex_lock(&gLock);
                 if (!gHostContext) gHostContext = context;
                 pthread_mutex_unlock(&gLock);
-                gRoute = @"host-call";
+                SetRoute(@"host-call");
                 Log([NSString stringWithFormat:@"phoenix: host call route installed (%zu record(s), attempt %d)", swapped, attempt + 1]);
                 return;
             }
             usleep(attempt < 100 ? 20000 : 100000);
         }
-        gRoute = @"host-call-missing";
+        SetRoute(@"host-call-missing");
         Log(@"phoenix: host call record not found");
     });
 }
