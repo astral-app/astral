@@ -44,7 +44,7 @@ Each plugin gets its own `lua_State` with `base`, `table`, `string`, `math`, `ut
 | `astral.settings.values` | Live values of every declared setting, kept current by the loader |
 | `astral.settings.on_change(key, fn)`, `astral.settings.get/set` | Change listeners and persisted values |
 | `astral.ui.decorate(Target.MessageAuthor, fn)` | `fn(node)` returns a `Pill`, a list of pills, or plain `{ text, color, colors, text_color, shape }` tables, shown after the guild tag |
-| `astral.ui.relabel(target, fn)` | `fn(node)` returns new text; plugins chain. Targets: `MessageAuthor` (authors and reply previews, `node.kind` `NodeKind.Author`/`NodeKind.Reply`), `ChannelName`, `MemberName`, `ComposerPlaceholder` |
+| `astral.ui.relabel(target, fn)` | `fn(node)` returns new text; plugins chain. Targets: `MessageAuthor` (authors and reply previews, `node.kind` `NodeKind.Author`/`NodeKind.Reply`), `ChannelName`, `MemberName`, `ComposerPlaceholder`, `ProfileName` (the name on a profile sheet, `node.user_id` from its avatar) |
 | `node:message()`, `node:guild()`, `node:member()`, `node:user()`, `node:permissions()`, `node:is_bot()` | Cached lookups for the node a callback receives |
 | `astral.discord.guild/member/message/user/nickname/channel_guild/permissions` | Read-only views of Discord's own cache; messages carry `type`, `author` and `reference`, permissions apply channel overwrites |
 | `astral.permissions.any/all/combine(granted, Permission.X, ...)` | Permission bit checks |

@@ -1874,6 +1874,24 @@ void astral_wire_set_relabeler(AstralRelabeler relabeler)
     gRelabeler = relabeler;
 }
 
+static int numberAt(const uint8_t *bytes, const Span *span, uint16_t wanted, double *value)
+{
+    Cursor cursor = {bytes, span->end, span->start + 1 + 4, 0};
+    if (span->op == 1) skip(&cursor, read16(&cursor));
+    uint16_t count = read16(&cursor);
+    for (uint16_t index = 0; index < count && !cursor.failed; index++) {
+        uint16_t property = read16(&cursor);
+        uint8_t tag = read8(&cursor);
+        if (property == wanted && tag == 5) {
+            if (!need(&cursor, 8)) return 0;
+            memcpy(value, bytes + cursor.offset, 8);
+            return 1;
+        }
+        skipValue(&cursor, tag, 0);
+    }
+    return 0;
+}
+
 static int stringAt(const uint8_t *bytes, const Span *span, uint16_t wanted, size_t *offset, uint32_t *length)
 {
     Cursor cursor = {bytes, span->end, span->start + 1 + 4, 0};
@@ -1988,9 +2006,40 @@ static const LabelRowKind kLabelRows[] = {
     {"channel.details.member:", kAstralLabelMember},
 };
 
+static const double kProfileNameSize = 20;
+
+static void labelProfile(const uint8_t *bytes, const Span *spans, size_t count, LabelEdit *edits, size_t *editCount)
+{
+    int profile = 0;
+    uint64_t user = 0;
+    for (size_t index = 0; index < count; index++) {
+        const Span *span = &spans[index];
+        if (span->op != 1) continue;
+        size_t offset;
+        uint32_t size;
+        if (stringProperty(bytes, span, P(accessibilityId), "profile-scroll")) profile = 1;
+        if (!user && typeIs(bytes, span, "image") && stringAt(bytes, span, P(uri), &offset, &size))
+            user = avatarUser(bytes + offset + 4, size);
+    }
+    if (!profile) return;
+    for (size_t index = 0; index < count; index++) {
+        const Span *span = &spans[index];
+        double size = 0;
+        size_t offset;
+        uint32_t length;
+        if (span->op != 1 || !typeIs(bytes, span, "text") || !numberAt(bytes, span, P(fontSize), &size) || size < kProfileNameSize)
+            continue;
+        if (!stringAt(bytes, span, P(text), &offset, &length)) continue;
+        AstralLabelContext context = {kAstralLabelProfile, 0, gCurrentChannel, user};
+        addLabelEdit(edits, editCount, bytes, offset, length, &context);
+        return;
+    }
+}
+
 static void labelRows(const uint8_t *bytes, const Span *spans, size_t count, const LabelLink *links, size_t linkCount, LabelEdit *edits,
                       size_t *editCount)
 {
+    labelProfile(bytes, spans, count, edits, editCount);
     enum { kMaxRows = 512 };
     int32_t rowIds[kMaxRows];
     uint64_t rowTargets[kMaxRows];

@@ -102,6 +102,7 @@ typedef enum {
     kAstralLabelChannel,
     kAstralLabelMember,
     kAstralLabelComposer,
+    kAstralLabelProfile,
 } AstralLabelKind;
 
 typedef struct {

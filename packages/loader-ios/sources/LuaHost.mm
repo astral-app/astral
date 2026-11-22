@@ -303,7 +303,8 @@ static int Relabel(lua_State *state)
     LuaPlugin *plugin = Self(state);
     std::string target = luaL_checkstring(state, 1);
     luaL_checktype(state, 2, LUA_TFUNCTION);
-    if (target != "message.author" && target != "channel.name" && target != "member.name" && target != "composer.placeholder") {
+    if (target != "message.author" && target != "channel.name" && target != "member.name" && target != "composer.placeholder" &&
+        target != "profile.name") {
         return luaL_error(state, "astral.ui.relabel: unsupported target '%s'", target.c_str());
     }
     lua_pushvalue(state, 2);
@@ -1227,6 +1228,8 @@ static const char *LabelTarget(AstralLabelKind kind)
         return "member.name";
     case kAstralLabelComposer:
         return "composer.placeholder";
+    case kAstralLabelProfile:
+        return "profile.name";
     default:
         return "message.author";
     }
@@ -1243,6 +1246,8 @@ static const char *LabelKindName(AstralLabelKind kind)
         return "member";
     case kAstralLabelComposer:
         return "composer";
+    case kAstralLabelProfile:
+        return "profile";
     default:
         return "author";
     }
@@ -1278,7 +1283,7 @@ int AstralLuaRelabel(const AstralLabelContext *context, const char *text, size_t
                 lua_pushstring(state, channel.c_str());
                 lua_setfield(state, -2, "channel_id");
             }
-            if (context->kind == kAstralLabelMember && !target.empty()) {
+            if ((context->kind == kAstralLabelMember || context->kind == kAstralLabelProfile) && !target.empty()) {
                 lua_pushstring(state, target.c_str());
                 lua_setfield(state, -2, "user_id");
             }

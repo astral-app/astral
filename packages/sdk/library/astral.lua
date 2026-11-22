@@ -68,6 +68,7 @@ local Target = {
 	ChannelName = "channel.name",
 	MemberName = "member.name",
 	ComposerPlaceholder = "composer.placeholder",
+	ProfileName = "profile.name",
 }
 
 ---@enum astral.NodeKind
@@ -77,6 +78,7 @@ local NodeKind = {
 	Channel = "channel",
 	Member = "member",
 	Composer = "composer",
+	Profile = "profile",
 }
 
 ---@enum astral.Shape

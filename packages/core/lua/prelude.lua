@@ -77,6 +77,7 @@ astral.Target = astral.enum("Target", {
 	ChannelName = "channel.name",
 	MemberName = "member.name",
 	ComposerPlaceholder = "composer.placeholder",
+	ProfileName = "profile.name",
 })
 
 astral.NodeKind = astral.enum("NodeKind", {
@@ -85,6 +86,7 @@ astral.NodeKind = astral.enum("NodeKind", {
 	Channel = "channel",
 	Member = "member",
 	Composer = "composer",
+	Profile = "profile",
 })
 
 astral.Shape = astral.enum("Shape", { Pill = "pill", Op = "op" })

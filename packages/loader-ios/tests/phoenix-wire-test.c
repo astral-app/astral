@@ -280,6 +280,56 @@ static void relabelTest(void)
     astral_wire_set_relabeler(NULL);
 }
 
+static uint64_t gProfileUser;
+
+static int profileRelabeler(const AstralLabelContext *context, const char *text, size_t length, char *out, size_t capacity)
+{
+    if (context->kind != kAstralLabelProfile) return 0;
+    gProfileUser = context->target_id;
+    return snprintf(out, capacity, "%.*s (@renamed)", (int)length, text);
+}
+
+static void profileRelabelTest(void)
+{
+    Batch batch = {.length = 0};
+    b8(&batch, 1);
+    create(&batch, 700, "scroll", 1);
+    b16(&batch, 9);
+    b8(&batch, 6);
+    bstr(&batch, "profile-scroll");
+    create(&batch, 701, "image", 1);
+    b16(&batch, 542);
+    b8(&batch, 6);
+    bstr(&batch, "https://cdn.discordapp.com/avatars/123456789012345678/a.png?size=256");
+    create(&batch, 702, "text", 2);
+    b16(&batch, 499);
+    b8(&batch, 6);
+    bstr(&batch, "Small");
+    b16(&batch, 207);
+    b8(&batch, 5);
+    double small = 14;
+    memcpy(batch.bytes + batch.length, &small, 8);
+    batch.length += 8;
+    create(&batch, 703, "text", 2);
+    b16(&batch, 499);
+    b8(&batch, 6);
+    bstr(&batch, "Display Name");
+    b16(&batch, 207);
+    b8(&batch, 5);
+    double large = 24;
+    memcpy(batch.bytes + batch.length, &large, 8);
+    batch.length += 8;
+    children(&batch, 700, 3, (int[]){701, 702, 703});
+    astral_wire_set_relabeler(profileRelabeler);
+    AstralWireBuffer out;
+    assert(astral_settings_rewrite(batch.bytes, batch.length, &out));
+    assert(memmem(out.bytes, out.length, "Display Name (@renamed)", 23));
+    assert(!memmem(out.bytes, out.length, "Small (@renamed)", 16));
+    assert(gProfileUser == 123456789012345678ull);
+    astral_wire_buffer_free(&out);
+    astral_wire_set_relabeler(NULL);
+}
+
 static void unsupportedVersionTest(void)
 {
     AstralWireBuffer out;
@@ -438,6 +488,7 @@ int main(void)
     astral_wire_buffer_free(&out);
     cardPageTest();
     categoryRowsTest();
+    profileRelabelTest();
     unsupportedVersionTest();
     puts("ok");
     return 0;
