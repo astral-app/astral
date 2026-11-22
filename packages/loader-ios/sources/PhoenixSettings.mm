@@ -384,6 +384,8 @@ void AstralPhoenixUpdateTheme(void (^apply)(void))
         RecordTiming(@"recolorUpdates", @(updates));
         if (updates) Send(&buffer);
         pthread_mutex_unlock(&gLock);
+        void (^changed)(void) = gRouteChanged;
+        if (changed) dispatch_async(dispatch_get_main_queue(), changed);
     });
 }
 

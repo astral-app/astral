@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -23,7 +24,7 @@ const devUsage = `usage: astral dev <command>
   theme import <file>    convert an Unbound theme (JSON) into an astral theme and select it
   backup export [file]   write the device's settings backup (TOML) to a file or stdout
   backup import <file>   restore a settings backup on the device
-Needs Developer mode on and DEVICE set to the device UDID (the port is forwarded over USB).`
+Needs Developer mode on. With DEVICE set the port is forwarded over USB; without it, over SSH to the vphone.`
 
 type devClient struct {
 	base   string
@@ -54,8 +55,8 @@ func (d devClient) forward() error {
 		return nil
 	}
 	device := os.Getenv("DEVICE")
-	if err := requireDevice(device); err != nil {
-		return err
+	if device == "" {
+		return d.forwardOverVphoneSSH()
 	}
 	proxy := exec.Command("iproxy", d.port, d.port, "-u", device)
 	if err := proxy.Start(); err != nil {
@@ -69,6 +70,40 @@ func (d devClient) forward() error {
 		time.Sleep(500 * time.Millisecond)
 	}
 	return errors.New("astral's development server is not reachable; turn on Developer mode")
+}
+
+func (d devClient) forwardOverVphoneSSH() error {
+	client, err := vphoneSSH("vphone")
+	if err != nil {
+		return fmt.Errorf("set DEVICE for a USB device, or boot the vphone: %w", err)
+	}
+	listener, err := net.Listen("tcp", "127.0.0.1:"+d.port)
+	if err != nil {
+		client.Close()
+		return err
+	}
+	go func() {
+		for {
+			local, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			go func() {
+				defer local.Close()
+				remote, err := client.Dial("tcp", "127.0.0.1:"+d.port)
+				if err != nil {
+					return
+				}
+				defer remote.Close()
+				go io.Copy(remote, local)
+				io.Copy(local, remote)
+			}()
+		}
+	}()
+	if d.reachable() {
+		return nil
+	}
+	return errors.New("astral's development server is not reachable on the vphone; turn on Developer mode and relaunch Discord")
 }
 
 func (d devClient) request(method string, path string, body any) ([]byte, error) {
