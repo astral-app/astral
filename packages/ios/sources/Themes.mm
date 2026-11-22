@@ -100,10 +100,14 @@ void AstralApplyTheme(NSString *themeID)
         if (color) stops.push_back(color);
     }
     double radiusScale = [radius[@"scale"] doubleValue], fontScale = [font[@"scale"] doubleValue];
+    NSDictionary *tint = [selected[@"tint"] isKindOfClass:NSDictionary.class] ? selected[@"tint"] : nil;
+    uint32_t tintColor = [tint[@"color"] isKindOfClass:NSString.class] ? ParseColor(tint[@"color"]) : 0;
+    double tintSaturation = [tint[@"saturation"] doubleValue], tintNeutral = [tint[@"neutral"] doubleValue];
     AstralPhoenixUpdateTheme(^{
         astral_wire_set_palette(from.data(), to.data(), from.size());
         astral_wire_set_scales(radiusScale, fontScale);
         astral_wire_set_background_gradient(stops.data(), stops.size());
+        astral_wire_set_tint(tintColor, tintSaturation, tintNeutral);
     });
     if (AstralSettings()->set("astral", "theme", std::string([selected[@"id"] UTF8String]))) AstralSettings()->save();
 }

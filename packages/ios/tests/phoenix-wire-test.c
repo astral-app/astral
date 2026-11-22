@@ -528,6 +528,23 @@ static void fadeOverlayTest(void)
     astral_wire_forget_colors();
 }
 
+static void tintTest(void)
+{
+    AstralWireBuffer out;
+    astral_wire_set_palette(NULL, NULL, 0);
+    astral_wire_set_tint(0xFF8B5CF6, 0.45, 0.3);
+    Batch batch = {.length = 0};
+    b8(&batch, 1);
+    coloredView(&batch, 990, 0xFF2B2D31);
+    coloredView(&batch, 991, 0xFF23A55A);
+    assert(astral_settings_rewrite(batch.bytes, batch.length, &out));
+    uint32_t grey = 0xFF2B2D31, green = 0xFF23A55A;
+    assert(!memmem(out.bytes, out.length, &grey, 4) && memmem(out.bytes, out.length, &green, 4));
+    astral_wire_buffer_free(&out);
+    astral_wire_set_tint(0, 0, 0);
+    astral_wire_forget_colors();
+}
+
 static void unsupportedVersionTest(void)
 {
     AstralWireBuffer out;
@@ -553,6 +570,7 @@ int main(void)
     liveThemeTest();
     trackerOverflowTest();
     fadeOverlayTest();
+    tintTest();
     Batch batch;
     overview(&batch);
     AstralWireBuffer out;

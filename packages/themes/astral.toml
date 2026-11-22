@@ -18,3 +18,8 @@ FF0C0E27 = "FF0B0820"
 
 [background]
 gradient = ["#3B2380", "#120B2E"]
+
+[tint]
+color = "#8B5CF6"
+saturation = 0.45
+neutral = 0.3

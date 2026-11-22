@@ -1890,6 +1890,39 @@ static uint32_t recolouredStop(uint32_t original, uint32_t theme)
     return fromHsl(target, alpha);
 }
 
+static uint32_t gTintColor;
+static double gTintSaturation, gTintNeutral;
+
+void astral_wire_set_tint(uint32_t color, double saturation, double neutral)
+{
+    gTintColor = color;
+    gTintSaturation = saturation > 0 ? saturation : 0.45;
+    gTintNeutral = neutral > 0 ? neutral : 0.3;
+}
+
+static double chromaOf(uint32_t argb)
+{
+    unsigned red = (argb >> 16) & 0xFF, green = (argb >> 8) & 0xFF, blue = argb & 0xFF;
+    unsigned high = red > green ? (red > blue ? red : blue) : (green > blue ? green : blue);
+    unsigned low = red < green ? (red < blue ? red : blue) : (green < blue ? green : blue);
+    return (high - low) / 255.0;
+}
+
+static int tintedColor(uint32_t color, uint32_t *mapped)
+{
+    if (!gTintColor || !(color >> 24) || chromaOf(color) > gTintNeutral) return 0;
+    Hsl source = toHsl(color), target = toHsl(gTintColor);
+    target.lightness = source.lightness;
+    target.saturation = gTintSaturation;
+    *mapped = fromHsl(target, color >> 24);
+    return 1;
+}
+
+static int themedColor(uint32_t color, uint32_t *mapped)
+{
+    return paletteColor(color, mapped) || tintedColor(color, mapped);
+}
+
 static int patchGradientStops(uint8_t *bytes, Cursor *cursor, int replaceAll)
 {
     int patched = 0;
@@ -1911,7 +1944,7 @@ static int patchGradientStops(uint8_t *bytes, Cursor *cursor, int replaceAll)
             memcpy(&color, bytes + at, 4);
             if (replaceAll)
                 mapped = recolouredStop(color, backgroundStop(index, count));
-            else if (!paletteColor(color, &mapped))
+            else if (!themedColor(color, &mapped))
                 continue;
             memcpy(bytes + at, &mapped, 4);
             if (stopTag == 4) memset(bytes + at + 4, 0, 4);
@@ -1975,13 +2008,13 @@ static int patchColors(uint8_t *bytes, const Span *spans, size_t count)
             if (!cursor.failed && property == P(backgroundGradient) && tag == 8) {
                 Cursor gradient = {bytes, cursor.offset, at, 0};
                 int replaceAll = gBackgroundStopCount > 0 && span->id > 0 && span->id < kFirstId;
-                if ((replaceAll || gPaletteCount) && patchGradientStops(bytes, &gradient, replaceAll)) patched = 1;
+                if ((replaceAll || gPaletteCount || gTintColor) && patchGradientStops(bytes, &gradient, replaceAll)) patched = 1;
                 continue;
             }
             if (cursor.failed || !colorProperty(property) || (tag != 3 && tag != 4)) continue;
             uint32_t color, mapped;
             memcpy(&color, bytes + at, 4);
-            if (!paletteColor(color, &mapped)) continue;
+            if (!themedColor(color, &mapped)) continue;
             memcpy(bytes + at, &mapped, 4);
             if (tag == 4) memset(bytes + at + 4, 0, 4);
             patched = 1;
@@ -2157,7 +2190,7 @@ static void putTrackedValue(Out *out, const TrackedValue *tracked)
 {
     if (tracked->kind == kTrackedColor) {
         uint32_t color = tracked->value.color;
-        paletteColor(tracked->value.color, &color);
+        themedColor(tracked->value.color, &color);
         put32(out, color);
         if (tracked->tag == 4) put32(out, 0);
         return;
@@ -2175,7 +2208,7 @@ static void putTrackedValue(Out *out, const TrackedValue *tracked)
     }
     memcpy(copy, tracked->value.bytes, tracked->length);
     Cursor gradient = {copy, tracked->length, 0, 0};
-    if (gBackgroundStopCount > 0 || gPaletteCount) patchGradientStops(copy, &gradient, gBackgroundStopCount > 0);
+    if (gBackgroundStopCount > 0 || gPaletteCount || gTintColor) patchGradientStops(copy, &gradient, gBackgroundStopCount > 0);
     put(out, copy, tracked->length);
     free(copy);
 }
@@ -2596,7 +2629,7 @@ int astral_settings_rewrite(const uint8_t *bytes, size_t length, AstralWireBuffe
     }
     trackColors(bytes, spans, count);
     uint8_t *themed = NULL;
-    if (gPaletteCount || gRadiusScale != 1 || gFontScale != 1 || gBackgroundStopCount) {
+    if (gPaletteCount || gTintColor || gRadiusScale != 1 || gFontScale != 1 || gBackgroundStopCount) {
         themed = malloc(length);
         if (themed) {
             memcpy(themed, bytes, length);
