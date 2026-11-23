@@ -12,6 +12,7 @@
 #include "AstralTOML.h"
 #include "AstralThemes.h"
 #include "AstralSignatures.h"
+#include "AstralSettingsPages.h"
 #include "AstralFiles.h"
 #include "PhoenixProperties.h"
 #include "PhoenixWire.h"
@@ -264,6 +265,28 @@ static void testThemeParity(const std::string &work)
     auto imported = themes.select(themes.active());
     assert(imported.to[0] == 0xFFAABBCC);
     assert(themes.importUnbound("[]", "invalid"));
+    astral::Packs packs(settings, local.string(), bundled.string());
+    astral::SettingsPagesPlatform platform;
+    platform.settings = &settings;
+    platform.themes = [&] { return themes.list(); };
+    platform.activeTheme = [&] { return themes.active(); };
+    platform.iconPacks = [&] { return packs.icons(); };
+    platform.activeIconPack = [&] { return packs.activeIcons(); };
+    platform.emojiPacks = [&] { return packs.emoji(); };
+    platform.activeEmojiPack = [&] { return packs.activeEmoji(); };
+    astral::pages::configure(std::move(platform));
+    auto design = astral::pages::model("design");
+    for (const auto &section : design["sections"]) {
+        assert(section["rows"].is_array());
+        for (const auto &entry : section["rows"]) assert(entry.is_object());
+    }
+    bool converted = false;
+    astral::pages::withSpec(design, [&](const AstralPageSpec *spec) {
+        assert(std::string(spec->title) == "Design" && spec->count == 5);
+        converted = true;
+    });
+    assert(converted);
+    astral::pages::configure({});
 }
 
 static void testSliderPayloads()
@@ -281,6 +304,21 @@ static void testSliderPayloads()
     double invalid = std::numeric_limits<double>::quiet_NaN();
     memcpy(payload.data() + 8, &invalid, sizeof(invalid));
     assert(!astral_wire_event_value(payload.data(), payload.size(), &value));
+}
+
+static void testSingletonPageCollections()
+{
+    nlohmann::json row = {{"key", "theme-note"}, {"title", "Theme note"}, {"kind", kAstralRowInfo}};
+    nlohmann::json model = {{"title", "Design"}, {"sections", {{"title", "How themes apply"}, {"rows", row}}}};
+    bool converted = false;
+    astral::pages::withSpec(model, [&](const AstralPageSpec *spec) {
+        assert(spec->count == 1 && spec->sections[0].count == 1);
+        assert(std::string(spec->sections[0].rows[0].title) == "Theme note");
+        converted = true;
+    });
+    assert(converted);
+    model["sections"] = nlohmann::json::array({"invalid", {{"rows", nlohmann::json::array({row, "invalid"})}}});
+    astral::pages::withSpec(model, [](const AstralPageSpec *spec) { assert(spec->count == 1 && spec->sections[0].count == 1); });
 }
 
 static void testSharedSignatures(const std::string &work, const std::string &repository)
@@ -347,6 +385,7 @@ int main(int argc, char **argv)
     testSharedPacks(argv[1]);
     testThemeParity(argv[1]);
     testSliderPayloads();
+    testSingletonPageCollections();
     testSharedSignatures(argv[1], argv[2]);
     puts("ok");
     return 0;

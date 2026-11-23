@@ -23,6 +23,16 @@ astral::SettingsPagesPlatform gPlatform;
 std::mutex gFilterMutex;
 std::string gPluginFilter = "all";
 
+json objects(json value)
+{
+    if (value.is_object()) return json::array({std::move(value)});
+    json result = json::array();
+    if (value.is_array())
+        for (auto &entry : value)
+            if (entry.is_object()) result.push_back(std::move(entry));
+    return result;
+}
+
 json row(const std::string &key, const std::string &title, const std::string &icon, AstralRowKind kind)
 {
     return {{"key", key}, {"title", title}, {"icon", icon}, {"kind", (int)kind}};
@@ -36,12 +46,12 @@ json with(json base, const json &extra)
 
 json section(const std::string &title, json rows)
 {
-    return {{"title", title}, {"rows", std::move(rows)}};
+    return {{"title", title}, {"rows", objects(std::move(rows))}};
 }
 
 json page(const std::string &title, json sections)
 {
-    return {{"title", title}, {"sections", std::move(sections)}};
+    return {{"title", title}, {"sections", objects(std::move(sections))}};
 }
 
 std::string text(const json &object, const char *key, const std::string &fallback = "")
@@ -742,7 +752,8 @@ std::optional<std::string> action(const std::string &route, const std::string &k
 
 void withSpec(const json &model, const std::function<void(const AstralPageSpec *page)> &body)
 {
-    json sections = model.value("sections", json::array());
+    if (!model.is_object()) return;
+    json sections = objects(model.value("sections", json::array()));
     std::vector<std::vector<AstralRowSpec>> rows(sections.size());
     std::vector<json> sectionRows(sections.size());
     std::vector<AstralSectionSpec> specs;
@@ -755,7 +766,7 @@ void withSpec(const json &model, const std::function<void(const AstralPageSpec *
                    : nullptr;
     };
     for (size_t index = 0; index < sections.size(); index++) {
-        sectionRows[index] = sections[index].value("rows", json::array());
+        sectionRows[index] = objects(sections[index].value("rows", json::array()));
         for (const auto &entry : sectionRows[index]) {
             const char *key = optional(entry, "key"), *title = optional(entry, "title");
             rows[index].push_back({key ? key : "", title ? title : "", optional(entry, "subtitle"), optional(entry, "detail"),
@@ -767,14 +778,14 @@ void withSpec(const json &model, const std::function<void(const AstralPageSpec *
     for (size_t index = 0; index < sections.size(); index++)
         specs.push_back({sectionTitles[index].c_str(), rows[index].data(), rows[index].size()});
     json toolbarModel = model.contains("toolbar") && model["toolbar"].is_object() ? model["toolbar"] : json::object();
-    json chipList = toolbarModel.value("chips", json::array());
+    json chipList = objects(toolbarModel.value("chips", json::array()));
     std::vector<AstralChipSpec> chips;
     for (const auto &chip : chipList) {
         const char *key = optional(chip, "key"), *title = optional(chip, "title");
         chips.push_back({key ? key : "", title ? title : "", chip.value("selected", false) ? 1 : 0});
     }
     AstralToolbarSpec toolbar = {chips.data(), chips.size(), optional(toolbarModel, "buttonKey"), optional(toolbarModel, "buttonIcon")};
-    json cardList = model.value("cards", json::array());
+    json cardList = objects(model.value("cards", json::array()));
     std::vector<AstralCardSpec> cards;
     for (const auto &card : cardList) {
         AstralCardSpec spec = {};
