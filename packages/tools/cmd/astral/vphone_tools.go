@@ -331,11 +331,9 @@ func newestCrash(client vphoneClient, prefix string) (string, error) {
 }
 
 func astralDSYM() string {
-	for _, arch := range []string{"arm64e", "arm64"} {
-		candidate := repoPath("packages", "ios", ".theos", "obj", arch, "astral.dylib.dSYM")
-		if fileExists(candidate) {
-			return candidate
-		}
+	candidate := repoPath("packages", "ios", ".theos", "obj", "arm64", "astral.dylib.dSYM")
+	if fileExists(candidate) {
+		return candidate
 	}
 	return ""
 }
@@ -347,7 +345,7 @@ func symbolicate(image crashImage, offset uint64) string {
 	}
 	arch := image.Arch
 	if arch == "" {
-		arch = "arm64e"
+		arch = "arm64"
 	}
 	output, err := exec.Command("atos", "-arch", arch, "-o", dsym, "-l", fmt.Sprintf("0x%x", image.Base), fmt.Sprintf("0x%x", image.Base+offset)).Output()
 	if err != nil {

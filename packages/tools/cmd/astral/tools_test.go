@@ -160,6 +160,25 @@ func TestProfileCoversBundleAndDevice(t *testing.T) {
 	}
 }
 
+func TestProfileFindsTheSignedApplicationGroup(t *testing.T) {
+	profile := provisioningProfile{
+		Expiration: time.Now().Add(time.Hour),
+		Devices:    []string{"00008030-ABC"},
+		Team:       []string{"TEAM"},
+		Entitlements: map[string]interface{}{
+			"application-identifier":                "TEAM.dev.example.*",
+			"com.apple.security.application-groups": []interface{}{"", "group.dev.example.discord", "group.dev.example.other"},
+		},
+	}
+	if profile.firstApplicationGroup() != "group.dev.example.discord" {
+		t.Fatalf("application group %q", profile.firstApplicationGroup())
+	}
+	selected, err := profileForExtension(profile, "dev.example.discord.Share", "00008030-abc")
+	if err != nil || selected.firstApplicationGroup() != profile.firstApplicationGroup() {
+		t.Fatalf("extension profile did not preserve the shared group: %v", err)
+	}
+}
+
 func TestParseSemanticColors(t *testing.T) {
 	source := `r1 = {'SemanticColors': null};
         r5 = {'TEXT_DEFAULT': null, 'BACKGROUND_BASE_LOW': null};

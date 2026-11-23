@@ -33,6 +33,25 @@ func (profile provisioningProfile) applicationIdentifier() string {
 	return value
 }
 
+func (profile provisioningProfile) firstApplicationGroup() string {
+	groups := profile.applicationGroups()
+	if len(groups) > 0 {
+		return groups[0]
+	}
+	return ""
+}
+
+func (profile provisioningProfile) applicationGroups() []string {
+	groups, _ := profile.Entitlements["com.apple.security.application-groups"].([]interface{})
+	result := make([]string, 0, len(groups))
+	for _, value := range groups {
+		if group, ok := value.(string); ok && group != "" {
+			result = append(result, group)
+		}
+	}
+	return result
+}
+
 func (profile provisioningProfile) covers(bundleID string, device string) bool {
 	if len(profile.Team) == 0 || time.Now().After(profile.Expiration) {
 		return false
@@ -219,12 +238,150 @@ func setBundleID(app string, bundleID string) error {
 		return err
 	}
 	values["CFBundleIdentifier"] = bundleID
+	ensureURLScheme(values, astralURLScheme)
 	delete(values, "UISupportedDevices")
 	encoded, err := plist.Marshal(values, format)
 	if err != nil {
 		return err
 	}
 	return os.WriteFile(info, encoded, 0o644)
+}
+
+func bundleIdentifier(bundle string) (string, error) {
+	data, err := os.ReadFile(filepath.Join(bundle, "Info.plist"))
+	if err != nil {
+		return "", err
+	}
+	var values map[string]interface{}
+	if _, err := plist.Unmarshal(data, &values); err != nil {
+		return "", err
+	}
+	bundleID, _ := values["CFBundleIdentifier"].(string)
+	if bundleID == "" {
+		return "", errors.New("bundle has no CFBundleIdentifier: " + bundle)
+	}
+	return bundleID, nil
+}
+
+func setExtensionBundleID(bundle string, bundleID string) error {
+	info := filepath.Join(bundle, "Info.plist")
+	data, err := os.ReadFile(info)
+	if err != nil {
+		return err
+	}
+	var values map[string]interface{}
+	format, err := plist.Unmarshal(data, &values)
+	if err != nil {
+		return err
+	}
+	values["CFBundleIdentifier"] = bundleID
+	encoded, err := plist.Marshal(values, format)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(info, encoded, 0o644)
+}
+
+func extensionBundles(app string) ([]string, error) {
+	plugins := filepath.Join(app, "PlugIns")
+	entries, err := os.ReadDir(plugins)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var bundles []string
+	for _, entry := range entries {
+		if entry.IsDir() && strings.HasSuffix(entry.Name(), ".appex") {
+			bundles = append(bundles, filepath.Join(plugins, entry.Name()))
+		}
+	}
+	sort.Strings(bundles)
+	return bundles, nil
+}
+
+func extensionBundleID(originalAppID string, targetAppID string, extensionID string) (string, error) {
+	suffix, ok := strings.CutPrefix(extensionID, originalAppID)
+	if !ok || !strings.HasPrefix(suffix, ".") {
+		return "", fmt.Errorf("extension bundle identifier %q is not nested under %q", extensionID, originalAppID)
+	}
+	return targetAppID + suffix, nil
+}
+
+func profileForExtension(profile provisioningProfile, bundleID string, device string) (provisioningProfile, error) {
+	if profile.covers(bundleID, device) {
+		return profile, nil
+	}
+	return findProfile(bundleID, device)
+}
+
+func signExtensions(app string, originalAppID string, bundleID string, profile provisioningProfile, explicitProfile string, device string, work string) error {
+	bundles, err := extensionBundles(app)
+	if err != nil {
+		return err
+	}
+	appGroup := profile.firstApplicationGroup()
+	appGroups := profile.applicationGroups()
+	requiresSharedGroup := false
+	for _, bundle := range bundles {
+		if !ownExtensions[filepath.Base(bundle)] {
+			requiresSharedGroup = true
+			break
+		}
+	}
+	if requiresSharedGroup && appGroup == "" {
+		return errors.New("the app provisioning profile has no application group entitlement for Discord's extensions")
+	}
+	for _, bundle := range bundles {
+		extensionID, err := bundleIdentifier(bundle)
+		if err != nil {
+			return err
+		}
+		targetID, err := extensionBundleID(originalAppID, bundleID, extensionID)
+		if err != nil {
+			return err
+		}
+		extensionProfile, err := profileForExtension(profile, targetID, device)
+		if err != nil {
+			return err
+		}
+		if len(profile.Team) == 0 || len(extensionProfile.Team) == 0 || profile.Team[0] != extensionProfile.Team[0] {
+			return fmt.Errorf("provisioning profile for extension %s must use the app's team", targetID)
+		}
+		if !ownExtensions[filepath.Base(bundle)] && extensionProfile.firstApplicationGroup() != appGroup {
+			return fmt.Errorf("provisioning profile for extension %s must use the app's application group %q", targetID, appGroup)
+		}
+		if !ownExtensions[filepath.Base(bundle)] {
+			for _, group := range extensionProfile.applicationGroups() {
+				if !containsGroup(appGroups, group) {
+					return fmt.Errorf("provisioning profile for extension %s adds app group %q that the app does not have", targetID, group)
+				}
+			}
+		}
+		extensionIdentity, err := signingIdentity(extensionProfile)
+		if err != nil {
+			return err
+		}
+		if err := setExtensionBundleID(bundle, targetID); err != nil {
+			return err
+		}
+		if err := copyFile(extensionProfile.path, filepath.Join(bundle, "embedded.mobileprovision")); err != nil {
+			return err
+		}
+		entitlementDirectory := filepath.Join(work, strings.TrimSuffix(filepath.Base(bundle), ".appex"))
+		if err := os.MkdirAll(entitlementDirectory, 0o755); err != nil {
+			return err
+		}
+		entitlements, err := entitlementsFor(extensionProfile, targetID, entitlementDirectory)
+		if err != nil {
+			return err
+		}
+		if err := signBundle(bundle, extensionIdentity, entitlements); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func runSideload(args []string) error {
@@ -252,6 +409,9 @@ func runSideload(args []string) error {
 	if err != nil {
 		return err
 	}
+	if !profile.covers(*bundleID, *device) {
+		return fmt.Errorf("provisioning profile %s does not cover %s on %s", profile.Name, *bundleID, *device)
+	}
 	identity, err := signingIdentity(profile)
 	if err != nil {
 		return err
@@ -273,8 +433,35 @@ func runSideload(args []string) error {
 		}
 		source = built
 	}
+	groups, err := buildGroupRemap(work)
+	if err != nil {
+		return err
+	}
+	wired := filepath.Join(work, "wired.ipa")
+	if err := copyFile(source, wired); err != nil {
+		return err
+	}
+	if injected {
+		appBundleID, err := ipaBundleIdentifier(wired)
+		if err != nil {
+			return err
+		}
+		extension, err := buildOpenInAstralExtension(work, appBundleID)
+		if err != nil {
+			return err
+		}
+		if err := addOpenInAstralToIPA(wired, extension); err != nil {
+			return err
+		}
+	}
+	if err := addGroupRemapToIPA(wired, groups); err != nil {
+		return err
+	}
+	if err := validateIPAGroupWiring(wired); err != nil {
+		return err
+	}
 	extracted := filepath.Join(work, "extracted")
-	if err := unzip(source, extracted); err != nil {
+	if err := unzip(wired, extracted); err != nil {
 		return err
 	}
 	apps, _ := filepath.Glob(filepath.Join(extracted, "Payload", "*.app"))
@@ -282,10 +469,17 @@ func runSideload(args []string) error {
 		return errors.New("the IPA has no single Payload/*.app")
 	}
 	app := apps[0]
-	for _, extension := range []string{"PlugIns", "Watch", "Extensions"} {
+	for _, extension := range []string{"Watch", "Extensions"} {
 		os.RemoveAll(filepath.Join(app, extension))
 	}
+	originalBundleID, err := bundleIdentifier(app)
+	if err != nil {
+		return err
+	}
 	if err := setBundleID(app, *bundleID); err != nil {
+		return err
+	}
+	if err := signExtensions(app, originalBundleID, *bundleID, profile, *profilePath, *device, work); err != nil {
 		return err
 	}
 	if err := copyFile(profile.path, filepath.Join(app, "embedded.mobileprovision")); err != nil {

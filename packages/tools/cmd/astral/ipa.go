@@ -8,15 +8,17 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"howett.net/plist"
 )
 
 const (
-	cyanRepository = "https://github.com/asdfzxcvbn/pyzule-rw"
-	cyanCommit     = "740d3716dcd98c20c000f12cdb88f1f0b2a533a4"
-	pillowVersion  = "11.3.0"
+	cyanRepository  = "https://github.com/asdfzxcvbn/pyzule-rw"
+	cyanCommit      = "740d3716dcd98c20c000f12cdb88f1f0b2a533a4"
+	pillowVersion   = "11.3.0"
+	astralURLScheme = "astral"
 )
 
 func cyanBinary() (string, error) {
@@ -130,6 +132,149 @@ func loadedDylibs(file *macho.File) []string {
 	return libraries
 }
 
+func ipaBundleIdentifier(ipa string) (string, error) {
+	archive, err := zip.OpenReader(ipa)
+	if err != nil {
+		return "", err
+	}
+	defer archive.Close()
+	app, err := appDirectory(archive)
+	if err != nil {
+		return "", err
+	}
+	data, err := readZipEntry(archive, app+"Info.plist")
+	if err != nil {
+		return "", err
+	}
+	var info map[string]interface{}
+	if _, err := plist.Unmarshal(data, &info); err != nil {
+		return "", err
+	}
+	identifier, _ := info["CFBundleIdentifier"].(string)
+	if identifier == "" {
+		return "", errors.New("the app has no CFBundleIdentifier")
+	}
+	return identifier, nil
+}
+
+func ensureURLScheme(info map[string]interface{}, scheme string) bool {
+	urlTypes, _ := info["CFBundleURLTypes"].([]interface{})
+	for _, value := range urlTypes {
+		typeInfo, ok := value.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		schemes, _ := typeInfo["CFBundleURLSchemes"].([]interface{})
+		for _, existing := range schemes {
+			if existing == scheme {
+				return false
+			}
+		}
+	}
+	info["CFBundleURLTypes"] = append(urlTypes, map[string]interface{}{
+		"CFBundleURLName":    "app.astral.client",
+		"CFBundleURLSchemes": []interface{}{scheme},
+	})
+	return true
+}
+
+func addURLSchemeToIPA(ipa string, scheme string) error {
+	archive, err := zip.OpenReader(ipa)
+	if err != nil {
+		return err
+	}
+	app, err := appDirectory(archive)
+	if err != nil {
+		archive.Close()
+		return err
+	}
+	infoPath := app + "Info.plist"
+	data, err := readZipEntry(archive, infoPath)
+	if err != nil {
+		archive.Close()
+		return err
+	}
+	var info map[string]interface{}
+	format, err := plist.Unmarshal(data, &info)
+	if err != nil {
+		archive.Close()
+		return err
+	}
+	if !ensureURLScheme(info, scheme) {
+		return archive.Close()
+	}
+	encoded, err := plist.Marshal(info, format)
+	if err != nil {
+		archive.Close()
+		return err
+	}
+	temporary, err := os.CreateTemp(filepath.Dir(ipa), ".astral-url-scheme-*.ipa")
+	if err != nil {
+		archive.Close()
+		return err
+	}
+	defer os.Remove(temporary.Name())
+	writer := zip.NewWriter(temporary)
+	for _, file := range archive.File {
+		if file.Name == infoPath {
+			if err := writeIPAEntry(writer, file.Name, file.Mode(), file.Modified, encoded); err != nil {
+				temporary.Close()
+				archive.Close()
+				return err
+			}
+			continue
+		}
+		if err := writer.Copy(file); err != nil {
+			temporary.Close()
+			archive.Close()
+			return err
+		}
+	}
+	if err := writer.Close(); err != nil {
+		temporary.Close()
+		archive.Close()
+		return err
+	}
+	if err := temporary.Close(); err != nil {
+		archive.Close()
+		return err
+	}
+	if err := archive.Close(); err != nil {
+		return err
+	}
+	return os.Rename(temporary.Name(), ipa)
+}
+
+func buildOpenInAstralExtension(work string, appBundleID string) (string, error) {
+	if runtime.GOOS != "darwin" {
+		return "", errors.New("Safari extensions require macOS")
+	}
+	project := repoPath("packages", "ios", "extensions", "OpenInAstral", "OpenInAstral.xcodeproj")
+	output := filepath.Join(work, "OpenInAstral-build")
+	args := []string{
+		"-project", project,
+		"-quiet",
+		"-target", "OpenInAstral",
+		"build",
+		"-configuration", "Release",
+		"-sdk", "iphoneos",
+		"CONFIGURATION_BUILD_DIR=" + output,
+		"PRODUCT_NAME=OpenInAstral",
+		"PRODUCT_BUNDLE_IDENTIFIER=" + appBundleID + ".OpenInAstral",
+		"CODE_SIGNING_REQUIRED=NO",
+		"CODE_SIGNING_ALLOWED=NO",
+		"ONLY_ACTIVE_ARCH=NO",
+	}
+	if err := run(work, "xcodebuild", args...); err != nil {
+		return "", fmt.Errorf("building OpenInAstral.appex failed: %w", err)
+	}
+	path := filepath.Join(output, "OpenInAstral.appex")
+	if !fileExists(path) {
+		return "", errors.New("xcodebuild did not create OpenInAstral.appex")
+	}
+	return path, nil
+}
+
 func runBuildIPA(args []string) error {
 	flags := newFlags("build-ipa")
 	ipa := flags.String("ipa", "", "decrypted Discord IPA")
@@ -163,6 +308,17 @@ func runBuildIPA(args []string) error {
 	if injected {
 		return errors.New("the IPA already loads astral.dylib; use a clean Discord IPA")
 	}
+	sourceArchive, err := zip.OpenReader(*ipa)
+	if err != nil {
+		return err
+	}
+	sourceEntries := make([]string, 0, len(sourceArchive.File))
+	for _, file := range sourceArchive.File {
+		sourceEntries = append(sourceEntries, file.Name)
+	}
+	if err := sourceArchive.Close(); err != nil {
+		return err
+	}
 	cyan, err := cyanBinary()
 	if err != nil {
 		return err
@@ -173,6 +329,44 @@ func runBuildIPA(args []string) error {
 	}
 	built := filepath.Join(work, "astral.ipa")
 	if err := run(work, cyan, "-duwsgq", "-i", *ipa, "-o", built, "-f", *deb, bundle); err != nil {
+		return err
+	}
+	if err := addURLSchemeToIPA(built, astralURLScheme); err != nil {
+		return fmt.Errorf("registering astral's URL scheme failed: %w", err)
+	}
+	appBundleID, err := ipaBundleIdentifier(*ipa)
+	if err != nil {
+		return err
+	}
+	extension, err := buildOpenInAstralExtension(work, appBundleID)
+	if err != nil {
+		return err
+	}
+	if err := addOpenInAstralToIPA(built, extension); err != nil {
+		return err
+	}
+	groups, err := buildGroupRemap(work)
+	if err != nil {
+		return err
+	}
+	if err := addGroupRemapToIPA(built, groups); err != nil {
+		return err
+	}
+	if err := validateIPAGroupWiring(built); err != nil {
+		return err
+	}
+	finalArchive, err := zip.OpenReader(built)
+	if err != nil {
+		return err
+	}
+	finalEntries := make([]string, 0, len(finalArchive.File))
+	for _, file := range finalArchive.File {
+		finalEntries = append(finalEntries, file.Name)
+	}
+	if err := finalArchive.Close(); err != nil {
+		return err
+	}
+	if err := validateIPAExtensions(sourceEntries, finalEntries, []string{"OpenInAstral.appex", "Share.appex"}); err != nil {
 		return err
 	}
 	if err := copyFile(built, *destination); err != nil {
