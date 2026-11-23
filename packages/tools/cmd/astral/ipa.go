@@ -345,6 +345,9 @@ func runBuildIPA(args []string) error {
 	if err := addOpenInAstralToIPA(built, extension); err != nil {
 		return err
 	}
+	if err := addExtensionManifestToIPA(built, sourceEntries, []string{"OpenInAstral.appex", "Share.appex"}); err != nil {
+		return fmt.Errorf("recording required app extensions failed: %w", err)
+	}
 	groups, err := buildGroupRemap(work)
 	if err != nil {
 		return err

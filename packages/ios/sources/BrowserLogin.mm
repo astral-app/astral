@@ -115,3 +115,18 @@ void AstralInstallBrowserLogin(void)
                 performWithOptions, (IMP)PerformRequestsWithOptions);
     });
 }
+
+NSDictionary<NSString *, NSNumber *> *AstralBrowserLoginStatus(void)
+{
+    Class module = NSClassFromString(@"LibdiscordHost.PasskeysModule");
+    SEL completed = NSSelectorFromString(@"authorizationController:didCompleteWithAuthorization:");
+    SEL failed = NSSelectorFromString(@"authorizationController:didCompleteWithError:");
+    BOOL hasCompletion = module && class_getInstanceMethod(module, completed);
+    BOOL hasFailure = module && class_getInstanceMethod(module, failed);
+    return @{
+        @"nativeModule" : @(module != Nil),
+        @"authorizationDelegate" : @(hasCompletion),
+        @"failureDelegate" : @(hasFailure),
+        @"nativePasskeys" : @(hasCompletion && hasFailure)
+    };
+}

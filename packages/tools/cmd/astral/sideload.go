@@ -426,6 +426,17 @@ func runSideload(args []string) error {
 	if err != nil {
 		return err
 	}
+	sourceArchive, err := zip.OpenReader(source)
+	if err != nil {
+		return err
+	}
+	sourceEntries := make([]string, 0, len(sourceArchive.File))
+	for _, file := range sourceArchive.File {
+		sourceEntries = append(sourceEntries, file.Name)
+	}
+	if err := sourceArchive.Close(); err != nil {
+		return err
+	}
 	if !injected {
 		built := filepath.Join(work, "astral.ipa")
 		if err := runBuildIPA([]string{"--ipa", source, "--output", built}); err != nil {
@@ -440,6 +451,9 @@ func runSideload(args []string) error {
 	wired := filepath.Join(work, "wired.ipa")
 	if err := copyFile(source, wired); err != nil {
 		return err
+	}
+	if err := addExtensionManifestToIPA(wired, sourceEntries, []string{"OpenInAstral.appex", "Share.appex"}); err != nil {
+		return fmt.Errorf("recording signed app extension requirements failed: %w", err)
 	}
 	if injected {
 		appBundleID, err := ipaBundleIdentifier(wired)
@@ -490,6 +504,12 @@ func runSideload(args []string) error {
 		return err
 	}
 	if err := signBundle(app, identity, entitlements); err != nil {
+		return err
+	}
+	if err := validateSignedAppExtensions(app); err != nil {
+		return err
+	}
+	if err := validateSignedAppGroupWiring(app); err != nil {
 		return err
 	}
 	if err := run(work, "xcrun", "devicectl", "device", "install", "app", "--device", *device, app); err != nil {
