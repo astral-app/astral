@@ -17,16 +17,16 @@ astral ports Unbound behavior through Phoenix's shared Lua API. It does not carr
 | Text Replace | Rewrites outgoing messages using editable literal or Lua pattern rules with optional context | `astral.messages.transform`, `astral.settings.text`, `astral.files`, `astral.ui.copy` |
 | Mention Haptics | Taps for direct mentions and incoming direct messages, with strength and channel settings | `astral.events`, `astral.ui.haptic` |
 | Enhanced Blocking | Filters new messages by user ID, literal keywords or a known reply author before Phoenix handles them | `astral.events.on("message.filter")`, `astral.settings.text` |
+| Highlight Replies | Tints the text of messages that reply to your messages; row background highlighting is not exposed yet | `astral.ui.message_color`, `node.reply_to_me` |
 
-All eleven add-ons are signed Lua packages with sandboxed tests. Mention Haptics currently recognizes direct user mentions; role/everyone suppression preferences and live Phoenix acceptance remain open. Enhanced Blocking does not filter edits or messages already loaded in chat, does not read Discord's blocked/ignored relationship state, and matches at most the first 64 keywords (128 characters each). These are the current cross-platform portability set; the list does not claim full Unbound feature parity.
+All twelve add-ons are signed Lua packages with sandboxed tests. Mention Haptics currently recognizes direct user mentions; role/everyone suppression preferences and live Phoenix acceptance remain open. Enhanced Blocking does not filter edits or messages already loaded in chat, does not read Discord's blocked/ignored relationship state, and matches at most the first 64 keywords (128 characters each). Highlight Replies tints message text when the replied-to message is still in cache; Phoenix row background highlighting remains unsupported. These are the current cross-platform portability set; the list does not claim full Unbound feature parity.
 
 ## User-selected shortlist
 
-The user-selected shortlist had nine Unbound add-ons. Clear URLs, Text Replace, Mention Haptics and Enhanced Blocking are ported; the remaining candidates below are grouped by the Phoenix seams they share.
+The user-selected shortlist had nine Unbound add-ons. Clear URLs, Text Replace, Mention Haptics, Enhanced Blocking and Highlight Replies are ported; the remaining candidates below are grouped by the Phoenix seams they share.
 
 | Candidate | Existing Astral fit | Required Phoenix/API seam | Port group |
 | --- | --- | --- | --- |
-| Highlight Replies | Message references and `astral.ui.message_color` are available | Current-user identity and a row-level background/highlight target; text tint alone does not match the Unbound behavior | 2 |
 | Translate | `astral.net.request` and plugin storage are available | Contextual message actions, translated-content presentation and provider/language settings | 3 |
 | Expression Tools | Existing settings pages provide a place for basic preferences | Expression and sticker picker actions, contextual sheets, clone/send operations and Phoenix expression data | 3 |
 | Live Markdown | Composer placeholders can be relabeled | Composer input/rendering control, inline formatting and custom-emoji insertion; Unbound's implementation also has iOS-specific native behavior | 4 |
@@ -35,7 +35,7 @@ The user-selected shortlist had nine Unbound add-ons. Clear URLs, Text Replace, 
 ## Porting sequence
 
 1. The shared pre-send transform is implemented for buffered JSON message-create and message-edit requests on iOS and Android. It changes only `content` and preserves other JSON fields; live Phoenix transport coverage remains unverified without authorized app artifacts. Clear URLs and Text Replace use it. Text Replace supports editable plain-text rules and Lua patterns, imports `.txt` files and copies its rules to the clipboard; its pattern syntax differs from JavaScript regular expressions.
-2. Add message-row highlight/visibility controls and current-user identity for Highlight Replies. Enhanced Blocking now filters incoming `MESSAGE_CREATE` events by user ID, literal keyword and available reply author; filtering edits, already loaded rows and blocked/ignored relationship state remains open. Mention Haptics uses a metadata-only message-create event and permission-gated haptics on both platforms; role/everyone suppression settings remain open.
+2. Highlight Replies uses cached message references and current-user identity to tint reply text when the target message is available. Phoenix row background highlighting remains a separate UI seam. Enhanced Blocking filters incoming `MESSAGE_CREATE` events by user ID, literal keyword and available reply author; filtering edits, already loaded rows and blocked/ignored relationship state remains open. Mention Haptics uses a metadata-only message-create event and permission-gated haptics on both platforms; role/everyone suppression settings remain open.
 3. Add contextual message actions and a safe translated-content surface before porting Translate. Treat Expression Tools as a separate follow-up because it also needs expression picker and send operations.
 4. Design composer rendering and message-cell customization only after Phoenix's native UI lifecycle is mapped independently on iOS and Android. Live Markdown and Chat Bubbles should use shared API contracts with platform adapters, not native plugin code.
 

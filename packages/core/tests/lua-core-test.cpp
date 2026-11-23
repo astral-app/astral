@@ -731,9 +731,10 @@ static void testGatewayMessageEventsAndHaptics(const std::string &work)
     std::filesystem::create_directories(restricted);
     writeText(plugin / "manifest.toml",
               "id = 'astral.gateway-events-test'\nname = 'Gateway events test'\nversion = '1.0'\nmain = 'main.lua'\npermissions = "
-              "['events.messages', 'events.messages.filter', 'ui.haptics', 'storage']\n");
+              "['discord.messages', 'events.messages', 'events.messages.filter', 'ui.haptics', 'storage']\n");
     writeText(plugin / "main.lua",
               "astral.events.on('message.filter', function(message) return message.content:find('filtered', 1, true) ~= nil end)\n"
+              "astral.ui.message_color(function(message) if message.reply_to_me then return 0x805865F2 end end)\n"
               "astral.events.on('message.create', function(message)\n"
               "  astral.storage.set('event', message)\n"
               "  if not message.from_me and not (message.open and not astral.settings.get('open', false)) and "
@@ -742,14 +743,27 @@ static void testGatewayMessageEventsAndHaptics(const std::string &work)
     writeText(
         restricted / "manifest.toml",
         "id = 'astral.gateway-events-restricted'\nname = 'Restricted'\nversion = '1.0'\nmain = 'main.lua'\npermissions = ['storage']\n");
-    writeText(restricted / "main.lua", "local events = pcall(function() astral.events.on('message.create', function() end) end)\n"
-                                       "local filters = pcall(function() astral.events.on('message.filter', function() end) end)\n"
-                                       "local haptics = pcall(function() astral.ui.haptic('light') end)\n"
-                                       "astral.storage.set('permissions', {events = events, filters = filters, haptics = haptics})\n");
+    writeText(restricted / "main.lua",
+              "local events = pcall(function() astral.events.on('message.create', function() end) end)\n"
+              "local filters = pcall(function() astral.events.on('message.filter', function() end) end)\n"
+              "local haptics = pcall(function() astral.ui.haptic('light') end)\n"
+              "astral.ui.message_color(function(message) astral.storage.set('reply_context', tostring(message.reply_to_me)) end)\n"
+              "astral.storage.set('permissions', {events = events, filters = filters, haptics = haptics})\n");
     astral::SettingsStore settings((root / "settings.json").string());
     settings.set("astral", "developer-mode", true);
     astral::LuaHostPlatform platform;
     platform.storagePath = (root / "storage.sqlite").string();
+    platform.message = [](const std::string &channel, const std::string &message) -> std::optional<nlohmann::json> {
+        if (channel != "200000000000000007") return std::nullopt;
+        if (message == "200000000000000010") return nlohmann::json{{"author", {{"id", "100000000000000001"}}}};
+        if (message == "200000000000000011")
+            return nlohmann::json{{"author", {{"id", "200000000000000003"}}},
+                                  {"reference", {{"channel_id", channel}, {"message_id", "200000000000000010"}}}};
+        if (message == "200000000000000012")
+            return nlohmann::json{{"author", {{"id", "100000000000000001"}}},
+                                  {"reference", {{"channel_id", channel}, {"message_id", "200000000000000010"}}}};
+        return std::nullopt;
+    };
     std::vector<std::string> strengths;
     platform.triggerHaptic = [&](const std::string &strength) {
         strengths.push_back(strength);
@@ -782,6 +796,11 @@ static void testGatewayMessageEventsAndHaptics(const std::string &work)
     assert(!astral::luahost::processGatewayMessage(
         R"({"op":0,"t":"MESSAGE_CREATE","d":{"id":"200000000000000009","channel_id":"200000000000000007","author":{"id":"100000000000000001"},"mentions":[{"id":"100000000000000001"}],"content":"filtered own message"}})"));
     assert(strengths == std::vector<std::string>({"medium", "medium"}));
+    uint32_t color = 0;
+    assert(AstralLuaMessageTextColor(200000000000000011ULL, 200000000000000007ULL, &color) == 1);
+    assert(color == 0x805865F2);
+    assert(astral::luahost::eval("astral.gateway-events-restricted", "return astral.storage.get('reply_context')") == "nil");
+    assert(AstralLuaMessageTextColor(200000000000000012ULL, 200000000000000007ULL, &color) == 0);
     astral::luahost::stop();
 }
 
