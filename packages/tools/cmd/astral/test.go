@@ -66,9 +66,15 @@ func testCore(work string) error {
 		return err
 	}
 	var wireObjects []string
-	for _, source := range wireSourceFiles {
-		target := filepath.Join(work, source+".o")
-		if err := run(repoPath(), "clang", "-std=c11", "-g", "-fsanitize=address,undefined", "-I"+repoPath("packages", "core", "wire"), "-c", repoPath("packages", "core", "wire", source), "-o", target); err != nil {
+	monocypher := repoPath("vendor", "monocypher", "src")
+	var nativeSources []string
+	for _, name := range wireSourceFiles {
+		nativeSources = append(nativeSources, repoPath("packages", "core", "wire", name))
+	}
+	nativeSources = append(nativeSources, filepath.Join(monocypher, "monocypher.c"), filepath.Join(monocypher, "optional", "monocypher-ed25519.c"))
+	for _, source := range nativeSources {
+		target := filepath.Join(work, filepath.Base(source)+".o")
+		if err := run(repoPath(), "clang", "-std=c11", "-g", "-fsanitize=address,undefined", "-I"+monocypher, "-I"+filepath.Join(monocypher, "optional"), "-I"+repoPath("packages", "core", "wire"), "-c", source, "-o", target); err != nil {
 			return err
 		}
 		wireObjects = append(wireObjects, target)
@@ -84,11 +90,15 @@ func testCore(work string) error {
 	}
 	arguments = append(arguments, sources...)
 	arguments = append(arguments, wireObjects...)
+	arguments = append(arguments, "-I"+monocypher, "-I"+filepath.Join(monocypher, "optional"))
+	if runtime.GOOS != "darwin" {
+		arguments = append(arguments, "-lcrypto")
+	}
 	arguments = append(arguments, object, "-lsqlite3", "-o", binary)
 	if err := run(repoPath(), "clang++", arguments...); err != nil {
 		return err
 	}
-	return run(repoPath(), binary, work)
+	return run(repoPath(), binary, work, repoPath())
 }
 
 func luaPlatform() string {

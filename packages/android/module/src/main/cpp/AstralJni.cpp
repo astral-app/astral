@@ -2,6 +2,7 @@
 #include <jni.h>
 
 #include <filesystem>
+#include <atomic>
 #include <optional>
 #include <memory>
 #include <mutex>
@@ -17,6 +18,7 @@
 #include "AstralReactors.h"
 #include "AstralRequestSink.h"
 #include "AstralSession.h"
+#include "AstralSignatures.h"
 #include "AstralSettingsNavigator.h"
 #include "AstralSettingsPages.h"
 #include "AstralSettings.h"
@@ -32,6 +34,7 @@ constexpr jsize kMaxPropertyNames = 2048;
 std::unique_ptr<astral::SettingsStore> gSettings;
 std::unique_ptr<astral::Packs> gPacks;
 std::unique_ptr<astral::Themes> gThemes;
+std::unique_ptr<astral::Signatures> gSignatures;
 unsigned gImageGeneration = 0;
 std::mutex gWireLock;
 JavaVM *gVM = nullptr;
@@ -39,10 +42,11 @@ jclass gBridge = nullptr;
 jmethodID gDeliver = nullptr;
 jmethodID gFetch = nullptr;
 
-std::vector<uint8_t> refreshedDecorations();
+std::atomic<bool> gRefreshDecorations{false};
 void deliver(const std::vector<uint8_t> &bytes);
 void refreshImages();
 void applyTheme(const std::string &identifier);
+std::string sha256(const std::string &data);
 
 std::string plain(JNIEnv *env, jstring value)
 {
@@ -86,6 +90,31 @@ void developerLog(const std::string &line)
 
 std::optional<astral::dev::Response> developerRoute(const astral::dev::Request &request)
 {
+    if (request.method == "GET" && request.route == "/themes") {
+        auto identifiers = nlohmann::json::array();
+        for (const auto &theme : gThemes->list()) identifiers.push_back(theme["id"]);
+        return astral::dev::Response{200, {{"active", gThemes->active()}, {"themes", identifiers}}};
+    }
+    if (request.method == "POST" && request.route == "/unbound-theme") {
+        if (auto error = gThemes->importUnbound(request.body, "Imported")) return astral::dev::Response{400, {{"error", *error}}};
+        applyTheme(gThemes->active());
+        astral::navigator::refresh();
+        return astral::dev::Response{200, {{"active", gThemes->active()}}};
+    }
+    if (request.method == "POST" && (request.route == "/theme" || request.route == "/icon-pack" || request.route == "/emoji-pack")) {
+        if (!request.json.is_object() || !request.json.contains("id") || !request.json["id"].is_string())
+            return astral::dev::Response{400, {{"error", "id is required"}}};
+        auto identifier = request.json["id"].get<std::string>();
+        if (request.route == "/theme")
+            applyTheme(identifier);
+        else if (request.route == "/icon-pack") {
+            if (!gPacks->selectIcons(identifier)) return astral::dev::Response{400, {{"error", "no such icon pack"}}};
+            refreshImages();
+        } else if (!gPacks->selectEmoji(identifier))
+            return astral::dev::Response{400, {{"error", "no such emoji pack"}}};
+        astral::navigator::refresh();
+        return astral::dev::Response{200, {{"active", request.route == "/theme" ? gThemes->active() : identifier}}};
+    }
     if (request.method != "POST" || request.route != "/reload") return std::nullopt;
     size_t reloaded = 0;
     for (const auto &plugin : astral::luahost::plugins()) {
@@ -93,7 +122,11 @@ std::optional<astral::dev::Response> developerRoute(const astral::dev::Request &
         astral::luahost::reload(plugin.value("id", ""));
         reloaded++;
     }
-    return astral::dev::Response{200, {{"plugins", reloaded}, {"theme", ""}}};
+    gPacks->invalidate();
+    refreshImages();
+    applyTheme(gThemes->active());
+    astral::navigator::refresh();
+    return astral::dev::Response{200, {{"plugins", reloaded}, {"theme", gThemes->active()}}};
 }
 
 void startDeveloperServer(const std::string &state)
@@ -136,9 +169,12 @@ astral::LuaHostPlatform platform(const std::string &state, const std::string &re
         __android_log_print(ANDROID_LOG_ERROR, "astral", "plugin %s (%s) failed: %s", identifier.c_str(), name.c_str(), error.c_str());
     };
     platform.reactors = astral::reactors::lookup;
-    platform.refreshDecorations = [] { deliver(refreshedDecorations()); };
+    platform.refreshDecorations = [] { gRefreshDecorations = true; };
     platform.preferredLanguages = std::move(languages);
     platform.storagePath = state + "/plugin-storage.sqlite";
+    platform.verifySignature = [](const std::string &directory, const std::string &main) {
+        return gSignatures->directory(directory, main);
+    };
     platform.bundledDirectory = resources;
     return platform;
 }
@@ -230,15 +266,7 @@ std::vector<uint8_t> pendingUpdates()
     AstralWireBuffer buffer;
     if (astral_wire_retry_mentions(&buffer)) append(merged, buffer);
     if (astral_wire_retry_reactions(&buffer)) append(merged, buffer);
-    return merged;
-}
-
-std::vector<uint8_t> refreshedDecorations()
-{
-    std::lock_guard<std::mutex> lock(gWireLock);
-    std::vector<uint8_t> merged;
-    AstralWireBuffer buffer;
-    if (astral_wire_refresh_reactions(&buffer)) append(merged, buffer);
+    if (gRefreshDecorations.exchange(false) && astral_wire_refresh_reactions(&buffer)) append(merged, buffer);
     return merged;
 }
 
@@ -344,6 +372,46 @@ jstring text(JNIEnv *env, const std::string &value)
     return env->NewStringUTF(value.c_str());
 }
 
+std::string sha256(const std::string &data)
+{
+    if (data.size() > (2u << 20)) return "";
+    bool attached = false;
+    JNIEnv *env = currentEnvironment(attached);
+    if (!env) return "";
+    std::string result;
+    bool frame = env->PushLocalFrame(8) >= 0;
+    if (frame) do {
+            jclass type = env->FindClass("java/security/MessageDigest");
+            if (!type || env->ExceptionCheck()) break;
+            jstring algorithm = env->NewStringUTF("SHA-256");
+            if (!algorithm || env->ExceptionCheck()) break;
+            auto factory = env->GetStaticMethodID(type, "getInstance", "(Ljava/lang/String;)Ljava/security/MessageDigest;");
+            if (!factory || env->ExceptionCheck()) break;
+            auto digest = env->GetMethodID(type, "digest", "([B)[B");
+            if (!digest || env->ExceptionCheck()) break;
+            auto instance = env->CallStaticObjectMethod(type, factory, algorithm);
+            if (!instance || env->ExceptionCheck()) break;
+            jbyteArray input = env->NewByteArray(static_cast<jsize>(data.size()));
+            if (!input || env->ExceptionCheck()) break;
+            env->SetByteArrayRegion(input, 0, static_cast<jsize>(data.size()), reinterpret_cast<const jbyte *>(data.data()));
+            if (env->ExceptionCheck()) break;
+            auto output = static_cast<jbyteArray>(env->CallObjectMethod(instance, digest, input));
+            if (!output || env->ExceptionCheck() || env->GetArrayLength(output) != 32) break;
+            uint8_t bytes[32];
+            env->GetByteArrayRegion(output, 0, 32, reinterpret_cast<jbyte *>(bytes));
+            if (env->ExceptionCheck()) break;
+            const char *digits = "0123456789abcdef";
+            for (auto byte : bytes) {
+                result += digits[byte >> 4];
+                result += digits[byte & 15];
+            }
+        } while (false);
+    if (env->ExceptionCheck()) env->ExceptionClear();
+    if (frame) env->PopLocalFrame(nullptr);
+    if (attached) gVM->DetachCurrentThread();
+    return result;
+}
+
 } // namespace
 
 extern "C" {
@@ -361,6 +429,7 @@ ASTRAL_EXPORT JNIEXPORT jint JNICALL Java_app_astral_android_Native_initialize(J
     std::filesystem::create_directories(state + "/plugins", error);
     astral::discord::setDataDirectory(data + "/files");
     gSettings = std::make_unique<astral::SettingsStore>(state + "/settings.json");
+    gSignatures = std::make_unique<astral::Signatures>(ASTRAL_SIGNING_KEY, sha256);
     gPacks = std::make_unique<astral::Packs>(*gSettings, state, resources);
     gThemes = std::make_unique<astral::Themes>(*gSettings, state, resources);
     applyTheme(gThemes->active());

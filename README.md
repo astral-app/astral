@@ -1,6 +1,6 @@
 # astral
 
-A native client mod for Discord's Phoenix engine on iOS, with Lua plugins.
+A native client mod for Discord's Phoenix engine on iOS and Android, with a shared Lua plugin runtime. Android parity is in progress.
 
 astral rewrites the ViewWire batches Discord's Rust guest sends to its Swift host, so everything it adds is drawn by Discord's own components: an astral category in Settings with native pages, decorations in message headers, and themes. Plugins are sandboxed Lua files.
 
@@ -8,8 +8,9 @@ astral rewrites the ViewWire batches Discord's Rust guest sends to its Swift hos
 
 | Path | Contents |
 | --- | --- |
-| `packages/ios` | The tweak: ViewWire rewriter, settings pages, Lua host, Discord cache reader |
-| `packages/core` | Shared C++ core and the Lua prelude every plugin runs on |
+| `packages/ios` | iOS integration and platform services |
+| `packages/android` | Android module, JNI bridge and platform services |
+| `packages/core` | Shared ViewWire rewriter, settings pages, Lua host, Discord cache, appearance services and Lua prelude |
 | `packages/addons/plugins` | Bundled Lua plugins and their tests |
 | `packages/addons/icon-packs`, `packages/addons/emoji-packs` | Bundled icon packs (PNGs named after Phoenix's icons) and emoji packs (image URL templates and coverage lists) |
 | `packages/sdk` | The plugin API as a lua-language-server addon (`config.json`, `library/`) |
@@ -36,7 +37,9 @@ With Developer mode on, astral serves a development API on the device's `127.0.0
 
 `astral fuzz` runs libFuzzer over the rewriter (Homebrew LLVM locally) and `astral bench` reports its cost per batch; CI runs both. `astral compat --ipa <Discord.ipa>` checks a Discord build for the hook points and view properties astral needs, and a scheduled workflow runs it on each new stable and beta build. `astral create <id>` scaffolds a plugin with a test and translations, and `astral sdk install` installs the plugin API definitions as a lua-language-server addon for plugins outside this repository.
 
-The vphone is driven through its guest API: `astral vphone boot` restarts the VM with the API on and a token kept in `~/.config/astral/vphone-token`, and `astral vphone deploy --ipa <Discord.ipa>` builds astral into the IPA, installs it (upgrading in place so Discord keeps its login) and opens Discord. `status`, `info`, `install`, `launch`, `push`, `pull` and `shell` (launchctl, log and ps) cover the rest. No tweak injector is needed, so the vphone runs the same path as a jailed install. Never run the vphone and the Android emulator together.
+The vphone is driven through its guest API: `astral vphone boot` restarts the VM with the API on and a token kept in `~/.config/astral/vphone-token`. Install stock Discord with `astral vphone discord --ipa <Discord.ipa>`, then run `astral vphone deploy` to build and deploy astral through the VM's existing ElleKit setup. Deployment saves the test login and relaunches Discord. `status`, `info`, `install`, `launch`, `push`, `pull` and `shell` cover the remaining device operations. Never run the vphone and the Android emulator together.
+
+`astral android build` builds the Android module using JDK 21 and the Android SDK. To prepare a sideloaded installation, pass `--patcher <LSPatch.jar>` followed by the Discord base APK and its splits. `astral android deploy --device <adb serial> --mode module <astral-module.apk>` installs and scopes the module in Vector; `--mode sideload <patched APK>...` installs the patched app. Both upgrade in place and leave installation errors visible instead of uninstalling Discord.
 
 Theos and GNU make are required (`astral prepare-theos`). `astral deploy` builds and installs on a jailbroken test device (`DEVICE=<udid>`), `astral build-ipa --ipa <decrypted Discord.ipa>` produces a sideloadable IPA that needs no jailbreak and bundles no hooking library, and `astral sideload --ipa <IPA> --bundle-id <id> --device <udid>` builds it if needed, re-signs it with a development profile that covers the device and installs it over USB.
 

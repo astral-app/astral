@@ -4,14 +4,23 @@
 #include <fstream>
 #include <string>
 #include <limits>
+#include <sys/stat.h>
 
 #include "AstralNetworkPolicy.h"
 #include "AstralPacks.h"
 #include "AstralSettings.h"
 #include "AstralTOML.h"
 #include "AstralThemes.h"
+#include "AstralSignatures.h"
+#include "AstralFiles.h"
 #include "PhoenixProperties.h"
 #include "PhoenixWire.h"
+
+#ifdef __APPLE__
+#include <CommonCrypto/CommonDigest.h>
+#else
+#include <openssl/sha.h>
+#endif
 #include "LuaJSON.h"
 #include "LuaLocale.h"
 #include "LuaSandbox.h"
@@ -274,9 +283,52 @@ static void testSliderPayloads()
     assert(!astral_wire_event_value(payload.data(), payload.size(), &value));
 }
 
+static void testSharedSignatures(const std::string &work, const std::string &repository)
+{
+    auto key = astral::readTextFile(repository + "/keys/plugin-signing.pub");
+    assert(key);
+    astral::Signatures verifier(*key, [](const std::string &data) {
+        uint8_t bytes[32];
+#ifdef __APPLE__
+        CC_SHA256(data.data(), static_cast<CC_LONG>(data.size()), bytes);
+#else
+        SHA256(reinterpret_cast<const uint8_t *>(data.data()), data.size(), bytes);
+#endif
+        std::string digest;
+        const char *digits = "0123456789abcdef";
+        for (auto byte : bytes) {
+            digest += digits[byte >> 4];
+            digest += digits[byte & 15];
+        }
+        return digest;
+    });
+    auto catalog = astral::readTextFile(repository + "/packages/catalog/index.toml");
+    auto signature = astral::readTextFile(repository + "/packages/catalog/index.toml.sig");
+    assert(catalog && signature && verifier.verify(*catalog, *signature));
+    assert(!verifier.verify(*catalog + "tampered", *signature));
+    assert(!verifier.verify(*catalog, "invalid"));
+    auto plugin = repository + "/packages/addons/plugins/show-me-your-name";
+    auto directory = std::filesystem::path(work) / "signed-plugin";
+    std::filesystem::copy(plugin, directory, std::filesystem::copy_options::recursive);
+    assert(verifier.directory(directory.string(), "main.lua"));
+    writeText(directory / "unsigned.lua", "return true");
+    assert(!verifier.directory(directory.string(), "main.lua"));
+    std::filesystem::remove(directory / "unsigned.lua");
+    writeText(directory / "main.lua", "return true");
+    assert(!verifier.directory(directory.string(), "main.lua"));
+    auto forged = astral::readTextFile(plugin + "/signature");
+    assert(forged && !verifier.files(*forged + "\n[files.bad]\nvalue = 'x'\n"));
+    writeText(directory / "signature", std::string((128u << 10) + 1, 'x'));
+    assert(!verifier.directory(directory.string(), "main.lua"));
+    std::filesystem::remove(directory / "signature");
+    assert(mkfifo((directory / "signature").c_str(), 0600) == 0);
+    assert(!verifier.directory(directory.string(), "main.lua"));
+    std::filesystem::remove(directory / "signature");
+}
+
 int main(int argc, char **argv)
 {
-    assert(argc == 2);
+    assert(argc == 3);
     testSandboxRunsCode();
     testSandboxHidesUnsafeGlobals();
     testSandboxStopsRunawayLoops();
@@ -295,6 +347,7 @@ int main(int argc, char **argv)
     testSharedPacks(argv[1]);
     testThemeParity(argv[1]);
     testSliderPayloads();
+    testSharedSignatures(argv[1], argv[2]);
     puts("ok");
     return 0;
 }
