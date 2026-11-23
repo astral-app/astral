@@ -109,9 +109,20 @@ object PhoenixOkHttp {
                 return noContent(request, loader)
             }
             val staffTools = runCatching { Native.staffDevToolsEnabled() }.getOrDefault(false)
-            val outgoing = if (staffTools && isGateway(host)) removeGatewayCompression(request, requestUrl, loader) else request
-            val response = proceed(chain, outgoing, requestType) ?: return null
             val method = field(requestType, "b").get(request) as? String
+            var outgoing = request
+            if (method != null && Native.isOutgoingMessageRequest(host, path, method) && Native.hasOutgoingMessageTransforms()) {
+                outgoing = OutgoingMessageBody.transform(
+                    outgoing,
+                    loader,
+                    OutgoingMessageBody.phoenix,
+                    host,
+                    path,
+                    method,
+                )
+            }
+            if (staffTools && isGateway(host)) outgoing = removeGatewayCompression(outgoing, requestUrl, loader)
+            val response = proceed(chain, outgoing, requestType) ?: return null
             if (!staffTools || method != "GET" || !Native.isCurrentUser(host, path)) return response
             return markCurrentUser(response, loader)
         } catch (error: InvocationTargetException) {

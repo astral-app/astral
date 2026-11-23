@@ -1184,6 +1184,30 @@ ASTRAL_EXPORT JNIEXPORT jboolean JNICALL Java_app_astral_android_Native_isCurren
     return astral::isCurrentUserRequest(plain(env, host), plain(env, path));
 }
 
+ASTRAL_EXPORT JNIEXPORT jboolean JNICALL Java_app_astral_android_Native_isOutgoingMessageRequest(JNIEnv *env, jclass, jstring host,
+                                                                                                 jstring path, jstring method)
+{
+    return astral::outgoingMessageTarget(plain(env, host), plain(env, path), plain(env, method)).has_value();
+}
+
+ASTRAL_EXPORT JNIEXPORT jboolean JNICALL Java_app_astral_android_Native_hasOutgoingMessageTransforms(JNIEnv *, jclass)
+{
+    return astral::luahost::hasOutgoingMessageTransforms();
+}
+
+ASTRAL_EXPORT JNIEXPORT jstring JNICALL Java_app_astral_android_Native_transformOutgoingMessageBody(JNIEnv *env, jclass, jstring host,
+                                                                                                    jstring path, jstring method,
+                                                                                                    jstring body)
+{
+    auto transformed = astral::transformOutgoingMessageBody(
+        fromJava(env, host), fromJava(env, path), fromJava(env, method), fromJava(env, body),
+        [](const astral::OutgoingMessageTarget &target, std::string_view content) {
+            return astral::luahost::transformOutgoingMessage(target.channel, target.operation, std::string(content));
+        });
+    if (!transformed) return nullptr;
+    return toJava(env, *transformed);
+}
+
 ASTRAL_EXPORT JNIEXPORT jboolean JNICALL Java_app_astral_android_Native_staffDevToolsEnabled(JNIEnv *, jclass)
 {
     return gSettings && gSettings->getBoolean("astral", "staff-devtools", false);

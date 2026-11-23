@@ -1,0 +1,11 @@
+id = "astral.clear-urls"
+name = "Clear URLs"
+description = "Removes common tracking parameters from links before messages are sent or edited."
+version = "0.0.1"
+icon = "LinkIcon"
+main = "main.lua"
+permissions = ["discord.messages.send"]
+
+[[authors]]
+name = "adrian"
+id = "224617799434108928"

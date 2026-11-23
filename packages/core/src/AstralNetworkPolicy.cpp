@@ -1,7 +1,9 @@
 #include "AstralNetworkPolicy.h"
 
+#include <algorithm>
 #include <array>
 #include <cctype>
+#include <vector>
 #include <nlohmann/json.hpp>
 
 namespace astral {
@@ -100,6 +102,50 @@ bool isCurrentUserRequest(std::string_view host, std::string_view path)
 {
     auto route = apiRoute(path);
     return isDiscordHost(host) && route && *route == "/users/@me";
+}
+
+std::optional<OutgoingMessageTarget> outgoingMessageTarget(std::string_view host, std::string_view path, std::string_view method)
+{
+    if (!isDiscordHost(host)) return std::nullopt;
+    auto route = apiRoute(path);
+    if (!route) return std::nullopt;
+    bool create = method == "POST", edit = method == "PATCH";
+    if (!create && !edit) return std::nullopt;
+    std::vector<std::string_view> segments;
+    while (!route->empty() && route->front() == '/') route->remove_prefix(1);
+    while (!route->empty()) {
+        size_t separator = route->find('/');
+        segments.push_back(route->substr(0, separator));
+        if (separator == std::string_view::npos) break;
+        route->remove_prefix(separator + 1);
+    }
+    if (segments.size() != (create ? 3u : 4u) || segments[0] != "channels" || segments[2] != "messages") return std::nullopt;
+    auto snowflake = [](std::string_view value) {
+        return !value.empty() &&
+               std::all_of(value.begin(), value.end(), [](char character) { return character >= '0' && character <= '9'; });
+    };
+    if (!snowflake(segments[1]) || (edit && !snowflake(segments[3]))) return std::nullopt;
+    return OutgoingMessageTarget{std::string(segments[1]), create ? "create" : "edit"};
+}
+
+std::optional<std::string> transformOutgoingMessageBody(std::string_view host, std::string_view path, std::string_view method,
+                                                        std::string_view body, const OutgoingMessageTransform &transform)
+{
+    if (!transform || body.empty() || body.size() > (1u << 20)) return std::nullopt;
+    auto target = outgoingMessageTarget(host, path, method);
+    if (!target) return std::nullopt;
+    auto request = nlohmann::json::parse(body, nullptr, false);
+    if (!request.is_object() || !request.contains("content") || !request["content"].is_string()) return std::nullopt;
+    const std::string &content = request["content"].get_ref<const std::string &>();
+    if (content.size() > 20000) return std::nullopt;
+    auto replacement = transform(*target, content);
+    if (!replacement || *replacement == content || replacement->size() > 20000) return std::nullopt;
+    request["content"] = std::move(*replacement);
+    try {
+        return request.dump();
+    } catch (const nlohmann::json::exception &) {
+        return std::nullopt;
+    }
 }
 
 std::optional<std::string> withStaffUser(std::string_view body)

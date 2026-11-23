@@ -176,10 +176,21 @@ object NetworkHooks {
                 recordBlocked(url.toString())
                 return noContent(request, loader)
             }
-            val staffTools = runCatching { Native.staffDevToolsEnabled() }.getOrDefault(false)
-            val outgoing = if (staffTools && host.startsWith("gateway")) removeGatewayCompression(request, url, loader) else request
-            val response = proceed(chain, outgoing) ?: return null
             val requestMethod = requestType.getMethod("method").invoke(request) as? String
+            val staffTools = runCatching { Native.staffDevToolsEnabled() }.getOrDefault(false)
+            var outgoing = request
+            if (requestMethod != null && Native.isOutgoingMessageRequest(host, path, requestMethod) && Native.hasOutgoingMessageTransforms()) {
+                outgoing = OutgoingMessageBody.transform(
+                    outgoing,
+                    loader,
+                    OutgoingMessageBody.standard,
+                    host,
+                    path,
+                    requestMethod,
+                )
+            }
+            if (staffTools && host.startsWith("gateway")) outgoing = removeGatewayCompression(outgoing, url, loader)
+            val response = proceed(chain, outgoing) ?: return null
             if (!staffTools || requestMethod != "GET" || !Native.isCurrentUser(host, path)) return response
             return markCurrentUser(response, loader)
         } catch (error: InvocationTargetException) {

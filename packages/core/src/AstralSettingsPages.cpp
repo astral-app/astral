@@ -218,6 +218,7 @@ std::pair<std::string, std::string> permissionDescription(const std::string &per
         {"discord.members", {"Reads server members", "res://ic_mana_group"}},
         {"discord.permissions", {"Reads member permissions", "res://ic_mana_shield"}},
         {"discord.messages", {"Reads messages in the cache", "res://ic_mana_chat"}},
+        {"discord.messages.send", {"Transforms message text before sending", "res://ic_mana_chat"}},
         {"discord.users", {"Reads user profiles", "res://ic_mana_user"}},
         {"discord.relationships", {"Reads friend nicknames", "res://ic_mana_friends"}},
         {"network", {"Makes HTTPS requests", "res://ic_mana_link"}},

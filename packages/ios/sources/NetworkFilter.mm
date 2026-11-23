@@ -4,6 +4,7 @@
 #import <atomic>
 #import <string>
 
+#import "AstralLuaHost.h"
 #import "AstralNetworkPolicy.h"
 #import "DevServer.h"
 
@@ -37,6 +38,34 @@ static BOOL IsCurrentUser(NSURLRequest *request)
     return reading && url && astral::isCurrentUserRequest(Text(url.host), Text(url.path));
 }
 
+static BOOL IsJSONMessageRequest(NSURLRequest *request)
+{
+    if (!request.HTTPBody || request.HTTPBody.length > (1u << 20)) return NO;
+    NSString *contentType = [[request valueForHTTPHeaderField:@"Content-Type"] lowercaseString];
+    return [contentType containsString:@"application/json"];
+}
+
+static BOOL IsOutgoingMessage(NSURLRequest *request)
+{
+    return request.URL && IsJSONMessageRequest(request) && astral::luahost::hasOutgoingMessageTransforms() &&
+           astral::outgoingMessageTarget(Text(request.URL.host), Text(request.URL.path), Text(request.HTTPMethod)).has_value();
+}
+
+static void TransformOutgoingMessage(NSMutableURLRequest *request)
+{
+    if (!request.URL || !IsJSONMessageRequest(request)) return;
+    auto transformed = astral::transformOutgoingMessageBody(Text(request.URL.host), Text(request.URL.path), Text(request.HTTPMethod),
+                                                            std::string_view((const char *)request.HTTPBody.bytes, request.HTTPBody.length),
+                                                            [](const astral::OutgoingMessageTarget &target, std::string_view content) {
+                                                                return astral::luahost::transformOutgoingMessage(
+                                                                    target.channel, target.operation, std::string(content));
+                                                            });
+    if (!transformed) return;
+    request.HTTPBody = [NSData dataWithBytes:transformed->data() length:transformed->size()];
+    [request setValue:nil forHTTPHeaderField:@"Content-Length"];
+    [request setValue:nil forHTTPHeaderField:@"Transfer-Encoding"];
+}
+
 @interface AstralNetworkFilter : NSURLProtocol
 @property (nonatomic, strong) NSURLSessionDataTask *forwarded;
 @end
@@ -46,7 +75,7 @@ static BOOL IsCurrentUser(NSURLRequest *request)
 + (BOOL)canInitWithRequest:(NSURLRequest *)request
 {
     if ([NSURLProtocol propertyForKey:kHandledKey inRequest:request]) return NO;
-    return IsTelemetry(request.URL) || (StaffDevTools() && IsCurrentUser(request));
+    return IsTelemetry(request.URL) || (StaffDevTools() && IsCurrentUser(request)) || IsOutgoingMessage(request);
 }
 
 + (BOOL)canInitWithTask:(NSURLSessionTask *)task
@@ -82,10 +111,12 @@ static BOOL IsCurrentUser(NSURLRequest *request)
     [self.client URLProtocolDidFinishLoading:self];
 }
 
-- (void)forwardMarkingStaff
+- (void)forwardRequest
 {
     NSMutableURLRequest *request = [self.request mutableCopy];
+    TransformOutgoingMessage(request);
     [NSURLProtocol setProperty:@YES forKey:kHandledKey inRequest:request];
+    BOOL markStaffResponse = StaffDevTools() && IsCurrentUser(self.request);
     __weak AstralNetworkFilter *weakSelf = self;
     self.forwarded = [[AstralNetworkFilter forwardingSession]
         dataTaskWithRequest:request
@@ -100,7 +131,7 @@ static BOOL IsCurrentUser(NSURLRequest *request)
               NSData *body = data ?: [NSData data];
               NSURLResponse *delivered = response;
               NSHTTPURLResponse *http = [response isKindOfClass:NSHTTPURLResponse.class] ? (NSHTTPURLResponse *)response : nil;
-              if (http.statusCode == 200 && body.length) {
+              if (markStaffResponse && http.statusCode == 200 && body.length) {
                   auto marked = astral::withStaffUser(std::string_view((const char *)body.bytes, body.length));
                   if (marked) {
                       body = [NSData dataWithBytes:marked->data() length:marked->size()];
@@ -128,7 +159,7 @@ static BOOL IsCurrentUser(NSURLRequest *request)
         [self finishEmpty];
         return;
     }
-    [self forwardMarkingStaff];
+    [self forwardRequest];
 }
 
 - (void)stopLoading

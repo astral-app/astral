@@ -15,7 +15,7 @@ The branch adds post-sign extension checks, installed-extension diagnostics and 
 | 5 | Lua API | Permission-gated native alerts, file selection and foreground/background subscriptions are implemented on iOS and Android; Lua and API tests pass | Exercise each adapter in Phoenix; commands, arbitrary Discord events, notifications, background work, fonts and general asset registration remain unsupported |
 | 6 | Recovery and privacy | Plugin failures stay isolated; reports scrub new and legacy details; Android records available process crash/ANR traces | Exercise disable, reload, soft restart and launch recovery across install modes |
 | 7 | Compatibility automation | Android DEX scanner, Safari extension CI build and synthetic IPA preservation plus post-sign validation tests are present | Scan authorized Android APKs/splits; complete scheduled iOS scan after an upstream artifact is available |
-| 8 | Add-on corpus | Seven signed Lua plugins and their Lua tests cover the current portability set; the user-selected nine-plugin shortlist is prioritized in the parity map | Implement the shared Phoenix seams, then port and test the first compatible group |
+| 8 | Add-on corpus | Eight signed Lua plugins; the shared pre-send transform and Clear URLs port have core and Lua tests | Verify buffered message traffic on Phoenix; add editable rule and import/export UI for Text Replace |
 | 9 | Documentation | README and plugin docs state supported APIs, permissions, install behavior, `astral://` and known gates | Review release notes after device acceptance closes |
 
 ## Current baseline
@@ -25,7 +25,7 @@ The branch adds post-sign extension checks, installed-extension diagnostics and 
 | Shared runtime | ViewWire rewriting, Lua host, settings pages, cache, plugins, themes and package services are in shared core | Run acceptance on each supported install path |
 | iOS | Theos package and sideload IPA tooling; Safari extension; `astral://` scheme; source app extensions recorded, preserved and checked after signing; Phoenix native passkey delegate detected on vphone | Verify signed IPA contents and extension behavior, then test browser fallback only on a build that lacks Phoenix's native passkey module |
 | Android | Phoenix module and patched APK paths; settings, plugins, themes, packs, backups, catalog, network hooks and static compatibility scanner | Scan an authorized Phoenix APK and validate behavior on a live build |
-| Add-ons | Seven bundled Lua plugins, one bundled theme, three catalog themes, one icon pack and one emoji pack; signed catalog verification is in the test suite | Expand after additional native capabilities are supported |
+| Add-ons | Eight bundled Lua plugins, one bundled theme, three catalog themes, one icon pack and one emoji pack; signed catalog verification is in the test suite | Verify Clear URLs on live Phoenix traffic; add editable rule and import/export UI for Text Replace, then expand after additional native capabilities are supported |
 | Compatibility | iOS stable and beta scans; Android DEX scanner and module/core builds in CI | Run Android scan against a current authorized APK |
 | Diagnostics | Schema 2 reports; iOS MetricKit; Android process crash/ANR exit details when available | Compare live reports and recovery behavior on both platforms |
 
@@ -58,7 +58,7 @@ The branch adds post-sign extension checks, installed-extension diagnostics and 
 
 7. **Run compatibility automation.** Build the Safari extension and synthetic IPA tests in CI. Run `astral android-compat` with an authorized base APK and each split APK; retain only the JSON/Markdown result. Keep decrypted Discord apps and account data out of CI and the repository.
 
-8. **Grow the add-on corpus.** Keep the existing seven tested Lua plugins as the portability set. The next shortlist is Clear URLs, Text Replace, Client Side Block (Enhanced Blocking), Chat Bubbles, Translate, Expression Tools, Live Markdown, Highlight Replies and Mention Haptics. Start with the shared pre-send transform needed by Clear URLs and Text Replace, then add the event, row, contextual-action and native UI seams for later groups. Add Lua tests, sign completed packages and update the catalog signature.
+8. **Grow the add-on corpus.** The shared pre-send transform and Clear URLs port are implemented. Add editable rule settings and import/export before porting Text Replace, then add the event, row, contextual-action and native UI seams for the remaining user-selected shortlist: Client Side Block (Enhanced Blocking), Chat Bubbles, Translate, Expression Tools, Live Markdown, Highlight Replies and Mention Haptics. Add Lua tests, sign completed packages and update the catalog signature.
 
 9. **Close release documentation.** Document installation and recovery for each supported mode, the `astral://` scheme, Safari passkeys, extension preservation, plugin permissions, API reference and compatibility results. Publish no release until the device matrix and CI gates pass.
 

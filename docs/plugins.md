@@ -55,6 +55,7 @@ Each plugin gets its own `lua_State` with `base`, `table`, `string`, `math`, `ut
 | `astral.ui.alert(title, message)` | Shows a native alert after the plugin declares `ui.dialogs` |
 | `astral.files.pick(extensions, callback)`, `astral.files.cancel(request)` | Opens the system document picker after the plugin declares `files.read`; the callback receives `{ name, data }` or `nil, reason`, and file contents are limited to 1 MiB |
 | `astral.events.on(event, fn)`, `astral.events.off(subscription)` | Subscribes to `app.foreground` or `app.background` after the plugin declares `events.lifecycle`; disabling a plugin removes its subscriptions |
+| `astral.messages.transform(fn)` | Transforms outgoing message content before Discord sends or edits it; `fn(content, { channel_id, operation })` returns new content or `nil` after declaring `discord.messages.send` |
 | `node:message()`, `node:guild()`, `node:member()`, `node:user()`, `node:permissions()`, `node:is_bot()` | Cached lookups for the node a callback receives |
 | `astral.discord.reactors(channel, message, emoji, burst, count)` | The first five people who reacted with `emoji`, fetched once per count and `nil` until they arrive |
 | `astral.discord.guild/member/message/user/nickname/channel_guild/permissions` | Read-only views of Discord's own cache; messages carry `type`, `author`, `reference`, `mentions` (`id`, `username`, `global_name`, `nick`, `avatar`) and `mention_roles`; guild roles carry `icon`, permissions apply channel overwrites |

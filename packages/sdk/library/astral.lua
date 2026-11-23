@@ -375,6 +375,9 @@ astral.events = {}
 function astral.events.on(event, callback) end
 function astral.events.off(subscription) end
 
+astral.messages = {}
+function astral.messages.transform(callback) end
+
 astral.discord = {}
 ---@param id astral.Snowflake
 ---@return astral.Guild?
