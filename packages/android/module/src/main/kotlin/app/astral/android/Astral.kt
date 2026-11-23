@@ -25,5 +25,6 @@ class Astral : XposedModule() {
         val languages = android.os.LocaleList.getDefault().let { list -> Array(list.size()) { list[it].toLanguageTag() } }
         Native.initialize(names, param.applicationInfo.dataDir, resources.absolutePath, languages)
         PhoenixBridge.install(this, param.classLoader)
+        runCatching { NetworkHooks.install(this, param.classLoader) }.onFailure { Log.error("Failed to hook Discord's network stack", it) }
     }
 }

@@ -21,6 +21,7 @@ const devUsage = `usage: astral dev <command>
   pair <code>            save the pairing code shown under Developer mode (the vphone needs none)
   status                 the device's astral version and plugins
   push <plugin folder>   install a plugin and hot reload it
+  enable|disable <id>    turn an installed plugin on or off
   watch <plugin folder>  push the plugin every time a file in it changes
   eval <plugin id> <lua> run Lua inside a running plugin and print the result
   logs [-f]              print astral's log, following it with -f
@@ -33,7 +34,7 @@ const devUsage = `usage: astral dev <command>
   theme import <file>    convert an Unbound theme (JSON) into an astral theme and select it
   backup export [file]   write the device's settings backup (TOML) to a file or stdout
   backup import <file>   restore a settings backup on the device
-Needs Developer mode on. With DEVICE set the port is forwarded over USB; without it, over SSH to the vphone.`
+Needs Developer mode on. DEVICE=android (or android:<serial>) forwards the port with adb; another DEVICE value forwards it over USB; without it, over SSH to the vphone.`
 
 type devClient struct {
 	base    string
@@ -104,8 +105,51 @@ func (d devClient) reachable() bool {
 	return response.StatusCode < 500
 }
 
+func androidSerial(device string) (string, bool) {
+	if device == "android" {
+		return "", true
+	}
+	if serial, ok := strings.CutPrefix(device, "android:"); ok {
+		return serial, true
+	}
+	return "", false
+}
+
+func adbArguments(serial string, arguments ...string) []string {
+	if serial == "" {
+		return arguments
+	}
+	return append([]string{"-s", serial}, arguments...)
+}
+
+func androidPairing(serial string) (string, error) {
+	output, err := exec.Command("adb", adbArguments(serial, "shell", "su", "0", "cat", "/data/data/com.discord/files/astral/dev-pairing-code")...).Output()
+	if err != nil || len(strings.TrimSpace(string(output))) != 8 {
+		output, err = exec.Command("adb", adbArguments(serial, "shell", "cat", "/data/data/com.discord/files/astral/dev-pairing-code")...).Output()
+	}
+	return strings.TrimSpace(string(output)), err
+}
+
+func (d *devClient) forwardOverADB(serial string) error {
+	if d.pairing == "" {
+		if code, err := androidPairing(serial); err == nil && len(code) == 8 {
+			d.pairing = code
+		}
+	}
+	if err := exec.Command("adb", adbArguments(serial, "forward", "tcp:"+d.port, "tcp:"+d.port)...).Run(); err != nil {
+		return fmt.Errorf("adb forward: %w", err)
+	}
+	if d.reachable() {
+		return nil
+	}
+	return errors.New("astral's development server is not reachable on Android; turn on Developer mode and relaunch Discord")
+}
+
 func (d *devClient) forward() error {
 	device := os.Getenv("DEVICE")
+	if serial, android := androidSerial(device); android {
+		return d.forwardOverADB(serial)
+	}
 	if device == "" && d.pairing == "" {
 		if code, err := vphonePairing(); err == nil && code != "" {
 			d.pairing = code
@@ -391,6 +435,16 @@ func runDev(args []string) error {
 			return errors.New(devUsage)
 		}
 		return d.watch(args[1])
+	case "enable", "disable":
+		if len(args) != 2 {
+			return fmt.Errorf("usage: astral dev %s <plugin id>", args[0])
+		}
+		reply, err := d.request(http.MethodPost, "/plugin/enabled", map[string]any{"id": args[1], "enabled": args[0] == "enable"})
+		if err != nil {
+			return err
+		}
+		fmt.Println(strings.TrimSpace(string(reply)))
+		return nil
 	case "eval":
 		if len(args) < 3 {
 			return errors.New(devUsage)

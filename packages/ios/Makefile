@@ -11,7 +11,7 @@ MONOCYPHER := $(ROOT)/vendor/monocypher/src
 CORE := $(abspath ../core)
 LUA := $(ROOT)/vendor/lua
 LUA_SOURCES := lapi lcode lctype ldebug ldo ldump lfunc lgc llex lmem lobject lopcodes lparser lstate lstring ltable ltm lundump lvm lzio lauxlib lbaselib lstrlib ltablib lmathlib lutf8lib lcorolib
-CORE_SOURCES := AstralLuaHost AstralDiscordCache AstralMetricKitCrash AstralNetworkPolicy AstralSettings AstralSettingsCache AstralSettingsFile AstralFiles AstralJSON AstralJSONMembers AstralDiskFull AstralLog AstralExitRecord AstralLaunchGuard AstralStrings AstralSettingsRecovery LuaSandbox LuaJSON LuaLocale PluginPackage PluginStorage
+CORE_SOURCES := AstralLuaHost AstralDiscordCache AstralDevServer AstralReactors AstralSession AstralRequestSink AstralMetricKitCrash AstralNetworkPolicy AstralSettings AstralSettingsCache AstralSettingsFile AstralFiles AstralJSON AstralJSONMembers AstralDiskFull AstralLog AstralExitRecord AstralLaunchGuard AstralStrings AstralSettingsRecovery LuaSandbox LuaJSON LuaLocale PluginPackage PluginStorage
 
 GENERATED := $(abspath .theos/generated)
 PRELUDE := $(CORE)/lua/prelude.lua
