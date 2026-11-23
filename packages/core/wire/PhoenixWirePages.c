@@ -564,15 +564,16 @@ static int32_t buildSlider(Out *out, const AstralRowSpec *row)
     char identifier[128];
     snprintf(identifier, sizeof(identifier), "astral.slider.%d.%s", row->steps > 0 ? row->steps : 1, row->key);
     int32_t wrap = newNode(out, "view");
-    wirePropCount(out, 2);
+    wirePropCount(out, 3);
     wirePropString(out, P(align), "stretch");
     wirePropQuad(out, P(padding), 16, 0, 16, 12);
+    wirePropString(out, P(width), "fill");
     int32_t slider = newNode(out, "slider");
     wirePropCount(out, 9);
     wirePropString(out, P(accessibilityId), identifier);
     wirePropString(out, P(accessibilityLabel), row->title);
     wirePropNumber(out, P(height), 40);
-    wirePropNumber(out, P(flex), 1);
+    wirePropString(out, P(width), "fill");
     wirePropInt(out, P(value), row->position);
     wirePropInt(out, P(steps), row->steps > 0 ? row->steps : 1);
     wirePropLong(out, P(minTrackTint), kSliderActive);

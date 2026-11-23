@@ -535,7 +535,7 @@ static const char gSliderStepsKey = 0;
     float span = slider.maximumValue - slider.minimumValue;
     float fraction = span > 0 ? (slider.value - slider.minimumValue) / span : 0;
     long position = lroundf(fraction * steps);
-    gAction(gRoutes.lastObject, [NSString stringWithFormat:@"number.%@=%ld", key, position]);
+    gAction(gRoutes.lastObject, [NSString stringWithFormat:@"%@=%ld", key, position]);
     RefreshTop();
 }
 @end

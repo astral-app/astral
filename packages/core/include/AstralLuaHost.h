@@ -40,6 +40,7 @@ struct LuaHostPlatform {
 namespace luahost {
 
 void start(const std::vector<std::string> &directories, SettingsStore *store, bool startEnabled, LuaHostPlatform platform);
+void stop();
 void rescan();
 nlohmann::json plugins();
 void removeStorage(const std::string &identifier);

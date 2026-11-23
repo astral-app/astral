@@ -854,6 +854,18 @@ void rescan()
     if (gStore) Scan();
 }
 
+void stop()
+{
+    std::lock_guard<std::recursive_mutex> lock(gMutex);
+    for (auto *plugin : gPlugins) Stop(plugin);
+    for (auto *plugin : gPlugins) delete plugin;
+    gPlugins.clear();
+    gStore = nullptr;
+    gDirectories.clear();
+    gPlatform = {};
+    gStartEnabled = false;
+}
+
 void removeStorage(const std::string &identifier)
 {
     Storage().removeAll(identifier);

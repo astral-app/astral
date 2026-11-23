@@ -13,6 +13,9 @@
 #include "AstralThemes.h"
 #include "AstralSignatures.h"
 #include "AstralSettingsPages.h"
+#include "AstralSettingsNavigator.h"
+#include "AstralLuaHost.h"
+#include "../../ios/tests/support/batch-builder.h"
 #include "AstralFiles.h"
 #include "PhoenixProperties.h"
 #include "PhoenixWire.h"
@@ -364,6 +367,43 @@ static void testSharedSignatures(const std::string &work, const std::string &rep
     std::filesystem::remove(directory / "signature");
 }
 
+static void testSliderSettingsAndNavigation(const std::string &work)
+{
+    auto root = std::filesystem::path(work) / "slider-host";
+    auto plugin = root / "plugins" / "sample";
+    std::filesystem::create_directories(plugin);
+    writeText(plugin / "manifest.toml", "id = 'astral.slider-test'\nname = 'Slider test'\nversion = '1.0'\nmain = 'main.lua'\n");
+    writeText(plugin / "main.lua", "astral.settings.number('dim', 'Dim', { min = 0, max = 90, step = 5, default = 55 })");
+    astral::SettingsStore settings((root / "settings.json").string());
+    settings.set("astral", "developer-mode", true);
+    astral::luahost::start({(root / "plugins").string()}, &settings, true, {});
+    assert(astral::luahost::eval("astral.slider-test", "return astral.settings.values.dim") == "55");
+    astral::SettingsPagesPlatform platform;
+    platform.settings = &settings;
+    astral::pages::configure(std::move(platform));
+    Batch batch{};
+    overview(&batch);
+    AstralWireBuffer buffer{};
+    astral_settings_rewrite(batch.bytes, batch.length, &buffer);
+    astral_wire_buffer_free(&buffer);
+    astral::navigator::configure([](std::vector<uint8_t>) {}, [](const std::function<void()> &work) { work(); });
+    astral::navigator::tap("settings.row.astral.plugin-settings:astral.slider-test");
+    assert(astral::navigator::open());
+    astral::navigator::slidePosition("astral.slider.18.number.dim", 13);
+    assert(astral::luahost::eval("astral.slider-test", "return astral.settings.values.dim") == "65");
+    astral::navigator::slidePosition("astral.slider.18.number.dim", 100);
+    assert(astral::luahost::eval("astral.slider-test", "return astral.settings.values.dim") == "90");
+    astral::navigator::slide("astral.slider.18.number.dim", std::numeric_limits<double>::quiet_NaN());
+    assert(astral::luahost::eval("astral.slider-test", "return astral.settings.values.dim") == "90");
+    assert(astral::navigator::back() && !astral::navigator::open());
+    astral::navigator::tap("settings.row.astral.plugin-settings:astral.slider-test");
+    assert(astral_page_pop(&buffer));
+    astral_wire_buffer_free(&buffer);
+    assert(!astral::navigator::open() && !astral::navigator::back());
+    astral::luahost::stop();
+    astral::pages::configure({});
+}
+
 int main(int argc, char **argv)
 {
     assert(argc == 3);
@@ -387,6 +427,7 @@ int main(int argc, char **argv)
     testSliderPayloads();
     testSingletonPageCollections();
     testSharedSignatures(argv[1], argv[2]);
+    testSliderSettingsAndNavigation(argv[1]);
     puts("ok");
     return 0;
 }

@@ -180,7 +180,7 @@ void slide(const std::string &identifier, double fraction)
     auto [end, error] = std::from_chars(rest.data(), rest.data() + dot, steps);
     if (error != std::errc() || end != rest.data() + dot || steps <= 0 || dot + 1 == rest.size()) return;
     long position = std::lround(std::fmin(1, std::fmax(0, fraction)) * steps);
-    astral::pages::action(gRoutes.back(), "number." + rest.substr(dot + 1) + "=" + std::to_string(position), [] {});
+    astral::pages::action(gRoutes.back(), rest.substr(dot + 1) + "=" + std::to_string(position), [] {});
     refreshTop();
 }
 
