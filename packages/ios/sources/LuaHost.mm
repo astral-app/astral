@@ -76,6 +76,23 @@ static astral::LuaHostPlatform Platform(void)
     platform.networkRequest = [](uint64_t request, const nlohmann::json &options) { astral::startNetworkRequest(request, options); };
     platform.cancelNetworkRequest = [](uint64_t request) { astral::cancelNetworkRequest(request); };
     platform.showAlert = [](const std::string &title, const std::string &message) { AstralShowAlert(Native(title), Native(message)); };
+    platform.triggerHaptic = [](const std::string &strength) {
+        UIImpactFeedbackStyle style;
+        if (strength == "light")
+            style = UIImpactFeedbackStyleLight;
+        else if (strength == "medium")
+            style = UIImpactFeedbackStyleMedium;
+        else if (strength == "heavy")
+            style = UIImpactFeedbackStyleHeavy;
+        else
+            return false;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            UIImpactFeedbackGenerator *generator = [[UIImpactFeedbackGenerator alloc] initWithStyle:style];
+            [generator prepare];
+            [generator impactOccurred];
+        });
+        return true;
+    };
     platform.writeClipboard = [](const std::string &value) {
         dispatch_async(dispatch_get_main_queue(), ^{
             UIPasteboard.generalPasteboard.string = Native(value);

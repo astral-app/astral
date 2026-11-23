@@ -19,6 +19,13 @@ description = "Rewrites outgoing message text with literal or Lua pattern rules.
 base = "plugins/astral.text-replace/"
 
 [[plugins]]
+id = "astral.mention-haptics"
+name = "Mention Haptics"
+version = "0.0.1"
+description = "Taps your phone when a new message mentions you or arrives in a direct message."
+base = "plugins/astral.mention-haptics/"
+
+[[plugins]]
 id = "astral.more-user-tags"
 name = "More User Tags"
 version = "0.0.1"

@@ -239,6 +239,12 @@ static void Receive(id self, SEL selector, MessageHandler handler)
         return;
     }
     gOriginalReceive(self, selector, ^(NSURLSessionWebSocketMessage *message, NSError *error) {
+        if (message.type == NSURLSessionWebSocketMessageTypeString) {
+            std::string contents = Text(message.string);
+            dispatch_async(dispatch_get_main_queue(), ^{
+                astral::luahost::observeGatewayMessage(contents);
+            });
+        }
         handler(WithStaffReady(message), error);
     });
 }

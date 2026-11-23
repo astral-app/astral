@@ -722,6 +722,58 @@ static void testFilePickerAndDialogs(const std::string &work)
     assert(!cancelled.empty() && cancelled.back() == stoppedRequest);
 }
 
+static void testGatewayMessageEventsAndHaptics(const std::string &work)
+{
+    auto root = std::filesystem::path(work) / "gateway-events-host";
+    auto plugin = root / "plugins" / "mention-haptics";
+    auto restricted = root / "plugins" / "restricted";
+    std::filesystem::create_directories(plugin);
+    std::filesystem::create_directories(restricted);
+    writeText(plugin / "manifest.toml",
+              "id = 'astral.gateway-events-test'\nname = 'Gateway events test'\nversion = '1.0'\nmain = 'main.lua'\npermissions = "
+              "['events.messages', 'ui.haptics', 'storage']\n");
+    writeText(plugin / "main.lua", "astral.events.on('message.create', function(message)\n"
+                                   "  astral.storage.set('event', message)\n"
+                                   "  if not message.from_me and not (message.open and not astral.settings.get('open', false)) and "
+                                   "(message.mentioned or message.direct) then astral.ui.haptic('medium') end\n"
+                                   "end)\n");
+    writeText(
+        restricted / "manifest.toml",
+        "id = 'astral.gateway-events-restricted'\nname = 'Restricted'\nversion = '1.0'\nmain = 'main.lua'\npermissions = ['storage']\n");
+    writeText(restricted / "main.lua", "local events = pcall(function() astral.events.on('message.create', function() end) end)\n"
+                                       "local haptics = pcall(function() astral.ui.haptic('light') end)\n"
+                                       "astral.storage.set('permissions', {events = events, haptics = haptics})\n");
+    astral::SettingsStore settings((root / "settings.json").string());
+    settings.set("astral", "developer-mode", true);
+    astral::LuaHostPlatform platform;
+    platform.storagePath = (root / "storage.sqlite").string();
+    std::vector<std::string> strengths;
+    platform.triggerHaptic = [&](const std::string &strength) {
+        strengths.push_back(strength);
+        return true;
+    };
+    astral::luahost::start({(root / "plugins").string()}, &settings, true, std::move(platform));
+    assert(astral::luahost::eval("astral.gateway-events-restricted",
+                                 "local p = astral.storage.get('permissions'); return tostring(p.events) .. ':' .. tostring(p.haptics)") ==
+           "false:false");
+    astral::luahost::observeGatewayMessage(R"({"op":0,"t":"READY","d":{"user":{"id":"100000000000000001"}}})");
+    astral::luahost::observeGatewayMessage(
+        R"({"op":0,"t":"MESSAGE_CREATE","d":{"id":"200000000000000001","channel_id":"200000000000000002","author":{"id":"200000000000000003"},"mentions":[{"id":"100000000000000001"}],"content":"private message text"}})");
+    assert(strengths == std::vector<std::string>({"medium"}));
+    assert(astral::luahost::eval("astral.gateway-events-test", "return astral.storage.get('event').mentioned") == "true");
+    assert(astral::luahost::eval("astral.gateway-events-test", "return astral.storage.get('event').content == nil") == "true");
+    astral::luahost::observeGatewayMessage(
+        R"({"op":0,"t":"MESSAGE_CREATE","d":{"id":"200000000000000004","channel_id":"200000000000000002","guild_id":"200000000000000005","author":{"id":"200000000000000003"},"mentions":[],"content":"private message text"}})");
+    assert(strengths == std::vector<std::string>({"medium"}));
+    astral::luahost::observeGatewayMessage(
+        R"({"op":0,"t":"MESSAGE_CREATE","d":{"id":"200000000000000006","channel_id":"200000000000000007","author":{"id":"200000000000000003"},"mentions":[],"content":"private direct message"}})");
+    assert(strengths == std::vector<std::string>({"medium", "medium"}));
+    astral::luahost::observeGatewayMessage(
+        R"({"op":0,"t":"MESSAGE_CREATE","d":{"id":"200000000000000008","channel_id":"200000000000000007","author":{"id":"100000000000000001"},"mentions":[{"id":"100000000000000001"}],"content":"own message"}})");
+    assert(strengths == std::vector<std::string>({"medium", "medium"}));
+    astral::luahost::stop();
+}
+
 int main(int argc, char **argv)
 {
     assert(argc == 3);
@@ -751,6 +803,7 @@ int main(int argc, char **argv)
     testNetworkRequests(argv[1]);
     testOutgoingMessageTransforms(argv[1]);
     testFilePickerAndDialogs(argv[1]);
+    testGatewayMessageEventsAndHaptics(argv[1]);
     testSliderSettingsAndNavigation(argv[1]);
     testTextSettings(argv[1]);
     puts("ok");

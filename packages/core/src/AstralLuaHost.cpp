@@ -107,6 +107,7 @@ static std::vector<std::string> gDirectories;
 static bool gStartEnabled;
 static astral::LuaHostPlatform gPlatform;
 static std::atomic<uint64_t> gNextRequest{1};
+static std::string gCurrentUserID;
 
 static void DeveloperLog(const std::string &line)
 {
@@ -404,6 +405,22 @@ static int CopyText(lua_State *state)
     return 1;
 }
 
+static int Haptic(lua_State *state)
+{
+    RequirePermission(state, "ui.haptics");
+    std::string strength = luaL_checkstring(state, 1);
+    if (strength != "light" && strength != "medium" && strength != "heavy")
+        return luaL_error(state, "astral.ui.haptic: strength must be light, medium or heavy");
+    if (!gPlatform.triggerHaptic) return luaL_error(state, "astral.ui.haptic: haptics are unavailable on this build");
+    bool triggered = false;
+    try {
+        triggered = gPlatform.triggerHaptic(strength);
+    } catch (...) {
+    }
+    lua_pushboolean(state, triggered);
+    return 1;
+}
+
 static int PickFile(lua_State *state)
 {
     LuaPlugin *plugin = Self(state);
@@ -478,10 +495,12 @@ static int CancelFilePick(lua_State *state)
 static int SubscribeEvent(lua_State *state)
 {
     LuaPlugin *plugin = Self(state);
-    RequirePermission(state, "events.lifecycle");
     std::string event = luaL_checkstring(state, 1);
-    if (event != "app.foreground" && event != "app.background")
-        return luaL_error(state, "astral.events.on: unsupported event '%s'", event.c_str());
+    const char *permission = nullptr;
+    if (event == "app.foreground" || event == "app.background") permission = "events.lifecycle";
+    if (event == "message.create") permission = "events.messages";
+    if (!permission) return luaL_error(state, "astral.events.on: unsupported event '%s'", event.c_str());
+    RequirePermission(state, permission);
     luaL_checktype(state, 2, LUA_TFUNCTION);
     if (plugin->eventCallbacks.size() >= 32) return luaL_error(state, "astral.events.on: at most 32 subscriptions per plugin");
     uint64_t subscription = gNextRequest.fetch_add(1);
@@ -1052,6 +1071,7 @@ static void InstallAPI(LuaPlugin *plugin)
     Function(state, plugin, "relabel", Relabel);
     Function(state, plugin, "alert", ShowAlert);
     Function(state, plugin, "copy", CopyText);
+    Function(state, plugin, "haptic", Haptic);
     Function(state, plugin, "settings_backdrop", SettingsBackdrop);
     Function(state, plugin, "mention", Mention);
     Function(state, plugin, "message_color", MessageColor);
@@ -1523,6 +1543,106 @@ void emitEvent(const std::string &event)
             }
         }
     }
+}
+
+static bool IsSnowflake(const std::string &value)
+{
+    return value.size() >= 15 && value.size() <= 20 &&
+           std::all_of(value.begin(), value.end(), [](unsigned char character) { return character >= '0' && character <= '9'; });
+}
+
+static void EmitMessageCreate(const std::string &messageID, const std::string &channelID, const std::string &authorID, bool fromMe,
+                              bool mentioned, bool direct, bool open)
+{
+    std::lock_guard<std::recursive_mutex> lock(gMutex);
+    for (auto *plugin : gPlugins) {
+        if (!plugin->state || plugin->failed) continue;
+        std::vector<uint64_t> subscriptions;
+        for (const auto &[subscription, callback] : plugin->eventCallbacks)
+            if (callback.event == "message.create") subscriptions.push_back(subscription);
+        for (uint64_t subscription : subscriptions) {
+            auto found = plugin->eventCallbacks.find(subscription);
+            if (found == plugin->eventCallbacks.end() || !plugin->state || plugin->failed) continue;
+            lua_State *state = plugin->state;
+            lua_rawgeti(state, LUA_REGISTRYINDEX, found->second.reference);
+            lua_createtable(state, 0, 7);
+            lua_pushlstring(state, messageID.data(), messageID.size());
+            lua_setfield(state, -2, "message_id");
+            lua_pushlstring(state, channelID.data(), channelID.size());
+            lua_setfield(state, -2, "channel_id");
+            lua_pushlstring(state, authorID.data(), authorID.size());
+            lua_setfield(state, -2, "author_id");
+            lua_pushboolean(state, fromMe);
+            lua_setfield(state, -2, "from_me");
+            lua_pushboolean(state, mentioned);
+            lua_setfield(state, -2, "mentioned");
+            lua_pushboolean(state, direct);
+            lua_setfield(state, -2, "direct");
+            lua_pushboolean(state, open);
+            lua_setfield(state, -2, "open");
+            if (!Call(plugin, 1, 0, "message.create")) {
+                MarkFailed(plugin);
+                Stop(plugin);
+                break;
+            }
+        }
+    }
+}
+
+void observeGatewayMessage(std::string_view message)
+{
+    if (message.empty() || message.size() > (1u << 20)) return;
+    nlohmann::json envelope = nlohmann::json::parse(message, nullptr, false);
+    if (!envelope.is_object()) return;
+    auto event = envelope.find("t");
+    auto data = envelope.find("d");
+    if (event == envelope.end() || !event->is_string() || data == envelope.end() || !data->is_object()) return;
+    std::string type = event->get<std::string>();
+    if (type == "READY") {
+        auto user = data->find("user");
+        if (user == data->end() || !user->is_object()) return;
+        auto id = user->find("id");
+        if (id == user->end() || !id->is_string()) return;
+        std::string currentUser = id->get<std::string>();
+        if (!IsSnowflake(currentUser)) return;
+        std::lock_guard<std::recursive_mutex> lock(gMutex);
+        gCurrentUserID = std::move(currentUser);
+        return;
+    }
+    if (type != "MESSAGE_CREATE") return;
+    auto channel = data->find("channel_id");
+    auto author = data->find("author");
+    if (channel == data->end() || !channel->is_string() || author == data->end() || !author->is_object()) return;
+    auto authorID = author->find("id");
+    if (authorID == author->end() || !authorID->is_string()) return;
+    std::string channelID = channel->get<std::string>();
+    std::string senderID = authorID->get<std::string>();
+    if (!IsSnowflake(channelID) || !IsSnowflake(senderID)) return;
+    std::string messageID;
+    auto id = data->find("id");
+    if (id != data->end() && id->is_string() && IsSnowflake(id->get<std::string>())) messageID = id->get<std::string>();
+    std::string currentUser;
+    {
+        std::lock_guard<std::recursive_mutex> lock(gMutex);
+        currentUser = gCurrentUserID;
+    }
+    bool mentioned = false;
+    if (!currentUser.empty()) {
+        auto mentions = data->find("mentions");
+        if (mentions != data->end() && mentions->is_array()) {
+            for (const auto &mention : *mentions) {
+                if (mention.is_object() && mention.value("id", std::string()) == currentUser) {
+                    mentioned = true;
+                    break;
+                }
+            }
+        }
+    }
+    auto guild = data->find("guild_id");
+    bool direct = guild == data->end() || !guild->is_string();
+    uint64_t selectedChannel = astral_wire_current_channel();
+    bool open = selectedChannel != 0 && std::to_string(selectedChannel) == channelID;
+    EmitMessageCreate(messageID, channelID, senderID, senderID == currentUser, mentioned, direct, open);
 }
 
 bool hasOutgoingMessageTransforms()
