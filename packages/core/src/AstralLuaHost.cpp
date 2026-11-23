@@ -61,6 +61,11 @@ struct LuaSwitch {
     double fallbackNumber = 0;
 };
 
+struct LuaEventCallback {
+    std::string event;
+    int reference;
+};
+
 struct LuaPlugin : astral::PluginPackage, astral::PluginHealth {
     bool bundled = false;
     bool signedByAstral = false;
@@ -77,9 +82,12 @@ struct LuaPlugin : astral::PluginPackage, astral::PluginHealth {
     std::vector<int> typingDecorators;
     std::vector<int> reactionDecorators;
     std::map<uint64_t, int> networkRequests;
+    std::map<uint64_t, int> filePicks;
+    std::map<uint64_t, LuaEventCallback> eventCallbacks;
 };
 
 static int Translate(lua_State *state);
+static void RequirePermission(lua_State *state, const char *permission);
 
 static std::recursive_mutex gMutex;
 static std::vector<LuaPlugin *> gPlugins;
@@ -87,7 +95,7 @@ static astral::SettingsStore *gStore;
 static std::vector<std::string> gDirectories;
 static bool gStartEnabled;
 static astral::LuaHostPlatform gPlatform;
-static std::atomic<uint64_t> gNextNetworkRequest{1};
+static std::atomic<uint64_t> gNextRequest{1};
 
 static void DeveloperLog(const std::string &line)
 {
@@ -323,6 +331,129 @@ static int SettingsSet(lua_State *state)
         return luaL_error(state, "astral.settings.set: unsupported value");
     }
     return 0;
+}
+
+static int ShowAlert(lua_State *state)
+{
+    RequirePermission(state, "ui.dialogs");
+    std::string title = luaL_checkstring(state, 1);
+    std::string message = luaL_checkstring(state, 2);
+    if (title.size() > 120 || message.size() > 2048) return luaL_error(state, "astral.ui.alert: text exceeds its limit");
+    if (!gPlatform.showAlert) return luaL_error(state, "astral.ui.alert: dialogs are unavailable on this build");
+    try {
+        gPlatform.showAlert(title, message);
+    } catch (...) {
+        return luaL_error(state, "astral.ui.alert: could not show the dialog");
+    }
+    return 0;
+}
+
+static int PickFile(lua_State *state)
+{
+    LuaPlugin *plugin = Self(state);
+    RequirePermission(state, "files.read");
+    luaL_checktype(state, 1, LUA_TTABLE);
+    luaL_checktype(state, 2, LUA_TFUNCTION);
+    size_t count = lua_rawlen(state, 1);
+    if (count == 0 || count > 16) return luaL_error(state, "astral.files.pick: provide between 1 and 16 file extensions");
+    std::vector<std::string> extensions;
+    extensions.reserve(count);
+    for (size_t index = 1; index <= count; index++) {
+        lua_rawgeti(state, 1, static_cast<lua_Integer>(index));
+        std::string extension = luaL_checkstring(state, -1);
+        lua_pop(state, 1);
+        if (!extension.empty() && extension.front() == '.') extension.erase(extension.begin());
+        if (extension.empty() || extension.size() > 16 || !std::all_of(extension.begin(), extension.end(), [](unsigned char character) {
+                return (character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') ||
+                       (character >= '0' && character <= '9') || character == '+' || character == '-';
+            })) {
+            return luaL_error(state, "astral.files.pick: invalid file extension");
+        }
+        std::transform(extension.begin(), extension.end(), extension.begin(),
+                       [](unsigned char character) { return static_cast<char>(std::tolower(character)); });
+        if (std::find(extensions.begin(), extensions.end(), extension) == extensions.end()) extensions.push_back(std::move(extension));
+    }
+    if (!gPlatform.pickFile) return luaL_error(state, "astral.files.pick: file selection is unavailable on this build");
+    uint64_t request = gNextRequest.fetch_add(1);
+    if (request == 0) request = gNextRequest.fetch_add(1);
+    lua_pushvalue(state, 2);
+    plugin->filePicks[request] = luaL_ref(state, LUA_REGISTRYINDEX);
+    bool started = false;
+    try {
+        started = gPlatform.pickFile(request, extensions);
+    } catch (...) {
+    }
+    if (!started) {
+        luaL_unref(state, LUA_REGISTRYINDEX, plugin->filePicks[request]);
+        plugin->filePicks.erase(request);
+        return luaL_error(state, "astral.files.pick: could not open the file picker");
+    }
+    lua_pushinteger(state, static_cast<lua_Integer>(request));
+    return 1;
+}
+
+static int CancelFilePick(lua_State *state)
+{
+    LuaPlugin *plugin = Self(state);
+    RequirePermission(state, "files.read");
+    lua_Integer value = luaL_checkinteger(state, 1);
+    if (value <= 0) {
+        lua_pushboolean(state, false);
+        return 1;
+    }
+    uint64_t request = static_cast<uint64_t>(value);
+    auto found = plugin->filePicks.find(request);
+    if (found == plugin->filePicks.end()) {
+        lua_pushboolean(state, false);
+        return 1;
+    }
+    luaL_unref(state, LUA_REGISTRYINDEX, found->second);
+    plugin->filePicks.erase(found);
+    if (gPlatform.cancelFilePick) {
+        try {
+            gPlatform.cancelFilePick(request);
+        } catch (...) {
+        }
+    }
+    lua_pushboolean(state, true);
+    return 1;
+}
+
+static int SubscribeEvent(lua_State *state)
+{
+    LuaPlugin *plugin = Self(state);
+    RequirePermission(state, "events.lifecycle");
+    std::string event = luaL_checkstring(state, 1);
+    if (event != "app.foreground" && event != "app.background")
+        return luaL_error(state, "astral.events.on: unsupported event '%s'", event.c_str());
+    luaL_checktype(state, 2, LUA_TFUNCTION);
+    if (plugin->eventCallbacks.size() >= 32) return luaL_error(state, "astral.events.on: at most 32 subscriptions per plugin");
+    uint64_t subscription = gNextRequest.fetch_add(1);
+    if (subscription == 0) subscription = gNextRequest.fetch_add(1);
+    lua_pushvalue(state, 2);
+    plugin->eventCallbacks.emplace(subscription, LuaEventCallback{event, luaL_ref(state, LUA_REGISTRYINDEX)});
+    lua_pushinteger(state, static_cast<lua_Integer>(subscription));
+    return 1;
+}
+
+static int UnsubscribeEvent(lua_State *state)
+{
+    LuaPlugin *plugin = Self(state);
+    RequirePermission(state, "events.lifecycle");
+    lua_Integer value = luaL_checkinteger(state, 1);
+    if (value <= 0) {
+        lua_pushboolean(state, false);
+        return 1;
+    }
+    auto found = plugin->eventCallbacks.find(static_cast<uint64_t>(value));
+    if (found == plugin->eventCallbacks.end()) {
+        lua_pushboolean(state, false);
+        return 1;
+    }
+    luaL_unref(state, LUA_REGISTRYINDEX, found->second.reference);
+    plugin->eventCallbacks.erase(found);
+    lua_pushboolean(state, true);
+    return 1;
 }
 
 static int Decorate(lua_State *state)
@@ -714,8 +845,8 @@ static int NetworkRequest(lua_State *state)
     }
     if (timeout < 1000 || timeout > 30000) return luaL_error(state, "astral.net.request: timeout_ms must be between 1000 and 30000");
     options["timeout_ms"] = timeout;
-    uint64_t request = gNextNetworkRequest.fetch_add(1);
-    if (request == 0) request = gNextNetworkRequest.fetch_add(1);
+    uint64_t request = gNextRequest.fetch_add(1);
+    if (request == 0) request = gNextRequest.fetch_add(1);
     lua_pushvalue(state, 2);
     plugin->networkRequests[request] = luaL_ref(state, LUA_REGISTRYINDEX);
     try {
@@ -796,6 +927,7 @@ static void InstallAPI(LuaPlugin *plugin)
     lua_newtable(state);
     Function(state, plugin, "decorate", Decorate);
     Function(state, plugin, "relabel", Relabel);
+    Function(state, plugin, "alert", ShowAlert);
     Function(state, plugin, "settings_backdrop", SettingsBackdrop);
     Function(state, plugin, "mention", Mention);
     Function(state, plugin, "message_color", MessageColor);
@@ -803,6 +935,16 @@ static void InstallAPI(LuaPlugin *plugin)
     Function(state, plugin, "typing", TypingDecorator);
     Function(state, plugin, "reaction", ReactionDecorator);
     lua_setfield(state, -2, "ui");
+
+    lua_newtable(state);
+    Function(state, plugin, "pick", PickFile);
+    Function(state, plugin, "cancel", CancelFilePick);
+    lua_setfield(state, -2, "files");
+
+    lua_newtable(state);
+    Function(state, plugin, "on", SubscribeEvent);
+    Function(state, plugin, "off", UnsubscribeEvent);
+    lua_setfield(state, -2, "events");
 
     lua_newtable(state);
     Function(state, plugin, "request", NetworkRequest);
@@ -867,6 +1009,22 @@ static void Stop(LuaPlugin *plugin)
             }
         }
         if (plugin->state) luaL_unref(plugin->state, LUA_REGISTRYINDEX, reference);
+    }
+    auto filePicks = std::move(plugin->filePicks);
+    plugin->filePicks.clear();
+    for (const auto &[request, reference] : filePicks) {
+        if (gPlatform.cancelFilePick) {
+            try {
+                gPlatform.cancelFilePick(request);
+            } catch (...) {
+            }
+        }
+        if (plugin->state) luaL_unref(plugin->state, LUA_REGISTRYINDEX, reference);
+    }
+    auto eventCallbacks = std::move(plugin->eventCallbacks);
+    plugin->eventCallbacks.clear();
+    for (const auto &[subscription, callback] : eventCallbacks) {
+        if (plugin->state) luaL_unref(plugin->state, LUA_REGISTRYINDEX, callback.reference);
     }
     plugin->sandbox.reset();
     plugin->state = nullptr;
@@ -1160,6 +1318,63 @@ void completeNetworkRequest(uint64_t request, const nlohmann::json &result)
             Stop(plugin);
         }
         return;
+    }
+}
+
+void completeFilePick(uint64_t request, const std::optional<std::string> &name, const std::optional<std::string> &data,
+                      const std::optional<std::string> &error)
+{
+    std::lock_guard<std::recursive_mutex> lock(gMutex);
+    for (auto *plugin : gPlugins) {
+        auto found = plugin->filePicks.find(request);
+        if (found == plugin->filePicks.end()) continue;
+        int reference = found->second;
+        plugin->filePicks.erase(found);
+        if (!plugin->state || plugin->failed) return;
+        lua_State *state = plugin->state;
+        lua_rawgeti(state, LUA_REGISTRYINDEX, reference);
+        luaL_unref(state, LUA_REGISTRYINDEX, reference);
+        if (name && data && data->size() <= (1u << 20)) {
+            lua_createtable(state, 0, 2);
+            lua_pushlstring(state, name->data(), name->size());
+            lua_setfield(state, -2, "name");
+            lua_pushlstring(state, data->data(), data->size());
+            lua_setfield(state, -2, "data");
+        } else {
+            lua_pushnil(state);
+            std::string reason = error.value_or(data && data->size() > (1u << 20) ? "file exceeds 1 MiB" : "cancelled");
+            lua_pushlstring(state, reason.data(), std::min<size_t>(reason.size(), 256));
+        }
+        if (!Call(plugin, name && data && data->size() <= (1u << 20) ? 1 : 2, 0, "file picker callback")) {
+            MarkFailed(plugin);
+            Stop(plugin);
+        }
+        return;
+    }
+}
+
+void emitEvent(const std::string &event)
+{
+    if (event != "app.foreground" && event != "app.background") return;
+    std::lock_guard<std::recursive_mutex> lock(gMutex);
+    for (auto *plugin : gPlugins) {
+        if (!plugin->state || plugin->failed) continue;
+        std::vector<uint64_t> subscriptions;
+        for (const auto &[subscription, callback] : plugin->eventCallbacks)
+            if (callback.event == event) subscriptions.push_back(subscription);
+        for (uint64_t subscription : subscriptions) {
+            auto found = plugin->eventCallbacks.find(subscription);
+            if (found == plugin->eventCallbacks.end() || !plugin->state || plugin->failed) continue;
+            int reference = found->second.reference;
+            lua_State *state = plugin->state;
+            lua_rawgeti(state, LUA_REGISTRYINDEX, reference);
+            lua_pushlstring(state, event.data(), event.size());
+            if (!Call(plugin, 1, 0, event.c_str())) {
+                MarkFailed(plugin);
+                Stop(plugin);
+                break;
+            }
+        }
     }
 }
 

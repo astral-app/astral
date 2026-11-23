@@ -26,6 +26,7 @@
 #include "AstralFiles.h"
 #include "AstralLuaHost.h"
 #include "AstralNetworkPolicy.h"
+#include "AstralPrivacy.h"
 #include "AstralPacks.h"
 #include "AstralSignatures.h"
 #include "AstralTOML.h"
@@ -69,6 +70,9 @@ jmethodID gExportBackup = nullptr;
 jmethodID gImportBackup = nullptr;
 jmethodID gOpenReport = nullptr;
 jmethodID gRefreshEmoji = nullptr;
+jmethodID gShowAlert = nullptr;
+jmethodID gPickFile = nullptr;
+jmethodID gCancelFilePick = nullptr;
 
 std::atomic<bool> gRefreshDecorations{false};
 std::atomic<uint64_t> gBlockedRequests{0};
@@ -82,70 +86,178 @@ JNIEnv *currentEnvironment(bool &attached);
 jstring toJava(JNIEnv *env, std::string_view value);
 void callBridge(jmethodID method);
 void callBridge(jmethodID method, const std::string &argument);
+void callBridge(jmethodID method, const std::string &first, const std::string &second);
+void callBridge(jmethodID method, jlong request);
+bool callBridge(jmethodID method, jlong request, const std::string &argument);
 
 std::string reportText(const nlohmann::json &report, const char *key)
 {
     auto value = report.find(key);
-    return value != report.end() && value->is_string() ? value->get<std::string>() : "";
+    if (value != report.end() && value->is_string()) return value->get<std::string>();
+    if (std::string(key) == "detail") {
+        auto legacy = report.find("error");
+        if (legacy != report.end() && legacy->is_string()) return legacy->get<std::string>();
+    }
+    return "";
+}
+
+nlohmann::json reportEnvironment()
+{
+    nlohmann::json environment = nlohmann::json::object();
+    for (const char *key : {"device", "architecture", "abi", "system", "locale", "astral", "discord", "phoenix", "engine"}) {
+        auto value = gEnvironment.find(key);
+        if (value != gEnvironment.end() && value->is_string()) environment[key] = astral::sanitizeDiagnosticText(value->get<std::string>());
+    }
+    environment["schema"] = 2;
+    environment["platform"] = "android";
+    environment["install_mode"] = "injected";
+    nlohmann::json plugins = nlohmann::json::array();
+    for (const auto &plugin : astral::luahost::plugins()) {
+        if (plugin.value("running", false)) plugins.push_back(astral::sanitizeDiagnosticText(plugin.value("id", "")));
+    }
+    environment["plugins"] = std::move(plugins);
+    return environment;
+}
+
+nlohmann::json normalizedReports(const nlohmann::json &saved)
+{
+    nlohmann::json reports = nlohmann::json::array();
+    if (!saved.is_array()) return reports;
+    for (const auto &report : saved) {
+        if (!report.is_object()) continue;
+        std::string kind = reportText(report, "kind");
+        if (kind.empty()) kind = "plugin";
+        if (kind != "plugin" && kind != "crash" && kind != "hang") continue;
+        nlohmann::json sanitized = {{"schema", 2}, {"kind", kind}};
+        for (const char *key : {"id", "plugin", "title"}) {
+            auto value = report.find(key);
+            if (value != report.end() && value->is_string()) sanitized[key] = astral::sanitizeDiagnosticText(value->get<std::string>());
+        }
+        std::string detail = reportText(report, "detail");
+        if (!detail.empty()) sanitized["detail"] = astral::sanitizeDiagnosticText(detail);
+        auto time = report.find("time");
+        if (time != report.end() && time->is_number()) sanitized["time"] = *time;
+        auto fingerprint = report.find("fingerprint");
+        if (fingerprint != report.end() && fingerprint->is_string()) sanitized["fingerprint"] = fingerprint->get<std::string>();
+        auto reason = report.find("reason");
+        if (reason != report.end() && reason->is_number_integer()) sanitized["reason"] = *reason;
+        auto savedEnvironment = report.find("environment");
+        nlohmann::json environment = savedEnvironment != report.end() ? *savedEnvironment : nlohmann::json::object();
+        if (!environment.is_object()) environment = nlohmann::json::object();
+        nlohmann::json safeEnvironment = {{"schema", 2}, {"platform", "android"}, {"install_mode", "injected"}};
+        for (const char *key : {"device", "architecture", "abi", "system", "locale", "astral", "discord", "phoenix", "engine"}) {
+            auto value = environment.find(key);
+            if (value != environment.end() && value->is_string())
+                safeEnvironment[key] = astral::sanitizeDiagnosticText(value->get<std::string>());
+        }
+        auto plugins = environment.find("plugins");
+        if (plugins != environment.end() && plugins->is_array()) {
+            safeEnvironment["plugins"] = nlohmann::json::array();
+            for (const auto &identifier : *plugins) {
+                if (identifier.is_string())
+                    safeEnvironment["plugins"].push_back(astral::sanitizeDiagnosticText(identifier.get<std::string>()));
+            }
+        }
+        sanitized["environment"] = std::move(safeEnvironment);
+        reports.push_back(std::move(sanitized));
+        if (reports.size() == 20) break;
+    }
+    return reports;
+}
+
+nlohmann::json readReports()
+{
+    auto saved = astral::readTextFile(gReportsPath);
+    if (!saved) return nlohmann::json::array();
+    nlohmann::json parsed = nlohmann::json::parse(*saved, nullptr, false);
+    return normalizedReports(parsed);
+}
+
+void saveReports(const nlohmann::json &reports)
+{
+    astral::createDirectories(std::filesystem::path(gReportsPath).parent_path().string());
+    if (!astral::writeTextFileAtomically(gReportsPath, reports.dump()))
+        __android_log_print(ANDROID_LOG_ERROR, "astral", "failed to persist plugin reports");
 }
 
 nlohmann::json pluginReports()
 {
-    nlohmann::json reports = nlohmann::json::array();
-    {
-        std::lock_guard<std::mutex> lock(gReportsLock);
-        auto saved = astral::readTextFile(gReportsPath);
-        if (saved) {
-            nlohmann::json parsed = nlohmann::json::parse(*saved, nullptr, false);
-            if (parsed.is_array()) reports = std::move(parsed);
-        }
-    }
+    std::lock_guard<std::mutex> lock(gReportsLock);
+    nlohmann::json reports = readReports();
     for (const auto &plugin : astral::luahost::plugins()) {
         if (!plugin.value("failed", false)) continue;
         std::string identifier = plugin.value("id", "");
-        std::string failure = plugin.value("error", "").substr(0, 6000);
+        std::string failure = astral::sanitizeDiagnosticText(plugin.value("error", ""));
+        std::string title = astral::sanitizeDiagnosticText(plugin.value("name", plugin.value("id", "Plugin")));
         bool exists = std::any_of(reports.begin(), reports.end(), [&](const nlohmann::json &report) {
-            return report.is_object() && reportText(report, "id") == identifier && reportText(report, "error") == failure;
+            return report.is_object() && reportText(report, "id") == identifier &&
+                   (reportText(report, "detail") == failure || reportText(report, "error") == failure);
         });
         if (!exists) {
-            reports.insert(reports.begin(), {{"kind", "plugin"},
-                                             {"title", plugin.value("name", plugin.value("id", "Plugin"))},
-                                             {"id", identifier},
-                                             {"error", failure},
-                                             {"environment", gEnvironment},
+            reports.insert(reports.begin(), {{"schema", 2},
+                                             {"kind", "plugin"},
+                                             {"title", title + " stopped after errors"},
+                                             {"id", astral::sanitizeDiagnosticText(identifier)},
+                                             {"detail", failure},
+                                             {"environment", reportEnvironment()},
                                              {"time", static_cast<int64_t>(std::time(nullptr))}});
         }
     }
     if (reports.size() > 20) reports.erase(reports.begin() + 20, reports.end());
+    saveReports(reports);
     return reports;
 }
 
 void recordPluginFailure(const std::string &identifier, const std::string &name, const std::string &error)
 {
-    __android_log_print(ANDROID_LOG_ERROR, "astral", "plugin %s (%s) failed: %s", identifier.c_str(), name.c_str(), error.c_str());
+    std::string failure = astral::sanitizeDiagnosticText(error);
+    std::string title = astral::sanitizeDiagnosticText(name) + " stopped after errors";
+    std::string safeIdentifier = astral::sanitizeDiagnosticText(identifier);
+    __android_log_print(ANDROID_LOG_ERROR, "astral", "plugin %s (%s) failed: %s", safeIdentifier.c_str(), title.c_str(), failure.c_str());
     std::lock_guard<std::mutex> lock(gReportsLock);
-    nlohmann::json reports = nlohmann::json::array();
-    auto saved = astral::readTextFile(gReportsPath);
-    if (saved) {
-        nlohmann::json parsed = nlohmann::json::parse(*saved, nullptr, false);
-        if (parsed.is_array()) reports = std::move(parsed);
-    }
-    std::string failure = error.substr(0, 6000);
+    nlohmann::json reports = readReports();
     bool exists = std::any_of(reports.begin(), reports.end(), [&](const nlohmann::json &report) {
-        return report.is_object() && reportText(report, "id") == identifier && reportText(report, "error") == failure;
+        return report.is_object() && reportText(report, "id") == safeIdentifier &&
+               (reportText(report, "detail") == failure || reportText(report, "error") == failure);
     });
     if (exists) return;
-    reports.insert(reports.begin(), {{"kind", "plugin"},
-                                     {"title", name + " stopped after errors"},
-                                     {"id", identifier},
-                                     {"error", failure},
-                                     {"environment", gEnvironment},
+    reports.insert(reports.begin(), {{"schema", 2},
+                                     {"kind", "plugin"},
+                                     {"title", title},
+                                     {"id", safeIdentifier},
+                                     {"detail", failure},
+                                     {"environment", reportEnvironment()},
                                      {"time", static_cast<int64_t>(std::time(nullptr))}});
     if (reports.size() > 20) reports.erase(reports.begin() + 20, reports.end());
-    astral::createDirectories(std::filesystem::path(gReportsPath).parent_path().string());
-    if (!astral::writeTextFileAtomically(gReportsPath, reports.dump())) {
-        __android_log_print(ANDROID_LOG_ERROR, "astral", "failed to persist plugin failure report for %s", identifier.c_str());
-    }
+    saveReports(reports);
+}
+
+void recordProcessExitReport(const std::string &kind, int64_t timestamp, int reason, const std::string &description,
+                             const std::string &trace)
+{
+    if ((kind != "crash" && kind != "hang") || timestamp <= 0) return;
+    std::string detail = description;
+    if (!trace.empty()) detail += (detail.empty() ? "" : "\n") + trace;
+    detail = astral::sanitizeDiagnosticText(detail);
+    if (detail.empty()) detail = "No system diagnostic details were available.";
+    std::lock_guard<std::mutex> lock(gReportsLock);
+    nlohmann::json reports = readReports();
+    bool exists = std::any_of(reports.begin(), reports.end(), [&](const nlohmann::json &report) {
+        auto savedReason = report.find("reason");
+        return report.is_object() && reportText(report, "kind") == kind && report.contains("time") && report["time"] == timestamp &&
+               savedReason != report.end() && savedReason->is_number_integer() && savedReason->get<int>() == reason;
+    });
+    if (exists) return;
+    std::string title = kind == "hang" ? "Discord stopped responding" : "Discord process crashed";
+    reports.insert(reports.begin(), {{"schema", 2},
+                                     {"kind", kind},
+                                     {"title", title},
+                                     {"detail", detail},
+                                     {"reason", reason},
+                                     {"environment", reportEnvironment()},
+                                     {"time", timestamp}});
+    if (reports.size() > 20) reports.erase(reports.begin() + 20, reports.end());
+    saveReports(reports);
 }
 
 std::string plain(JNIEnv *env, jstring value)
@@ -266,6 +378,19 @@ astral::LuaHostPlatform platform(const std::string &state, const std::string &re
     platform.permissions = astral::discord::permissions;
     platform.networkRequest = startNetworkRequest;
     platform.cancelNetworkRequest = cancelNetworkRequest;
+    platform.showAlert = [](const std::string &title, const std::string &message) { callBridge(gShowAlert, title, message); };
+    platform.pickFile = [](uint64_t request, const std::vector<std::string> &extensions) {
+        std::string encoded;
+        for (const auto &extension : extensions) {
+            if (!encoded.empty()) encoded += '\n';
+            encoded += extension;
+        }
+        if (!gPickFile) return false;
+        return callBridge(gPickFile, static_cast<jlong>(request), encoded);
+    };
+    platform.cancelFilePick = [](uint64_t request) {
+        if (gCancelFilePick) callBridge(gCancelFilePick, static_cast<jlong>(request));
+    };
     platform.developerLog = developerLog;
     platform.recordFailure = recordPluginFailure;
     platform.reactors = astral::reactors::lookup;
@@ -312,7 +437,7 @@ void configurePages(const std::string &discordVersion)
         const auto &report = reports[index];
         std::string content = reportText(report, "title");
         if (content.empty()) content = "Plugin failure";
-        content += " (" + reportText(report, "id") + ")\n\n" + reportText(report, "error");
+        content += " (" + reportText(report, "id") + ")\n\n" + reportText(report, "detail");
         nlohmann::json environment = report.value("environment", nlohmann::json::object());
         if (environment.is_object()) {
             for (auto item = environment.begin(); item != environment.end(); ++item) {
@@ -689,6 +814,56 @@ void callBridge(jmethodID method, const std::string &argument)
     if (attached) gVM->DetachCurrentThread();
 }
 
+void callBridge(jmethodID method, const std::string &first, const std::string &second)
+{
+    bool attached = false;
+    JNIEnv *env = currentEnvironment(attached);
+    if (!env) return;
+    {
+        std::lock_guard<std::mutex> lock(gNetworkLock);
+        jstring firstValue = toJava(env, first);
+        jstring secondValue = toJava(env, second);
+        if (gBridge && method && firstValue && secondValue) env->CallStaticVoidMethod(gBridge, method, firstValue, secondValue);
+        if (env->ExceptionCheck()) env->ExceptionClear();
+        if (firstValue) env->DeleteLocalRef(firstValue);
+        if (secondValue) env->DeleteLocalRef(secondValue);
+    }
+    if (attached) gVM->DetachCurrentThread();
+}
+
+void callBridge(jmethodID method, jlong request)
+{
+    bool attached = false;
+    JNIEnv *env = currentEnvironment(attached);
+    if (!env) return;
+    {
+        std::lock_guard<std::mutex> lock(gNetworkLock);
+        if (gBridge && method) env->CallStaticVoidMethod(gBridge, method, request);
+        if (env->ExceptionCheck()) env->ExceptionClear();
+    }
+    if (attached) gVM->DetachCurrentThread();
+}
+
+bool callBridge(jmethodID method, jlong request, const std::string &argument)
+{
+    bool attached = false;
+    JNIEnv *env = currentEnvironment(attached);
+    if (!env) return false;
+    bool succeeded = false;
+    {
+        std::lock_guard<std::mutex> lock(gNetworkLock);
+        jstring value = toJava(env, argument);
+        if (gBridge && method && value) {
+            env->CallStaticVoidMethod(gBridge, method, request, value);
+            succeeded = !env->ExceptionCheck();
+        }
+        if (env->ExceptionCheck()) env->ExceptionClear();
+        if (value) env->DeleteLocalRef(value);
+    }
+    if (attached) gVM->DetachCurrentThread();
+    return succeeded;
+}
+
 std::string sha256(const std::string &data)
 {
     if (data.size() > (2u << 20)) return "";
@@ -747,6 +922,7 @@ ASTRAL_EXPORT JNIEXPORT jint JNICALL Java_app_astral_android_Native_initialize(J
     if (!gEnvironment.is_object()) gEnvironment = nlohmann::json::object();
     gEnvironment["astral"] = ASTRAL_VERSION;
     gEnvironment["discord"] = plain(env, discordVersion);
+    gEnvironment["phoenix"] = plain(env, discordVersion);
     gEnvironment["engine"] = "Phoenix";
     gStateDirectory = state;
     gReportsPath = state + "/reports.json";
@@ -887,8 +1063,11 @@ ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_attachBridge
     jmethodID importBackupMethod = env->GetStaticMethodID(reference, "importBackup", "()V");
     jmethodID openReportMethod = env->GetStaticMethodID(reference, "openReport", "(Ljava/lang/String;)V");
     jmethodID refreshEmojiMethod = env->GetStaticMethodID(reference, "refreshEmoji", "()V");
+    jmethodID showAlertMethod = env->GetStaticMethodID(reference, "showAlert", "(Ljava/lang/String;Ljava/lang/String;)V");
+    jmethodID pickFileMethod = env->GetStaticMethodID(reference, "pickFile", "(JLjava/lang/String;)V");
+    jmethodID cancelFilePickMethod = env->GetStaticMethodID(reference, "cancelFilePick", "(J)V");
     if (env->ExceptionCheck() || !deliverMethod || !fetchMethod || !requestMethod || !cancelMethod || !exportBackupMethod ||
-        !importBackupMethod || !openReportMethod || !refreshEmojiMethod) {
+        !importBackupMethod || !openReportMethod || !refreshEmojiMethod || !showAlertMethod || !pickFileMethod || !cancelFilePickMethod) {
         env->ExceptionClear();
         env->DeleteGlobalRef(reference);
         return;
@@ -905,6 +1084,9 @@ ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_attachBridge
         gImportBackup = importBackupMethod;
         gOpenReport = openReportMethod;
         gRefreshEmoji = refreshEmojiMethod;
+        gShowAlert = showAlertMethod;
+        gPickFile = pickFileMethod;
+        gCancelFilePick = cancelFilePickMethod;
     }
     astral::reactors::setFetcher(fetch);
 }
@@ -928,6 +1110,43 @@ ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_completeRequ
     }
     if (error) response["error"] = fromJava(env, error);
     astral::luahost::completeNetworkRequest(static_cast<uint64_t>(request), response);
+}
+
+ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_completeFilePick(JNIEnv *env, jclass, jlong request, jstring name,
+                                                                                     jbyteArray data, jstring error)
+{
+    if (request <= 0) return;
+    std::optional<std::string> fileName;
+    std::optional<std::string> contents;
+    std::optional<std::string> failure;
+    if (name) fileName = fromJava(env, name);
+    if (data) {
+        jsize length = env->GetArrayLength(data);
+        if (length > (1 << 20)) {
+            failure = "file exceeds 1 MiB";
+        } else {
+            contents.emplace(static_cast<size_t>(length), '\0');
+            if (length > 0) env->GetByteArrayRegion(data, 0, length, reinterpret_cast<jbyte *>(contents->data()));
+            if (env->ExceptionCheck()) {
+                env->ExceptionClear();
+                contents.reset();
+                failure = "file could not be read";
+            }
+        }
+    }
+    if (error) failure = fromJava(env, error);
+    astral::luahost::completeFilePick(static_cast<uint64_t>(request), fileName, contents, failure);
+}
+
+ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_emitEvent(JNIEnv *env, jclass, jstring event)
+{
+    astral::luahost::emitEvent(plain(env, event));
+}
+
+ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_recordExitReport(JNIEnv *env, jclass, jstring kind, jlong timestamp,
+                                                                                     jint reason, jstring description, jstring trace)
+{
+    recordProcessExitReport(plain(env, kind), timestamp, reason, plain(env, description), plain(env, trace));
 }
 
 ASTRAL_EXPORT JNIEXPORT jstring JNICALL Java_app_astral_android_Native_exportBackup(JNIEnv *env, jclass)

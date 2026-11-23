@@ -7,6 +7,7 @@ namespace astral {
 class SettingsStore;
 }
 void AstralLuaHostStart(NSArray<NSString *> *directories, astral::SettingsStore *store, bool startEnabled);
+void AstralLuaHostEmitEvent(NSString *event);
 extern "C" {
 #endif
 

@@ -1,6 +1,8 @@
 package app.astral.android
 
 import android.app.Application
+import android.app.ActivityManager
+import android.app.ApplicationExitInfo
 import android.os.Build
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface.PackageReadyParam
@@ -45,6 +47,26 @@ class Astral : XposedModule() {
         }, "astral-session").apply { isDaemon = true }.start()
     }
 
+    @Suppress("NewApi")
+    private fun recordProcessExitDiagnostics() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
+        val manager = runCatching {
+            val thread = Class.forName("android.app.ActivityThread")
+            val application = thread.getMethod("currentApplication").invoke(null) as? Application ?: return
+            application.getSystemService(ActivityManager::class.java)
+        }.getOrNull() ?: return
+        val exits = runCatching { manager.getHistoricalProcessExitReasons(DISCORD_PACKAGE, 0, 20) }.getOrNull().orEmpty()
+        for (exit in exits) {
+            val kind = when (exit.reason) {
+                ApplicationExitInfo.REASON_CRASH, ApplicationExitInfo.REASON_CRASH_NATIVE -> "crash"
+                ApplicationExitInfo.REASON_ANR -> "hang"
+                else -> continue
+            }
+            val trace = runCatching { exit.traceInputStream?.use { input -> input.readNBytes(8192).toString(Charsets.UTF_8) } }.getOrNull().orEmpty()
+            Native.recordExitReport(kind, exit.timestamp / 1000, exit.reason, exit.description.orEmpty(), trace)
+        }
+    }
+
     private fun start(param: PackageReadyParam) {
         runCatching { ForcePhoenix.apply(param.applicationInfo.dataDir) }.onFailure { Log.error("Failed to keep Phoenix as Discord's client", it) }
         NativeLibrary.load(moduleApplicationInfo, param.applicationInfo)
@@ -55,13 +77,18 @@ class Astral : XposedModule() {
         val resources = Resources.extract(moduleApplicationInfo, param.applicationInfo)
         val languages = android.os.LocaleList.getDefault().let { list -> Array(list.size()) { list[it].toLanguageTag() } }
         val environment = JSONObject()
+            .put("schema", 2)
+            .put("platform", "android")
+            .put("install_mode", "injected")
             .put("device", "${Build.MANUFACTURER} ${Build.MODEL}".trim())
             .put("system", "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
+            .put("architecture", Build.SUPPORTED_ABIS.firstOrNull().orEmpty())
             .put("abi", Build.SUPPORTED_ABIS.firstOrNull().orEmpty())
             .put("locale", Locale.getDefault().toLanguageTag())
             .toString()
         Native.attachBridge(PhoenixBridge::class.java)
         Native.initialize(names, param.applicationInfo.dataDir, resources.absolutePath, languages, discordVersion(), environment)
+        recordProcessExitDiagnostics()
         runCatching { ResourceImages.install(this, param.applicationInfo, resources) }.onFailure { Log.error("Failed to install astral's images", it) }
         PhoenixBridge.pressEvent = names?.indexOf("press") ?: -1
         PhoenixBridge.changeEvent = names?.indexOf("change") ?: -1

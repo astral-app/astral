@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 
 #include "AstralNetworkPolicy.h"
+#include "AstralPrivacy.h"
 #include "AstralCutout.h"
 #include "AstralPacks.h"
 #include "AstralSettings.h"
@@ -195,6 +196,23 @@ static void testTelemetryRequests()
     assert(!astral::isTelemetryRequest("discord.com", "/api/v9/users/@me"));
     assert(!astral::isTelemetryRequest("discord.com", "/api/v9/channels/1/messages"));
     assert(!astral::isTelemetryRequest("example.com", "/api/v9/science"));
+}
+
+static void testDiagnosticPrivacy()
+{
+    std::string token = "abcdefghijklmnopqrstuvwxyz.abcdef.abcdefghijklmnopqrstuvwxyz";
+    std::string input = "Authorization: Bearer " + token +
+                        " https://example.com/route?message=private\n/Users/local/private.txt /data/user/0/com.discord/private.txt "
+                        "content=private-value with spaces";
+    std::string sanitized = astral::sanitizeDiagnosticText(input);
+    assert(sanitized.find(token) == std::string::npos);
+    assert(sanitized.find("message=private") == std::string::npos);
+    assert(sanitized.find("/Users/local/private.txt") == std::string::npos);
+    assert(sanitized.find("/data/user/0/com.discord/private.txt") == std::string::npos);
+    assert(sanitized.find("content=private-value") == std::string::npos);
+    assert(sanitized.find("with spaces") == std::string::npos);
+    assert(sanitized.find("[redacted]") != std::string::npos);
+    assert(sanitized.find("[private path]") != std::string::npos);
 }
 
 static void testStaffUser()
@@ -500,6 +518,90 @@ static void testNetworkRequests(const std::string &work)
     astral::luahost::completeNetworkRequest(stoppedRequest, {{"status", 200}, {"ok", true}, {"body", "ignored"}});
 }
 
+static void testFilePickerAndDialogs(const std::string &work)
+{
+    auto root = std::filesystem::path(work) / "native-ui-host";
+    auto plugin = root / "plugins" / "native-ui";
+    auto restricted = root / "plugins" / "restricted";
+    std::filesystem::create_directories(plugin);
+    std::filesystem::create_directories(restricted);
+    writeText(plugin / "manifest.toml", "id = 'astral.native-ui-test'\nname = 'Native UI test'\nversion = '1.0'\nmain = "
+                                        "'main.lua'\npermissions = ['files.read', 'ui.dialogs', 'events.lifecycle', 'storage']\n");
+    writeText(plugin / "main.lua",
+              "astral.ui.alert('Ready', 'Choose a file')\n"
+              "local request = astral.files.pick({'json', '.TOML', 'json'}, function(file, reason)\n"
+              "  if file then astral.storage.set('file', {name = file.name, data = file.data})\n"
+              "  else astral.storage.set('failure', reason) end\n"
+              "end)\n"
+              "astral.storage.set('request', request)\n"
+              "local subscription = astral.events.on('app.foreground', function(event) astral.storage.set('event', event) end)\n"
+              "astral.storage.set('subscription', subscription)\n");
+    writeText(restricted / "manifest.toml",
+              "id = 'astral.native-ui-restricted'\nname = 'Restricted'\nversion = '1.0'\nmain = 'main.lua'\npermissions = ['storage']\n");
+    writeText(restricted / "main.lua", "local alertOK = pcall(function() astral.ui.alert('No', 'permission') end)\n"
+                                       "local pickerOK = pcall(function() astral.files.pick({'json'}, function() end) end)\n"
+                                       "local eventOK = pcall(function() astral.events.on('app.foreground', function() end) end)\n"
+                                       "astral.storage.set('permissions', {alert = alertOK, picker = pickerOK, event = eventOK})\n");
+    astral::SettingsStore settings((root / "settings.json").string());
+    settings.set("astral", "developer-mode", true);
+    std::string shownTitle;
+    std::string shownMessage;
+    uint64_t picked = 0;
+    std::vector<std::string> pickedExtensions;
+    std::vector<uint64_t> cancelled;
+    astral::LuaHostPlatform platform;
+    platform.storagePath = (root / "storage.sqlite").string();
+    platform.showAlert = [&](const std::string &title, const std::string &message) {
+        shownTitle = title;
+        shownMessage = message;
+    };
+    platform.pickFile = [&](uint64_t request, const std::vector<std::string> &extensions) {
+        picked = request;
+        pickedExtensions = extensions;
+        return true;
+    };
+    platform.cancelFilePick = [&](uint64_t request) { cancelled.push_back(request); };
+    astral::luahost::start({(root / "plugins").string()}, &settings, true, std::move(platform));
+    assert(shownTitle == "Ready" && shownMessage == "Choose a file");
+    assert(picked > 0 && pickedExtensions == std::vector<std::string>({"json", "toml"}));
+    assert(std::stoull(astral::luahost::eval("astral.native-ui-test", "return astral.storage.get('request')")) == picked);
+    astral::luahost::completeFilePick(picked, "theme.json", "{\"name\":\"fixture\"}", std::nullopt);
+    assert(astral::luahost::eval("astral.native-ui-test", "return astral.storage.get('file').name") == "theme.json");
+    assert(astral::luahost::eval("astral.native-ui-test", "return astral.storage.get('file').data") == "{\"name\":\"fixture\"}");
+    assert(astral::luahost::eval("astral.native-ui-restricted",
+                                 "local p = astral.storage.get('permissions'); return tostring(p.alert) .. "
+                                 "':' .. tostring(p.picker) .. ':' .. tostring(p.event)") == "false:false:false");
+    uint64_t subscription = std::stoull(astral::luahost::eval("astral.native-ui-test", "return astral.storage.get('subscription')"));
+    astral::luahost::emitEvent("app.foreground");
+    assert(astral::luahost::eval("astral.native-ui-test", "return astral.storage.get('event')") == "app.foreground");
+    assert(astral::luahost::eval("astral.native-ui-test", "return astral.events.off(tonumber(astral.storage.get('subscription')))") ==
+           "true");
+    astral::luahost::eval("astral.native-ui-test", "astral.storage.remove('event')");
+    astral::luahost::emitEvent("app.foreground");
+    assert(astral::luahost::eval("astral.native-ui-test", "return astral.storage.get('event') == nil") == "true");
+    assert(astral::luahost::eval("astral.native-ui-test", "return astral.events.off(" + std::to_string(subscription) + ")") == "false");
+    uint64_t cancelledRequest = std::stoull(astral::luahost::eval(
+        "astral.native-ui-test",
+        "local request = astral.files.pick({'json'}, function(_, reason) astral.storage.set('cancelled_callback', reason) end); "
+        "astral.storage.set('cancelled_request', request); return request"));
+    assert(astral::luahost::eval("astral.native-ui-test",
+                                 "return astral.files.cancel(tonumber(astral.storage.get('cancelled_request')))") == "true");
+    assert(!cancelled.empty() && cancelled.back() == cancelledRequest);
+    astral::luahost::completeFilePick(cancelledRequest, std::nullopt, std::nullopt, std::string("cancelled"));
+    assert(astral::luahost::eval("astral.native-ui-test", "return astral.storage.get('cancelled_callback') == nil") == "true");
+    uint64_t oversizedRequest = std::stoull(astral::luahost::eval(
+        "astral.native-ui-test",
+        "local request = astral.files.pick({'json'}, function(file, reason) astral.storage.set('oversized_callback', reason) end); "
+        "astral.storage.set('oversized_request', request); return request"));
+    astral::luahost::completeFilePick(oversizedRequest, "large.json", std::string((1u << 20) + 1, 'x'), std::nullopt);
+    assert(astral::luahost::eval("astral.native-ui-test", "return astral.storage.get('oversized_callback')") == "file exceeds 1 MiB");
+    uint64_t stoppedRequest = std::stoull(astral::luahost::eval(
+        "astral.native-ui-test",
+        "local request = astral.files.pick({'json'}, function() end); astral.storage.set('stopped_request', request); return request"));
+    astral::luahost::stop();
+    assert(!cancelled.empty() && cancelled.back() == stoppedRequest);
+}
+
 int main(int argc, char **argv)
 {
     assert(argc == 3);
@@ -517,6 +619,7 @@ int main(int argc, char **argv)
     testPluginPackage(argv[1]);
     testPluginHealth();
     testTelemetryRequests();
+    testDiagnosticPrivacy();
     testStaffUser();
     testSharedPacks(argv[1]);
     testThemeParity(argv[1]);
@@ -525,6 +628,7 @@ int main(int argc, char **argv)
     testSingletonPageCollections();
     testSharedSignatures(argv[1], argv[2]);
     testNetworkRequests(argv[1]);
+    testFilePickerAndDialogs(argv[1]);
     testSliderSettingsAndNavigation(argv[1]);
     puts("ok");
     return 0;

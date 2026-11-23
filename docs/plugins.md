@@ -52,6 +52,9 @@ Each plugin gets its own `lua_State` with `base`, `table`, `string`, `math`, `ut
 | `astral.ui.typing(fn)` | `fn(node)` gets each name in the typing indicator, with `node.user_id` matched through Discord's cache, and returns `{ image, round }` to draw before the name |
 | `astral.ui.reaction(fn)` | `fn(node)` gets each reaction pill under a message (`node.emoji`, `node.burst`, `node.count`, `node.message_id`) and returns `{ images, total }` to draw up to five overlapping faces after the count, with a `+N` badge when `total` is larger; return `nil` until the faces are known and astral asks again |
 | `astral.ui.settings_backdrop({ dim })` | Lays the Nitro or astral theme gradient, darkened by `dim` percent, behind Discord's and astral's settings screens; `nil` removes it |
+| `astral.ui.alert(title, message)` | Shows a native alert after the plugin declares `ui.dialogs` |
+| `astral.files.pick(extensions, callback)`, `astral.files.cancel(request)` | Opens the system document picker after the plugin declares `files.read`; the callback receives `{ name, data }` or `nil, reason`, and file contents are limited to 1 MiB |
+| `astral.events.on(event, fn)`, `astral.events.off(subscription)` | Subscribes to `app.foreground` or `app.background` after the plugin declares `events.lifecycle`; disabling a plugin removes its subscriptions |
 | `node:message()`, `node:guild()`, `node:member()`, `node:user()`, `node:permissions()`, `node:is_bot()` | Cached lookups for the node a callback receives |
 | `astral.discord.reactors(channel, message, emoji, burst, count)` | The first five people who reacted with `emoji`, fetched once per count and `nil` until they arrive |
 | `astral.discord.guild/member/message/user/nickname/channel_guild/permissions` | Read-only views of Discord's own cache; messages carry `type`, `author`, `reference`, `mentions` (`id`, `username`, `global_name`, `nick`, `avatar`) and `mention_roles`; guild roles carry `icon`, permissions apply channel overwrites |
@@ -61,7 +64,17 @@ Each plugin gets its own `lua_State` with `base`, `table`, `string`, `math`, `ut
 
 ## Permissions
 
-A manifest declares what a plugin reads with `permissions = [...]`; calls outside it raise an error, and the plugin page lists them. `discord.guilds` (`guild`, `channel_guild`), `discord.members` (`member`), `discord.permissions` (`permissions`), `discord.messages` (`message`, `reactors`), `discord.users` (`user`), `discord.relationships` (`nickname`) and `storage` (`astral.storage`).
+A manifest declares what a plugin reads with `permissions = [...]`; calls outside it raise an error, and the plugin page lists them. `discord.guilds` (`guild`, `channel_guild`), `discord.members` (`member`), `discord.permissions` (`permissions`), `discord.messages` (`message`, `reactors`), `discord.users` (`user`), `discord.relationships` (`nickname`), `storage` (`astral.storage`), `ui.dialogs` (`astral.ui.alert`), `files.read` (`astral.files`) and `events.lifecycle` (`app.foreground`, `app.background`). File selection uses the platform's system picker and reads only the file the user selects.
+
+```lua
+astral.files.pick({ "json" }, function(file, reason)
+	if not file then
+		astral.log("File selection ended:", reason)
+		return
+	end
+	astral.log("Selected:", file.name)
+end)
+```
 
 ## Builtins
 
@@ -99,7 +112,9 @@ Export settings writes `astral-backup.toml` (format 1) through the share sheet: 
 
 ## Reports
 
-astral records MetricKit crashes and hangs (using the ported MetricKit parser, which ignores stacks from other apps in the same host) and plugins that stop after errors, with the running plugins and versions, in `Documents/astral/reports.json`. The astral page lists the latest five; tapping one copies the full report and opens a pre-filled issue in astral-app/astral.
+Reports use schema 2 with platform, install mode, client version, architecture, locale and running plugin IDs. Plugin error details redact token-shaped strings, authorization values, URL query strings and common private paths. Older reports are scrubbed when loaded. Reports do not intentionally include account tokens, message contents or private files. iOS records MetricKit crashes and hangs with stacks filtered to the Discord process; Android records process crash and ANR exit details and includes a system trace when Android provides one. The astral page lists the latest five; tapping one copies the report and opens a pre-filled issue in astral-app/astral.
+
+The cross-platform public API currently supports native alerts, a system file picker and app foreground/background events. Phoenix does not yet have a verified extension point for slash commands, arbitrary Discord event payloads, plugin notifications, background work or font registration, so those APIs are not exposed. Plugin assets are limited to the package's own Lua modules and declared icons; general asset registration is not available.
 
 ## Settings UI
 

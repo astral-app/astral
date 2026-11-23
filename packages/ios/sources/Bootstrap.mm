@@ -242,6 +242,7 @@ static void CheckReadiness(void)
             return;
         }
         StartPlugins();
+        AstralLuaHostEmitEvent(@"app.foreground");
         return;
     }
     if (readinessAttempts == 1 || readinessAttempts == 24) Status(compatibility);
@@ -288,6 +289,7 @@ __attribute__((constructor)) static void AstralBootstrap(void)
                                                         object:nil
                                                          queue:NSOperationQueue.mainQueue
                                                     usingBlock:^(__unused NSNotification *notification) {
+                                                        AstralLuaHostEmitEvent(@"app.foreground");
                                                         if (started) astral::ExitRecord(stateDirectory).clear();
                                                         if (readinessScheduled) return;
                                                         readinessAttempts = 0;
@@ -297,6 +299,7 @@ __attribute__((constructor)) static void AstralBootstrap(void)
                                                         object:nil
                                                          queue:NSOperationQueue.mainQueue
                                                     usingBlock:^(__unused NSNotification *notification) {
+                                                        AstralLuaHostEmitEvent(@"app.background");
                                                         astral::LaunchGuard(stateDirectory).succeed();
                                                         astral::ExitRecord(stateDirectory).markEnded();
                                                     }];

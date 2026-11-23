@@ -48,6 +48,9 @@ jobs:
           sudo apt-get install -y -qq lua-check clang libclang-rt-dev libsqlite3-dev libssl-dev
       - run: go run ./packages/tools/cmd/astral lint
       - run: go run ./packages/tools/cmd/astral test
+      - name: Verify IPA extension preservation fixtures
+        run: go test ./cmd/astral -run 'TestAddGroupRemapPreservesAndWiresDiscordExtensions|TestAddOpenInAstralToIPAReplacesTheExistingExtension|TestAddURLSchemeToIPAIsIdempotent|TestValidateIPAExtensions'
+        working-directory: packages/tools
       - name: Fuzz the rewriter
         run: go run ./packages/tools/cmd/astral fuzz --seconds 120
       - name: Benchmark the rewriter
@@ -128,3 +131,27 @@ jobs:
         with:
           name: astral-deb
           path: packages/ios/packages/*.deb
+
+  safari-extension:
+    name: Build the Safari extension
+    needs: check
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Check extension JavaScript and locale data
+        run: |
+          find 'packages/ios/extensions/OpenInAstral/OpenInAstral Extension/Resources' -name '*.js' -print0 | xargs -0 -n1 node --check
+          python3 -m json.tool 'packages/ios/extensions/OpenInAstral/OpenInAstral Extension/Resources/_locales/en/messages.json' > /dev/null
+      - name: Build extension
+        run: |
+          xcodebuild -quiet \
+            -project 'packages/ios/extensions/OpenInAstral/OpenInAstral.xcodeproj' \
+            -target OpenInAstral \
+            -configuration Release \
+            -sdk iphoneos \
+            CONFIGURATION_BUILD_DIR="$RUNNER_TEMP/OpenInAstralBuild" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            ONLY_ACTIVE_ARCH=NO \
+            build
+          test -d "$RUNNER_TEMP/OpenInAstralBuild/OpenInAstral.appex"

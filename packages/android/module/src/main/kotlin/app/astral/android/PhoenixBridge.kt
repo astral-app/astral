@@ -1,6 +1,7 @@
 package app.astral.android
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -10,6 +11,8 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
 import android.widget.Toast
+import android.provider.OpenableColumns
+import android.webkit.MimeTypeMap
 import io.github.libxposed.api.XposedInterface.ExceptionMode
 import io.github.libxposed.api.XposedModule
 import java.lang.reflect.Method
@@ -26,6 +29,7 @@ object PhoenixBridge {
     private const val MAIN_ACTIVITY = "com.discord.nativeapp.MainActivity"
     private const val EXPORT_BACKUP_REQUEST = 0xA571
     private const val IMPORT_BACKUP_REQUEST = 0xA572
+    private const val PICK_FILE_REQUEST = 0xA573
     private const val MAXIMUM_BACKUP_BYTES = 1 shl 20
 
     @Volatile var pressEvent = -1
@@ -38,6 +42,7 @@ object PhoenixBridge {
     private val mainHandler = Handler(Looper.getMainLooper())
     @Volatile private var currentActivity: WeakReference<Activity>? = null
     @Volatile private var pendingExport: String? = null
+    @Volatile private var pendingFilePick: Long? = null
 
     fun install(module: XposedModule, loader: ClassLoader) {
         val type = loader.loadClass(GUEST_HOST)
@@ -104,7 +109,19 @@ object PhoenixBridge {
                     val activity = chain.thisObject as? Activity
                     if (activity != null && activity.javaClass.name == MAIN_ACTIVITY) {
                         currentActivity = WeakReference(activity)
+                        Native.emitEvent("app.foreground")
                     }
+                    result
+                }
+        }
+        val onPause = activityMethod(mainActivity, "onPause", emptyArray())
+        if (onPause != null) {
+            module.hook(onPause)
+                .setExceptionMode(ExceptionMode.PROTECTIVE)
+                .intercept { chain ->
+                    val result = chain.proceed()
+                    val activity = chain.thisObject as? Activity
+                    if (activity != null && activity.javaClass.name == MAIN_ACTIVITY) Native.emitEvent("app.background")
                     result
                 }
         }
@@ -117,11 +134,26 @@ object PhoenixBridge {
             .setExceptionMode(ExceptionMode.PROTECTIVE)
             .intercept { chain ->
                 val request = chain.getArg(0) as? Int ?: return@intercept chain.proceed()
-                if (request != EXPORT_BACKUP_REQUEST && request != IMPORT_BACKUP_REQUEST) return@intercept chain.proceed()
+                if (request != EXPORT_BACKUP_REQUEST && request != IMPORT_BACKUP_REQUEST && request != PICK_FILE_REQUEST) {
+                    return@intercept chain.proceed()
+                }
                 val resultValue = chain.proceed()
                 val activity = chain.thisObject as? Activity ?: return@intercept resultValue
                 val result = chain.getArg(1) as? Int ?: Activity.RESULT_CANCELED
                 val data = chain.getArg(2) as? Intent
+                if (request == PICK_FILE_REQUEST) {
+                    val requestID = pendingFilePick
+                    pendingFilePick = null
+                    if (requestID != null) {
+                        val uri = if (result == Activity.RESULT_OK) data?.data else null
+                        if (uri == null) {
+                            Native.completeFilePick(requestID, null, null, "cancelled")
+                        } else {
+                            completeFilePick(activity, requestID, uri)
+                        }
+                    }
+                    return@intercept resultValue
+                }
                 if (result == Activity.RESULT_OK) {
                     val uri = data?.data
                     if (uri == null) {
@@ -188,6 +220,62 @@ object PhoenixBridge {
 
     private fun showBackupStatus(activity: Activity, message: String) {
         mainHandler.post { Toast.makeText(activity, message, Toast.LENGTH_LONG).show() }
+    }
+
+    private fun completeFilePick(activity: Activity, request: Long, uri: Uri) {
+        runCatching {
+            val name = activity.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) cursor.getString(0) else null
+            } ?: uri.lastPathSegment?.substringAfterLast('/') ?: "file"
+            val bytes = activity.contentResolver.openInputStream(uri)?.use { input -> input.readNBytes(MAXIMUM_BACKUP_BYTES + 1) }
+                ?: throw IllegalStateException("file_unreadable")
+            if (bytes.size > MAXIMUM_BACKUP_BYTES) throw IllegalArgumentException("file_too_large")
+            Native.completeFilePick(request, name, bytes, null)
+        }.onFailure { error -> Native.completeFilePick(request, null, null, error.message ?: "file_unreadable") }
+    }
+
+    @JvmStatic
+    fun showAlert(title: String, message: String) {
+        mainHandler.post {
+            val activity = activeActivity() ?: return@post
+            if (activity.isFinishing || activity.isDestroyed) return@post
+            AlertDialog.Builder(activity).setTitle(title).setMessage(message).setPositiveButton("OK", null).show()
+        }
+    }
+
+    @JvmStatic
+    fun pickFile(request: Long, extensions: String) {
+        mainHandler.post {
+            if (pendingFilePick != null) {
+                Native.completeFilePick(request, null, null, "picker_busy")
+                return@post
+            }
+            val activity = activeActivity()
+            if (activity == null || activity.isFinishing || activity.isDestroyed) {
+                Native.completeFilePick(request, null, null, "picker_unavailable")
+                return@post
+            }
+            val mimeTypes = extensions.split('\n').mapNotNull { MimeTypeMap.getSingleton().getMimeTypeFromExtension(it) }.distinct()
+            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
+                .addCategory(Intent.CATEGORY_OPENABLE)
+                .setType(if (mimeTypes.size == 1) mimeTypes.first() else "*/*")
+            if (mimeTypes.isNotEmpty()) intent.putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes.toTypedArray())
+            pendingFilePick = request
+            runCatching { activity.startActivityForResult(intent, PICK_FILE_REQUEST) }
+                .onFailure {
+                    pendingFilePick = null
+                    Native.completeFilePick(request, null, null, "picker_unavailable")
+                }
+        }
+    }
+
+    @JvmStatic
+    fun cancelFilePick(request: Long) {
+        mainHandler.post {
+            if (pendingFilePick != request) return@post
+            pendingFilePick = null
+            activeActivity()?.let { activity -> runCatching { activity.finishActivity(PICK_FILE_REQUEST) } }
+        }
     }
 
     @JvmStatic

@@ -6,6 +6,7 @@
 #import "CrashReports.h"
 #import "DevServer.h"
 #import "DiscordCache.h"
+#import "FilePicker.h"
 #import "FoundationJSON.h"
 #import "PhoenixSettings.h"
 #import "PluginSignature.h"
@@ -73,6 +74,21 @@ static astral::LuaHostPlatform Platform(void)
     };
     platform.networkRequest = [](uint64_t request, const nlohmann::json &options) { astral::startNetworkRequest(request, options); };
     platform.cancelNetworkRequest = [](uint64_t request) { astral::cancelNetworkRequest(request); };
+    platform.showAlert = [](const std::string &title, const std::string &message) { AstralShowAlert(Native(title), Native(message)); };
+    platform.pickFile = [](uint64_t request, const std::vector<std::string> &extensions) {
+        NSMutableArray<NSString *> *types = [NSMutableArray arrayWithCapacity:extensions.size()];
+        for (const auto &extension : extensions) [types addObject:Native(extension)];
+        return AstralPickPluginFile(request, types, ^(uint64_t completedRequest, NSData *data, NSString *name, NSString *error) {
+            std::optional<std::string> fileName;
+            std::optional<std::string> contents;
+            std::optional<std::string> failure;
+            if (name) fileName = Plain(name);
+            if (data) contents = std::string(static_cast<const char *>(data.bytes), data.length);
+            if (error) failure = Plain(error);
+            astral::luahost::completeFilePick(completedRequest, fileName, contents, failure);
+        });
+    };
+    platform.cancelFilePick = [](uint64_t request) { AstralCancelPluginFile(request); };
     platform.verifySignature = [](const std::string &directory, const std::string &main) {
         return (bool)AstralVerifyPluginDirectory(Native(directory), Native(main));
     };
@@ -92,6 +108,11 @@ void AstralLuaHostStart(NSArray<NSString *> *directories, astral::SettingsStore 
     std::vector<std::string> roots;
     for (NSString *directory in directories) roots.push_back(Plain(directory));
     astral::luahost::start(roots, store, startEnabled, Platform());
+}
+
+void AstralLuaHostEmitEvent(NSString *event)
+{
+    astral::luahost::emitEvent(Plain(event));
 }
 
 NSArray<NSDictionary *> *AstralLuaPlugins(void)

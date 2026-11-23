@@ -338,6 +338,7 @@ astral.i18n.locale = ""
 function astral.i18n.t(key) end
 
 astral.ui = {}
+function astral.ui.alert(title, message) end
 ---@param target astral.Target
 ---@param decorator fun(node: astral.Node): astral.Decoration
 function astral.ui.decorate(target, decorator) end
@@ -365,6 +366,14 @@ function astral.ui.typing(decorator) end
 function astral.ui.reaction(decorator) end
 ---@param options? { dim: number }
 function astral.ui.settings_backdrop(options) end
+
+astral.files = {}
+function astral.files.pick(extensions, callback) end
+function astral.files.cancel(request) end
+
+astral.events = {}
+function astral.events.on(event, callback) end
+function astral.events.off(subscription) end
 
 astral.discord = {}
 ---@param id astral.Snowflake

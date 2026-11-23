@@ -19,6 +19,14 @@ static BOOL HasDiscordPasskeyAssertion(ASAuthorizationController *controller)
     return NO;
 }
 
+static BOOL PhoenixHandlesPasskeys(void)
+{
+    Class module = NSClassFromString(@"LibdiscordHost.PasskeysModule");
+    SEL completed = NSSelectorFromString(@"authorizationController:didCompleteWithAuthorization:");
+    SEL failed = NSSelectorFromString(@"authorizationController:didCompleteWithError:");
+    return module && class_getInstanceMethod(module, completed) && class_getInstanceMethod(module, failed);
+}
+
 static NSString *SafariExtensionIdentifier(void)
 {
     NSString *path = [NSBundle.mainBundle.bundlePath stringByAppendingPathComponent:@"PlugIns/OpenInAstral.appex"];
@@ -51,6 +59,10 @@ static void OpenSafariLogin(ASAuthorizationController *controller, SEL selector,
 static void BeginBrowserLogin(ASAuthorizationController *controller, SEL selector, ASAuthorizationControllerRequestOptions options,
                               BOOL hasOptions)
 {
+    if (PhoenixHandlesPasskeys()) {
+        PerformOriginal(controller, selector, options, hasOptions);
+        return;
+    }
     if (!HasDiscordPasskeyAssertion(controller)) {
         PerformOriginal(controller, selector, options, hasOptions);
         return;
