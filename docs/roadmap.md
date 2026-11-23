@@ -15,7 +15,7 @@ The branch adds post-sign extension checks, installed-extension diagnostics and 
 | 5 | Lua API | Permission-gated native alerts, file selection and foreground/background subscriptions are implemented on iOS and Android; Lua and API tests pass | Exercise each adapter in Phoenix; commands, arbitrary Discord events, notifications, background work, fonts and general asset registration remain unsupported |
 | 6 | Recovery and privacy | Plugin failures stay isolated; reports scrub new and legacy details; Android records available process crash/ANR traces | Exercise disable, reload, soft restart and launch recovery across install modes |
 | 7 | Compatibility automation | Android DEX scanner, Safari extension CI build and synthetic IPA preservation plus post-sign validation tests are present | Scan authorized Android APKs/splits; complete scheduled iOS scan after an upstream artifact is available |
-| 8 | Add-on corpus | Seven signed Lua plugins and their Lua tests cover mentions, tags, reactions, role colors, typing, names and settings themes | Use the parity map to port only add-ons whose required behavior fits the cross-platform Lua API |
+| 8 | Add-on corpus | Seven signed Lua plugins and their Lua tests cover the current portability set; the user-selected nine-plugin shortlist is prioritized in the parity map | Implement the shared Phoenix seams, then port and test the first compatible group |
 | 9 | Documentation | README and plugin docs state supported APIs, permissions, install behavior, `astral://` and known gates | Review release notes after device acceptance closes |
 
 ## Current baseline
@@ -58,7 +58,7 @@ The branch adds post-sign extension checks, installed-extension diagnostics and 
 
 7. **Run compatibility automation.** Build the Safari extension and synthetic IPA tests in CI. Run `astral android-compat` with an authorized base APK and each split APK; retain only the JSON/Markdown result. Keep decrypted Discord apps and account data out of CI and the repository.
 
-8. **Grow the add-on corpus.** Keep the existing seven tested Lua plugins as the portability set. Compare new Unbound add-ons with astral's supported API, then port the next compatible set, add Lua tests, sign packages and update the catalog signature.
+8. **Grow the add-on corpus.** Keep the existing seven tested Lua plugins as the portability set. The next shortlist is Clear URLs, Text Replace, Client Side Block (Enhanced Blocking), Chat Bubbles, Translate, Expression Tools, Live Markdown, Highlight Replies and Mention Haptics. Start with the shared pre-send transform needed by Clear URLs and Text Replace, then add the event, row, contextual-action and native UI seams for later groups. Add Lua tests, sign completed packages and update the catalog signature.
 
 9. **Close release documentation.** Document installation and recovery for each supported mode, the `astral://` scheme, Safari passkeys, extension preservation, plugin permissions, API reference and compatibility results. Publish no release until the device matrix and CI gates pass.
 

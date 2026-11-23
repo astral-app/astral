@@ -16,20 +16,29 @@ astral ports Unbound behavior through Phoenix's shared Lua API. It does not carr
 
 All seven are Lua packages with sandboxed tests and signed manifests. These are the current cross-platform portability set; the list does not claim full Unbound feature parity.
 
-## Candidates with missing Phoenix support
+## User-selected shortlist
 
-| Unbound add-on | Existing fit | Missing surface |
-| --- | --- | --- |
-| Clean Channel Names | `astral.ui.relabel(Target.ChannelName, fn)` can replace a channel label | The callback has no channel type, and the Lua runtime has no Unicode NFKC normalization. Both are needed to preserve voice separators and normalize compatibility glyphs consistently. |
-| Message Colors | `astral.ui.message_color(fn)` can tint a whole message | Unbound parses individual text nodes and renders inline color pills. astral currently exposes only whole-message tinting. |
-| Friends Since | `astral.ui.decorate` can add a pill beside supported labels | There is no profile-sheet decoration target or relationship creation timestamp in the read-only cache API. |
-| Show Roles in Chat | `More User Tags` and `Role Color Everywhere` cover selected role metadata | A parity port needs confirmed Phoenix data for the requested role list and a supported label or decoration target at that location. |
+These nine Unbound add-ons are the preferred candidates for the next portability pass. The ordering below groups features by the Phoenix seams they share; it is not a claim that they already work with today's API.
 
-## Porting order
+| Candidate | Existing Astral fit | Required Phoenix/API seam | Port group |
+| --- | --- | --- | --- |
+| Clear URLs | Lua can implement the tracking-parameter rules | A shared pre-send transform for both sends and edits, with safe handling of attachments and non-text message fields | 1 |
+| Text Replace | Lua can implement literal and pattern-based replacements | The same pre-send transform, plus editable rules and import/export UI beyond switch, choice and number settings | 1 |
+| Highlight Replies | Message references and `astral.ui.message_color` are available | Current-user identity and a row-level background/highlight target; text tint alone does not match the Unbound behavior | 2 |
+| Client Side Block → Enhanced Blocking | Message and member lookups provide some inputs | Pre-store message filtering, row visibility control, relationship state and a manageable user/keyword rules UI | 2 |
+| Mention Haptics | `astral.events` already scopes lifecycle subscriptions | Message-create events, mention suppression settings and a permission-gated haptics adapter on both platforms | 2 |
+| Translate | `astral.net.request` and plugin storage are available | Contextual message actions, translated-content presentation and provider/language settings | 3 |
+| Expression Tools | Existing settings pages provide a place for basic preferences | Expression and sticker picker actions, contextual sheets, clone/send operations and Phoenix expression data | 3 |
+| Live Markdown | Composer placeholders can be relabeled | Composer input/rendering control, inline formatting and custom-emoji insertion; Unbound's implementation also has iOS-specific native behavior | 4 |
+| Chat Bubbles | Themes can change some existing colors | Message-row geometry, grouped-cell drawing, media corners and touch/scroll behavior across iOS and Android | 4 |
 
-1. Add channel type to channel-label callbacks and expose cross-platform NFKC normalization in the Lua API; then port Clean Channel Names with cases for voice separators, decorative glyphs, emoji-only names and empty results.
-2. Add a constrained inline text decoration API only after the Phoenix wire schema for text spans is confirmed on both platforms; then port Message Colors with parsing tests and strict text-node bounds.
-3. Add a profile-sheet decoration target and the minimum account creation metadata needed for Friends Since; keep relationship data read-only.
-4. Recheck Show Roles in Chat against live Phoenix wire data before adding a new target or cache field.
+## Porting sequence
+
+1. Define a shared pre-send message transform after confirming Phoenix's send and edit boundaries on both platforms. Keep it constrained to message content and preserve attachments, replies and other payload fields. This seam can support Clear URLs and Text Replace.
+2. Add message-row highlight/visibility controls and current-user identity, then port Highlight Replies, Enhanced Blocking and Mention Haptics with explicit event and haptic permissions.
+3. Add contextual message actions and a safe translated-content surface before porting Translate. Treat Expression Tools as a separate follow-up because it also needs expression picker and send operations.
+4. Design composer rendering and message-cell customization only after Phoenix's native UI lifecycle is mapped independently on iOS and Android. Live Markdown and Chat Bubbles should use shared API contracts with platform adapters, not native plugin code.
+
+Do not ship placeholder plugins that only expose settings or transform data without a Phoenix callback that consumes the result. When a candidate needs a missing capability, implement that capability in astral's shared API and both native adapters first. Keep plugin packages Lua-only, add mocked Lua tests, sign them with `astral sign`, and update the catalog. Do not copy Unbound's React Native or Flux implementation into a plugin.
 
 When a candidate needs a missing capability, implement that capability in astral's shared API and both native adapters first. Keep plugin packages Lua-only, add mocked Lua tests, sign them with `astral sign`, and update the catalog. Do not copy Unbound's React Native or Flux implementation into a plugin.
