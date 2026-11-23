@@ -217,6 +217,7 @@ int astral_wire_retry_reactions(AstralWireBuffer *buffer);
 int astral_wire_refresh_reactions(AstralWireBuffer *buffer);
 void astral_wire_note_identifiers(const uint8_t *bytes, size_t length);
 int astral_wire_identifier(int32_t id, char *out, size_t capacity);
+int astral_wire_event_value(const uint8_t *bytes, size_t length, double *value);
 
 typedef int (*AstralEmojiResolver)(const char *codepoints, char *url, size_t capacity);
 

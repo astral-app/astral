@@ -191,7 +191,7 @@ static int SettingsSwitch(lua_State *state)
     if (key.empty() || key.size() > 48 || plugin->switches.size() >= 32) return luaL_error(state, "astral.settings.switch: invalid key");
     bool known = false;
     for (auto &entry : plugin->switches) known = known || entry.key == key;
-    if (!known) plugin->switches.push_back({key, title.substr(0, 64), subtitle.substr(0, 120), section.substr(0, 48), fallback});
+    if (!known) plugin->switches.push_back({key, title.substr(0, 64), subtitle.substr(0, 120), section.substr(0, 48), fallback, {}, {}});
     lua_pushboolean(state, StoredBool(SettingKey(plugin, key), fallback));
     return 1;
 }

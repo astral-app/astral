@@ -13,5 +13,6 @@ AllowShortIfStatementsOnASingleLine: WithoutElse
 AllowShortLoopsOnASingleLine: true
 PointerAlignment: Right
 SortIncludes: Never
+FixNamespaceComments: false
 ObjCBlockIndentWidth: 4
 ObjCSpaceAfterProperty: true

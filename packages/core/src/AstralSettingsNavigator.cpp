@@ -1,6 +1,7 @@
 #include "AstralSettingsNavigator.h"
 
 #include <cmath>
+#include <charconv>
 #include <mutex>
 
 #include "AstralSettingsPages.h"
@@ -110,6 +111,17 @@ void pop()
         run({{Delivery::Pop, ""}, {Delivery::Refresh, gRoutes.back()}});
 }
 
+void synchronize()
+{
+    size_t depth = 0;
+    auto work = [&] { depth = static_cast<size_t>(astral_page_depth()); };
+    if (gWithWire)
+        gWithWire(work);
+    else
+        work();
+    if (depth < gRoutes.size()) gRoutes.resize(depth);
+}
+
 void act(const std::string &key)
 {
     if (gRoutes.empty()) return;
@@ -142,8 +154,9 @@ bool handles(const std::string &identifier)
 void tap(const std::string &identifier)
 {
     std::lock_guard<std::recursive_mutex> lock(gMutex);
+    synchronize();
     if (identifier == kOverviewRow || startsWith(identifier, kOverviewRowPrefix)) {
-        if (astral_page_depth() > 0) return;
+        if (!gRoutes.empty()) return;
         gRoutes.clear();
         push(startsWith(identifier, kOverviewRowPrefix) ? identifier.substr(kOverviewRowPrefix.size()) : std::string());
     } else if (identifier == kBack) {
@@ -158,26 +171,52 @@ void tap(const std::string &identifier)
 void slide(const std::string &identifier, double fraction)
 {
     std::lock_guard<std::recursive_mutex> lock(gMutex);
-    if (!startsWith(identifier, kSliderPrefix) || gRoutes.empty()) return;
+    synchronize();
+    if (!std::isfinite(fraction) || !startsWith(identifier, kSliderPrefix) || gRoutes.empty()) return;
     std::string rest = identifier.substr(kSliderPrefix.size());
     size_t dot = rest.find('.');
     if (dot == std::string::npos) return;
-    int steps = atoi(rest.substr(0, dot).c_str());
-    if (steps <= 0) return;
+    int steps = 0;
+    auto [end, error] = std::from_chars(rest.data(), rest.data() + dot, steps);
+    if (error != std::errc() || end != rest.data() + dot || steps <= 0 || dot + 1 == rest.size()) return;
     long position = std::lround(std::fmin(1, std::fmax(0, fraction)) * steps);
     astral::pages::action(gRoutes.back(), "number." + rest.substr(dot + 1) + "=" + std::to_string(position), [] {});
     refreshTop();
 }
 
+void slidePosition(const std::string &identifier, double position)
+{
+    if (!std::isfinite(position) || !startsWith(identifier, kSliderPrefix)) return;
+    std::string rest = identifier.substr(kSliderPrefix.size());
+    size_t dot = rest.find('.');
+    if (dot == std::string::npos) return;
+    int steps = 0;
+    auto [end, error] = std::from_chars(rest.data(), rest.data() + dot, steps);
+    if (error != std::errc() || end != rest.data() + dot || steps <= 0) return;
+    slide(identifier, position / steps);
+}
+
+bool back()
+{
+    std::lock_guard<std::recursive_mutex> lock(gMutex);
+    synchronize();
+    if (gRoutes.empty()) return false;
+    pop();
+    return true;
+}
+
 void refresh()
 {
     std::lock_guard<std::recursive_mutex> lock(gMutex);
-    if (astral_page_depth() > 0) refreshTop();
+    synchronize();
+    if (!gRoutes.empty()) refreshTop();
 }
 
 bool open()
 {
-    return astral_page_depth() > 0;
+    std::lock_guard<std::recursive_mutex> lock(gMutex);
+    synchronize();
+    return !gRoutes.empty();
 }
 
 } // namespace astral::navigator

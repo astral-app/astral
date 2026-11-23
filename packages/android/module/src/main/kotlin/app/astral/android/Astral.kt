@@ -52,9 +52,12 @@ class Astral : XposedModule() {
         val resources = Resources.extract(moduleApplicationInfo, param.applicationInfo)
         val languages = android.os.LocaleList.getDefault().let { list -> Array(list.size()) { list[it].toLanguageTag() } }
         Native.initialize(names, param.applicationInfo.dataDir, resources.absolutePath, languages, discordVersion())
+        runCatching { ResourceImages.install(this, param.applicationInfo, resources) }.onFailure { Log.error("Failed to install astral's images", it) }
         PhoenixBridge.pressEvent = names?.indexOf("press") ?: -1
+        PhoenixBridge.changeEvent = names?.indexOf("change") ?: -1
         Capture.configure(param.applicationInfo.dataDir)
         PhoenixBridge.install(this, param.classLoader)
+        runCatching { NavigationBack.install(this, param.classLoader) }.onFailure { Log.error("Failed to route system back", it) }
         runCatching { NetworkHooks.install(this, param.classLoader) }.onFailure { Log.error("Failed to hook Discord's network stack", it) }
         loadSession(param.applicationInfo.dataDir)
     }

@@ -20,6 +20,9 @@ object Native {
     @JvmStatic external fun pendingUpdates(): ByteArray?
 
     @JvmStatic external fun press(node: Int): Boolean
+    @JvmStatic external fun slide(node: Int, payload: ByteArray): Boolean
+    @JvmStatic external fun back(): Boolean
+    @JvmStatic external fun pageOpen(): Boolean
 
     @JvmStatic external fun attachBridge(bridge: Class<*>)
 
@@ -28,4 +31,6 @@ object Native {
     @JvmStatic external fun isTelemetry(host: String, path: String): Boolean
 
     @JvmStatic external fun sinkUrl(): String
+
+    @JvmStatic external fun iconPath(name: String): String
 }

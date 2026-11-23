@@ -12,6 +12,8 @@
 #include "AstralDiscordCache.h"
 #include "AstralLuaHost.h"
 #include "AstralNetworkPolicy.h"
+#include "AstralPacks.h"
+#include "AstralThemes.h"
 #include "AstralReactors.h"
 #include "AstralRequestSink.h"
 #include "AstralSession.h"
@@ -28,6 +30,9 @@ namespace {
 constexpr jsize kMaxPropertyNames = 2048;
 
 std::unique_ptr<astral::SettingsStore> gSettings;
+std::unique_ptr<astral::Packs> gPacks;
+std::unique_ptr<astral::Themes> gThemes;
+unsigned gImageGeneration = 0;
 std::mutex gWireLock;
 JavaVM *gVM = nullptr;
 jclass gBridge = nullptr;
@@ -36,6 +41,8 @@ jmethodID gFetch = nullptr;
 
 std::vector<uint8_t> refreshedDecorations();
 void deliver(const std::vector<uint8_t> &bytes);
+void refreshImages();
+void applyTheme(const std::string &identifier);
 
 std::string plain(JNIEnv *env, jstring value)
 {
@@ -162,9 +169,25 @@ void configurePages(const std::string &discordVersion)
 {
     astral::SettingsPagesPlatform pages;
     pages.settings = gSettings.get();
+    pages.themes = [] { return gThemes->list(); };
+    pages.activeTheme = [] { return gThemes->active(); };
+    pages.applyTheme = applyTheme;
+    pages.iconPacks = [] { return gPacks->icons(); };
+    pages.activeIconPack = [] { return gPacks->activeIcons(); };
+    pages.selectIconPack = [](const std::string &identifier) {
+        if (gPacks->selectIcons(identifier)) refreshImages();
+    };
+    pages.emojiPacks = [] { return gPacks->emoji(); };
+    pages.activeEmojiPack = [] { return gPacks->activeEmoji(); };
+    pages.selectEmojiPack = [](const std::string &identifier) { gPacks->selectEmoji(identifier); };
+    pages.emojiAnimated = [] { return gPacks->animated(); };
+    pages.setEmojiAnimated = [](bool animated) { gPacks->setAnimated(animated); };
     pages.version = ASTRAL_VERSION;
     pages.context = [discordVersion] { return astral::SettingsPageContext{false, discordVersion, "ready"}; };
     pages.softRestart = [] {
+        gPacks->invalidate();
+        refreshImages();
+        applyTheme(gThemes->active());
         for (const auto &plugin : astral::luahost::plugins())
             if (plugin.value("enabled", false)) astral::luahost::reload(plugin.value("id", ""));
     };
@@ -245,6 +268,41 @@ void deliver(const std::vector<uint8_t> &bytes)
     if (attached) gVM->DetachCurrentThread();
 }
 
+void refreshImages()
+{
+    AstralWireBuffer buffer = {};
+    std::vector<uint8_t> bytes;
+    {
+        std::lock_guard<std::mutex> lock(gWireLock);
+        astral_wire_refresh_images(&buffer, ++gImageGeneration);
+        append(bytes, buffer);
+    }
+    deliver(bytes);
+}
+
+int resolveEmoji(const char *codepoints, char *url, size_t capacity)
+{
+    if (!gPacks || !codepoints || !url) return 0;
+    auto resolved = gPacks->emojiURL(codepoints);
+    if (resolved.empty() || resolved.size() >= capacity) return 0;
+    memcpy(url, resolved.c_str(), resolved.size() + 1);
+    return 1;
+}
+
+void applyTheme(const std::string &identifier)
+{
+    auto style = gThemes->select(identifier);
+    AstralWireBuffer buffer = {};
+    std::vector<uint8_t> bytes;
+    {
+        std::lock_guard<std::mutex> lock(gWireLock);
+        style.apply();
+        astral_wire_recolor(&buffer);
+        append(bytes, buffer);
+    }
+    deliver(bytes);
+}
+
 JNIEnv *currentEnvironment(bool &attached)
 {
     JNIEnv *env = nullptr;
@@ -303,6 +361,10 @@ ASTRAL_EXPORT JNIEXPORT jint JNICALL Java_app_astral_android_Native_initialize(J
     std::filesystem::create_directories(state + "/plugins", error);
     astral::discord::setDataDirectory(data + "/files");
     gSettings = std::make_unique<astral::SettingsStore>(state + "/settings.json");
+    gPacks = std::make_unique<astral::Packs>(*gSettings, state, resources);
+    gThemes = std::make_unique<astral::Themes>(*gSettings, state, resources);
+    applyTheme(gThemes->active());
+    astral_wire_set_emoji_resolver(resolveEmoji);
     bool safeMode = gSettings->getBoolean("astral", "safe-mode", false);
     astral::luahost::start({state + "/plugins", resources + "/plugins"}, gSettings.get(), !safeMode,
                            platform(state, resources, strings(env, languages)));
@@ -366,6 +428,36 @@ ASTRAL_EXPORT JNIEXPORT jbyteArray JNICALL Java_app_astral_android_Native_pendin
     return bytesOf(env, pendingUpdates());
 }
 
+ASTRAL_EXPORT JNIEXPORT jboolean JNICALL Java_app_astral_android_Native_slide(JNIEnv *env, jclass, jint node, jbyteArray payload)
+{
+    if (!payload) return JNI_FALSE;
+    jsize size = env->GetArrayLength(payload);
+    if (size <= 0 || size > 4096) return JNI_FALSE;
+    std::vector<uint8_t> bytes(static_cast<size_t>(size));
+    env->GetByteArrayRegion(payload, 0, size, reinterpret_cast<jbyte *>(bytes.data()));
+    char identifier[128];
+    double position = 0;
+    {
+        std::lock_guard<std::mutex> lock(gWireLock);
+        if (!astral_wire_identifier(node, identifier, sizeof(identifier)) ||
+            !astral_wire_event_value(bytes.data(), bytes.size(), &position))
+            return JNI_FALSE;
+    }
+    if (std::string(identifier).rfind("astral.slider.", 0) != 0) return JNI_FALSE;
+    astral::navigator::slidePosition(identifier, position);
+    return JNI_TRUE;
+}
+
+ASTRAL_EXPORT JNIEXPORT jboolean JNICALL Java_app_astral_android_Native_back(JNIEnv *, jclass)
+{
+    return astral::navigator::back();
+}
+
+ASTRAL_EXPORT JNIEXPORT jboolean JNICALL Java_app_astral_android_Native_pageOpen(JNIEnv *, jclass)
+{
+    return astral::navigator::open();
+}
+
 ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_attachBridge(JNIEnv *env, jclass, jclass bridge)
 {
     if (gBridge) env->DeleteGlobalRef(gBridge);
@@ -388,6 +480,11 @@ ASTRAL_EXPORT JNIEXPORT jboolean JNICALL Java_app_astral_android_Native_isTeleme
 ASTRAL_EXPORT JNIEXPORT jstring JNICALL Java_app_astral_android_Native_sinkUrl(JNIEnv *env, jclass)
 {
     return text(env, astral::sink::url());
+}
+
+ASTRAL_EXPORT JNIEXPORT jstring JNICALL Java_app_astral_android_Native_iconPath(JNIEnv *env, jclass, jstring name)
+{
+    return text(env, gPacks ? gPacks->iconPath(plain(env, name)) : "");
 }
 
 ASTRAL_EXPORT JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *)

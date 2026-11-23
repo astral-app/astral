@@ -13,6 +13,7 @@ type command struct {
 }
 
 var commands = map[string]command{
+	"android":       {"android <build|deploy> ...", runAndroid},
 	"test":          {"test [--phoenix <PhoenixFatClient>]", runTest},
 	"lint":          {"lint", runLint},
 	"format":        {"format", runFormat},

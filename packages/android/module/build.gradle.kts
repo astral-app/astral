@@ -5,7 +5,7 @@ plugins {
 }
 
 val repositoryRoot: File = rootDir.parentFile.parentFile
-val astralVersion = "0.0.1"
+val astralVersion = repositoryRoot.resolve("version.txt").readText().trim()
 
 abstract class StageResources : DefaultTask() {
     @get:InputFiles
@@ -115,4 +115,5 @@ kotlin {
 
 dependencies {
     compileOnly("io.github.libxposed:api:102.0.0")
+    implementation("com.caverock:androidsvg-aar:1.4")
 }

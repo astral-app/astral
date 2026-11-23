@@ -46,7 +46,7 @@ func testWire(work string) error {
 	return run(ios, binary)
 }
 
-var wireSourceFiles = []string{"PhoenixWire.c", "PhoenixWireFormat.c", "PhoenixWirePages.c", "PhoenixWireDecorate.c", "PhoenixWireTheme.c", "PhoenixWireLabels.c", "PhoenixWireBackdrop.c", "PhoenixWireMentions.c", "PhoenixWireImages.c", "PhoenixWireNames.c", "PhoenixWireEmoji.c", "PhoenixWireReactions.c", "PhoenixWireIdentifiers.c", "PhoenixProperties.c"}
+var wireSourceFiles = []string{"PhoenixWire.c", "PhoenixWireFormat.c", "PhoenixWirePages.c", "PhoenixWireDecorate.c", "PhoenixWireTheme.c", "PhoenixWireLabels.c", "PhoenixWireBackdrop.c", "PhoenixWireMentions.c", "PhoenixWireImages.c", "PhoenixWireNames.c", "PhoenixWireEmoji.c", "PhoenixWireReactions.c", "PhoenixWireIdentifiers.c", "PhoenixWireEvents.c", "PhoenixProperties.c"}
 
 func wireSources() []string {
 	paths := []string{"-I" + repoPath("packages", "core", "wire")}
@@ -56,22 +56,34 @@ func wireSources() []string {
 	return paths
 }
 
-var coreLuaSources = []string{"AstralNetworkPolicy", "LuaSandbox", "LuaJSON", "LuaLocale", "PluginPackage", "PluginStorage"}
-
 func testCore(work string) error {
 	object := filepath.Join(work, "lua-core.o")
 	if err := run(repoPath(), "cc", "-c", "-O1", "-g", "-fsanitize=address,undefined", "-DMAKE_LIB", luaPlatform(), "-w",
 		repoPath("vendor", "lua", "onelua.c"), "-o", object); err != nil {
 		return err
 	}
+	if err := runEmbedPrelude([]string{repoPath("packages", "core", "lua", "prelude.lua"), filepath.Join(work, "AstralPrelude.h")}); err != nil {
+		return err
+	}
+	var wireObjects []string
+	for _, source := range wireSourceFiles {
+		target := filepath.Join(work, source+".o")
+		if err := run(repoPath(), "clang", "-std=c11", "-g", "-fsanitize=address,undefined", "-I"+repoPath("packages", "core", "wire"), "-c", repoPath("packages", "core", "wire", source), "-o", target); err != nil {
+			return err
+		}
+		wireObjects = append(wireObjects, target)
+	}
 	binary := filepath.Join(work, "lua-core-test")
 	arguments := []string{"-std=c++20", "-Wall", "-Wextra", "-Werror", "-g", "-fsanitize=address,undefined",
-		"-I" + repoPath("packages", "core", "include"), "-I" + repoPath("vendor", "lua"),
+		"-I" + repoPath("packages", "core", "include"), "-I" + repoPath("vendor", "lua"), "-I" + work, "-I" + repoPath("packages", "core", "wire"),
 		"-isystem", repoPath("vendor", "json", "single_include"), "-isystem", repoPath("vendor", "tomlplusplus", "include"),
 		repoPath("packages", "core", "tests", "lua-core-test.cpp")}
-	for _, source := range coreLuaSources {
-		arguments = append(arguments, repoPath("packages", "core", "src", source+".cpp"))
+	sources, err := portableCoreSources()
+	if err != nil {
+		return err
 	}
+	arguments = append(arguments, sources...)
+	arguments = append(arguments, wireObjects...)
 	arguments = append(arguments, object, "-lsqlite3", "-o", binary)
 	if err := run(repoPath(), "clang++", arguments...); err != nil {
 		return err

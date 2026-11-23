@@ -13,6 +13,8 @@ void configure(Deliver deliver, std::function<void(const std::function<void()> &
 bool handles(const std::string &identifier);
 void tap(const std::string &identifier);
 void slide(const std::string &identifier, double fraction);
+void slidePosition(const std::string &identifier, double position);
+bool back();
 void refresh();
 bool open();
 

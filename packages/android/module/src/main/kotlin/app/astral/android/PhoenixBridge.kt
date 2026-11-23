@@ -16,6 +16,7 @@ object PhoenixBridge {
     private const val FUNCTION0 = "kotlin.jvm.functions.Function0"
 
     @Volatile var pressEvent = -1
+    @Volatile var changeEvent = -1
     @Volatile private var guestHost: Any? = null
     private var applyOps: Method? = null
     private val delivering = ThreadLocal.withInitial { false }
@@ -36,6 +37,7 @@ object PhoenixBridge {
                 val length = chain.getArg(1) as Int
                 Capture.record(ops, length)
                 val rewritten = Native.rewrite(ops, length)
+                NavigationBack.refresh()
                 if (rewritten != null) Capture.record(rewritten, rewritten.size)
                 if (rewritten == null) chain.proceed() else chain.proceed(arrayOf<Any>(rewritten, rewritten.size))
             }
@@ -65,10 +67,14 @@ object PhoenixBridge {
     }
 
     private fun handled(event: ByteArray): Boolean {
-        if (pressEvent < 0 || event.size < EVENT_OFFSET + 2 || event[0].toInt() != EVENT_FRAME || event[1].toInt() != EVENT_FRAME) return false
+        if (event.size < EVENT_OFFSET + 2 || event[0].toInt() != EVENT_FRAME || event[1].toInt() != EVENT_FRAME) return false
         val buffer = java.nio.ByteBuffer.wrap(event).order(java.nio.ByteOrder.LITTLE_ENDIAN)
-        if ((buffer.getShort(EVENT_OFFSET).toInt() and 0xFFFF) != pressEvent) return false
-        return Native.press(buffer.getInt(NODE_OFFSET))
+        val kind = buffer.getShort(EVENT_OFFSET).toInt() and 0xFFFF
+        return when (kind) {
+            pressEvent -> Native.press(buffer.getInt(NODE_OFFSET))
+            changeEvent -> Native.slide(buffer.getInt(NODE_OFFSET), event.copyOfRange(EVENT_OFFSET + 2, event.size))
+            else -> false
+        }
     }
 
     @JvmStatic
@@ -85,6 +91,7 @@ object PhoenixBridge {
         delivering.set(true)
         try {
             method.invoke(host, ops, ops.size)
+            NavigationBack.refresh()
         } catch (error: Throwable) {
             Log.error("Failed to deliver astral's ViewWire update", error)
         } finally {

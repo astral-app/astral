@@ -3,8 +3,15 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <limits>
 
 #include "AstralNetworkPolicy.h"
+#include "AstralPacks.h"
+#include "AstralSettings.h"
+#include "AstralTOML.h"
+#include "AstralThemes.h"
+#include "PhoenixProperties.h"
+#include "PhoenixWire.h"
 #include "LuaJSON.h"
 #include "LuaLocale.h"
 #include "LuaSandbox.h"
@@ -179,6 +186,94 @@ static void testStaffUser()
     assert(!astral::withStaffReady(R"({"op":0,"t":"MESSAGE_CREATE","d":{"content":"READY"}})"));
 }
 
+static void testSharedPacks(const std::string &work)
+{
+    auto root = std::filesystem::path(work) / "packs";
+    auto bundled = root / "bundled";
+    auto local = root / "local";
+    std::filesystem::create_directories(local);
+    std::filesystem::create_directories(bundled / "emoji-packs" / "sample");
+    std::filesystem::create_directories(local / "emoji-packs" / "sample");
+    std::filesystem::create_directories(bundled / "icon-packs" / "sample" / "icons");
+    writeText(bundled / "emoji-packs" / "sample" / "manifest.toml",
+              "id = 'sample'\nname = 'Bundled'\nstatic = 'https://example.com/bundled/{codepoints}.png'\n");
+    writeText(local / "emoji-packs" / "sample" / "manifest.toml",
+              "id = 'sample'\nname = 'Local'\nstatic = 'https://example.com/static/{codepoints}.png'\nanimated = "
+              "'https://example.com/animated/{codepoints}.gif'\n");
+    writeText(local / "emoji-packs" / "sample" / "coverage.txt", "1f600\r\n1f469+1f4bb\n2764!\n");
+    writeText(local / "emoji-packs" / "sample" / "animated.txt", "1f600\n");
+    writeText(bundled / "icon-packs" / "sample" / "manifest.toml", "id = 'sample'\nname = 'Icons'\n");
+    writeText(bundled / "icon-packs" / "sample" / "icons" / "ic_test@2x.png", "two");
+    astral::SettingsStore settings((local / "settings.json").string());
+    astral::Packs packs(settings, local.string(), bundled.string());
+    assert(packs.emoji().size() == 2 && packs.emoji()[1]["name"] == "Local");
+    assert(packs.emojiURL("1f600").empty());
+    assert(!packs.selectEmoji("missing"));
+    assert(packs.selectEmoji("sample"));
+    assert(packs.selectEmoji("sample"));
+    assert(packs.emojiURL("1F600") == "https://example.com/animated/1f600.gif");
+    packs.setAnimated(false);
+    assert(packs.emojiURL("1f600") == "https://example.com/static/1f600.png");
+    assert(packs.emojiURL("1f469-200d-1f4bb") == "https://example.com/static/1f469-200d-1f4bb.png");
+    assert(packs.emojiURL("2764-fe0f") == "https://example.com/static/2764-fe0f.png");
+    assert(packs.emojiURL("1f601").empty());
+    assert(packs.emojiURL("../../secret").empty());
+    assert(packs.selectIcons("sample"));
+    assert(packs.iconPath("ic_test") == (bundled / "icon-packs" / "sample" / "icons" / "ic_test@2x.png").string());
+    assert(packs.iconPath("ic_../../secret").empty());
+    assert(packs.selectIcons("discord") && packs.iconPath("ic_test").empty());
+    assert(packs.selectEmoji("discord") && packs.emojiURL("1f600").empty());
+    assert(astral::parseTOML("invalid = [").is_null());
+}
+
+static void testThemeParity(const std::string &work)
+{
+    auto root = std::filesystem::path(work) / "themes";
+    auto bundled = root / "bundled";
+    auto local = root / "local";
+    std::filesystem::create_directories(local);
+    std::filesystem::create_directories(bundled / "themes");
+    std::filesystem::create_directories(bundled / "palettes");
+    writeText(bundled / "themes" / "sample.toml",
+              "id = 'sample'\nname = 'Sample'\n[colors]\nFF202020 = 'FF302040'\n[tint]\ncolor = '#8B5CF6'\n[tint.text]\ncolor = "
+              "'#EEEEFF'\nsaturation = 0.2\n[background]\ngradient = ['#112233', '#445566']\n");
+    writeText(bundled / "palettes" / "discord-raw.toml", "[colors]\nDARK = '#202020'\nLIGHT = '#EEEEEE'\n");
+    writeText(bundled / "palettes" / "discord-semantic.toml", "[colors.background]\ndark = ['DARK', 1]\nlight = ['LIGHT', 1]\n");
+    astral::SettingsStore settings((local / "settings.json").string());
+    astral::Themes themes(settings, local.string(), bundled.string());
+    auto style = themes.select("sample");
+    assert(style.from.size() == 2 && style.to.size() == 2);
+    assert(style.from[0] == 0xFF202020 && style.from[1] == 0xFFEEEEEE);
+    assert(style.to[0] == 0xFF302040 && style.to[1] == 0xFF302040);
+    assert(style.tint == 0xFF8B5CF6 && style.surfaces[kAstralSurfaceText] == 0xFFEEEEFF);
+    assert(style.gradient == std::vector<uint32_t>({0xFF112233, 0xFF445566}));
+    assert(themes.active() == "sample");
+    assert(themes.select("missing").from.empty() && themes.active() == "discord");
+    assert(!themes.importUnbound(R"({"name":"My theme","semanticColors":{"background":["#ABCDEF"]}})", "fallback"));
+    assert(themes.active() == "unbound-my-theme");
+    assert(!themes.importUnbound(R"({"name":"My theme","semanticColors":{"background":["#AABBCC"]}})", "fallback"));
+    auto imported = themes.select(themes.active());
+    assert(imported.to[0] == 0xFFAABBCC);
+    assert(themes.importUnbound("[]", "invalid"));
+}
+
+static void testSliderPayloads()
+{
+    auto valueKey = P(value);
+    std::vector<uint8_t> payload{8, 1, 0, 0, 0, static_cast<uint8_t>(valueKey), static_cast<uint8_t>(valueKey >> 8), 3, 7, 0, 0, 0};
+    double value = 0;
+    assert(astral_wire_event_value(payload.data(), payload.size(), &value) && value == 7);
+    for (size_t size = 0; size < payload.size(); size++) assert(!astral_wire_event_value(payload.data(), size, &value));
+    payload.push_back(0);
+    assert(!astral_wire_event_value(payload.data(), payload.size(), &value));
+    payload.pop_back();
+    payload[7] = 5;
+    payload.resize(16);
+    double invalid = std::numeric_limits<double>::quiet_NaN();
+    memcpy(payload.data() + 8, &invalid, sizeof(invalid));
+    assert(!astral_wire_event_value(payload.data(), payload.size(), &value));
+}
+
 int main(int argc, char **argv)
 {
     assert(argc == 2);
@@ -197,6 +292,9 @@ int main(int argc, char **argv)
     testPluginHealth();
     testTelemetryRequests();
     testStaffUser();
+    testSharedPacks(argv[1]);
+    testThemeParity(argv[1]);
+    testSliderPayloads();
     puts("ok");
     return 0;
 }
