@@ -21,6 +21,7 @@
 #import "EngineSelection.h"
 #import "ImageAssets.h"
 #import "AstralDynamicCutout.h"
+#import "BrowserLogin.h"
 #import "LuaHost.h"
 #import "Marketplace.h"
 #import "PhoenixImage.h"
@@ -256,6 +257,7 @@ static void CheckReadiness(void)
 __attribute__((constructor)) static void AstralBootstrap(void)
 {
     if (!AstralIsDiscordApp()) return;
+    AstralInstallBrowserLogin();
     AstralInstallNetworkFilter(^BOOL {
         return settings && settings->getBoolean("astral", "staff-devtools", false);
     });

@@ -10,6 +10,7 @@
 #import "PhoenixSettings.h"
 #import "PluginSignature.h"
 #import "ReactionReactors.h"
+#import "NetworkRequest.h"
 
 static NSString *Native(const std::string &value)
 {
@@ -70,6 +71,8 @@ static astral::LuaHostPlatform Platform(void)
         fresh = current;
         return JSON(users);
     };
+    platform.networkRequest = [](uint64_t request, const nlohmann::json &options) { astral::startNetworkRequest(request, options); };
+    platform.cancelNetworkRequest = [](uint64_t request) { astral::cancelNetworkRequest(request); };
     platform.verifySignature = [](const std::string &directory, const std::string &main) {
         return (bool)AstralVerifyPluginDirectory(Native(directory), Native(main));
     };

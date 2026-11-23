@@ -1,0 +1,185 @@
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 77;
+	objects = {
+		100000000000000000000002 = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 100000000000000000000009;
+		};
+		100000000000000000000004 = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				100000000000000000000002,
+			);
+			explicitFolders = (
+				Resources/_locales,
+			);
+			path = "OpenInAstral Extension";
+			sourceTree = "<group>";
+		};
+		100000000000000000000005 = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = ();
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		100000000000000000000006 = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000004,
+				100000000000000000000007,
+			);
+			sourceTree = "<group>";
+		};
+		100000000000000000000007 = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000008,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		100000000000000000000008 = {
+			isa = PBXFileReference;
+			explicitFileType = "wrapper.app-extension";
+			includeInIndex = 0;
+			path = OpenInAstral.appex;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		100000000000000000000009 = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 100000000000000000000010;
+			buildPhases = (
+				100000000000000000000011,
+				100000000000000000000005,
+				100000000000000000000012,
+			);
+			buildRules = ();
+			dependencies = ();
+			fileSystemSynchronizedGroups = (
+				100000000000000000000004,
+			);
+			name = OpenInAstral;
+			productName = OpenInAstral;
+			productReference = 100000000000000000000008;
+			productType = "com.apple.product-type.app-extension";
+		};
+		100000000000000000000013 = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1610;
+				LastUpgradeCheck = 1610;
+				TargetAttributes = {
+					100000000000000000000009 = {
+						CreatedOnToolsVersion = 16.1;
+					};
+				};
+			};
+			buildConfigurationList = 100000000000000000000019;
+			compatibilityVersion = "Xcode 16.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 100000000000000000000006;
+			productRefGroup = 100000000000000000000007;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				100000000000000000000009,
+			);
+		};
+		100000000000000000000011 = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = ();
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		100000000000000000000012 = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = ();
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		100000000000000000000015 = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGNING_ALLOWED = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "OpenInAstral Extension/Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.hammerandchisel.discord.OpenInAstral;
+				PRODUCT_NAME = OpenInAstral;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		100000000000000000000016 = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGNING_ALLOWED = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "OpenInAstral Extension/Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.hammerandchisel.discord.OpenInAstral;
+				PRODUCT_NAME = OpenInAstral;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		100000000000000000000017 = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				SDKROOT = iphoneos;
+			};
+			name = Release;
+		};
+		100000000000000000000018 = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				SDKROOT = iphoneos;
+			};
+			name = Debug;
+		};
+		100000000000000000000019 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				100000000000000000000018,
+				100000000000000000000017,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		100000000000000000000010 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				100000000000000000000016,
+				100000000000000000000015,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+	};
+	rootObject = 100000000000000000000013;
+}

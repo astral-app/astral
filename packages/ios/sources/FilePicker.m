@@ -2,6 +2,7 @@
 
 #import <UIKit/UIKit.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
+#import <objc/runtime.h>
 
 #import "PhoenixImage.h"
 
@@ -10,6 +11,22 @@
 @end
 
 static AstralFilePicker *gPicker;
+static IMP gOriginalStartAccessing;
+
+static BOOL StartAccessingResource(id object, SEL selector)
+{
+    ((BOOL (*)(id, SEL))gOriginalStartAccessing)(object, selector);
+    return YES;
+}
+
+static void InstallSecurityScopedResourceCompatibility(void)
+{
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        Method method = class_getInstanceMethod(NSURL.class, @selector(startAccessingSecurityScopedResource));
+        if (method) gOriginalStartAccessing = method_setImplementation(method, (IMP)StartAccessingResource);
+    });
+}
 
 static UIViewController *TopController(void)
 {
@@ -37,6 +54,7 @@ static UIViewController *TopController(void)
 
 void AstralPickFile(NSArray<NSString *> *extensions, void (^completion)(NSData *, NSString *))
 {
+    InstallSecurityScopedResourceCompatibility();
     NSMutableArray<UTType *> *types = [NSMutableArray array];
     for (NSString *extension in extensions) {
         UTType *type = [UTType typeWithFilenameExtension:extension];

@@ -1,0 +1,69 @@
+#astralBanner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 9999999999;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    background: radial-gradient(circle,#212136,#0f0e12);
+    box-sizing: border-box;
+    color: #fff;
+    font-family: system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Oxygen,Ubuntu,Cantarell,Open Sans,Helvetica Neue,sans-serif;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-drag: none;
+}
+
+#astralBanner .brand-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#astralBanner .text-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 0px;
+}
+
+#astralBanner .title {
+    font-size: 14px;
+    font-weight: 700;
+    color: white;
+}
+
+#astralBanner .subtitle {
+    font-size: 12px;
+    font-weight: 400;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+#astralBanner .openInAstralButton {
+    padding: 6px 16px;
+    background: #5865F2;
+    border: none;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    color: white;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+#astralBanner .openInAstralButton:hover {
+    background: #4752C4;
+}
+
+#astralBanner .brand-mark {
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    color: #b6a6ff;
+    font-size: 30px;
+}

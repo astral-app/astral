@@ -35,11 +35,22 @@ static NSMutableArray<NSDictionary *> *LoadReports(void)
 static NSDictionary *Environment(void)
 {
     NSDictionary *info = NSBundle.mainBundle.infoDictionary;
+#if defined(__arm64__)
+    NSString *architecture = @"arm64";
+#elif defined(__x86_64__)
+    NSString *architecture = @"x86_64";
+#else
+    NSString *architecture = @"unknown";
+#endif
     return @{
         @"astral" : AstralVersion(),
         @"discord" : [NSString stringWithFormat:@"%@ (%@)", info[@"CFBundleShortVersionString"] ?: @"?", info[@"CFBundleVersion"] ?: @"?"],
+        @"engine" : @"Phoenix",
         @"phoenix" : AstralPhoenixUUID() ?: @"",
+        @"device" : UIDevice.currentDevice.model ?: @"",
+        @"architecture" : architecture,
         @"system" : [NSString stringWithFormat:@"%@ %@", UIDevice.currentDevice.systemName, UIDevice.currentDevice.systemVersion],
+        @"locale" : NSLocale.preferredLanguages.firstObject ?: @"",
         @"plugins" : gRunningPlugins ? gRunningPlugins() : @[],
     };
 }
@@ -162,8 +173,10 @@ NSString *AstralCrashReportText(NSDictionary *report)
     NSDictionary *environment = report[@"environment"];
     NSMutableString *text = [NSMutableString string];
     [text appendFormat:@"%@\n\n", report[@"title"]];
-    [text appendFormat:@"| | |\n| --- | --- |\n| Kind | %@ |\n| astral | %@ |\n| Discord | %@ |\n| Phoenix | %@ |\n| System | %@ |\n",
-                       report[@"kind"], environment[@"astral"], environment[@"discord"], environment[@"phoenix"], environment[@"system"]];
+    [text appendFormat:@"| | |\n| --- | --- |\n| Kind | %@ |\n| astral | %@ |\n| Discord | %@ |\n| Engine | %@ |\n| Phoenix | %@ |\n| "
+                       @"Device | %@ |\n| Architecture | %@ |\n| System | %@ |\n| Locale | %@ |\n",
+                       report[@"kind"], environment[@"astral"], environment[@"discord"], environment[@"engine"], environment[@"phoenix"],
+                       environment[@"device"], environment[@"architecture"], environment[@"system"], environment[@"locale"]];
     if (report[@"plugin"]) [text appendFormat:@"| Plugin | %@ |\n", report[@"plugin"]];
     NSArray *plugins = environment[@"plugins"];
     if (plugins.count) [text appendFormat:@"| Running plugins | %@ |\n", [plugins componentsJoinedByString:@", "]];

@@ -1,0 +1,56 @@
+{
+    "manifest_version": 3,
+    "default_locale": "en",
+
+    "name": "__MSG_extension_name__",
+    "description": "__MSG_extension_description__",
+    "version": "1.0",
+
+    "content_scripts": [{
+        "js": [ "content.js" ],
+        "css": [ "banner.css" ],
+        "matches": [
+            "https://discord.com/*",
+            "https://*.discord.com/*",
+            "https://discord.gg/*",
+            "https://*.discord.gg/*"
+        ],
+        "run_at": "document_start"
+    }, {
+        "js": [ "content.js" ],
+        "matches": [ "https://*/*" ],
+        "exclude_matches": [
+            "https://discord.com/*",
+            "https://*.discord.com/*",
+            "https://discord.gg/*",
+            "https://*.discord.gg/*"
+        ],
+        "run_at": "document_start"
+    }],
+
+    "web_accessible_resources": [{
+        "resources": ["page-token.js"],
+        "matches": [
+            "https://discord.com/*",
+            "https://*.discord.com/*",
+            "https://discord.gg/*",
+            "https://*.discord.gg/*"
+        ]
+    }],
+
+    "background": {
+        "service_worker": "background.js"
+    },
+
+    "action": {
+        "default_popup": "popup.html"
+    },
+
+    "permissions": [
+        "storage",
+        "nativeMessaging"
+    ],
+    "host_permissions": [
+        "https://*/*"
+    ]
+}
