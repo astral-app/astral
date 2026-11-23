@@ -95,7 +95,12 @@ jobs:
       - name: Select Java 21
         run: echo "JAVA_HOME=$JAVA_HOME_21_X64" >> "$GITHUB_ENV"
       - name: Install Android build tools
-        run: sdkmanager "platforms;android-37" "ndk;27.3.13750724" "cmake;3.22.1"
+        run: >-
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          --sdk_root="$ANDROID_HOME"
+          "platforms;android-37"
+          "ndk;27.3.13750724"
+          "cmake;3.22.1"
       - run: go run ./packages/tools/cmd/astral android build
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
