@@ -132,6 +132,15 @@ static astral::SettingsPagesPlatform Platform(void)
         if (svg.empty()) return std::nullopt;
         return Plain(AstralRegisterIconSVG(Native("plugin_" + plugin.value("id", "")), Native(svg)));
     };
+    platform.editText = [](const std::string &title, const std::string &value, size_t maximumLength,
+                           const std::function<void(std::optional<std::string>)> &completion) {
+        AstralEditText(Native(title), Native(value), maximumLength, [completion](NSString *edited) {
+            if (edited)
+                completion(Plain(edited));
+            else
+                completion(std::nullopt);
+        });
+    };
     platform.importUnboundTheme = ImportUnboundTheme;
     platform.exportBackup = [] { AstralExportBackup(); };
     platform.importBackup = [](const std::function<void()> &changed) { AstralImportBackup(Block(changed)); };

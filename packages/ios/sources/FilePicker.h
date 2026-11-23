@@ -13,6 +13,8 @@ BOOL AstralPickPluginFile(uint64_t request, NSArray<NSString *> *_Nonnull extens
                                                       NSString *_Nullable error));
 void AstralCancelPluginFile(uint64_t request);
 void AstralShowAlert(NSString *_Nonnull title, NSString *_Nonnull message);
+void AstralEditText(NSString *_Nonnull title, NSString *_Nonnull value, NSUInteger maximumLength,
+                    void (^_Nonnull completion)(NSString *_Nullable value));
 
 #ifdef __cplusplus
 }

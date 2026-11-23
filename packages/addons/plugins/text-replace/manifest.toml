@@ -1,0 +1,11 @@
+id = "astral.text-replace"
+name = "Text Replace"
+description = "Rewrites outgoing message text with literal or Lua pattern rules."
+version = "0.0.1"
+icon = "TextIcon"
+main = "main.lua"
+permissions = ["discord.messages.send", "files.read", "ui.clipboard", "ui.dialogs"]
+
+[[authors]]
+name = "adrian"
+id = "224617799434108928"

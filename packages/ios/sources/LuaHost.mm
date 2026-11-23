@@ -12,6 +12,7 @@
 #import "PluginSignature.h"
 #import "ReactionReactors.h"
 #import "NetworkRequest.h"
+#import <UIKit/UIKit.h>
 
 static NSString *Native(const std::string &value)
 {
@@ -75,6 +76,12 @@ static astral::LuaHostPlatform Platform(void)
     platform.networkRequest = [](uint64_t request, const nlohmann::json &options) { astral::startNetworkRequest(request, options); };
     platform.cancelNetworkRequest = [](uint64_t request) { astral::cancelNetworkRequest(request); };
     platform.showAlert = [](const std::string &title, const std::string &message) { AstralShowAlert(Native(title), Native(message)); };
+    platform.writeClipboard = [](const std::string &value) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            UIPasteboard.generalPasteboard.string = Native(value);
+        });
+        return true;
+    };
     platform.pickFile = [](uint64_t request, const std::vector<std::string> &extensions) {
         NSMutableArray<NSString *> *types = [NSMutableArray arrayWithCapacity:extensions.size()];
         for (const auto &extension : extensions) [types addObject:Native(extension)];

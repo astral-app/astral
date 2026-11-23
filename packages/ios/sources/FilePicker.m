@@ -13,6 +13,14 @@
 @property (nonatomic, weak) UIViewController *controller;
 @end
 
+@interface AstralTextEditorController : UIViewController <UITextViewDelegate>
+@property (nonatomic, copy) NSString *titleText;
+@property (nonatomic, copy) NSString *initialValue;
+@property (nonatomic) NSUInteger maximumLength;
+@property (nonatomic, strong) UITextView *textView;
+@property (nonatomic, copy) void (^completion)(NSString *);
+@end
+
 static AstralFilePicker *gPicker;
 static IMP gOriginalStartAccessing;
 
@@ -73,6 +81,69 @@ static UIViewController *TopController(void)
     uint64_t request = self.request;
     gPicker = nil;
     if (pluginCompletion) pluginCompletion(request, nil, nil, @"cancelled");
+}
+@end
+
+@implementation AstralTextEditorController
+- (void)viewDidLoad
+{
+    [super viewDidLoad];
+    self.view.backgroundColor = UIColor.systemBackgroundColor;
+    UINavigationBar *bar = [UINavigationBar new];
+    UINavigationItem *item = [[UINavigationItem alloc] initWithTitle:self.titleText];
+    item.leftBarButtonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemCancel
+                                                                           target:self
+                                                                           action:@selector(cancel)];
+    item.rightBarButtonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemSave
+                                                                            target:self
+                                                                            action:@selector(save)];
+    bar.items = @[ item ];
+    self.textView = [UITextView new];
+    self.textView.delegate = self;
+    self.textView.text = self.initialValue;
+    self.textView.font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
+    self.textView.backgroundColor = UIColor.secondarySystemBackgroundColor;
+    self.textView.layer.cornerRadius = 10;
+    self.textView.textContainerInset = UIEdgeInsetsMake(12, 10, 12, 10);
+    [self.view addSubview:bar];
+    [self.view addSubview:self.textView];
+    bar.translatesAutoresizingMaskIntoConstraints = NO;
+    self.textView.translatesAutoresizingMaskIntoConstraints = NO;
+    UILayoutGuide *safe = self.view.safeAreaLayoutGuide;
+    [NSLayoutConstraint activateConstraints:@[
+        [bar.topAnchor constraintEqualToAnchor:safe.topAnchor],
+        [bar.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
+        [bar.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
+        [self.textView.topAnchor constraintEqualToAnchor:bar.bottomAnchor constant:12],
+        [self.textView.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:16],
+        [self.textView.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor constant:-16],
+        [self.textView.bottomAnchor constraintEqualToAnchor:safe.bottomAnchor constant:-16],
+    ]];
+    self.preferredContentSize = CGSizeMake(560, 520);
+}
+
+- (BOOL)textView:(UITextView *)textView shouldChangeTextInRange:(NSRange)range replacementText:(NSString *)text
+{
+    NSString *updated = [textView.text stringByReplacingCharactersInRange:range withString:text];
+    return [updated lengthOfBytesUsingEncoding:NSUTF8StringEncoding] <= self.maximumLength;
+}
+
+- (void)cancel
+{
+    [self finish:nil];
+}
+
+- (void)save
+{
+    [self finish:self.textView.text ?: @""];
+}
+
+- (void)finish:(NSString *)value
+{
+    void (^completion)(NSString *) = self.completion;
+    self.completion = nil;
+    if (completion) completion(value);
+    [self dismissViewControllerAnimated:YES completion:nil];
 }
 @end
 
@@ -154,5 +225,23 @@ void AstralShowAlert(NSString *title, NSString *message)
                                                                 preferredStyle:UIAlertControllerStyleAlert];
         [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
         [top presentViewController:alert animated:YES completion:nil];
+    });
+}
+
+void AstralEditText(NSString *title, NSString *value, NSUInteger maximumLength, void (^completion)(NSString *))
+{
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIViewController *top = TopController();
+        if (!top) {
+            completion(nil);
+            return;
+        }
+        AstralTextEditorController *editor = [AstralTextEditorController new];
+        editor.titleText = title;
+        editor.initialValue = value;
+        editor.maximumLength = maximumLength;
+        editor.completion = completion;
+        editor.modalPresentationStyle = UIModalPresentationPageSheet;
+        [top presentViewController:editor animated:YES completion:nil];
     });
 }

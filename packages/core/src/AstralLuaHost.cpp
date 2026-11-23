@@ -61,6 +61,15 @@ struct LuaSwitch {
     double fallbackNumber = 0;
 };
 
+struct LuaTextSetting {
+    std::string key;
+    std::string title;
+    std::string subtitle;
+    std::string section;
+    std::string fallback;
+    size_t maximumLength = 0;
+};
+
 struct LuaEventCallback {
     std::string event;
     int reference;
@@ -73,6 +82,7 @@ struct LuaPlugin : astral::PluginPackage, astral::PluginHealth {
     std::unique_ptr<astral::lua::Sandbox> sandbox;
     lua_State *state = nullptr;
     std::vector<LuaSwitch> switches;
+    std::vector<LuaTextSetting> textSettings;
     std::vector<std::pair<std::string, int>> decorators;
     std::vector<std::pair<std::string, int>> relabelers;
     std::optional<double> settingsBackdrop;
@@ -290,6 +300,35 @@ static int SettingsNumber(lua_State *state)
     return 1;
 }
 
+static int SettingsText(lua_State *state)
+{
+    LuaPlugin *plugin = Self(state);
+    std::string key = luaL_checkstring(state, 1);
+    std::string title = luaL_checkstring(state, 2);
+    std::string fallback = luaL_checkstring(state, 3);
+    size_t maximumLength = 16384;
+    LuaTextSetting entry{key, title.substr(0, 64), "", "", fallback, maximumLength};
+    if (lua_istable(state, 4)) {
+        entry.subtitle = FieldString(state, 4, "subtitle").substr(0, 120);
+        entry.section = FieldString(state, 4, "section").substr(0, 48);
+        double requestedMaximum = FieldNumber(state, 4, "max_length", static_cast<double>(maximumLength));
+        if (!std::isfinite(requestedMaximum) || requestedMaximum < 1 || requestedMaximum > maximumLength ||
+            std::floor(requestedMaximum) != requestedMaximum)
+            return luaL_error(state, "astral.settings.text: max_length must be between 1 and 16384");
+        entry.maximumLength = static_cast<size_t>(requestedMaximum);
+    }
+    if (key.empty() || key.size() > 48 || fallback.size() > entry.maximumLength || plugin->textSettings.size() >= 16)
+        return luaL_error(state, "astral.settings.text: invalid text setting");
+    bool known = false;
+    for (auto &existing : plugin->textSettings) known = known || existing.key == key;
+    for (auto &existing : plugin->switches) known = known || existing.key == key;
+    if (!known) plugin->textSettings.push_back(entry);
+    std::string value = StoredString(SettingKey(plugin, key), fallback);
+    if (value.size() > entry.maximumLength) value = fallback;
+    lua_pushlstring(state, value.data(), value.size());
+    return 1;
+}
+
 static int SettingsGet(lua_State *state)
 {
     LuaPlugin *plugin = Self(state);
@@ -347,6 +386,22 @@ static int ShowAlert(lua_State *state)
         return luaL_error(state, "astral.ui.alert: could not show the dialog");
     }
     return 0;
+}
+
+static int CopyText(lua_State *state)
+{
+    RequirePermission(state, "ui.clipboard");
+    size_t length = 0;
+    const char *value = luaL_checklstring(state, 1, &length);
+    if (length > 16384) return luaL_error(state, "astral.ui.copy: text exceeds 16384 bytes");
+    if (!gPlatform.writeClipboard) return luaL_error(state, "astral.ui.copy: clipboard is unavailable on this build");
+    bool copied = false;
+    try {
+        copied = gPlatform.writeClipboard(std::string(value, length));
+    } catch (...) {
+    }
+    lua_pushboolean(state, copied);
+    return 1;
 }
 
 static int PickFile(lua_State *state)
@@ -981,6 +1036,7 @@ static void InstallAPI(LuaPlugin *plugin)
     Function(state, plugin, "switch", SettingsSwitch);
     Function(state, plugin, "choice", SettingsChoice);
     Function(state, plugin, "number", SettingsNumber);
+    Function(state, plugin, "text", SettingsText);
     Function(state, plugin, "get", SettingsGet);
     Function(state, plugin, "set", SettingsSet);
     lua_setfield(state, -2, "settings");
@@ -995,6 +1051,7 @@ static void InstallAPI(LuaPlugin *plugin)
     Function(state, plugin, "decorate", Decorate);
     Function(state, plugin, "relabel", Relabel);
     Function(state, plugin, "alert", ShowAlert);
+    Function(state, plugin, "copy", CopyText);
     Function(state, plugin, "settings_backdrop", SettingsBackdrop);
     Function(state, plugin, "mention", Mention);
     Function(state, plugin, "message_color", MessageColor);
@@ -1105,6 +1162,7 @@ static void Stop(LuaPlugin *plugin)
     plugin->sandbox.reset();
     plugin->state = nullptr;
     plugin->switches.clear();
+    plugin->textSettings.clear();
     plugin->decorators.clear();
     plugin->relabelers.clear();
     plugin->settingsBackdrop.reset();
@@ -1285,6 +1343,17 @@ nlohmann::json plugins()
                                 {"max", entry.maximum},
                                 {"step", entry.step}});
         }
+        nlohmann::json textSettings = nlohmann::json::array();
+        for (const auto &entry : plugin->textSettings) {
+            std::string value = StoredString(SettingKey(plugin, entry.key), entry.fallback);
+            if (value.size() > entry.maximumLength) value = entry.fallback;
+            textSettings.push_back({{"key", entry.key},
+                                    {"title", entry.title},
+                                    {"subtitle", entry.subtitle},
+                                    {"section", entry.section},
+                                    {"value", value},
+                                    {"maxLength", entry.maximumLength}});
+        }
         nlohmann::json authors = nlohmann::json::array();
         for (auto &author : plugin->authors) authors.push_back({{"name", author.first}, {"id", author.second}});
         nlohmann::json permissions = nlohmann::json::array();
@@ -1298,6 +1367,7 @@ nlohmann::json plugins()
                            {"failed", plugin->failed},
                            {"error", plugin->lastError},
                            {"switches", switches},
+                           {"textSettings", textSettings},
                            {"description", plugin->description},
                            {"icon", plugin->icon},
                            {"iconSvg", plugin->iconSvg},
@@ -1340,6 +1410,7 @@ void resetSettings(const std::string &pluginID)
     LuaPlugin *plugin = Find(pluginID);
     if (!plugin) return;
     for (auto &entry : plugin->switches) gStore->remove("plugins", SettingKey(plugin, entry.key));
+    for (auto &entry : plugin->textSettings) gStore->remove("plugins", SettingKey(plugin, entry.key));
     gStore->save();
     if (plugin->state) Start(plugin);
 }
@@ -1654,6 +1725,20 @@ void setSwitch(const std::string &pluginID, const std::string &key, bool on)
     if (!plugin) return;
     Store(SettingKey(plugin, key), on);
     NotifySetting(plugin, key, [&](lua_State *state) { lua_pushboolean(state, on); });
+}
+
+void setText(const std::string &pluginID, const std::string &key, const std::string &value)
+{
+    std::lock_guard<std::recursive_mutex> lock(gMutex);
+    LuaPlugin *plugin = Find(pluginID);
+    if (!plugin || !plugin->state) return;
+    const LuaTextSetting *setting = nullptr;
+    for (const auto &candidate : plugin->textSettings)
+        if (candidate.key == key) setting = &candidate;
+    if (!setting || value.size() > setting->maximumLength) return;
+    if (StoredString(SettingKey(plugin, key), setting->fallback) == value) return;
+    Store(SettingKey(plugin, key), value);
+    NotifySetting(plugin, key, [&](lua_State *state) { lua_pushlstring(state, value.data(), value.size()); });
 }
 
 } // namespace astral::luahost

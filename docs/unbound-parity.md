@@ -14,16 +14,16 @@ astral ports Unbound behavior through Phoenix's shared Lua API. It does not carr
 | Show Me Your Name | Adds usernames and friend nicknames to message authors | `astral.ui.relabel`, `astral.discord` |
 | Typing Avatars | Shows avatars beside typing names | `astral.ui.typing`, `astral.discord` |
 | Clear URLs | Removes tracking parameters from links before messages are sent or edited | `astral.messages.transform` |
+| Text Replace | Rewrites outgoing messages using editable literal or Lua pattern rules with optional context | `astral.messages.transform`, `astral.settings.text`, `astral.files`, `astral.ui.copy` |
 
-All eight add-ons are signed Lua packages with sandboxed tests. These are the current cross-platform portability set; the list does not claim full Unbound feature parity.
+All nine add-ons are signed Lua packages with sandboxed tests. These are the current cross-platform portability set; the list does not claim full Unbound feature parity.
 
 ## User-selected shortlist
 
-The user-selected shortlist had nine Unbound add-ons. Clear URLs is now ported; the remaining candidates below are grouped by the Phoenix seams they share.
+The user-selected shortlist had nine Unbound add-ons. Clear URLs and Text Replace are ported; the remaining candidates below are grouped by the Phoenix seams they share.
 
 | Candidate | Existing Astral fit | Required Phoenix/API seam | Port group |
 | --- | --- | --- | --- |
-| Text Replace | Lua can implement literal replacements and Lua patterns | Editable rule settings and portable import/export UI | 1 |
 | Highlight Replies | Message references and `astral.ui.message_color` are available | Current-user identity and a row-level background/highlight target; text tint alone does not match the Unbound behavior | 2 |
 | Client Side Block → Enhanced Blocking | Message and member lookups provide some inputs | Pre-store message filtering, row visibility control, relationship state and a manageable user/keyword rules UI | 2 |
 | Mention Haptics | `astral.events` already scopes lifecycle subscriptions | Message-create events, mention suppression settings and a permission-gated haptics adapter on both platforms | 2 |
@@ -34,11 +34,9 @@ The user-selected shortlist had nine Unbound add-ons. Clear URLs is now ported; 
 
 ## Porting sequence
 
-1. The shared pre-send transform is implemented for buffered JSON message-create and message-edit requests on iOS and Android. It changes only `content` and preserves other JSON fields; live Phoenix transport coverage remains unverified without authorized app artifacts. Clear URLs uses it. Add editable rule and import/export UI before porting Text Replace.
+1. The shared pre-send transform is implemented for buffered JSON message-create and message-edit requests on iOS and Android. It changes only `content` and preserves other JSON fields; live Phoenix transport coverage remains unverified without authorized app artifacts. Clear URLs and Text Replace use it. Text Replace supports editable plain-text rules and Lua patterns, imports `.txt` files and copies its rules to the clipboard; its pattern syntax differs from JavaScript regular expressions.
 2. Add message-row highlight/visibility controls and current-user identity, then port Highlight Replies, Enhanced Blocking and Mention Haptics with explicit event and haptic permissions.
 3. Add contextual message actions and a safe translated-content surface before porting Translate. Treat Expression Tools as a separate follow-up because it also needs expression picker and send operations.
 4. Design composer rendering and message-cell customization only after Phoenix's native UI lifecycle is mapped independently on iOS and Android. Live Markdown and Chat Bubbles should use shared API contracts with platform adapters, not native plugin code.
 
 Do not ship placeholder plugins that only expose settings or transform data without a Phoenix callback that consumes the result. When a candidate needs a missing capability, implement that capability in astral's shared API and both native adapters first. Keep plugin packages Lua-only, add mocked Lua tests, sign them with `astral sign`, and update the catalog. Do not copy Unbound's React Native or Flux implementation into a plugin.
-
-When a candidate needs a missing capability, implement that capability in astral's shared API and both native adapters first. Keep plugin packages Lua-only, add mocked Lua tests, sign them with `astral sign`, and update the catalog. Do not copy Unbound's React Native or Flux implementation into a plugin.

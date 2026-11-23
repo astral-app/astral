@@ -1,5 +1,5 @@
 [astral]
-version = "0.0.2"
+version = "0.0.3"
 
 [compatibility]
 passive = []
@@ -10,6 +10,13 @@ name = "Clear URLs"
 version = "0.0.1"
 description = "Removes common tracking parameters from links before messages are sent or edited."
 base = "plugins/astral.clear-urls/"
+
+[[plugins]]
+id = "astral.text-replace"
+name = "Text Replace"
+version = "0.0.1"
+description = "Rewrites outgoing message text with literal or Lua pattern rules."
+base = "plugins/astral.text-replace/"
 
 [[plugins]]
 id = "astral.more-user-tags"

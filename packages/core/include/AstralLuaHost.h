@@ -28,6 +28,7 @@ struct LuaHostPlatform {
     std::function<void(uint64_t request, const nlohmann::json &options)> networkRequest;
     std::function<void(uint64_t request)> cancelNetworkRequest;
     std::function<void(const std::string &title, const std::string &message)> showAlert;
+    std::function<bool(const std::string &value)> writeClipboard;
     std::function<bool(uint64_t request, const std::vector<std::string> &extensions)> pickFile;
     std::function<void(uint64_t request)> cancelFilePick;
     std::function<std::optional<nlohmann::json>(const std::string &channel, const std::string &message, const std::string &emoji,
@@ -53,6 +54,7 @@ void setEnabled(const std::string &identifier, bool enabled);
 void setSwitch(const std::string &identifier, const std::string &key, bool on);
 void setChoice(const std::string &identifier, const std::string &key, const std::string &value);
 void setNumber(const std::string &identifier, const std::string &key, double value);
+void setText(const std::string &identifier, const std::string &key, const std::string &value);
 void resetSettings(const std::string &identifier);
 void completeNetworkRequest(uint64_t request, const nlohmann::json &response);
 void completeFilePick(uint64_t request, const std::optional<std::string> &name, const std::optional<std::string> &data,

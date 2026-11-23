@@ -219,6 +219,7 @@ std::pair<std::string, std::string> permissionDescription(const std::string &per
         {"discord.permissions", {"Reads member permissions", "res://ic_mana_shield"}},
         {"discord.messages", {"Reads messages in the cache", "res://ic_mana_chat"}},
         {"discord.messages.send", {"Transforms message text before sending", "res://ic_mana_chat"}},
+        {"ui.clipboard", {"Copies text to the system clipboard", "res://ic_mana_copy"}},
         {"discord.users", {"Reads user profiles", "res://ic_mana_user"}},
         {"discord.relationships", {"Reads friend nicknames", "res://ic_mana_friends"}},
         {"network", {"Makes HTTPS requests", "res://ic_mana_link"}},
@@ -391,6 +392,18 @@ json pluginSettingsPage(const std::string &identifier)
                                      {{"on", flag(entry, "on")}});
         if (!text(entry, "subtitle").empty()) settingRow["subtitle"] = text(entry, "subtitle");
         grouped[name].push_back(settingRow);
+    }
+    for (const auto &entry : plugin.value("textSettings", json::array())) {
+        std::string name = text(entry, "section", "Settings");
+        if (name.empty()) name = "Settings";
+        if (!grouped.count(name)) {
+            grouped[name] = json::array();
+            order.push_back(name);
+        }
+        json settingRow =
+            with(row("text." + text(entry, "key"), text(entry, "title"), "res://ic_mana_settings", kAstralRowLink), {{"detail", "Edit"}});
+        if (!text(entry, "subtitle").empty()) settingRow["subtitle"] = text(entry, "subtitle");
+        grouped[name].push_back(std::move(settingRow));
     }
     json sections = json::array();
     for (const auto &name : order) sections.push_back(section(titles.count(name) ? titles[name] : name, grouped[name]));
@@ -587,6 +600,19 @@ std::optional<std::string> pluginAction(const std::string &identifier, const std
                 if (!flag(entry, "number") || text(entry, "key") != settingKey) continue;
                 astral::luahost::setNumber(identifier, settingKey, number(entry, "min") + position * number(entry, "step"));
             }
+        }
+    } else if (key.rfind("text.", 0) == 0 && gPlatform.editText) {
+        std::string settingKey = key.substr(5);
+        for (const auto &entry : plugin.value("textSettings", json::array())) {
+            if (text(entry, "key") != settingKey) continue;
+            std::string title = text(entry, "title");
+            std::string value = text(entry, "value");
+            size_t maximumLength = static_cast<size_t>(std::max(0.0, number(entry, "maxLength")));
+            gPlatform.editText(title, value, maximumLength, [identifier, settingKey, changed](std::optional<std::string> edited) {
+                if (edited) astral::luahost::setText(identifier, settingKey, *edited);
+                if (changed) changed();
+            });
+            break;
         }
     } else if (key.rfind("choice.", 0) == 0) {
         std::string rest = key.substr(7);
