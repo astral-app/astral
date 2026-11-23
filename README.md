@@ -1,8 +1,8 @@
 # astral
 
-A native client mod for Discord's Phoenix engine on iOS and Android, with a shared Lua plugin runtime. Android parity is in progress.
+A native client mod for Discord's Phoenix engine on iOS and Android, with a shared Lua plugin runtime.
 
-astral rewrites the ViewWire batches Discord's Rust guest sends to its Swift host, so everything it adds is drawn by Discord's own components: an astral category in Settings with native pages, decorations in message headers, and themes. Plugins are sandboxed Lua files.
+astral rewrites the ViewWire batches Discord's Rust guest sends to its native client host, so everything it adds is drawn by Discord's own components: an astral category in Settings with native pages, decorations in message headers, and themes. Plugins are sandboxed Lua files.
 
 ## Layout
 
@@ -41,6 +41,6 @@ The vphone is driven through its guest API: `astral vphone boot` restarts the VM
 
 `astral android build` builds the Android module using JDK 21 and the Android SDK. To prepare a sideloaded installation, pass `--patcher <LSPatch.jar>` followed by the Discord base APK and its splits. `astral android deploy --device <adb serial> --mode module <astral-module.apk>` installs and scopes the module in Vector; `--mode sideload <patched APK>...` installs the patched app. Both upgrade in place and leave installation errors visible instead of uninstalling Discord.
 
-Theos and GNU make are required (`astral prepare-theos`). `astral deploy` builds and installs on a jailbroken test device (`DEVICE=<udid>`), `astral build-ipa --ipa <decrypted Discord.ipa>` produces a sideloadable IPA that needs no jailbreak and bundles no hooking library, and `astral sideload --ipa <IPA> --bundle-id <id> --device <udid>` builds it if needed, re-signs it with a development profile that covers the device and installs it over USB.
+Theos and GNU make are required (`astral prepare-theos`). `astral deploy` builds and installs on a jailbroken test device (`DEVICE=<udid>`). On macOS with Xcode, `astral build-ipa --ipa <decrypted Discord.ipa>` produces a sideloadable IPA with the Open in astral Safari extension and an app-group adapter for Discord extensions. It keeps Discord's Share, BroadcastUpload and other source extensions. The packaged app registers `astral://`, leaving `discord://` for stock Discord. The Safari extension can return browser passkey sign-ins through Phoenix's native one-time login handoff. `astral sideload --ipa <IPA> --bundle-id <id> --device <udid>` builds the IPA if needed, signs the app and its extensions with compatible development profiles, and installs it over USB.
 
 astral is not tied to one Discord build, and it patches no code, so jailed and jailbroken installs run the same path. It finds Phoenix's `opsArrived` by the one function that references its `ops batch dropped` diagnostic (via `LC_FUNCTION_STARTS`), then the host-call entry the Rust guest calls for every frame (the unique caller of the unique caller of the dispatcher that calls `opsArrived`), and caches both per Phoenix UUID in `Documents/astral/hooks.json`. The guest keeps that entry in a `{context, call, drop}` record on the heap; astral finds the record and swaps `call` for its own function, which rewrites ops frames (a zero `uint32` followed by the batch) and sends astral's own batches through the original. `astral test --phoenix <PhoenixFatClient>` runs the locator test.
