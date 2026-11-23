@@ -49,6 +49,12 @@ object Native {
 
     @JvmStatic external fun isCurrentUser(host: String, path: String): Boolean
 
+    @JvmStatic external fun isOutgoingMessageRequest(host: String, path: String, method: String): Boolean
+
+    @JvmStatic external fun hasOutgoingMessageTransforms(): Boolean
+
+    @JvmStatic external fun transformOutgoingMessageBody(host: String, path: String, method: String, body: String): String?
+
     @JvmStatic external fun staffDevToolsEnabled(): Boolean
 
     @JvmStatic external fun withStaffUser(body: String): String?

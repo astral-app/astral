@@ -81,6 +81,7 @@ struct LuaPlugin : astral::PluginPackage, astral::PluginHealth {
     std::vector<int> nameColorizers;
     std::vector<int> typingDecorators;
     std::vector<int> reactionDecorators;
+    std::vector<int> outgoingMessageTransforms;
     std::map<uint64_t, int> networkRequests;
     std::map<uint64_t, int> filePicks;
     std::map<uint64_t, LuaEventCallback> eventCallbacks;
@@ -454,6 +455,18 @@ static int UnsubscribeEvent(lua_State *state)
     plugin->eventCallbacks.erase(found);
     lua_pushboolean(state, true);
     return 1;
+}
+
+static int RegisterOutgoingMessageTransform(lua_State *state)
+{
+    LuaPlugin *plugin = Self(state);
+    RequirePermission(state, "discord.messages.send");
+    luaL_checktype(state, 1, LUA_TFUNCTION);
+    if (plugin->outgoingMessageTransforms.size() >= 16)
+        return luaL_error(state, "astral.messages.transform: at most 16 transforms per plugin");
+    lua_pushvalue(state, 1);
+    plugin->outgoingMessageTransforms.push_back(luaL_ref(state, LUA_REGISTRYINDEX));
+    return 0;
 }
 
 static int Decorate(lua_State *state)
@@ -1001,6 +1014,10 @@ static void InstallAPI(LuaPlugin *plugin)
     lua_setfield(state, -2, "events");
 
     lua_newtable(state);
+    Function(state, plugin, "transform", RegisterOutgoingMessageTransform);
+    lua_setfield(state, -2, "messages");
+
+    lua_newtable(state);
     Function(state, plugin, "request", NetworkRequest);
     Function(state, plugin, "cancel", CancelNetworkRequest);
     lua_setfield(state, -2, "net");
@@ -1079,6 +1096,11 @@ static void Stop(LuaPlugin *plugin)
     plugin->eventCallbacks.clear();
     for (const auto &[subscription, callback] : eventCallbacks) {
         if (plugin->state) luaL_unref(plugin->state, LUA_REGISTRYINDEX, callback.reference);
+    }
+    auto outgoingMessageTransforms = std::move(plugin->outgoingMessageTransforms);
+    plugin->outgoingMessageTransforms.clear();
+    for (int reference : outgoingMessageTransforms) {
+        if (plugin->state) luaL_unref(plugin->state, LUA_REGISTRYINDEX, reference);
     }
     plugin->sandbox.reset();
     plugin->state = nullptr;
@@ -1430,6 +1452,62 @@ void emitEvent(const std::string &event)
             }
         }
     }
+}
+
+bool hasOutgoingMessageTransforms()
+{
+    std::lock_guard<std::recursive_mutex> lock(gMutex);
+    for (auto *plugin : gPlugins)
+        if (plugin->state && !plugin->failed && !plugin->outgoingMessageTransforms.empty()) return true;
+    return false;
+}
+
+std::optional<std::string> transformOutgoingMessage(const std::string &channel, const std::string &operation, const std::string &content)
+{
+    if (content.size() > 20000) return std::nullopt;
+    std::lock_guard<std::recursive_mutex> lock(gMutex);
+    std::string transformed = content;
+    bool changed = false;
+    for (auto *plugin : gPlugins) {
+        if (!plugin->state || plugin->failed || plugin->outgoingMessageTransforms.empty()) continue;
+        std::vector<int> references = plugin->outgoingMessageTransforms;
+        lua_State *state = plugin->state;
+        for (int reference : references) {
+            if (!plugin->state || plugin->failed) break;
+            int top = lua_gettop(state);
+            lua_rawgeti(state, LUA_REGISTRYINDEX, reference);
+            lua_pushlstring(state, transformed.data(), transformed.size());
+            lua_createtable(state, 0, 2);
+            lua_pushlstring(state, channel.data(), channel.size());
+            lua_setfield(state, -2, "channel_id");
+            lua_pushlstring(state, operation.data(), operation.size());
+            lua_setfield(state, -2, "operation");
+            if (!Call(plugin, 2, 1, "outgoing message transform")) {
+                lua_settop(state, top);
+                MarkFailed(plugin);
+                Stop(plugin);
+                break;
+            }
+            if (lua_type(state, -1) == LUA_TSTRING) {
+                size_t length = 0;
+                const char *value = lua_tolstring(state, -1, &length);
+                if (value && length <= 20000) {
+                    std::string replacement(value, length);
+                    changed = changed || replacement != transformed;
+                    transformed = std::move(replacement);
+                }
+            }
+            lua_settop(state, top);
+        }
+    }
+    if (!changed) return std::nullopt;
+    try {
+        nlohmann::json validation = transformed;
+        validation.dump();
+    } catch (const nlohmann::json::exception &) {
+        return std::nullopt;
+    }
+    return transformed;
 }
 
 std::string eval(const std::string &pluginID, const std::string &source)

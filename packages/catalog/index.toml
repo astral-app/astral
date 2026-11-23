@@ -1,8 +1,15 @@
 [astral]
-version = "0.0.1"
+version = "0.0.2"
 
 [compatibility]
 passive = []
+
+[[plugins]]
+id = "astral.clear-urls"
+name = "Clear URLs"
+version = "0.0.1"
+description = "Removes common tracking parameters from links before messages are sent or edited."
+base = "plugins/astral.clear-urls/"
 
 [[plugins]]
 id = "astral.more-user-tags"

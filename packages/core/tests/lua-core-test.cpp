@@ -198,6 +198,38 @@ static void testTelemetryRequests()
     assert(!astral::isTelemetryRequest("example.com", "/api/v9/science"));
 }
 
+static void testOutgoingMessageRequests()
+{
+    using astral::outgoingMessageTarget;
+    auto create = outgoingMessageTarget("discord.com", "/api/v10/channels/123/messages", "POST");
+    assert(create && create->channel == "123" && create->operation == "create");
+    auto edit = outgoingMessageTarget("discordapp.com", "/api/v9/channels/123/messages/456", "PATCH");
+    assert(edit && edit->channel == "123" && edit->operation == "edit");
+    assert(!outgoingMessageTarget("example.com", "/api/v10/channels/123/messages", "POST"));
+    assert(!outgoingMessageTarget("discord.com", "/api/v10/channels/123/messages", "GET"));
+    assert(!outgoingMessageTarget("discord.com", "/api/v10/channels/123/messages/456", "POST"));
+    assert(!outgoingMessageTarget("discord.com", "/api/v10/channels/nope/messages", "POST"));
+    assert(!outgoingMessageTarget("discord.com", "/api/v10/channels/123/messages/456/reactions", "PATCH"));
+    std::string source =
+        R"({"content":"before","message_reference":{"message_id":"789"},"attachments":[{"id":"0","filename":"a.png"}],"flags":4})";
+    auto changed = astral::transformOutgoingMessageBody(
+        "discord.com", "/api/v10/channels/123/messages/456", "PATCH", source,
+        [](const astral::OutgoingMessageTarget &target, std::string_view content) -> std::optional<std::string> {
+            assert(target.channel == "123" && target.operation == "edit");
+            assert(content == "before");
+            return "after";
+        });
+    assert(changed);
+    auto parsed = nlohmann::json::parse(*changed);
+    assert(parsed["content"] == "after");
+    assert(parsed["message_reference"]["message_id"] == "789");
+    assert(parsed["attachments"][0]["filename"] == "a.png");
+    assert(parsed["flags"] == 4);
+    assert(!astral::transformOutgoingMessageBody(
+        "discord.com", "/api/v10/channels/123/messages", "POST", source,
+        [](const astral::OutgoingMessageTarget &, std::string_view) { return std::optional<std::string>{}; }));
+}
+
 static void testDiagnosticPrivacy()
 {
     std::string token = "abcdefghijklmnopqrstuvwxyz.abcdef.abcdefghijklmnopqrstuvwxyz";
@@ -518,6 +550,49 @@ static void testNetworkRequests(const std::string &work)
     astral::luahost::completeNetworkRequest(stoppedRequest, {{"status", 200}, {"ok", true}, {"body", "ignored"}});
 }
 
+static void testOutgoingMessageTransforms(const std::string &work)
+{
+    auto root = std::filesystem::path(work) / "message-transform-host";
+    auto first = root / "plugins" / "first";
+    auto second = root / "plugins" / "second";
+    auto restricted = root / "plugins" / "restricted";
+    std::filesystem::create_directories(first);
+    std::filesystem::create_directories(second);
+    std::filesystem::create_directories(restricted);
+    writeText(first / "manifest.toml", "id = 'astral.transform-first'\nname = 'First'\nversion = '1.0'\nmain = 'main.lua'\npermissions = "
+                                       "['discord.messages.send', 'storage']\n");
+    writeText(first / "main.lua", "astral.messages.transform(function(content, context)\n"
+                                  "  astral.storage.set('context', {channel = context.channel_id, operation = context.operation})\n"
+                                  "  if context.channel_id == '100' then return content:gsub('foo', 'bar') end\n"
+                                  "end)\n");
+    writeText(second / "manifest.toml",
+              "id = 'astral.transform-second'\nname = 'Second'\nversion = '1.0'\nmain = 'main.lua'\npermissions = "
+              "['discord.messages.send']\n");
+    writeText(second / "main.lua", "astral.messages.transform(function(content) return content .. '!' end)\n");
+    writeText(restricted / "manifest.toml",
+              "id = 'astral.transform-restricted'\nname = 'Restricted'\nversion = '1.0'\nmain = 'main.lua'\npermissions = ['storage']\n");
+    writeText(restricted / "main.lua", "local ok = pcall(function() astral.messages.transform(function(content) return content end) end)\n"
+                                       "astral.storage.set('allowed', ok)\n");
+    astral::SettingsStore settings((root / "settings.json").string());
+    settings.set("astral", "developer-mode", true);
+    astral::LuaHostPlatform platform;
+    platform.storagePath = (root / "storage.sqlite").string();
+    astral::luahost::start({(root / "plugins").string()}, &settings, true, std::move(platform));
+    assert(astral::luahost::hasOutgoingMessageTransforms());
+    auto create = astral::luahost::transformOutgoingMessage("100", "create", "foo message");
+    assert(create && *create == "bar message!");
+    auto context = astral::luahost::eval("astral.transform-first",
+                                         "return astral.storage.get('context').channel .. ':' .. astral.storage.get('context').operation");
+    assert(context == "100:create");
+    auto edit = astral::luahost::transformOutgoingMessage("200", "edit", "foo message");
+    assert(edit && *edit == "foo message!");
+    assert(astral::luahost::eval("astral.transform-restricted", "return astral.storage.get('allowed')") == "false");
+    astral::luahost::setEnabled("astral.transform-first", false);
+    assert(astral::luahost::transformOutgoingMessage("100", "create", "foo message") == std::optional<std::string>("foo message!"));
+    astral::luahost::stop();
+    assert(!astral::luahost::hasOutgoingMessageTransforms());
+}
+
 static void testFilePickerAndDialogs(const std::string &work)
 {
     auto root = std::filesystem::path(work) / "native-ui-host";
@@ -619,6 +694,7 @@ int main(int argc, char **argv)
     testPluginPackage(argv[1]);
     testPluginHealth();
     testTelemetryRequests();
+    testOutgoingMessageRequests();
     testDiagnosticPrivacy();
     testStaffUser();
     testSharedPacks(argv[1]);
@@ -628,6 +704,7 @@ int main(int argc, char **argv)
     testSingletonPageCollections();
     testSharedSignatures(argv[1], argv[2]);
     testNetworkRequests(argv[1]);
+    testOutgoingMessageTransforms(argv[1]);
     testFilePickerAndDialogs(argv[1]);
     testSliderSettingsAndNavigation(argv[1]);
     puts("ok");
