@@ -58,6 +58,7 @@ class Astral : XposedModule() {
         Capture.configure(param.applicationInfo.dataDir)
         PhoenixBridge.install(this, param.classLoader)
         runCatching { NavigationBack.install(this, param.classLoader) }.onFailure { Log.error("Failed to route system back", it) }
+        runCatching { CutoutOverlay.install(this, resources) }.onFailure { Log.error("Failed to install the display cutout overlay", it) }
         runCatching { NetworkHooks.install(this, param.classLoader) }.onFailure { Log.error("Failed to hook Discord's network stack", it) }
         loadSession(param.applicationInfo.dataDir)
     }

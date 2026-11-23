@@ -20,6 +20,7 @@
 #import "AuthorAvatars.h"
 #import "EngineSelection.h"
 #import "ImageAssets.h"
+#import "AstralDynamicCutout.h"
 #import "LuaHost.h"
 #import "Marketplace.h"
 #import "PhoenixImage.h"
@@ -186,6 +187,7 @@ static void StartPlugins(void)
 {
     if (started) return;
     started = YES;
+    AstralInitializeDynamicCutout();
     auto previous = astral::ExitRecord(stateDirectory).take(false);
     auto verdict = astral::LaunchGuard(stateDirectory).begin(previous);
     recovering = verdict.enterRecovery;

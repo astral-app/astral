@@ -2,11 +2,13 @@
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
+#include <cmath>
 #include <string>
 #include <limits>
 #include <sys/stat.h>
 
 #include "AstralNetworkPolicy.h"
+#include "AstralCutout.h"
 #include "AstralPacks.h"
 #include "AstralSettings.h"
 #include "AstralTOML.h"
@@ -309,6 +311,27 @@ static void testSliderPayloads()
     assert(!astral_wire_event_value(payload.data(), payload.size(), &value));
 }
 
+static void testCutoutGeometry()
+{
+    using astral::cutout::Frame;
+    using astral::cutout::Kind;
+    auto absent = astral::cutout::fromSystem(std::nullopt);
+    auto invalid = astral::cutout::fromSystem(Frame{0, 0, 0, 40});
+    assert(!absent && !invalid);
+    auto notch = astral::cutout::fromSystem(Frame{0, 0, 200, 30});
+    assert(notch && notch->kind == Kind::Notch);
+    assert(std::abs(astral::cutout::cornerRadius(*notch) - 19.5) < 0.001);
+    auto island = astral::cutout::fromSystem(Frame{60, 10, 180, 48});
+    assert(island && island->kind == Kind::Island);
+    assert(std::abs(astral::cutout::cornerRadius(*island) - 24) < 0.001);
+    auto hole = astral::cutout::fromSystem(Frame{80, 20, 40, 40});
+    assert(hole && hole->kind == Kind::Hole);
+    auto logo = astral::cutout::logoFrame(*hole);
+    assert(std::abs(logo.height - 24) < 0.001);
+    assert(std::abs(logo.x - 5) < 0.01);
+    assert(std::abs(logo.y - 8) < 0.001);
+}
+
 static void testSingletonPageCollections()
 {
     nlohmann::json row = {{"key", "theme-note"}, {"title", "Theme note"}, {"kind", kAstralRowInfo}};
@@ -425,6 +448,7 @@ int main(int argc, char **argv)
     testSharedPacks(argv[1]);
     testThemeParity(argv[1]);
     testSliderPayloads();
+    testCutoutGeometry();
     testSingletonPageCollections();
     testSharedSignatures(argv[1], argv[2]);
     testSliderSettingsAndNavigation(argv[1]);
