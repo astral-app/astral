@@ -320,6 +320,89 @@ func validateIPAGroupWiring(ipa string) error {
 	return nil
 }
 
+func validateSignedAppGroupWiring(app string) error {
+	readInfo := func(path string) (map[string]interface{}, error) {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil, err
+		}
+		var info map[string]interface{}
+		if _, err := plist.Unmarshal(data, &info); err != nil {
+			return nil, err
+		}
+		return info, nil
+	}
+	appInfo, err := readInfo(filepath.Join(app, "Info.plist"))
+	if err != nil {
+		return err
+	}
+	appID, _ := appInfo["CFBundleIdentifier"].(string)
+	appExecutable, _ := appInfo["CFBundleExecutable"].(string)
+	if appID == "" || appExecutable == "" || filepath.Base(appExecutable) != appExecutable {
+		return errors.New("signed app has invalid bundle identity")
+	}
+	appBinary, err := os.ReadFile(filepath.Join(app, appExecutable))
+	if err != nil {
+		return err
+	}
+	appGroups := machoAppGroups(appBinary)
+	library, err := os.ReadFile(filepath.Join(app, groupRemapFramework))
+	if err != nil {
+		return fmt.Errorf("signed app has no %s: %w", groupRemapFramework, err)
+	}
+	if err := validateGroupRemapLibrary(library); err != nil {
+		return err
+	}
+	bundles, err := extensionBundles(app)
+	if err != nil {
+		return err
+	}
+	foundShare := false
+	foundAstral := false
+	for _, bundle := range bundles {
+		name := filepath.Base(bundle)
+		info, err := readInfo(filepath.Join(bundle, "Info.plist"))
+		if err != nil {
+			return fmt.Errorf("%s has no readable Info.plist: %w", name, err)
+		}
+		identifier, _ := info["CFBundleIdentifier"].(string)
+		if !strings.HasPrefix(identifier, appID+".") {
+			return fmt.Errorf("%s has bundle identifier %q outside %s", name, identifier, appID)
+		}
+		if name == "Share.appex" {
+			foundShare = true
+		}
+		if ownExtensions[name] {
+			foundAstral = true
+			continue
+		}
+		executable, _ := info["CFBundleExecutable"].(string)
+		if executable == "" || filepath.Base(executable) != executable {
+			return fmt.Errorf("%s has an invalid executable name", name)
+		}
+		data, err := os.ReadFile(filepath.Join(bundle, executable))
+		if err != nil {
+			return fmt.Errorf("%s has no readable executable: %w", name, err)
+		}
+		binary, err := macho.NewFile(bytes.NewReader(data))
+		if err != nil || !machoLoadsDylib(binary, groupRemapInstall) {
+			return fmt.Errorf("%s does not load AstralGroups.dylib", name)
+		}
+		for _, group := range machoAppGroups(data) {
+			if !containsGroup(appGroups, group) {
+				return fmt.Errorf("%s uses app group %s, which the app does not", name, group)
+			}
+		}
+	}
+	if !foundShare {
+		return errors.New("signed app has no Discord Share.appex")
+	}
+	if !foundAstral {
+		return errors.New("signed app has no OpenInAstral.appex")
+	}
+	return nil
+}
+
 func containsGroup(groups []string, target string) bool {
 	for _, group := range groups {
 		if group == target {

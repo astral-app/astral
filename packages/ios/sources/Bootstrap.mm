@@ -21,6 +21,7 @@
 #import "EngineSelection.h"
 #import "ImageAssets.h"
 #import "AstralDynamicCutout.h"
+#import "AppExtensions.h"
 #import "BrowserLogin.h"
 #import "LuaHost.h"
 #import "Marketplace.h"
@@ -41,6 +42,7 @@ static NSString *lastStage;
 static NSDictionary<NSString *, id> *engineSelection;
 static NSString *settingsIntegration;
 static NSString *settingsRefusal;
+static NSArray<NSString *> *missingExtensions;
 static BOOL started;
 static BOOL recovering;
 static BOOL readinessScheduled;
@@ -80,6 +82,8 @@ static void Status(NSString *stage)
         @"engine" : engineSelection ?: @{},
         @"settings" : settingsIntegration ?: @"",
         @"settingsRefusal" : settingsRefusal ?: @"",
+        @"missingExtensions" : missingExtensions ?: @[],
+        @"browserLogin" : AstralBrowserLoginStatus(),
         @"route" : AstralPhoenixRoute(),
         @"device" : AstralDeviceModel(),
         @"timings" : AstralPhoenixTimings(),
@@ -278,6 +282,7 @@ __attribute__((constructor)) static void AstralBootstrap(void)
     });
     settings = std::make_unique<astral::SettingsStore>(astral::joinPath(stateDirectory, "settings.json"));
     settings->load();
+    missingExtensions = AstralMissingAppExtensions();
     AstralApplyTheme(AstralActiveThemeID());
     AstralOnPhoenixRouteChange(^{
         Status(lastStage ?: @"route-changed");
@@ -285,6 +290,7 @@ __attribute__((constructor)) static void AstralBootstrap(void)
     AstralStartPhoenixRouteWhenLoaded();
     dispatch_async(dispatch_get_main_queue(), ^{
         Status(@"injected");
+        AstralReportMissingAppExtensions();
         [NSNotificationCenter.defaultCenter addObserverForName:UIApplicationDidBecomeActiveNotification
                                                         object:nil
                                                          queue:NSOperationQueue.mainQueue

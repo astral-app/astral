@@ -8,6 +8,20 @@
 static void (*gOriginalPerformRequests)(id, SEL);
 static void (*gOriginalPerformRequestsWithOptions)(id, SEL, ASAuthorizationControllerRequestOptions);
 
+struct PhoenixPasskeyCapabilities {
+    BOOL nativeModule;
+    BOOL authorizationDelegate;
+    BOOL failureDelegate;
+};
+
+static PhoenixPasskeyCapabilities InspectPhoenixPasskeys(void)
+{
+    Class module = NSClassFromString(@"LibdiscordHost.PasskeysModule");
+    SEL completed = NSSelectorFromString(@"authorizationController:didCompleteWithAuthorization:");
+    SEL failed = NSSelectorFromString(@"authorizationController:didCompleteWithError:");
+    return {module != Nil, module && class_getInstanceMethod(module, completed), module && class_getInstanceMethod(module, failed)};
+}
+
 static BOOL HasDiscordPasskeyAssertion(ASAuthorizationController *controller)
 {
     for (ASAuthorizationRequest *request in controller.authorizationRequests) {
@@ -21,10 +35,8 @@ static BOOL HasDiscordPasskeyAssertion(ASAuthorizationController *controller)
 
 static BOOL PhoenixHandlesPasskeys(void)
 {
-    Class module = NSClassFromString(@"LibdiscordHost.PasskeysModule");
-    SEL completed = NSSelectorFromString(@"authorizationController:didCompleteWithAuthorization:");
-    SEL failed = NSSelectorFromString(@"authorizationController:didCompleteWithError:");
-    return module && class_getInstanceMethod(module, completed) && class_getInstanceMethod(module, failed);
+    PhoenixPasskeyCapabilities capabilities = InspectPhoenixPasskeys();
+    return capabilities.authorizationDelegate && capabilities.failureDelegate;
 }
 
 static NSString *SafariExtensionIdentifier(void)
@@ -114,4 +126,15 @@ void AstralInstallBrowserLogin(void)
             gOriginalPerformRequestsWithOptions = (void (*)(id, SEL, ASAuthorizationControllerRequestOptions))method_setImplementation(
                 performWithOptions, (IMP)PerformRequestsWithOptions);
     });
+}
+
+NSDictionary<NSString *, NSNumber *> *AstralBrowserLoginStatus(void)
+{
+    PhoenixPasskeyCapabilities capabilities = InspectPhoenixPasskeys();
+    return @{
+        @"nativeModule" : @(capabilities.nativeModule),
+        @"authorizationDelegate" : @(capabilities.authorizationDelegate),
+        @"failureDelegate" : @(capabilities.failureDelegate),
+        @"nativePasskeys" : @(capabilities.authorizationDelegate && capabilities.failureDelegate)
+    };
 }

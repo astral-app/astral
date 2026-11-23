@@ -4,18 +4,18 @@ astral is a native Discord Phoenix client modification with a shared Lua runtime
 
 ## Delivery status
 
-This branch completes the code and CI work that can be verified without a private Discord installation artifact. Live acceptance remains open for Phoenix login activation, signed iOS packaging and Android runtime behavior.
+The branch adds post-sign extension checks, installed-extension diagnostics and Phoenix passkey runtime reporting. The iOS vphone run reached `ready` on Phoenix 356.0 build 124376, confirmed both native passkey delegate methods, and loaded the bundled plugin set. Live acceptance remains open for Safari fallback activation, a signed sideload IPA and Android runtime behavior; no authorized Phoenix IPA or APK/splits were available.
 
 | # | Workstream | Branch result | Remaining acceptance |
 | --- | --- | --- | --- |
-| 1 | Device acceptance | Existing iOS and Android feature paths remain covered by shared runtime tests and build commands | Run all four install modes on the vphone and AVD with a real Phoenix build |
-| 2 | Android network interception | Cronet, standard OkHttp, Phoenix's shaded OkHttp and WebSocket hooks are implemented | Verify live telemetry sink responses, ordinary API requests and Staff DevTools on Android |
-| 3 | iOS login and extensions | `astral://`, Safari extension packaging, source-extension preservation and group remapping have synthetic IPA coverage; Phoenix's native passkey delegate now keeps its direct authorization path | Verify native passkey login, Safari fallback activation, signing, upgrade and Share/BroadcastUpload on a signed IPA |
-| 4 | Environment reporting | Schema 2 reports include platform/install facts and sanitize details on both platforms | Compare real sideload, package and module reports on devices |
-| 5 | Lua API | Permission-gated native alerts, file selection and foreground/background subscriptions are implemented on iOS and Android | Exercise each adapter in Phoenix; commands, arbitrary Discord events, notifications, background work, fonts and general asset registration remain unsupported |
-| 6 | Recovery and privacy | Plugin failures stay isolated; reports scrub new and legacy details; Android records available process crash/ANR traces | Exercise disable, reload, soft restart and launch recovery on each device |
-| 7 | Compatibility automation | Android DEX scanner, Safari extension CI build and synthetic IPA preservation tests are added | Scan an authorized Android APK and splits; scheduled iOS scan still needs a successful upstream artifact run |
-| 8 | Add-on corpus | Seven signed Lua plugins and their Lua tests cover mentions, tags, reactions, role colors, typing, names and settings themes | Add ports after Phoenix APIs for missing Unbound surfaces are available |
+| 1 | Device acceptance | iOS vphone reached `ready` on Phoenix 356.0 and reported all bundled plugins without runtime errors; iOS package and Android module builds pass | Run jailed iOS and all Android install modes against authorized Phoenix artifacts; exercise plugin UI and settings flows |
+| 2 | Android network interception | Cronet, standard OkHttp, Phoenix's shaded OkHttp and WebSocket hooks are implemented; Android module build passes | Verify live telemetry sink responses, ordinary API requests and Staff DevTools on an Android Phoenix build |
+| 3 | iOS login and extensions | `astral://`, Safari extension packaging, source-extension inventory, post-sign presence checks and group-remap checks are implemented; vphone confirms Phoenix's native passkey delegates | Verify Safari fallback, signing, upgrade and Share/BroadcastUpload on an authorized sideload IPA; do not change a logged-in account to force a login test |
+| 4 | Environment reporting | Schema 2 reports include platform/install facts and sanitize details on both platforms; iOS runtime status was read from the vphone | Compare real sideload, package and Android module reports on devices |
+| 5 | Lua API | Permission-gated native alerts, file selection and foreground/background subscriptions are implemented on iOS and Android; Lua and API tests pass | Exercise each adapter in Phoenix; commands, arbitrary Discord events, notifications, background work, fonts and general asset registration remain unsupported |
+| 6 | Recovery and privacy | Plugin failures stay isolated; reports scrub new and legacy details; Android records available process crash/ANR traces | Exercise disable, reload, soft restart and launch recovery across install modes |
+| 7 | Compatibility automation | Android DEX scanner, Safari extension CI build and synthetic IPA preservation plus post-sign validation tests are present | Scan authorized Android APKs/splits; complete scheduled iOS scan after an upstream artifact is available |
+| 8 | Add-on corpus | Seven signed Lua plugins and their Lua tests cover the current portability set; the user-selected nine-plugin shortlist is prioritized in the parity map | Implement the shared Phoenix seams, then port and test the first compatible group |
 | 9 | Documentation | README and plugin docs state supported APIs, permissions, install behavior, `astral://` and known gates | Review release notes after device acceptance closes |
 
 ## Current baseline
@@ -23,7 +23,7 @@ This branch completes the code and CI work that can be verified without a privat
 | Area | Current state | Remaining proof |
 | --- | --- | --- |
 | Shared runtime | ViewWire rewriting, Lua host, settings pages, cache, plugins, themes and package services are in shared core | Run acceptance on each supported install path |
-| iOS | Theos package and sideload IPA tooling; Safari extension; `astral://` handoff; original IPA app extensions are retained | Verify a real packaged IPA, extension signing and passkey session activation |
+| iOS | Theos package and sideload IPA tooling; Safari extension; `astral://` scheme; source app extensions recorded, preserved and checked after signing; Phoenix native passkey delegate detected on vphone | Verify signed IPA contents and extension behavior, then test browser fallback only on a build that lacks Phoenix's native passkey module |
 | Android | Phoenix module and patched APK paths; settings, plugins, themes, packs, backups, catalog, network hooks and static compatibility scanner | Scan an authorized Phoenix APK and validate behavior on a live build |
 | Add-ons | Seven bundled Lua plugins, one bundled theme, three catalog themes, one icon pack and one emoji pack; signed catalog verification is in the test suite | Expand after additional native capabilities are supported |
 | Compatibility | iOS stable and beta scans; Android DEX scanner and module/core builds in CI | Run Android scan against a current authorized APK |
@@ -39,8 +39,8 @@ This branch completes the code and CI work that can be verified without a privat
 | Telemetry filtering and Staff DevTools | Implemented; live traffic check pending | Implemented; live traffic check pending | Implemented; Cronet and OkHttp checks pending | Implemented; Cronet and OkHttp checks pending |
 | Native alerts, file selection and lifecycle events | API and adapter implemented; device check pending | API and adapter implemented; device check pending | API and adapter implemented; device check pending | API and adapter implemented; device check pending |
 | Backups, reports and restart recovery | Implemented; compare report and recovery behavior | Implemented; compare report and recovery behavior | Implemented; compare report and recovery behavior | Implemented; compare report and recovery behavior |
-| Safari passkey handoff | Extension packages; native Phoenix authorization remains direct; Safari fallback activation not verified | Native Phoenix authorization remains direct; Safari fallback not packaged | Not applicable | Not applicable |
-| Discord Share and BroadcastUpload extensions | IPA preservation and group adapter have synthetic coverage; signed install pending | Stock app extensions remain stock | Not applicable | Not applicable |
+| Safari passkey handoff | Phoenix 356.0 has native module and success/failure delegate selectors; direct native path detected in vphone status; Safari fallback activation not verified | Native Phoenix authorization is detected at runtime; Safari fallback is not part of the stock package | Not applicable | Not applicable |
+| Discord Share and BroadcastUpload extensions | Source inventory, group adapter and signed-app validation have synthetic coverage; signed install pending | Stock app extensions remain stock; startup diagnostics only activate for astral installs | Not applicable | Not applicable |
 
 ## Acceptance work
 
@@ -58,7 +58,7 @@ This branch completes the code and CI work that can be verified without a privat
 
 7. **Run compatibility automation.** Build the Safari extension and synthetic IPA tests in CI. Run `astral android-compat` with an authorized base APK and each split APK; retain only the JSON/Markdown result. Keep decrypted Discord apps and account data out of CI and the repository.
 
-8. **Grow the add-on corpus.** Keep the existing seven tested Lua plugins as the portability set. Compare new Unbound add-ons with astral's supported API, then port the next compatible set, add Lua tests, sign packages and update the catalog signature.
+8. **Grow the add-on corpus.** Keep the existing seven tested Lua plugins as the portability set. The next shortlist is Clear URLs, Text Replace, Client Side Block (Enhanced Blocking), Chat Bubbles, Translate, Expression Tools, Live Markdown, Highlight Replies and Mention Haptics. Start with the shared pre-send transform needed by Clear URLs and Text Replace, then add the event, row, contextual-action and native UI seams for later groups. Add Lua tests, sign completed packages and update the catalog signature.
 
 9. **Close release documentation.** Document installation and recovery for each supported mode, the `astral://` scheme, Safari passkeys, extension preservation, plugin permissions, API reference and compatibility results. Publish no release until the device matrix and CI gates pass.
 

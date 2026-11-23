@@ -5,8 +5,10 @@ import (
 	"bytes"
 	"debug/macho"
 	"encoding/binary"
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -261,6 +263,114 @@ func TestValidateIPAExtensions(t *testing.T) {
 	}
 	if err := validateIPAExtensions(source, source, []string{"OpenInAstral.appex"}); err == nil || !strings.Contains(err.Error(), "OpenInAstral.appex") {
 		t.Fatalf("missing astral extension was not detected: %v", err)
+	}
+}
+
+func TestAddExtensionManifestRecordsSourceAndAstralExtensions(t *testing.T) {
+	app := "Payload/Discord.app/"
+	source := []string{
+		app + "Info.plist",
+		app + "PlugIns/Share.appex/Info.plist",
+		app + "PlugIns/BroadcastUpload.appex/Info.plist",
+		app + "PlugIns/NotificationService.appex/Info.plist",
+	}
+	path := testIPA(t, map[string][]byte{
+		app + "Info.plist":                                   testPlist(t, map[string]interface{}{"CFBundleIdentifier": "com.hammerandchisel.discord"}),
+		app + "PlugIns/Share.appex/Info.plist":               extensionInfo(t, "com.hammerandchisel.discord.Share", "Share"),
+		app + "PlugIns/BroadcastUpload.appex/Info.plist":     extensionInfo(t, "com.hammerandchisel.discord.BroadcastUpload", "BroadcastUpload"),
+		app + "PlugIns/NotificationService.appex/Info.plist": extensionInfo(t, "com.hammerandchisel.discord.NotificationService", "NotificationService"),
+	})
+	if err := addExtensionManifestToIPA(path, source, []string{"OpenInAstral.appex", "Share.appex"}); err != nil {
+		t.Fatal(err)
+	}
+	entries := readIPAEntries(t, path)
+	var manifest struct {
+		Extensions []string `json:"extensions"`
+	}
+	if err := json.Unmarshal(entries[app+extensionManifestFilename], &manifest); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"BroadcastUpload.appex", "NotificationService.appex", "OpenInAstral.appex", "Share.appex"}
+	if !reflect.DeepEqual(manifest.Extensions, want) {
+		t.Fatalf("manifest extensions = %v, want %v", manifest.Extensions, want)
+	}
+}
+
+func TestSignedAppRejectsMissingManifestExtensions(t *testing.T) {
+	app := t.TempDir()
+	manifest := []byte(`{"extensions":["BroadcastUpload.appex","OpenInAstral.appex","Share.appex"]}`)
+	if err := os.WriteFile(filepath.Join(app, extensionManifestFilename), manifest, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, extension := range []string{"OpenInAstral.appex", "Share.appex"} {
+		if err := os.MkdirAll(filepath.Join(app, "PlugIns", extension), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := validateSignedAppExtensions(app); err == nil || !strings.Contains(err.Error(), "BroadcastUpload.appex") {
+		t.Fatalf("missing BroadcastUpload extension was not reported: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(app, "PlugIns", "BroadcastUpload.appex"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateSignedAppExtensions(app); err != nil {
+		t.Fatalf("complete signed app was rejected: %v", err)
+	}
+}
+
+func TestSignedAppRejectsDiscordExtensionWithoutGroupRemap(t *testing.T) {
+	app := t.TempDir()
+	appID := "com.astral.client"
+	if err := os.WriteFile(filepath.Join(app, "Info.plist"), testPlist(t, map[string]interface{}{
+		"CFBundleIdentifier": appID,
+		"CFBundleExecutable": "Discord",
+	}), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(app, "Discord"), testMachO(), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	frameworks := filepath.Join(app, "Frameworks")
+	if err := os.MkdirAll(frameworks, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(frameworks, "AstralGroups.dylib"), testDylib(), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, extension := range []string{"Share.appex", "BroadcastUpload.appex", "OpenInAstral.appex"} {
+		bundle := filepath.Join(app, "PlugIns", extension)
+		if err := os.MkdirAll(bundle, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		name := strings.TrimSuffix(extension, ".appex")
+		if err := os.WriteFile(filepath.Join(bundle, "Info.plist"), extensionInfo(t, appID+"."+name, name), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		binary := testMachO()
+		if extension == "BroadcastUpload.appex" {
+			var err error
+			binary, err = addWeakDylibBytes(binary, groupRemapInstall)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := os.WriteFile(filepath.Join(bundle, name), binary, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := validateSignedAppGroupWiring(app); err == nil || !strings.Contains(err.Error(), "Share.appex") {
+		t.Fatalf("unwired Share extension was not rejected: %v", err)
+	}
+	share := filepath.Join(app, "PlugIns", "Share.appex", "Share")
+	binary, err := addWeakDylibBytes(testMachO(), groupRemapInstall)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(share, binary, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateSignedAppGroupWiring(app); err != nil {
+		t.Fatalf("wired signed app was rejected: %v", err)
 	}
 }
 
