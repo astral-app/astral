@@ -3,6 +3,7 @@ local native = {
 	switch = astral.settings.switch,
 	choice = astral.settings.choice,
 	number = astral.settings.number,
+	text = astral.settings.text,
 	decorate = astral.ui.decorate,
 	relabel = astral.ui.relabel,
 	mention = astral.ui.mention,
@@ -356,6 +357,11 @@ function astral.settings.number(key, title, options)
 	return values[key]
 end
 
+function astral.settings.text(key, title, default, options)
+	values[key] = native.text(key, title, default, options)
+	return values[key]
+end
+
 function astral.settings.on_change(key, listener)
 	listeners[key] = listeners[key] or {}
 	table.insert(listeners[key], listener)
@@ -381,6 +387,14 @@ function Section:number(key, title, options)
 		merged[name] = value
 	end
 	return astral.settings.number(key, title, merged)
+end
+
+function Section:text(key, title, default, options)
+	local merged = { section = self.title }
+	for name, value in pairs(options or {}) do
+		merged[name] = value
+	end
+	return astral.settings.text(key, title, default, merged)
 end
 
 function Section:describe()

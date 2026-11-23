@@ -39,6 +39,8 @@ object Native {
 
     @JvmStatic external fun completeFilePick(id: Long, name: String?, data: ByteArray?, error: String?)
 
+    @JvmStatic external fun completeTextEdit(id: Long, value: String?)
+
     @JvmStatic external fun emitEvent(event: String)
 
     @JvmStatic external fun recordExitReport(kind: String, timestamp: Long, reason: Int, description: String, trace: String)

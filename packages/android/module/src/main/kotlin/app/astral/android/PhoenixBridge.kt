@@ -10,6 +10,9 @@ import android.net.Uri
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
+import android.text.InputFilter
+import android.text.InputType
+import android.widget.EditText
 import android.widget.Toast
 import android.provider.OpenableColumns
 import android.webkit.MimeTypeMap
@@ -244,6 +247,16 @@ object PhoenixBridge {
     }
 
     @JvmStatic
+    fun copyText(value: String) {
+        mainHandler.post {
+            val activity = activeActivity() ?: return@post
+            val clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return@post
+            clipboard.setPrimaryClip(ClipData.newPlainText("astral", value))
+            Toast.makeText(activity, "Copied", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    @JvmStatic
     fun pickFile(request: Long, extensions: String) {
         mainHandler.post {
             if (pendingFilePick != null) {
@@ -275,6 +288,38 @@ object PhoenixBridge {
             if (pendingFilePick != request) return@post
             pendingFilePick = null
             activeActivity()?.let { activity -> runCatching { activity.finishActivity(PICK_FILE_REQUEST) } }
+        }
+    }
+
+    @JvmStatic
+    fun editText(request: Long, title: String, value: String, maximumLength: Int) {
+        mainHandler.post {
+            val activity = activeActivity()
+            if (activity == null || activity.isFinishing || activity.isDestroyed) {
+                Native.completeTextEdit(request, null)
+                return@post
+            }
+            val editor = EditText(activity)
+            editor.setText(value)
+            editor.setSelection(editor.text.length)
+            editor.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+            editor.minLines = 5
+            editor.maxLines = 12
+            editor.filters = arrayOf(InputFilter { source, start, end, destination, replaceStart, replaceEnd ->
+                val next = buildString {
+                    append(destination, 0, replaceStart)
+                    append(source, start, end)
+                    append(destination, replaceEnd, destination.length)
+                }
+                if (next.toByteArray(Charsets.UTF_8).size <= maximumLength) null else ""
+            })
+            AlertDialog.Builder(activity)
+                .setTitle(title)
+                .setView(editor)
+                .setNegativeButton("Cancel") { _, _ -> Native.completeTextEdit(request, null) }
+                .setPositiveButton("Save") { _, _ -> Native.completeTextEdit(request, editor.text.toString()) }
+                .setOnCancelListener { Native.completeTextEdit(request, null) }
+                .show()
         }
     }
 

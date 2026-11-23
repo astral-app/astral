@@ -46,6 +46,9 @@ struct SettingsPagesPlatform {
     std::function<void(const std::function<void()> &changed)> refreshCatalog;
     std::function<std::string(const std::string &userID, size_t index)> authorAvatar;
     std::function<std::optional<std::string>(const nlohmann::json &plugin)> pluginIconSVG;
+    std::function<void(const std::string &title, const std::string &value, size_t maximumLength,
+                       const std::function<void(std::optional<std::string>)> &completion)>
+        editText;
     std::function<void(const std::function<void()> &changed)> importUnboundTheme;
     std::function<void()> exportBackup;
     std::function<void(const std::function<void()> &changed)> importBackup;

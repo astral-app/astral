@@ -485,6 +485,40 @@ static void testSliderSettingsAndNavigation(const std::string &work)
     astral::pages::configure({});
 }
 
+static void testTextSettings(const std::string &work)
+{
+    auto root = std::filesystem::path(work) / "text-settings-host";
+    auto plugin = root / "plugins" / "sample";
+    std::filesystem::create_directories(plugin);
+    writeText(plugin / "manifest.toml",
+              "id = 'astral.text-setting-test'\nname = 'Text setting test'\nversion = '1.0'\nmain = 'main.lua'\n");
+    writeText(plugin / "main.lua", "astral.settings.text('rules', 'Rules', 'first => second', { max_length = 64, section = 'Rules' })\n"
+                                   "astral.settings.on_change('rules', function(value) astral.state.changed = value end)");
+    astral::SettingsStore settings((root / "settings.json").string());
+    settings.set("astral", "developer-mode", true);
+    astral::luahost::start({(root / "plugins").string()}, &settings, true, {});
+    assert(astral::luahost::eval("astral.text-setting-test", "return astral.settings.values.rules") == "first => second");
+    auto plugins = astral::luahost::plugins();
+    assert(plugins.size() == 1 && plugins[0]["textSettings"][0]["maxLength"] == 64);
+    astral::SettingsPagesPlatform platform;
+    platform.settings = &settings;
+    bool changed = false;
+    platform.editText = [&](const std::string &title, const std::string &value, size_t maximumLength,
+                            const std::function<void(std::optional<std::string>)> &completion) {
+        assert(title == "Rules" && value == "first => second" && maximumLength == 64);
+        completion("first => third");
+    };
+    astral::pages::configure(std::move(platform));
+    auto model = astral::pages::model("plugin-settings:astral.text-setting-test");
+    assert(model["sections"][0]["rows"][0]["key"] == "text.rules");
+    astral::pages::action("plugin-settings:astral.text-setting-test", "text.rules", [&] { changed = true; });
+    assert(changed);
+    assert(astral::luahost::eval("astral.text-setting-test", "return astral.settings.values.rules") == "first => third");
+    assert(astral::luahost::eval("astral.text-setting-test", "return astral.state.changed") == "first => third");
+    astral::luahost::stop();
+    astral::pages::configure({});
+}
+
 static void testNetworkRequests(const std::string &work)
 {
     auto root = std::filesystem::path(work) / "network-host";
@@ -600,10 +634,12 @@ static void testFilePickerAndDialogs(const std::string &work)
     auto restricted = root / "plugins" / "restricted";
     std::filesystem::create_directories(plugin);
     std::filesystem::create_directories(restricted);
-    writeText(plugin / "manifest.toml", "id = 'astral.native-ui-test'\nname = 'Native UI test'\nversion = '1.0'\nmain = "
-                                        "'main.lua'\npermissions = ['files.read', 'ui.dialogs', 'events.lifecycle', 'storage']\n");
+    writeText(plugin / "manifest.toml",
+              "id = 'astral.native-ui-test'\nname = 'Native UI test'\nversion = '1.0'\nmain = "
+              "'main.lua'\npermissions = ['files.read', 'ui.dialogs', 'ui.clipboard', 'events.lifecycle', 'storage']\n");
     writeText(plugin / "main.lua",
               "astral.ui.alert('Ready', 'Choose a file')\n"
+              "astral.ui.copy('exported rules')\n"
               "local request = astral.files.pick({'json', '.TOML', 'json'}, function(file, reason)\n"
               "  if file then astral.storage.set('file', {name = file.name, data = file.data})\n"
               "  else astral.storage.set('failure', reason) end\n"
@@ -613,14 +649,17 @@ static void testFilePickerAndDialogs(const std::string &work)
               "astral.storage.set('subscription', subscription)\n");
     writeText(restricted / "manifest.toml",
               "id = 'astral.native-ui-restricted'\nname = 'Restricted'\nversion = '1.0'\nmain = 'main.lua'\npermissions = ['storage']\n");
-    writeText(restricted / "main.lua", "local alertOK = pcall(function() astral.ui.alert('No', 'permission') end)\n"
-                                       "local pickerOK = pcall(function() astral.files.pick({'json'}, function() end) end)\n"
-                                       "local eventOK = pcall(function() astral.events.on('app.foreground', function() end) end)\n"
-                                       "astral.storage.set('permissions', {alert = alertOK, picker = pickerOK, event = eventOK})\n");
+    writeText(restricted / "main.lua",
+              "local alertOK = pcall(function() astral.ui.alert('No', 'permission') end)\n"
+              "local pickerOK = pcall(function() astral.files.pick({'json'}, function() end) end)\n"
+              "local copyOK = pcall(function() astral.ui.copy('private') end)\n"
+              "local eventOK = pcall(function() astral.events.on('app.foreground', function() end) end)\n"
+              "astral.storage.set('permissions', {alert = alertOK, picker = pickerOK, copy = copyOK, event = eventOK})\n");
     astral::SettingsStore settings((root / "settings.json").string());
     settings.set("astral", "developer-mode", true);
     std::string shownTitle;
     std::string shownMessage;
+    std::string clipboard;
     uint64_t picked = 0;
     std::vector<std::string> pickedExtensions;
     std::vector<uint64_t> cancelled;
@@ -630,6 +669,10 @@ static void testFilePickerAndDialogs(const std::string &work)
         shownTitle = title;
         shownMessage = message;
     };
+    platform.writeClipboard = [&](const std::string &value) {
+        clipboard = value;
+        return true;
+    };
     platform.pickFile = [&](uint64_t request, const std::vector<std::string> &extensions) {
         picked = request;
         pickedExtensions = extensions;
@@ -638,6 +681,7 @@ static void testFilePickerAndDialogs(const std::string &work)
     platform.cancelFilePick = [&](uint64_t request) { cancelled.push_back(request); };
     astral::luahost::start({(root / "plugins").string()}, &settings, true, std::move(platform));
     assert(shownTitle == "Ready" && shownMessage == "Choose a file");
+    assert(clipboard == "exported rules");
     assert(picked > 0 && pickedExtensions == std::vector<std::string>({"json", "toml"}));
     assert(std::stoull(astral::luahost::eval("astral.native-ui-test", "return astral.storage.get('request')")) == picked);
     astral::luahost::completeFilePick(picked, "theme.json", "{\"name\":\"fixture\"}", std::nullopt);
@@ -645,7 +689,8 @@ static void testFilePickerAndDialogs(const std::string &work)
     assert(astral::luahost::eval("astral.native-ui-test", "return astral.storage.get('file').data") == "{\"name\":\"fixture\"}");
     assert(astral::luahost::eval("astral.native-ui-restricted",
                                  "local p = astral.storage.get('permissions'); return tostring(p.alert) .. "
-                                 "':' .. tostring(p.picker) .. ':' .. tostring(p.event)") == "false:false:false");
+                                 "':' .. tostring(p.picker) .. ':' .. tostring(p.copy) .. ':' .. tostring(p.event)") ==
+           "false:false:false:false");
     uint64_t subscription = std::stoull(astral::luahost::eval("astral.native-ui-test", "return astral.storage.get('subscription')"));
     astral::luahost::emitEvent("app.foreground");
     assert(astral::luahost::eval("astral.native-ui-test", "return astral.storage.get('event')") == "app.foreground");
@@ -707,6 +752,7 @@ int main(int argc, char **argv)
     testOutgoingMessageTransforms(argv[1]);
     testFilePickerAndDialogs(argv[1]);
     testSliderSettingsAndNavigation(argv[1]);
+    testTextSettings(argv[1]);
     puts("ok");
     return 0;
 }

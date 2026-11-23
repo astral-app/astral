@@ -71,8 +71,13 @@ jmethodID gImportBackup = nullptr;
 jmethodID gOpenReport = nullptr;
 jmethodID gRefreshEmoji = nullptr;
 jmethodID gShowAlert = nullptr;
+jmethodID gCopyText = nullptr;
 jmethodID gPickFile = nullptr;
 jmethodID gCancelFilePick = nullptr;
+jmethodID gEditText = nullptr;
+std::mutex gTextEditLock;
+std::map<uint64_t, std::function<void(std::optional<std::string>)>> gTextEditCallbacks;
+std::atomic<uint64_t> gNextTextEditRequest{1};
 
 std::atomic<bool> gRefreshDecorations{false};
 std::atomic<uint64_t> gBlockedRequests{0};
@@ -89,6 +94,7 @@ void callBridge(jmethodID method, const std::string &argument);
 void callBridge(jmethodID method, const std::string &first, const std::string &second);
 void callBridge(jmethodID method, jlong request);
 bool callBridge(jmethodID method, jlong request, const std::string &argument);
+bool callBridge(jmethodID method, jlong request, const std::string &title, const std::string &value, jint maximumLength);
 
 std::string reportText(const nlohmann::json &report, const char *key)
 {
@@ -379,6 +385,11 @@ astral::LuaHostPlatform platform(const std::string &state, const std::string &re
     platform.networkRequest = startNetworkRequest;
     platform.cancelNetworkRequest = cancelNetworkRequest;
     platform.showAlert = [](const std::string &title, const std::string &message) { callBridge(gShowAlert, title, message); };
+    platform.writeClipboard = [](const std::string &value) {
+        if (!gCopyText) return false;
+        callBridge(gCopyText, value);
+        return true;
+    };
     platform.pickFile = [](uint64_t request, const std::vector<std::string> &extensions) {
         std::string encoded;
         for (const auto &extension : extensions) {
@@ -487,6 +498,22 @@ void configurePages(const std::string &discordVersion)
         std::string identifier = plugin.value("id", "");
         if (plugin.value("iconSvg", "").empty() || !astral::lua::validPluginIdentifier(identifier)) return std::nullopt;
         return "res://astral_plugin_" + identifier;
+    };
+    pages.editText = [](const std::string &title, const std::string &value, size_t maximumLength,
+                        const std::function<void(std::optional<std::string>)> &completion) {
+        uint64_t request = gNextTextEditRequest.fetch_add(1);
+        if (request == 0) request = gNextTextEditRequest.fetch_add(1);
+        {
+            std::lock_guard<std::mutex> lock(gTextEditLock);
+            gTextEditCallbacks.emplace(request, completion);
+        }
+        if (!callBridge(gEditText, static_cast<jlong>(request), title, value, static_cast<jint>(maximumLength))) {
+            {
+                std::lock_guard<std::mutex> lock(gTextEditLock);
+                gTextEditCallbacks.erase(request);
+            }
+            completion(std::nullopt);
+        }
     };
     pages.version = ASTRAL_VERSION;
     pages.context = [discordVersion] { return astral::SettingsPageContext{gRecovering, discordVersion, "ready"}; };
@@ -864,6 +891,28 @@ bool callBridge(jmethodID method, jlong request, const std::string &argument)
     return succeeded;
 }
 
+bool callBridge(jmethodID method, jlong request, const std::string &title, const std::string &value, jint maximumLength)
+{
+    bool attached = false;
+    JNIEnv *env = currentEnvironment(attached);
+    if (!env) return false;
+    bool succeeded = false;
+    {
+        std::lock_guard<std::mutex> lock(gNetworkLock);
+        jstring titleValue = toJava(env, title);
+        jstring textValue = toJava(env, value);
+        if (gBridge && method && titleValue && textValue) {
+            env->CallStaticVoidMethod(gBridge, method, request, titleValue, textValue, maximumLength);
+            succeeded = !env->ExceptionCheck();
+        }
+        if (env->ExceptionCheck()) env->ExceptionClear();
+        if (titleValue) env->DeleteLocalRef(titleValue);
+        if (textValue) env->DeleteLocalRef(textValue);
+    }
+    if (attached) gVM->DetachCurrentThread();
+    return succeeded;
+}
+
 std::string sha256(const std::string &data)
 {
     if (data.size() > (2u << 20)) return "";
@@ -1064,10 +1113,13 @@ ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_attachBridge
     jmethodID openReportMethod = env->GetStaticMethodID(reference, "openReport", "(Ljava/lang/String;)V");
     jmethodID refreshEmojiMethod = env->GetStaticMethodID(reference, "refreshEmoji", "()V");
     jmethodID showAlertMethod = env->GetStaticMethodID(reference, "showAlert", "(Ljava/lang/String;Ljava/lang/String;)V");
+    jmethodID copyTextMethod = env->GetStaticMethodID(reference, "copyText", "(Ljava/lang/String;)V");
     jmethodID pickFileMethod = env->GetStaticMethodID(reference, "pickFile", "(JLjava/lang/String;)V");
     jmethodID cancelFilePickMethod = env->GetStaticMethodID(reference, "cancelFilePick", "(J)V");
+    jmethodID editTextMethod = env->GetStaticMethodID(reference, "editText", "(JLjava/lang/String;Ljava/lang/String;I)V");
     if (env->ExceptionCheck() || !deliverMethod || !fetchMethod || !requestMethod || !cancelMethod || !exportBackupMethod ||
-        !importBackupMethod || !openReportMethod || !refreshEmojiMethod || !showAlertMethod || !pickFileMethod || !cancelFilePickMethod) {
+        !importBackupMethod || !openReportMethod || !refreshEmojiMethod || !showAlertMethod || !copyTextMethod || !pickFileMethod ||
+        !cancelFilePickMethod || !editTextMethod) {
         env->ExceptionClear();
         env->DeleteGlobalRef(reference);
         return;
@@ -1085,8 +1137,10 @@ ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_attachBridge
         gOpenReport = openReportMethod;
         gRefreshEmoji = refreshEmojiMethod;
         gShowAlert = showAlertMethod;
+        gCopyText = copyTextMethod;
         gPickFile = pickFileMethod;
         gCancelFilePick = cancelFilePickMethod;
+        gEditText = editTextMethod;
     }
     astral::reactors::setFetcher(fetch);
 }
@@ -1136,6 +1190,23 @@ ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_completeFile
     }
     if (error) failure = fromJava(env, error);
     astral::luahost::completeFilePick(static_cast<uint64_t>(request), fileName, contents, failure);
+}
+
+ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_completeTextEdit(JNIEnv *env, jclass, jlong request, jstring value)
+{
+    if (request <= 0) return;
+    std::function<void(std::optional<std::string>)> completion;
+    {
+        std::lock_guard<std::mutex> lock(gTextEditLock);
+        auto found = gTextEditCallbacks.find(static_cast<uint64_t>(request));
+        if (found == gTextEditCallbacks.end()) return;
+        completion = std::move(found->second);
+        gTextEditCallbacks.erase(found);
+    }
+    if (value)
+        completion(plain(env, value));
+    else
+        completion(std::nullopt);
 }
 
 ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_emitEvent(JNIEnv *env, jclass, jstring event)

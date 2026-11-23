@@ -240,6 +240,7 @@ local Section = {}
 ---@param subtitle? string
 ---@return boolean
 function Section:switch(key, title, default, subtitle) end
+function Section:text(key, title, default, options) end
 ---@param key string
 ---@param title string
 ---@param options astral.NumberOptions
@@ -312,9 +313,10 @@ function astral.settings.choice(key, title, choices, default, options) end
 ---@param options astral.NumberOptions
 ---@return number
 function astral.settings.number(key, title, options) end
+function astral.settings.text(key, title, default, options) end
 ---@param key string
 ---@return astral.SettingValue?
-function astral.settings.get(key) end
+function astral.settings.get(key, fallback) end
 ---@param key string
 ---@param value astral.SettingValue
 function astral.settings.set(key, value) end
@@ -339,6 +341,7 @@ function astral.i18n.t(key) end
 
 astral.ui = {}
 function astral.ui.alert(title, message) end
+function astral.ui.copy(value) end
 ---@param target astral.Target
 ---@param decorator fun(node: astral.Node): astral.Decoration
 function astral.ui.decorate(target, decorator) end
