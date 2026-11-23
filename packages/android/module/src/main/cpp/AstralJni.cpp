@@ -100,6 +100,15 @@ void startDeveloperServer(const std::string &state)
     astral::dev::Hooks hooks;
     hooks.enabled = [] { return gSettings && gSettings->getBoolean("astral", "developer-mode", false); };
     hooks.routes = developerRoute;
+    hooks.status = [] {
+        AstralWireStats stats = astral_wire_stats();
+        return nlohmann::json{{"wire",
+                               {{"channel", std::to_string(astral_wire_current_channel())},
+                                {"authors", stats.authors},
+                                {"withUser", stats.with_user},
+                                {"withChannel", stats.with_channel},
+                                {"tagged", stats.tagged}}}};
+    };
     hooks.version = ASTRAL_VERSION;
     hooks.stateDirectory = state;
     hooks.settings = gSettings.get();

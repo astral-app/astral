@@ -28,6 +28,7 @@ object PhoenixBridge {
                 if (delivering.get() == true) return@intercept chain.proceed()
                 val ops = chain.getArg(0) as ByteArray
                 val length = chain.getArg(1) as Int
+                Capture.record(ops, length)
                 val rewritten = Native.rewrite(ops, length)
                 if (rewritten == null) chain.proceed() else chain.proceed(arrayOf<Any>(rewritten, rewritten.size))
             }
