@@ -25,6 +25,8 @@ struct LuaHostPlatform {
     std::function<std::optional<nlohmann::json>(const std::string &channel, const std::string &message)> message;
     std::function<std::optional<uint64_t>(const std::string &guild, const std::string &user, const std::optional<std::string> &channel)>
         permissions;
+    std::function<void(uint64_t request, const nlohmann::json &options)> networkRequest;
+    std::function<void(uint64_t request)> cancelNetworkRequest;
     std::function<std::optional<nlohmann::json>(const std::string &channel, const std::string &message, const std::string &emoji,
                                                 bool burst, uint64_t count, bool &fresh)>
         reactors;
@@ -49,6 +51,7 @@ void setSwitch(const std::string &identifier, const std::string &key, bool on);
 void setChoice(const std::string &identifier, const std::string &key, const std::string &value);
 void setNumber(const std::string &identifier, const std::string &key, double value);
 void resetSettings(const std::string &identifier);
+void completeNetworkRequest(uint64_t request, const nlohmann::json &response);
 std::string eval(const std::string &identifier, const std::string &code);
 void reload(const std::string &identifier);
 void remove(const std::string &identifier);

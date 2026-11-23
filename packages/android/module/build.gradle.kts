@@ -116,4 +116,5 @@ kotlin {
 dependencies {
     compileOnly("io.github.libxposed:api:102.0.0")
     implementation("com.caverock:androidsvg-aar:1.4")
+    implementation("com.squareup.okhttp3:okhttp:4.12.1")
 }

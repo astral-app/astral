@@ -2,26 +2,41 @@
 #include <jni.h>
 
 #include <filesystem>
+#include <fstream>
+#include <algorithm>
 #include <atomic>
+#include <cstdint>
+#include <ctime>
 #include <optional>
 #include <memory>
+#include <map>
 #include <mutex>
 #include <string>
+#include <string_view>
+#include <stdexcept>
+#include <thread>
 #include <vector>
 
 #include "AstralDevServer.h"
+#include "AstralAndroidBackup.h"
+#include "AstralAndroidMarketplace.h"
+#include "AstralExitRecord.h"
+#include "AstralLaunchGuard.h"
 #include "AstralDiscordCache.h"
+#include "AstralFiles.h"
 #include "AstralLuaHost.h"
 #include "AstralNetworkPolicy.h"
 #include "AstralPacks.h"
+#include "AstralSignatures.h"
+#include "AstralTOML.h"
 #include "AstralThemes.h"
 #include "AstralReactors.h"
 #include "AstralRequestSink.h"
 #include "AstralSession.h"
-#include "AstralSignatures.h"
 #include "AstralSettingsNavigator.h"
 #include "AstralSettingsPages.h"
 #include "AstralSettings.h"
+#include "LuaLocale.h"
 #include "PhoenixProperties.h"
 #include "PhoenixWire.h"
 
@@ -35,18 +50,103 @@ std::unique_ptr<astral::SettingsStore> gSettings;
 std::unique_ptr<astral::Packs> gPacks;
 std::unique_ptr<astral::Themes> gThemes;
 std::unique_ptr<astral::Signatures> gSignatures;
+std::unique_ptr<astral::android::Marketplace> gMarketplace;
+std::string gStateDirectory;
+std::string gReportsPath;
+nlohmann::json gEnvironment = nlohmann::json::object();
+bool gRecovering = false;
 unsigned gImageGeneration = 0;
 std::mutex gWireLock;
+std::mutex gNetworkLock;
+std::mutex gReportsLock;
 JavaVM *gVM = nullptr;
 jclass gBridge = nullptr;
 jmethodID gDeliver = nullptr;
 jmethodID gFetch = nullptr;
+jmethodID gRequest = nullptr;
+jmethodID gCancelRequest = nullptr;
+jmethodID gExportBackup = nullptr;
+jmethodID gImportBackup = nullptr;
+jmethodID gOpenReport = nullptr;
+jmethodID gRefreshEmoji = nullptr;
 
 std::atomic<bool> gRefreshDecorations{false};
+std::atomic<uint64_t> gBlockedRequests{0};
 void deliver(const std::vector<uint8_t> &bytes);
 void refreshImages();
 void applyTheme(const std::string &identifier);
 std::string sha256(const std::string &data);
+void startNetworkRequest(uint64_t request, const nlohmann::json &options);
+void cancelNetworkRequest(uint64_t request);
+JNIEnv *currentEnvironment(bool &attached);
+jstring toJava(JNIEnv *env, std::string_view value);
+void callBridge(jmethodID method);
+void callBridge(jmethodID method, const std::string &argument);
+
+std::string reportText(const nlohmann::json &report, const char *key)
+{
+    auto value = report.find(key);
+    return value != report.end() && value->is_string() ? value->get<std::string>() : "";
+}
+
+nlohmann::json pluginReports()
+{
+    nlohmann::json reports = nlohmann::json::array();
+    {
+        std::lock_guard<std::mutex> lock(gReportsLock);
+        auto saved = astral::readTextFile(gReportsPath);
+        if (saved) {
+            nlohmann::json parsed = nlohmann::json::parse(*saved, nullptr, false);
+            if (parsed.is_array()) reports = std::move(parsed);
+        }
+    }
+    for (const auto &plugin : astral::luahost::plugins()) {
+        if (!plugin.value("failed", false)) continue;
+        std::string identifier = plugin.value("id", "");
+        std::string failure = plugin.value("error", "").substr(0, 6000);
+        bool exists = std::any_of(reports.begin(), reports.end(), [&](const nlohmann::json &report) {
+            return report.is_object() && reportText(report, "id") == identifier && reportText(report, "error") == failure;
+        });
+        if (!exists) {
+            reports.insert(reports.begin(), {{"kind", "plugin"},
+                                             {"title", plugin.value("name", plugin.value("id", "Plugin"))},
+                                             {"id", identifier},
+                                             {"error", failure},
+                                             {"environment", gEnvironment},
+                                             {"time", static_cast<int64_t>(std::time(nullptr))}});
+        }
+    }
+    if (reports.size() > 20) reports.erase(reports.begin() + 20, reports.end());
+    return reports;
+}
+
+void recordPluginFailure(const std::string &identifier, const std::string &name, const std::string &error)
+{
+    __android_log_print(ANDROID_LOG_ERROR, "astral", "plugin %s (%s) failed: %s", identifier.c_str(), name.c_str(), error.c_str());
+    std::lock_guard<std::mutex> lock(gReportsLock);
+    nlohmann::json reports = nlohmann::json::array();
+    auto saved = astral::readTextFile(gReportsPath);
+    if (saved) {
+        nlohmann::json parsed = nlohmann::json::parse(*saved, nullptr, false);
+        if (parsed.is_array()) reports = std::move(parsed);
+    }
+    std::string failure = error.substr(0, 6000);
+    bool exists = std::any_of(reports.begin(), reports.end(), [&](const nlohmann::json &report) {
+        return report.is_object() && reportText(report, "id") == identifier && reportText(report, "error") == failure;
+    });
+    if (exists) return;
+    reports.insert(reports.begin(), {{"kind", "plugin"},
+                                     {"title", name + " stopped after errors"},
+                                     {"id", identifier},
+                                     {"error", failure},
+                                     {"environment", gEnvironment},
+                                     {"time", static_cast<int64_t>(std::time(nullptr))}});
+    if (reports.size() > 20) reports.erase(reports.begin() + 20, reports.end());
+    astral::createDirectories(std::filesystem::path(gReportsPath).parent_path().string());
+    if (!astral::writeTextFileAtomically(gReportsPath, reports.dump())) {
+        __android_log_print(ANDROID_LOG_ERROR, "astral", "failed to persist plugin failure report for %s", identifier.c_str());
+    }
+}
 
 std::string plain(JNIEnv *env, jstring value)
 {
@@ -164,10 +264,10 @@ astral::LuaHostPlatform platform(const std::string &state, const std::string &re
     platform.messageChannel = astral::discord::messageChannel;
     platform.message = astral::discord::message;
     platform.permissions = astral::discord::permissions;
+    platform.networkRequest = startNetworkRequest;
+    platform.cancelNetworkRequest = cancelNetworkRequest;
     platform.developerLog = developerLog;
-    platform.recordFailure = [](const std::string &identifier, const std::string &name, const std::string &error) {
-        __android_log_print(ANDROID_LOG_ERROR, "astral", "plugin %s (%s) failed: %s", identifier.c_str(), name.c_str(), error.c_str());
-    };
+    platform.recordFailure = recordPluginFailure;
     platform.reactors = astral::reactors::lookup;
     platform.refreshDecorations = [] { gRefreshDecorations = true; };
     platform.preferredLanguages = std::move(languages);
@@ -205,6 +305,23 @@ void configurePages(const std::string &discordVersion)
 {
     astral::SettingsPagesPlatform pages;
     pages.settings = gSettings.get();
+    pages.crashReports = pluginReports;
+    pages.openReport = [](size_t index) {
+        nlohmann::json reports = pluginReports();
+        if (index >= reports.size()) return;
+        const auto &report = reports[index];
+        std::string content = reportText(report, "title");
+        if (content.empty()) content = "Plugin failure";
+        content += " (" + reportText(report, "id") + ")\n\n" + reportText(report, "error");
+        nlohmann::json environment = report.value("environment", nlohmann::json::object());
+        if (environment.is_object()) {
+            for (auto item = environment.begin(); item != environment.end(); ++item) {
+                content += "\n" + item.key() + ": ";
+                content += item.value().is_string() ? item.value().get<std::string>() : item.value().dump();
+            }
+        }
+        callBridge(gOpenReport, content);
+    };
     pages.themes = [] { return gThemes->list(); };
     pages.activeTheme = [] { return gThemes->active(); };
     pages.applyTheme = applyTheme;
@@ -215,15 +332,46 @@ void configurePages(const std::string &discordVersion)
     };
     pages.emojiPacks = [] { return gPacks->emoji(); };
     pages.activeEmojiPack = [] { return gPacks->activeEmoji(); };
-    pages.selectEmojiPack = [](const std::string &identifier) { gPacks->selectEmoji(identifier); };
+    pages.selectEmojiPack = [](const std::string &identifier) {
+        if (gPacks->selectEmoji(identifier)) callBridge(gRefreshEmoji);
+    };
     pages.emojiAnimated = [] { return gPacks->animated(); };
-    pages.setEmojiAnimated = [](bool animated) { gPacks->setAnimated(animated); };
+    pages.setEmojiAnimated = [](bool animated) {
+        gPacks->setAnimated(animated);
+        callBridge(gRefreshEmoji);
+    };
+    pages.blockedRequests = [] { return gBlockedRequests.load(); };
+    pages.catalog = [] { return gMarketplace ? gMarketplace->catalog() : nlohmann::json::object(); };
+    pages.catalogState = [] { return gMarketplace ? gMarketplace->catalogState() : "idle"; };
+    pages.catalogError = [] { return gMarketplace ? gMarketplace->catalogError() : ""; };
+    pages.catalogURL = [] { return gMarketplace ? gMarketplace->catalogURL() : ""; };
+    pages.installStatus = [](const std::string &identifier) {
+        return gMarketplace ? gMarketplace->installStatus(identifier) : std::optional<std::string>();
+    };
+    pages.installPackage = [](const nlohmann::json &package, const std::string &kind, const std::function<void()> &changed) {
+        if (gMarketplace) gMarketplace->installPackage(package, kind, changed);
+    };
+    pages.refreshCatalog = [](const std::function<void()> &changed) {
+        if (gMarketplace) gMarketplace->refreshCatalog(changed);
+    };
+    pages.authorAvatar = [](const std::string &userID, size_t index) {
+        if (gMarketplace) return gMarketplace->authorAvatar(userID, index);
+        return "https://cdn.discordapp.com/embed/avatars/" + std::to_string(index % 6) + ".png";
+    };
+    pages.pluginIconSVG = [](const nlohmann::json &plugin) -> std::optional<std::string> {
+        std::string identifier = plugin.value("id", "");
+        if (plugin.value("iconSvg", "").empty() || !astral::lua::validPluginIdentifier(identifier)) return std::nullopt;
+        return "res://astral_plugin_" + identifier;
+    };
     pages.version = ASTRAL_VERSION;
-    pages.context = [discordVersion] { return astral::SettingsPageContext{false, discordVersion, "ready"}; };
+    pages.context = [discordVersion] { return astral::SettingsPageContext{gRecovering, discordVersion, "ready"}; };
+    pages.exportBackup = [] { callBridge(gExportBackup); };
+    pages.importBackup = [](const std::function<void()> &) { callBridge(gImportBackup); };
     pages.softRestart = [] {
         gPacks->invalidate();
         refreshImages();
         applyTheme(gThemes->active());
+        callBridge(gRefreshEmoji);
         for (const auto &plugin : astral::luahost::plugins())
             if (plugin.value("enabled", false)) astral::luahost::reload(plugin.value("id", ""));
     };
@@ -233,6 +381,7 @@ void configurePages(const std::string &discordVersion)
                                      std::lock_guard<std::mutex> lock(gWireLock);
                                      work();
                                  });
+    if (gMarketplace) gMarketplace->refreshCatalog([] { astral::navigator::refresh(); });
 }
 
 void installDecorators()
@@ -342,6 +491,134 @@ JNIEnv *currentEnvironment(bool &attached)
     return env;
 }
 
+void appendUtf8(std::string &result, uint32_t codepoint)
+{
+    if (codepoint <= 0x7f) {
+        result.push_back(static_cast<char>(codepoint));
+    } else if (codepoint <= 0x7ff) {
+        result.push_back(static_cast<char>(0xc0 | (codepoint >> 6)));
+        result.push_back(static_cast<char>(0x80 | (codepoint & 0x3f)));
+    } else if (codepoint <= 0xffff) {
+        result.push_back(static_cast<char>(0xe0 | (codepoint >> 12)));
+        result.push_back(static_cast<char>(0x80 | ((codepoint >> 6) & 0x3f)));
+        result.push_back(static_cast<char>(0x80 | (codepoint & 0x3f)));
+    } else {
+        result.push_back(static_cast<char>(0xf0 | (codepoint >> 18)));
+        result.push_back(static_cast<char>(0x80 | ((codepoint >> 12) & 0x3f)));
+        result.push_back(static_cast<char>(0x80 | ((codepoint >> 6) & 0x3f)));
+        result.push_back(static_cast<char>(0x80 | (codepoint & 0x3f)));
+    }
+}
+
+std::string fromJava(JNIEnv *env, jstring value)
+{
+    if (!value) return {};
+    jsize length = env->GetStringLength(value);
+    const jchar *characters = env->GetStringChars(value, nullptr);
+    if (!characters) return {};
+    std::string result;
+    for (jsize index = 0; index < length; index++) {
+        uint32_t codepoint = characters[index];
+        if (codepoint >= 0xd800 && codepoint <= 0xdbff && index + 1 < length && characters[index + 1] >= 0xdc00 &&
+            characters[index + 1] <= 0xdfff) {
+            codepoint = 0x10000 + ((codepoint - 0xd800) << 10) + (characters[++index] - 0xdc00);
+        } else if (codepoint >= 0xd800 && codepoint <= 0xdfff) {
+            codepoint = 0xfffd;
+        }
+        appendUtf8(result, codepoint);
+    }
+    env->ReleaseStringChars(value, characters);
+    return result;
+}
+
+jstring toJava(JNIEnv *env, std::string_view value)
+{
+    std::vector<jchar> characters;
+    characters.reserve(value.size());
+    for (size_t index = 0; index < value.size();) {
+        uint8_t first = static_cast<uint8_t>(value[index]);
+        uint32_t codepoint = 0xfffd;
+        size_t width = 1;
+        if (first <= 0x7f) {
+            codepoint = first;
+        } else if ((first & 0xe0) == 0xc0 && index + 1 < value.size()) {
+            uint8_t second = static_cast<uint8_t>(value[index + 1]);
+            if ((second & 0xc0) == 0x80) {
+                codepoint = ((first & 0x1f) << 6) | (second & 0x3f);
+                width = 2;
+            }
+        } else if ((first & 0xf0) == 0xe0 && index + 2 < value.size()) {
+            uint8_t second = static_cast<uint8_t>(value[index + 1]);
+            uint8_t third = static_cast<uint8_t>(value[index + 2]);
+            if ((second & 0xc0) == 0x80 && (third & 0xc0) == 0x80) {
+                codepoint = ((first & 0x0f) << 12) | ((second & 0x3f) << 6) | (third & 0x3f);
+                width = 3;
+            }
+        } else if ((first & 0xf8) == 0xf0 && index + 3 < value.size()) {
+            uint8_t second = static_cast<uint8_t>(value[index + 1]);
+            uint8_t third = static_cast<uint8_t>(value[index + 2]);
+            uint8_t fourth = static_cast<uint8_t>(value[index + 3]);
+            if ((second & 0xc0) == 0x80 && (third & 0xc0) == 0x80 && (fourth & 0xc0) == 0x80) {
+                codepoint = ((first & 0x07) << 18) | ((second & 0x3f) << 12) | ((third & 0x3f) << 6) | (fourth & 0x3f);
+                width = 4;
+            }
+        }
+        if (codepoint > 0x10ffff || (codepoint >= 0xd800 && codepoint <= 0xdfff)) codepoint = 0xfffd;
+        if (codepoint <= 0xffff) {
+            characters.push_back(static_cast<jchar>(codepoint));
+        } else {
+            codepoint -= 0x10000;
+            characters.push_back(static_cast<jchar>(0xd800 | (codepoint >> 10)));
+            characters.push_back(static_cast<jchar>(0xdc00 | (codepoint & 0x3ff)));
+        }
+        index += width;
+    }
+    static const jchar empty = 0;
+    return env->NewString(characters.empty() ? &empty : characters.data(), static_cast<jsize>(characters.size()));
+}
+
+void startNetworkRequest(uint64_t request, const nlohmann::json &options)
+{
+    bool attached = false;
+    JNIEnv *env = currentEnvironment(attached);
+    if (!env) throw std::runtime_error("could not attach the network request thread");
+    bool failed = false;
+    {
+        std::lock_guard<std::mutex> lock(gNetworkLock);
+        jstring encoded = toJava(env, options.dump());
+        if (!gBridge || !gRequest || !encoded) {
+            failed = true;
+        } else {
+            env->CallStaticVoidMethod(gBridge, gRequest, static_cast<jlong>(request), encoded);
+            failed = env->ExceptionCheck();
+        }
+        if (env->ExceptionCheck()) env->ExceptionClear();
+        if (encoded) env->DeleteLocalRef(encoded);
+    }
+    if (attached) gVM->DetachCurrentThread();
+    if (failed) throw std::runtime_error("could not start the network request");
+}
+
+void cancelNetworkRequest(uint64_t request)
+{
+    bool attached = false;
+    JNIEnv *env = currentEnvironment(attached);
+    if (!env) throw std::runtime_error("could not attach the network cancellation thread");
+    bool failed = false;
+    {
+        std::lock_guard<std::mutex> lock(gNetworkLock);
+        if (!gBridge || !gCancelRequest) {
+            failed = true;
+        } else {
+            env->CallStaticVoidMethod(gBridge, gCancelRequest, static_cast<jlong>(request));
+            failed = env->ExceptionCheck();
+        }
+        if (env->ExceptionCheck()) env->ExceptionClear();
+    }
+    if (attached) gVM->DetachCurrentThread();
+    if (failed) throw std::runtime_error("could not cancel the network request");
+}
+
 astral::reactors::FetchResult fetch(const std::string &url, const std::string &token)
 {
     astral::reactors::FetchResult result;
@@ -350,15 +627,27 @@ astral::reactors::FetchResult fetch(const std::string &url, const std::string &t
     if (!env || !gBridge || !gFetch) return result;
     jstring jurl = env->NewStringUTF(url.c_str());
     jstring jtoken = env->NewStringUTF(token.c_str());
-    auto reply = static_cast<jstring>(env->CallStaticObjectMethod(gBridge, gFetch, jurl, jtoken));
-    if (env->ExceptionCheck()) env->ExceptionClear();
+    auto reply = static_cast<jbyteArray>(env->CallStaticObjectMethod(gBridge, gFetch, jurl, jtoken));
+    if (env->ExceptionCheck()) {
+        env->ExceptionClear();
+        reply = nullptr;
+    }
     if (reply) {
-        const char *utf = env->GetStringUTFChars(reply, nullptr);
-        std::string text = utf ? utf : "";
-        if (utf) env->ReleaseStringUTFChars(reply, utf);
-        size_t newline = text.find('\n');
-        result.status = atoi(text.substr(0, newline).c_str());
-        if (newline != std::string::npos) result.body = text.substr(newline + 1);
+        jsize length = env->GetArrayLength(reply);
+        if (length >= 4) {
+            jbyte status[4]{};
+            env->GetByteArrayRegion(reply, 0, 4, status);
+            if (!env->ExceptionCheck()) {
+                result.status = ((static_cast<uint8_t>(status[0]) << 24) | (static_cast<uint8_t>(status[1]) << 16) |
+                                 (static_cast<uint8_t>(status[2]) << 8) | static_cast<uint8_t>(status[3]));
+                result.body.resize(static_cast<size_t>(length - 4));
+                if (length > 4) env->GetByteArrayRegion(reply, 4, length - 4, reinterpret_cast<jbyte *>(result.body.data()));
+            }
+            if (env->ExceptionCheck()) {
+                env->ExceptionClear();
+                result = {};
+            }
+        }
         env->DeleteLocalRef(reply);
     }
     env->DeleteLocalRef(jurl);
@@ -370,6 +659,34 @@ astral::reactors::FetchResult fetch(const std::string &url, const std::string &t
 jstring text(JNIEnv *env, const std::string &value)
 {
     return env->NewStringUTF(value.c_str());
+}
+
+void callBridge(jmethodID method)
+{
+    bool attached = false;
+    JNIEnv *env = currentEnvironment(attached);
+    if (!env) return;
+    {
+        std::lock_guard<std::mutex> lock(gNetworkLock);
+        if (gBridge && method) env->CallStaticVoidMethod(gBridge, method);
+        if (env->ExceptionCheck()) env->ExceptionClear();
+    }
+    if (attached) gVM->DetachCurrentThread();
+}
+
+void callBridge(jmethodID method, const std::string &argument)
+{
+    bool attached = false;
+    JNIEnv *env = currentEnvironment(attached);
+    if (!env) return;
+    {
+        std::lock_guard<std::mutex> lock(gNetworkLock);
+        jstring value = toJava(env, argument);
+        if (gBridge && method && value) env->CallStaticVoidMethod(gBridge, method, value);
+        if (env->ExceptionCheck()) env->ExceptionClear();
+        if (value) env->DeleteLocalRef(value);
+    }
+    if (attached) gVM->DetachCurrentThread();
 }
 
 std::string sha256(const std::string &data)
@@ -418,24 +735,36 @@ extern "C" {
 
 ASTRAL_EXPORT JNIEXPORT jint JNICALL Java_app_astral_android_Native_initialize(JNIEnv *env, jclass, jobjectArray names,
                                                                                jstring dataDirectory, jstring resourceDirectory,
-                                                                               jobjectArray languages, jstring discordVersion)
+                                                                               jobjectArray languages, jstring discordVersion,
+                                                                               jstring environment)
 {
     size_t resolved = resolveProperties(strings(env, names));
     installCategory();
     std::string data = plain(env, dataDirectory);
     std::string resources = plain(env, resourceDirectory);
     std::string state = data + "/files/astral";
+    gEnvironment = nlohmann::json::parse(plain(env, environment), nullptr, false);
+    if (!gEnvironment.is_object()) gEnvironment = nlohmann::json::object();
+    gEnvironment["astral"] = ASTRAL_VERSION;
+    gEnvironment["discord"] = plain(env, discordVersion);
+    gEnvironment["engine"] = "Phoenix";
+    gStateDirectory = state;
+    gReportsPath = state + "/reports.json";
     std::error_code error;
     std::filesystem::create_directories(state + "/plugins", error);
+    auto previousExit = astral::ExitRecord(state).take(false);
+    auto launch = astral::LaunchGuard(state).begin(previousExit);
+    gRecovering = launch.enterRecovery;
     astral::discord::setDataDirectory(data + "/files");
     gSettings = std::make_unique<astral::SettingsStore>(state + "/settings.json");
     gSignatures = std::make_unique<astral::Signatures>(ASTRAL_SIGNING_KEY, sha256);
     gPacks = std::make_unique<astral::Packs>(*gSettings, state, resources);
     gThemes = std::make_unique<astral::Themes>(*gSettings, state, resources);
+    gMarketplace = std::make_unique<astral::android::Marketplace>(*gSettings, *gThemes, *gSignatures, state, resources, fetch, applyTheme);
     applyTheme(gThemes->active());
     astral_wire_set_emoji_resolver(resolveEmoji);
     bool safeMode = gSettings->getBoolean("astral", "safe-mode", false);
-    astral::luahost::start({state + "/plugins", resources + "/plugins"}, gSettings.get(), !safeMode,
+    astral::luahost::start({state + "/plugins", resources + "/plugins"}, gSettings.get(), !safeMode && !gRecovering,
                            platform(state, resources, strings(env, languages)));
     installDecorators();
     configurePages(plain(env, discordVersion));
@@ -443,6 +772,25 @@ ASTRAL_EXPORT JNIEXPORT jint JNICALL Java_app_astral_android_Native_initialize(J
     __android_log_print(ANDROID_LOG_INFO, "astral", "astral %s resolved %zu Phoenix properties; %zu plugins", ASTRAL_VERSION, resolved,
                         astral::luahost::plugins().size());
     return (jint)resolved;
+}
+
+ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_markVisible(JNIEnv *, jclass)
+{
+    if (!gStateDirectory.empty()) astral::LaunchGuard(gStateDirectory).markShown();
+}
+
+ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_markHidden(JNIEnv *, jclass)
+{
+    if (gStateDirectory.empty()) return;
+    astral::LaunchGuard(gStateDirectory).markHidden();
+    astral::ExitRecord(gStateDirectory).markEnded();
+}
+
+ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_markReady(JNIEnv *, jclass)
+{
+    if (gStateDirectory.empty()) return;
+    astral::LaunchGuard(gStateDirectory).succeed();
+    astral::ExitRecord(gStateDirectory).clear();
 }
 
 ASTRAL_EXPORT JNIEXPORT jbyteArray JNICALL Java_app_astral_android_Native_rewrite(JNIEnv *env, jclass, jbyteArray ops, jint length)
@@ -529,11 +877,77 @@ ASTRAL_EXPORT JNIEXPORT jboolean JNICALL Java_app_astral_android_Native_pageOpen
 
 ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_attachBridge(JNIEnv *env, jclass, jclass bridge)
 {
-    if (gBridge) env->DeleteGlobalRef(gBridge);
-    gBridge = static_cast<jclass>(env->NewGlobalRef(bridge));
-    gDeliver = env->GetStaticMethodID(gBridge, "deliver", "([B)V");
-    gFetch = env->GetStaticMethodID(gBridge, "fetch", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
+    jclass reference = static_cast<jclass>(env->NewGlobalRef(bridge));
+    if (!reference) return;
+    jmethodID deliverMethod = env->GetStaticMethodID(reference, "deliver", "([B)V");
+    jmethodID fetchMethod = env->GetStaticMethodID(reference, "fetch", "(Ljava/lang/String;Ljava/lang/String;)[B");
+    jmethodID requestMethod = env->GetStaticMethodID(reference, "request", "(JLjava/lang/String;)V");
+    jmethodID cancelMethod = env->GetStaticMethodID(reference, "cancelRequest", "(J)V");
+    jmethodID exportBackupMethod = env->GetStaticMethodID(reference, "exportBackup", "()V");
+    jmethodID importBackupMethod = env->GetStaticMethodID(reference, "importBackup", "()V");
+    jmethodID openReportMethod = env->GetStaticMethodID(reference, "openReport", "(Ljava/lang/String;)V");
+    jmethodID refreshEmojiMethod = env->GetStaticMethodID(reference, "refreshEmoji", "()V");
+    if (env->ExceptionCheck() || !deliverMethod || !fetchMethod || !requestMethod || !cancelMethod || !exportBackupMethod ||
+        !importBackupMethod || !openReportMethod || !refreshEmojiMethod) {
+        env->ExceptionClear();
+        env->DeleteGlobalRef(reference);
+        return;
+    }
+    {
+        std::lock_guard<std::mutex> lock(gNetworkLock);
+        if (gBridge) env->DeleteGlobalRef(gBridge);
+        gBridge = reference;
+        gDeliver = deliverMethod;
+        gFetch = fetchMethod;
+        gRequest = requestMethod;
+        gCancelRequest = cancelMethod;
+        gExportBackup = exportBackupMethod;
+        gImportBackup = importBackupMethod;
+        gOpenReport = openReportMethod;
+        gRefreshEmoji = refreshEmojiMethod;
+    }
     astral::reactors::setFetcher(fetch);
+}
+
+ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_completeRequest(JNIEnv *env, jclass, jlong request, jint status,
+                                                                                    jboolean ok, jstring url, jstring headers, jstring body,
+                                                                                    jstring error)
+{
+    if (request <= 0) return;
+    nlohmann::json response = {{"status", std::clamp(static_cast<int>(status), 0, 999)},
+                               {"ok", ok == JNI_TRUE},
+                               {"url", fromJava(env, url)},
+                               {"body", fromJava(env, body)}};
+    try {
+        std::string encodedHeaders = fromJava(env, headers);
+        if (encodedHeaders.size() <= (512u << 10)) {
+            auto parsedHeaders = nlohmann::json::parse(encodedHeaders);
+            if (parsedHeaders.is_object()) response["headers"] = std::move(parsedHeaders);
+        }
+    } catch (...) {
+    }
+    if (error) response["error"] = fromJava(env, error);
+    astral::luahost::completeNetworkRequest(static_cast<uint64_t>(request), response);
+}
+
+ASTRAL_EXPORT JNIEXPORT jstring JNICALL Java_app_astral_android_Native_exportBackup(JNIEnv *env, jclass)
+{
+    if (!gSettings || !gThemes) return text(env, "");
+    return text(env, astral::android::exportBackup(*gSettings, ASTRAL_VERSION, astral::luahost::plugins(), gThemes->list()));
+}
+
+ASTRAL_EXPORT JNIEXPORT jstring JNICALL Java_app_astral_android_Native_applyBackup(JNIEnv *env, jclass, jstring contents)
+{
+    if (!gSettings || !gThemes || !gMarketplace) return text(env, "astral is not ready");
+    auto failure = astral::android::importBackup(plain(env, contents), *gSettings, *gThemes, *gMarketplace, applyTheme,
+                                                 [] { astral::navigator::refresh(); });
+    if (failure) return text(env, *failure);
+    gPacks->invalidate();
+    refreshImages();
+    applyTheme(gThemes->active());
+    callBridge(gRefreshEmoji);
+    astral::navigator::refresh();
+    return nullptr;
 }
 
 ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_setSessionToken(JNIEnv *env, jclass, jstring token)
@@ -546,6 +960,35 @@ ASTRAL_EXPORT JNIEXPORT jboolean JNICALL Java_app_astral_android_Native_isTeleme
     return astral::isTelemetryRequest(plain(env, host), plain(env, path));
 }
 
+ASTRAL_EXPORT JNIEXPORT jboolean JNICALL Java_app_astral_android_Native_isCurrentUser(JNIEnv *env, jclass, jstring host, jstring path)
+{
+    return astral::isCurrentUserRequest(plain(env, host), plain(env, path));
+}
+
+ASTRAL_EXPORT JNIEXPORT jboolean JNICALL Java_app_astral_android_Native_staffDevToolsEnabled(JNIEnv *, jclass)
+{
+    return gSettings && gSettings->getBoolean("astral", "staff-devtools", false);
+}
+
+ASTRAL_EXPORT JNIEXPORT jstring JNICALL Java_app_astral_android_Native_withStaffUser(JNIEnv *env, jclass, jstring body)
+{
+    if (!gSettings || !gSettings->getBoolean("astral", "staff-devtools", false)) return nullptr;
+    auto transformed = astral::withStaffUser(plain(env, body));
+    return transformed ? text(env, *transformed) : nullptr;
+}
+
+ASTRAL_EXPORT JNIEXPORT jstring JNICALL Java_app_astral_android_Native_withStaffReady(JNIEnv *env, jclass, jstring message)
+{
+    if (!gSettings || !gSettings->getBoolean("astral", "staff-devtools", false)) return nullptr;
+    auto transformed = astral::withStaffReady(plain(env, message));
+    return transformed ? text(env, *transformed) : nullptr;
+}
+
+ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_noteBlockedRequest(JNIEnv *, jclass)
+{
+    gBlockedRequests.fetch_add(1);
+}
+
 ASTRAL_EXPORT JNIEXPORT jstring JNICALL Java_app_astral_android_Native_sinkUrl(JNIEnv *env, jclass)
 {
     return text(env, astral::sink::url());
@@ -553,7 +996,16 @@ ASTRAL_EXPORT JNIEXPORT jstring JNICALL Java_app_astral_android_Native_sinkUrl(J
 
 ASTRAL_EXPORT JNIEXPORT jstring JNICALL Java_app_astral_android_Native_iconPath(JNIEnv *env, jclass, jstring name)
 {
-    return text(env, gPacks ? gPacks->iconPath(plain(env, name)) : "");
+    std::string identifier = plain(env, name);
+    std::string path = gMarketplace ? gMarketplace->pluginIconPath(identifier) : "";
+    if (path.empty() && gPacks) path = gPacks->iconPath(identifier);
+    return text(env, path);
+}
+
+ASTRAL_EXPORT JNIEXPORT jstring JNICALL Java_app_astral_android_Native_emojiURL(JNIEnv *env, jclass, jstring codepoints)
+{
+    if (!gPacks || !codepoints) return text(env, "");
+    return text(env, gPacks->emojiURL(plain(env, codepoints)));
 }
 
 ASTRAL_EXPORT JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *)

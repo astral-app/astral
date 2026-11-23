@@ -414,6 +414,10 @@ function astral.storage.remove(key) end
 ---@return string[]
 function astral.storage.keys() end
 
+astral.net = {}
+function astral.net.request(options, callback) end
+function astral.net.cancel(request) end
+
 ---@param name string
 ---@return any
 function require(name) end

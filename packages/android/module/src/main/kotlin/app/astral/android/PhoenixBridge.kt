@@ -1,10 +1,19 @@
 package app.astral.android
 
+import android.app.Activity
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.os.Handler
 import android.os.HandlerThread
+import android.os.Looper
+import android.widget.Toast
 import io.github.libxposed.api.XposedInterface.ExceptionMode
 import io.github.libxposed.api.XposedModule
 import java.lang.reflect.Method
+import java.lang.ref.WeakReference
 
 object PhoenixBridge {
     private const val GUEST_HOST = "com.discord.nativeapp.bridge.GuestHost"
@@ -14,6 +23,10 @@ object PhoenixBridge {
     private const val NODE_OFFSET = 2
     private const val EVENT_OFFSET = 6
     private const val FUNCTION0 = "kotlin.jvm.functions.Function0"
+    private const val MAIN_ACTIVITY = "com.discord.nativeapp.MainActivity"
+    private const val EXPORT_BACKUP_REQUEST = 0xA571
+    private const val IMPORT_BACKUP_REQUEST = 0xA572
+    private const val MAXIMUM_BACKUP_BYTES = 1 shl 20
 
     @Volatile var pressEvent = -1
     @Volatile var changeEvent = -1
@@ -22,6 +35,9 @@ object PhoenixBridge {
     private val delivering = ThreadLocal.withInitial { false }
     private val worker = HandlerThread("astral-wire").apply { start() }
     private val handler = Handler(worker.looper)
+    private val mainHandler = Handler(Looper.getMainLooper())
+    @Volatile private var currentActivity: WeakReference<Activity>? = null
+    @Volatile private var pendingExport: String? = null
 
     fun install(module: XposedModule, loader: ClassLoader) {
         val type = loader.loadClass(GUEST_HOST)
@@ -42,7 +58,7 @@ object PhoenixBridge {
                 if (rewritten == null) chain.proceed() else chain.proceed(arrayOf<Any>(rewritten, rewritten.size))
             }
         hookEvents(module, type, loader)
-        Native.attachBridge(PhoenixBridge::class.java)
+        installBackupActions(module, loader)
         handler.postDelayed(::retry, RETRY_INTERVAL_MS)
         Log.info("Hooked GuestHost.applyOps")
     }
@@ -77,8 +93,153 @@ object PhoenixBridge {
         }
     }
 
+    private fun installBackupActions(module: XposedModule, loader: ClassLoader) {
+        val mainActivity = loader.loadClass(MAIN_ACTIVITY)
+        val onResume = activityMethod(mainActivity, "onResume", emptyArray())
+        if (onResume != null) {
+            module.hook(onResume)
+                .setExceptionMode(ExceptionMode.PROTECTIVE)
+                .intercept { chain ->
+                    val result = chain.proceed()
+                    val activity = chain.thisObject as? Activity
+                    if (activity != null && activity.javaClass.name == MAIN_ACTIVITY) {
+                        currentActivity = WeakReference(activity)
+                    }
+                    result
+                }
+        }
+        val resultMethod = activityMethod(
+            mainActivity,
+            "onActivityResult",
+            arrayOf(Int::class.javaPrimitiveType!!, Int::class.javaPrimitiveType!!, Intent::class.java),
+        ) ?: return Log.warning("Phoenix activity has no document result callback; backups stay unavailable")
+        module.hook(resultMethod)
+            .setExceptionMode(ExceptionMode.PROTECTIVE)
+            .intercept { chain ->
+                val request = chain.getArg(0) as? Int ?: return@intercept chain.proceed()
+                if (request != EXPORT_BACKUP_REQUEST && request != IMPORT_BACKUP_REQUEST) return@intercept chain.proceed()
+                val resultValue = chain.proceed()
+                val activity = chain.thisObject as? Activity ?: return@intercept resultValue
+                val result = chain.getArg(1) as? Int ?: Activity.RESULT_CANCELED
+                val data = chain.getArg(2) as? Intent
+                if (result == Activity.RESULT_OK) {
+                    val uri = data?.data
+                    if (uri == null) {
+                        showBackupStatus(activity, "No document was selected")
+                    } else if (request == EXPORT_BACKUP_REQUEST) {
+                        saveBackup(activity, uri)
+                    } else {
+                        loadBackup(activity, uri)
+                    }
+                }
+                if (request == EXPORT_BACKUP_REQUEST) pendingExport = null
+                resultValue
+            }
+        Log.info("Hooked Phoenix document picker results")
+    }
+
+    private fun activityMethod(type: Class<*>, name: String, parameters: Array<Class<*>>): Method? {
+        var current: Class<*>? = type
+        while (current != null) {
+            val method = runCatching { current.getDeclaredMethod(name, *parameters) }.getOrNull()
+            if (method != null) return method.apply { isAccessible = true }
+            current = current.superclass
+        }
+        return null
+    }
+
+    private fun activeActivity(): Activity? = currentActivity?.get()
+
+    private fun startDocumentPicker(intent: Intent, request: Int) {
+        mainHandler.post {
+            val activity = activeActivity()
+            if (activity == null) {
+                Log.warning("Phoenix is not visible; the document picker could not open")
+                return@post
+            }
+            runCatching { activity.startActivityForResult(intent, request) }
+                .onFailure {
+                    if (request == EXPORT_BACKUP_REQUEST) pendingExport = null
+                    showBackupStatus(activity, "Could not open the document picker")
+                }
+        }
+    }
+
+    private fun saveBackup(activity: Activity, uri: Uri) {
+        val contents = pendingExport ?: runCatching { Native.exportBackup() }.getOrNull()
+        if (contents.isNullOrEmpty()) return showBackupStatus(activity, "Could not create the backup")
+        runCatching {
+            activity.contentResolver.openOutputStream(uri)?.bufferedWriter(Charsets.UTF_8)?.use { it.write(contents) }
+                ?: throw IllegalStateException("The selected document could not be opened")
+        }.onSuccess { showBackupStatus(activity, "Backup exported") }
+            .onFailure { showBackupStatus(activity, "Could not write the backup") }
+    }
+
+    private fun loadBackup(activity: Activity, uri: Uri) {
+        runCatching {
+            val bytes = activity.contentResolver.openInputStream(uri)?.use { input -> input.readNBytes(MAXIMUM_BACKUP_BYTES + 1) }
+                ?: throw IllegalStateException("The selected document could not be opened")
+            if (bytes.size > MAXIMUM_BACKUP_BYTES) throw IllegalArgumentException("Backup exceeds 1 MiB")
+            val failure = Native.applyBackup(bytes.toString(Charsets.UTF_8))
+            if (failure != null) throw IllegalArgumentException(failure)
+        }.onSuccess { showBackupStatus(activity, "Settings imported") }
+            .onFailure { error -> showBackupStatus(activity, error.message ?: "Could not import the backup") }
+    }
+
+    private fun showBackupStatus(activity: Activity, message: String) {
+        mainHandler.post { Toast.makeText(activity, message, Toast.LENGTH_LONG).show() }
+    }
+
     @JvmStatic
-    fun fetch(url: String, token: String): String = Http.get(url, token)
+    fun exportBackup() {
+        mainHandler.post {
+            val activity = activeActivity()
+            if (activity == null) return@post
+            val contents = runCatching { Native.exportBackup() }.getOrNull()
+            if (contents.isNullOrEmpty()) return@post showBackupStatus(activity, "Could not create the backup")
+            pendingExport = contents
+            val intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
+                .addCategory(Intent.CATEGORY_OPENABLE)
+                .setType("application/toml")
+                .putExtra(Intent.EXTRA_TITLE, "astral-backup.toml")
+            runCatching { activity.startActivityForResult(intent, EXPORT_BACKUP_REQUEST) }
+                .onFailure {
+                    pendingExport = null
+                    showBackupStatus(activity, "Could not open the document picker")
+                }
+        }
+    }
+
+    @JvmStatic
+    fun importBackup() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
+            .addCategory(Intent.CATEGORY_OPENABLE)
+            .setType("*/*")
+            .putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/toml", "text/plain"))
+        startDocumentPicker(intent, IMPORT_BACKUP_REQUEST)
+    }
+
+    @JvmStatic
+    fun openReport(report: String) {
+        mainHandler.post {
+            val activity = activeActivity() ?: return@post
+            val clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return@post
+            clipboard.setPrimaryClip(ClipData.newPlainText("astral report", report))
+            Toast.makeText(activity, "Plugin report copied", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    @JvmStatic
+    fun refreshEmoji() = EmojiComposer.refresh()
+
+    @JvmStatic
+    fun fetch(url: String, token: String): ByteArray = Http.get(url, token)
+
+    @JvmStatic
+    fun request(id: Long, options: String) = Http.request(id, options)
+
+    @JvmStatic
+    fun cancelRequest(id: Long) = Http.cancel(id)
 
     @JvmStatic
     fun deliver(ops: ByteArray) {

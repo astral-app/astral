@@ -1,8 +1,11 @@
 package app.astral.android
 
 import android.app.Application
+import android.os.Build
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface.PackageReadyParam
+import org.json.JSONObject
+import java.util.Locale
 
 class Astral : XposedModule() {
     companion object {
@@ -51,12 +54,20 @@ class Astral : XposedModule() {
         if (names == null) Log.warning("Phoenix's property table was not found; astral uses its built-in property ids")
         val resources = Resources.extract(moduleApplicationInfo, param.applicationInfo)
         val languages = android.os.LocaleList.getDefault().let { list -> Array(list.size()) { list[it].toLanguageTag() } }
-        Native.initialize(names, param.applicationInfo.dataDir, resources.absolutePath, languages, discordVersion())
+        val environment = JSONObject()
+            .put("device", "${Build.MANUFACTURER} ${Build.MODEL}".trim())
+            .put("system", "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
+            .put("abi", Build.SUPPORTED_ABIS.firstOrNull().orEmpty())
+            .put("locale", Locale.getDefault().toLanguageTag())
+            .toString()
+        Native.attachBridge(PhoenixBridge::class.java)
+        Native.initialize(names, param.applicationInfo.dataDir, resources.absolutePath, languages, discordVersion(), environment)
         runCatching { ResourceImages.install(this, param.applicationInfo, resources) }.onFailure { Log.error("Failed to install astral's images", it) }
         PhoenixBridge.pressEvent = names?.indexOf("press") ?: -1
         PhoenixBridge.changeEvent = names?.indexOf("change") ?: -1
         Capture.configure(param.applicationInfo.dataDir)
         PhoenixBridge.install(this, param.classLoader)
+        runCatching { EmojiComposer.install(this, param.classLoader) }.onFailure { Log.error("Failed to install emoji composer support", it) }
         runCatching { NavigationBack.install(this, param.classLoader) }.onFailure { Log.error("Failed to route system back", it) }
         runCatching { CutoutOverlay.install(this, resources) }.onFailure { Log.error("Failed to install the display cutout overlay", it) }
         runCatching { NetworkHooks.install(this, param.classLoader) }.onFailure { Log.error("Failed to hook Discord's network stack", it) }

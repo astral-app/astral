@@ -41,12 +41,14 @@ object ResourceImages {
             val raw = chain.getArg(0) as? String
             val kind = chain.getArg(1) as? String
             val name = raw?.substringBefore('#') ?: ""
-            if (kind != "drawable" || chain.getArg(2) != app.packageName || !(name.startsWith("ic_") || ownAsset(name) != null)) return@intercept chain.proceed()
+            val pluginIcon = if (name.startsWith("astral_plugin_")) Native.iconPath(name) else ""
+            if (kind != "drawable" || chain.getArg(2) != app.packageName ||
+                !(name.startsWith("ic_") || ownAsset(name) != null || pluginIcon.isNotEmpty())) return@intercept chain.proceed()
             val resource = chain.thisObject as Resources
             val arguments = chain.args.toTypedArray().apply { this[0] = name }
             var original = chain.proceed(arguments) as Int
             if (original == 0) aliases[name]?.let { original = resource.getIdentifier(it, kind, chain.getArg(2) as? String) }
-            if (original == 0 && ownAsset(name) == null && Native.iconPath(name).isEmpty()) return@intercept 0
+            if (original == 0 && ownAsset(name) == null && pluginIcon.isEmpty() && Native.iconPath(name).isEmpty()) return@intercept 0
             val fallback = original
             identifiers.computeIfAbsent(name) {
                 val identifier = nextID.incrementAndGet()
@@ -72,18 +74,23 @@ object ResourceImages {
 
     private fun drawable(resources: Resources, name: String): Drawable? = runCatching {
         ownAsset(name)?.let { file ->
-            val svg = file.inputStream().buffered().use { SVG.getFromInputStream(it) }
-            val size = (24 * resources.displayMetrics.density).toInt().coerceAtLeast(1)
-            val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-            Canvas(bitmap).drawPicture(svg.renderToPicture(size, size))
-            bitmap.density = resources.displayMetrics.densityDpi
-            return@runCatching BitmapDrawable(resources, bitmap)
+            return@runCatching svgDrawable(resources, file)
         }
         val path = Native.iconPath(name)
         if (path.isEmpty()) return@runCatching null
+        if (path.endsWith(".svg")) return@runCatching svgDrawable(resources, File(path))
         val bitmap = BitmapFactory.decodeFile(path) ?: return@runCatching null
         val scale = if (path.endsWith("@3x.png")) 3 else if (path.endsWith("@2x.png")) 2 else 1
         bitmap.density = scale * 160
         BitmapDrawable(resources, bitmap)
     }.getOrNull()
+
+    private fun svgDrawable(resources: Resources, file: File): Drawable {
+        val svg = file.inputStream().buffered().use { SVG.getFromInputStream(it) }
+        val size = (24 * resources.displayMetrics.density).toInt().coerceAtLeast(1)
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        Canvas(bitmap).drawPicture(svg.renderToPicture(size, size))
+        bitmap.density = resources.displayMetrics.densityDpi
+        return BitmapDrawable(resources, bitmap)
+    }
 }

@@ -220,6 +220,7 @@ std::pair<std::string, std::string> permissionDescription(const std::string &per
         {"discord.messages", {"Reads messages in the cache", "res://ic_mana_chat"}},
         {"discord.users", {"Reads user profiles", "res://ic_mana_user"}},
         {"discord.relationships", {"Reads friend nicknames", "res://ic_mana_friends"}},
+        {"network", {"Makes HTTPS requests", "res://ic_mana_link"}},
         {"storage", {"Keeps its own data on this device", "res://ic_mana_download"}},
     };
     auto found = known.find(permission);

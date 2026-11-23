@@ -7,6 +7,7 @@ object Native {
         resourceDirectory: String,
         languages: Array<String>,
         discordVersion: String,
+        environment: String,
     ): Int
 
     @JvmStatic external fun rewrite(ops: ByteArray, length: Int): ByteArray?
@@ -26,11 +27,43 @@ object Native {
 
     @JvmStatic external fun attachBridge(bridge: Class<*>)
 
+    @JvmStatic external fun completeRequest(
+        id: Long,
+        status: Int,
+        ok: Boolean,
+        url: String,
+        headers: String,
+        body: String,
+        error: String?,
+    )
+
     @JvmStatic external fun setSessionToken(token: String)
 
     @JvmStatic external fun isTelemetry(host: String, path: String): Boolean
 
+    @JvmStatic external fun isCurrentUser(host: String, path: String): Boolean
+
+    @JvmStatic external fun staffDevToolsEnabled(): Boolean
+
+    @JvmStatic external fun withStaffUser(body: String): String?
+
+    @JvmStatic external fun withStaffReady(message: String): String?
+
+    @JvmStatic external fun noteBlockedRequest()
+
     @JvmStatic external fun sinkUrl(): String
 
     @JvmStatic external fun iconPath(name: String): String
+
+    @JvmStatic external fun emojiURL(codepoints: String): String?
+
+    @JvmStatic external fun markVisible()
+
+    @JvmStatic external fun markHidden()
+
+    @JvmStatic external fun markReady()
+
+    @JvmStatic external fun exportBackup(): String
+
+    @JvmStatic external fun applyBackup(contents: String): String?
 }

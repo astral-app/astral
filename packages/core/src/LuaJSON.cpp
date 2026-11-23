@@ -31,11 +31,13 @@ bool toJSON(lua_State *state, int index, nlohmann::json &out, int depth)
         if (depth > kMaximumTableDepth) return false;
         lua_Integer length = (lua_Integer)lua_rawlen(state, index);
         bool array = length > 0;
-        lua_pushnil(state);
-        while (array && lua_next(state, index)) {
-            if (!lua_isinteger(state, -2) || lua_tointeger(state, -2) < 1 || lua_tointeger(state, -2) > length) array = false;
-            lua_pop(state, 1);
-            if (!array) lua_pop(state, 1);
+        if (array) {
+            lua_pushnil(state);
+            while (lua_next(state, index)) {
+                if (!lua_isinteger(state, -2) || lua_tointeger(state, -2) < 1 || lua_tointeger(state, -2) > length) array = false;
+                lua_pop(state, 1);
+                if (!array) lua_pop(state, 1);
+            }
         }
         if (array) {
             out = nlohmann::json::array();
@@ -56,12 +58,19 @@ bool toJSON(lua_State *state, int index, nlohmann::json &out, int depth)
                 lua_pop(state, 2);
                 return false;
             }
+            size_t keyLength = 0;
+            const char *keyText = lua_tolstring(state, -2, &keyLength);
+            if (!keyText) {
+                lua_pop(state, 2);
+                return false;
+            }
+            std::string key(keyText, keyLength);
             nlohmann::json item;
             if (!toJSON(state, -1, item, depth + 1)) {
                 lua_pop(state, 2);
                 return false;
             }
-            out[lua_tostring(state, -2)] = item;
+            out[key] = item;
             lua_pop(state, 1);
         }
         return true;

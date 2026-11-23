@@ -183,7 +183,15 @@ static void testTelemetryRequests()
 {
     assert(astral::isTelemetryRequest("discord.com", "/api/v9/science"));
     assert(astral::isTelemetryRequest("discord.com", "/api/v10/metrics/v2?x=1"));
+    assert(astral::isTelemetryRequest("DISCORD.com", "/API/v9/Science"));
+    assert(astral::isTelemetryRequest("discord.com", "/error-reporting-proxy/ios/1/envelope/"));
     assert(astral::isTelemetryRequest("o64374.ingest.sentry.io", "/api/230973/envelope/"));
+    assert(astral::isTelemetryRequest("launches.appsflyersdk.com", "/api/v6.15/iosevent"));
+    assert(astral::isTelemetryRequest("img.litix.io", "/a.gif?x=1"));
+    assert(astral::isTelemetryRequest("siteintercept.qualtrics.com", "/WRSiteInterceptEngine/"));
+    assert(astral::isTelemetryRequest("measurement.app-measurement.com", "/a"));
+    assert(astral::isTelemetryRequest("www.google-analytics.com", "/collect"));
+    assert(astral::isTelemetryRequest("firebase.crashlytics.com", "/api/v1/"));
     assert(!astral::isTelemetryRequest("discord.com", "/api/v9/users/@me"));
     assert(!astral::isTelemetryRequest("discord.com", "/api/v9/channels/1/messages"));
     assert(!astral::isTelemetryRequest("example.com", "/api/v9/science"));
@@ -427,6 +435,71 @@ static void testSliderSettingsAndNavigation(const std::string &work)
     astral::pages::configure({});
 }
 
+static void testNetworkRequests(const std::string &work)
+{
+    auto root = std::filesystem::path(work) / "network-host";
+    auto plugin = root / "plugins" / "network";
+    auto restricted = root / "plugins" / "restricted";
+    std::filesystem::create_directories(plugin);
+    std::filesystem::create_directories(restricted);
+    writeText(
+        plugin / "manifest.toml",
+        "id = 'astral.network-test'\nname = 'Network test'\nversion = '1.0'\nmain = 'main.lua'\npermissions = ['network', 'storage']\n");
+    writeText(plugin / "main.lua",
+              "local request = astral.net.request({ url = 'https://example.com/api', method = 'patch', timeout_ms = 30000, headers = { "
+              "accept = 'application/json' }, body = 'request body' }, function(response) astral.storage.set('response', response) end)\n"
+              "astral.storage.set('initial', request)\n");
+    writeText(restricted / "manifest.toml",
+              "id = 'astral.network-restricted'\nname = 'Restricted'\nversion = '1.0'\nmain = 'main.lua'\npermissions = ['storage']\n");
+    writeText(restricted / "main.lua", "return true");
+    astral::SettingsStore settings((root / "settings.json").string());
+    settings.set("astral", "developer-mode", true);
+    uint64_t submitted = 0;
+    nlohmann::json options;
+    std::vector<uint64_t> cancelled;
+    astral::LuaHostPlatform platform;
+    platform.networkRequest = [&](uint64_t request, const nlohmann::json &requestOptions) {
+        submitted = request;
+        options = requestOptions;
+    };
+    platform.cancelNetworkRequest = [&](uint64_t request) { cancelled.push_back(request); };
+    astral::luahost::start({(root / "plugins").string()}, &settings, true, std::move(platform));
+    assert(submitted > 0);
+    assert(options["method"] == "PATCH" && options["timeout_ms"] == 30000);
+    assert(options["body"] == "request body" && options["headers"]["accept"] == "application/json");
+    assert(astral::luahost::eval("astral.network-test", "return astral.storage.get('initial')") == std::to_string(submitted));
+    astral::luahost::completeNetworkRequest(submitted, {{"status", 201},
+                                                        {"ok", true},
+                                                        {"url", "https://example.com/api"},
+                                                        {"headers", {{"content-type", "application/json"}}},
+                                                        {"body", "complete"}});
+    assert(astral::luahost::eval("astral.network-test", "return astral.storage.get('response').body") == "complete");
+    uint64_t cancelledRequest =
+        std::stoull(astral::luahost::eval("astral.network-test", "return astral.net.request({ url = 'https://example.com/cancel' }, "
+                                                                 "function() astral.storage.set('cancelled_callback', true) end)"));
+    assert(astral::luahost::eval("astral.network-test", "return astral.net.cancel(" + std::to_string(cancelledRequest) + ")") == "true");
+    assert(!cancelled.empty() && cancelled.back() == cancelledRequest);
+    astral::luahost::completeNetworkRequest(cancelledRequest, {{"status", 200}, {"ok", true}, {"body", "ignored"}});
+    assert(astral::luahost::eval("astral.network-test", "return astral.storage.get('cancelled_callback') == nil") == "true");
+    size_t beforeInvalid = submitted;
+    assert(astral::luahost::eval(
+               "astral.network-test",
+               "local ok = pcall(function() astral.net.request({ url = 'http://example.com' }, function() end) end); return ok") ==
+           "false");
+    assert(submitted == beforeInvalid);
+    assert(astral::luahost::eval(
+               "astral.network-restricted",
+               "local ok = pcall(function() astral.net.request({ url = 'https://example.com' }, function() end) end); return ok") ==
+           "false");
+    assert(submitted == beforeInvalid);
+    uint64_t stoppedRequest = std::stoull(astral::luahost::eval(
+        "astral.network-test",
+        "return astral.net.request({ url = 'https://example.com/stop' }, function() astral.storage.set('stopped_callback', true) end)"));
+    astral::luahost::stop();
+    assert(cancelled.back() == stoppedRequest);
+    astral::luahost::completeNetworkRequest(stoppedRequest, {{"status", 200}, {"ok", true}, {"body", "ignored"}});
+}
+
 int main(int argc, char **argv)
 {
     assert(argc == 3);
@@ -451,6 +524,7 @@ int main(int argc, char **argv)
     testCutoutGeometry();
     testSingletonPageCollections();
     testSharedSignatures(argv[1], argv[2]);
+    testNetworkRequests(argv[1]);
     testSliderSettingsAndNavigation(argv[1]);
     puts("ok");
     return 0;

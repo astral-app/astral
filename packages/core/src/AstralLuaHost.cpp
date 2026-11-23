@@ -1,7 +1,9 @@
 #include "AstralLuaHost.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
+#include <cctype>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
@@ -11,6 +13,7 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "AstralLog.h"
@@ -73,6 +76,7 @@ struct LuaPlugin : astral::PluginPackage, astral::PluginHealth {
     std::vector<int> nameColorizers;
     std::vector<int> typingDecorators;
     std::vector<int> reactionDecorators;
+    std::map<uint64_t, int> networkRequests;
 };
 
 static int Translate(lua_State *state);
@@ -83,6 +87,7 @@ static astral::SettingsStore *gStore;
 static std::vector<std::string> gDirectories;
 static bool gStartEnabled;
 static astral::LuaHostPlatform gPlatform;
+static std::atomic<uint64_t> gNextNetworkRequest{1};
 
 static void DeveloperLog(const std::string &line)
 {
@@ -617,6 +622,140 @@ static int Permissions(lua_State *state)
     return 1;
 }
 
+static bool SafeHeaderName(const std::string &name)
+{
+    if (name.empty() || name.size() > 128) return false;
+    constexpr std::string_view punctuation = "!#$%&'*+-.^_`|~";
+    for (unsigned char character : name) {
+        bool letter = (character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z');
+        bool digit = character >= '0' && character <= '9';
+        if (!letter && !digit && punctuation.find((char)character) == std::string_view::npos) return false;
+    }
+    return true;
+}
+
+static bool ContainsControl(const std::string &value)
+{
+    return std::any_of(value.begin(), value.end(), [](unsigned char character) { return character <= 0x20 || character == 0x7f; });
+}
+
+static bool SafeHeaderValue(const std::string &value)
+{
+    return value.size() <= 8192 &&
+           std::none_of(value.begin(), value.end(), [](unsigned char character) { return character < 0x20 || character == 0x7f; });
+}
+
+static bool ValidUTF8(const std::string &value)
+{
+    try {
+        (void)nlohmann::json(value).dump();
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+static int NetworkRequest(lua_State *state)
+{
+    LuaPlugin *plugin = Self(state);
+    RequirePermission(state, "network");
+    if (!gPlatform.networkRequest) return luaL_error(state, "astral.net is unavailable on this client");
+    luaL_checktype(state, 1, LUA_TTABLE);
+    luaL_checktype(state, 2, LUA_TFUNCTION);
+    nlohmann::json options;
+    if (!astral::lua::toJSON(state, 1, options) || !options.is_object())
+        return luaL_error(state, "astral.net.request: options must be an object");
+    if (!options.contains("url") || !options["url"].is_string()) return luaL_error(state, "astral.net.request: url is required");
+    std::string url = options["url"].get<std::string>();
+    size_t authorityEnd = url.find_first_of("/?#", 8);
+    std::string authority = authorityEnd == std::string::npos ? url.substr(8) : url.substr(8, authorityEnd - 8);
+    if (url.size() > 4096 || url.rfind("https://", 0) != 0 || authority.empty() || authority.find('@') != std::string::npos ||
+        url.find('\\') != std::string::npos || ContainsControl(url) || !ValidUTF8(url))
+        return luaL_error(state, "astral.net.request: url must be an https URL without credentials");
+    if (options.contains("method") && !options["method"].is_string())
+        return luaL_error(state, "astral.net.request: method must be a string");
+    std::string method = options.contains("method") ? options["method"].get<std::string>() : "GET";
+    std::transform(method.begin(), method.end(), method.begin(), [](unsigned char character) { return (char)std::toupper(character); });
+    static const std::set<std::string> methods{"DELETE", "GET", "HEAD", "PATCH", "POST", "PUT"};
+    if (!methods.count(method)) return luaL_error(state, "astral.net.request: unsupported method");
+    options["method"] = method;
+    if (options.contains("headers")) {
+        if (!options["headers"].is_object() || options["headers"].size() > 32)
+            return luaL_error(state, "astral.net.request: headers must be an object with at most 32 entries");
+        for (auto entry = options["headers"].begin(); entry != options["headers"].end(); ++entry) {
+            if (!SafeHeaderName(entry.key()) || !entry.value().is_string()) return luaL_error(state, "astral.net.request: invalid header");
+            const auto &value = entry.value().get_ref<const std::string &>();
+            if (!SafeHeaderValue(value) || !ValidUTF8(value)) return luaL_error(state, "astral.net.request: invalid header value");
+        }
+    } else {
+        options["headers"] = nlohmann::json::object();
+    }
+    if (options.contains("body")) {
+        if (!options["body"].is_string() || options["body"].get_ref<const std::string &>().size() > (256u << 10) ||
+            !ValidUTF8(options["body"].get_ref<const std::string &>()))
+            return luaL_error(state, "astral.net.request: body must be a string no larger than 256 KiB");
+        if (method == "GET" || method == "HEAD") return luaL_error(state, "astral.net.request: GET and HEAD requests cannot have a body");
+    }
+    int timeout = 15000;
+    if (options.contains("timeout_ms")) {
+        if (!options["timeout_ms"].is_number_integer()) return luaL_error(state, "astral.net.request: timeout_ms must be an integer");
+        const auto &value = options["timeout_ms"];
+        if (value.is_number_unsigned()) {
+            uint64_t timeoutValue = value.get<uint64_t>();
+            if (timeoutValue < 1000 || timeoutValue > 30000)
+                return luaL_error(state, "astral.net.request: timeout_ms must be between 1000 and 30000");
+            timeout = static_cast<int>(timeoutValue);
+        } else {
+            int64_t timeoutValue = value.get<int64_t>();
+            if (timeoutValue < 1000 || timeoutValue > 30000)
+                return luaL_error(state, "astral.net.request: timeout_ms must be between 1000 and 30000");
+            timeout = static_cast<int>(timeoutValue);
+        }
+    }
+    if (timeout < 1000 || timeout > 30000) return luaL_error(state, "astral.net.request: timeout_ms must be between 1000 and 30000");
+    options["timeout_ms"] = timeout;
+    uint64_t request = gNextNetworkRequest.fetch_add(1);
+    if (request == 0) request = gNextNetworkRequest.fetch_add(1);
+    lua_pushvalue(state, 2);
+    plugin->networkRequests[request] = luaL_ref(state, LUA_REGISTRYINDEX);
+    try {
+        gPlatform.networkRequest(request, options);
+    } catch (...) {
+        luaL_unref(state, LUA_REGISTRYINDEX, plugin->networkRequests[request]);
+        plugin->networkRequests.erase(request);
+        return luaL_error(state, "astral.net.request: could not start the request");
+    }
+    lua_pushinteger(state, (lua_Integer)request);
+    return 1;
+}
+
+static int CancelNetworkRequest(lua_State *state)
+{
+    LuaPlugin *plugin = Self(state);
+    RequirePermission(state, "network");
+    lua_Integer value = luaL_checkinteger(state, 1);
+    if (value <= 0) {
+        lua_pushboolean(state, false);
+        return 1;
+    }
+    uint64_t request = (uint64_t)value;
+    auto found = plugin->networkRequests.find(request);
+    if (found == plugin->networkRequests.end()) {
+        lua_pushboolean(state, false);
+        return 1;
+    }
+    luaL_unref(state, LUA_REGISTRYINDEX, found->second);
+    plugin->networkRequests.erase(found);
+    if (gPlatform.cancelNetworkRequest) {
+        try {
+            gPlatform.cancelNetworkRequest(request);
+        } catch (...) {
+        }
+    }
+    lua_pushboolean(state, true);
+    return 1;
+}
+
 static void Function(lua_State *state, LuaPlugin *plugin, const char *name, lua_CFunction function)
 {
     lua_pushlightuserdata(state, plugin);
@@ -666,6 +805,11 @@ static void InstallAPI(LuaPlugin *plugin)
     lua_setfield(state, -2, "ui");
 
     lua_newtable(state);
+    Function(state, plugin, "request", NetworkRequest);
+    Function(state, plugin, "cancel", CancelNetworkRequest);
+    lua_setfield(state, -2, "net");
+
+    lua_newtable(state);
     Function(state, plugin, "get", StorageGet);
     Function(state, plugin, "set", StorageSet);
     Function(state, plugin, "remove", StorageRemove);
@@ -713,6 +857,17 @@ static bool RunPrelude(LuaPlugin *plugin)
 
 static void Stop(LuaPlugin *plugin)
 {
+    auto requests = std::move(plugin->networkRequests);
+    plugin->networkRequests.clear();
+    for (const auto &[request, reference] : requests) {
+        if (gPlatform.cancelNetworkRequest) {
+            try {
+                gPlatform.cancelNetworkRequest(request);
+            } catch (...) {
+            }
+        }
+        if (plugin->state) luaL_unref(plugin->state, LUA_REGISTRYINDEX, reference);
+    }
     plugin->sandbox.reset();
     plugin->state = nullptr;
     plugin->switches.clear();
@@ -953,6 +1108,59 @@ void resetSettings(const std::string &pluginID)
     for (auto &entry : plugin->switches) gStore->remove("plugins", SettingKey(plugin, entry.key));
     gStore->save();
     if (plugin->state) Start(plugin);
+}
+
+void completeNetworkRequest(uint64_t request, const nlohmann::json &result)
+{
+    std::lock_guard<std::recursive_mutex> lock(gMutex);
+    for (auto *plugin : gPlugins) {
+        auto found = plugin->networkRequests.find(request);
+        if (found == plugin->networkRequests.end()) continue;
+        int reference = found->second;
+        plugin->networkRequests.erase(found);
+        if (!plugin->state || plugin->failed) return;
+        nlohmann::json response = nlohmann::json::object();
+        int status = 0;
+        if (result.is_object() && result.contains("status") && result["status"].is_number_unsigned())
+            status = static_cast<int>(std::min<uint64_t>(result["status"].get<uint64_t>(), 999));
+        else if (result.is_object() && result.contains("status") && result["status"].is_number_integer())
+            status = static_cast<int>(std::clamp<int64_t>(result["status"].get<int64_t>(), 0, 999));
+        response["status"] = status;
+        response["ok"] = result.is_object() && result.contains("ok") && result["ok"].is_boolean() && result["ok"].get<bool>();
+        response["url"] = result.is_object() && result.contains("url") && result["url"].is_string()
+                              ? result["url"].get<std::string>().substr(0, 4096)
+                              : "";
+        response["body"] = result.is_object() && result.contains("body") && result["body"].is_string()
+                               ? result["body"].get<std::string>().substr(0, (1u << 20) + 1)
+                               : "";
+        nlohmann::json headers = nlohmann::json::object();
+        if (result.is_object() && result.contains("headers") && result["headers"].is_object()) {
+            size_t count = 0;
+            for (auto entry = result["headers"].begin(); entry != result["headers"].end() && count < 64; ++entry) {
+                if (SafeHeaderName(entry.key()) && entry.value().is_string() && SafeHeaderValue(entry.value().get<std::string>())) {
+                    headers[entry.key()] = entry.value().get<std::string>().substr(0, 8192);
+                    count++;
+                }
+            }
+        }
+        response["headers"] = std::move(headers);
+        if (result.is_object() && result.contains("error") && result["error"].is_string())
+            response["error"] = result["error"].get<std::string>().substr(0, 512);
+        if (response["body"].get_ref<const std::string &>().size() > (1u << 20)) {
+            response["body"] = "";
+            response["ok"] = false;
+            response["error"] = "response body exceeds 1 MiB";
+        }
+        lua_State *state = plugin->state;
+        lua_rawgeti(state, LUA_REGISTRYINDEX, reference);
+        luaL_unref(state, LUA_REGISTRYINDEX, reference);
+        astral::lua::pushJSON(state, response);
+        if (!Call(plugin, 1, 0, "network callback")) {
+            MarkFailed(plugin);
+            Stop(plugin);
+        }
+        return;
+    }
 }
 
 std::string eval(const std::string &pluginID, const std::string &source)
