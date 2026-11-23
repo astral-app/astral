@@ -239,13 +239,16 @@ static void Receive(id self, SEL selector, MessageHandler handler)
         return;
     }
     gOriginalReceive(self, selector, ^(NSURLSessionWebSocketMessage *message, NSError *error) {
+        NSURLSessionWebSocketMessage *forwarded = message;
         if (message.type == NSURLSessionWebSocketMessageTypeString) {
             std::string contents = Text(message.string);
-            dispatch_async(dispatch_get_main_queue(), ^{
-                astral::luahost::observeGatewayMessage(contents);
-            });
+            auto processed = astral::luahost::processGatewayMessage(contents);
+            if (processed) {
+                NSString *rewritten = [NSString stringWithUTF8String:processed->c_str()];
+                if (rewritten) forwarded = [[NSURLSessionWebSocketMessage alloc] initWithString:rewritten];
+            }
         }
-        handler(WithStaffReady(message), error);
+        handler(WithStaffReady(forwarded), error);
     });
 }
 

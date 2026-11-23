@@ -247,11 +247,6 @@ object PhoenixBridge {
         }
     }
 
-    fun observeGatewayMessage(message: String) {
-        if (message.length > (1 shl 20)) return
-        mainHandler.post { Native.observeGatewayMessage(message) }
-    }
-
     @JvmStatic
     fun triggerHaptic(strength: String) {
         mainHandler.post {

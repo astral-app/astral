@@ -731,18 +731,21 @@ static void testGatewayMessageEventsAndHaptics(const std::string &work)
     std::filesystem::create_directories(restricted);
     writeText(plugin / "manifest.toml",
               "id = 'astral.gateway-events-test'\nname = 'Gateway events test'\nversion = '1.0'\nmain = 'main.lua'\npermissions = "
-              "['events.messages', 'ui.haptics', 'storage']\n");
-    writeText(plugin / "main.lua", "astral.events.on('message.create', function(message)\n"
-                                   "  astral.storage.set('event', message)\n"
-                                   "  if not message.from_me and not (message.open and not astral.settings.get('open', false)) and "
-                                   "(message.mentioned or message.direct) then astral.ui.haptic('medium') end\n"
-                                   "end)\n");
+              "['events.messages', 'events.messages.filter', 'ui.haptics', 'storage']\n");
+    writeText(plugin / "main.lua",
+              "astral.events.on('message.filter', function(message) return message.content:find('filtered', 1, true) ~= nil end)\n"
+              "astral.events.on('message.create', function(message)\n"
+              "  astral.storage.set('event', message)\n"
+              "  if not message.from_me and not (message.open and not astral.settings.get('open', false)) and "
+              "(message.mentioned or message.direct) then astral.ui.haptic('medium') end\n"
+              "end)\n");
     writeText(
         restricted / "manifest.toml",
         "id = 'astral.gateway-events-restricted'\nname = 'Restricted'\nversion = '1.0'\nmain = 'main.lua'\npermissions = ['storage']\n");
     writeText(restricted / "main.lua", "local events = pcall(function() astral.events.on('message.create', function() end) end)\n"
+                                       "local filters = pcall(function() astral.events.on('message.filter', function() end) end)\n"
                                        "local haptics = pcall(function() astral.ui.haptic('light') end)\n"
-                                       "astral.storage.set('permissions', {events = events, haptics = haptics})\n");
+                                       "astral.storage.set('permissions', {events = events, filters = filters, haptics = haptics})\n");
     astral::SettingsStore settings((root / "settings.json").string());
     settings.set("astral", "developer-mode", true);
     astral::LuaHostPlatform platform;
@@ -753,23 +756,31 @@ static void testGatewayMessageEventsAndHaptics(const std::string &work)
         return true;
     };
     astral::luahost::start({(root / "plugins").string()}, &settings, true, std::move(platform));
-    assert(astral::luahost::eval("astral.gateway-events-restricted",
-                                 "local p = astral.storage.get('permissions'); return tostring(p.events) .. ':' .. tostring(p.haptics)") ==
-           "false:false");
-    astral::luahost::observeGatewayMessage(R"({"op":0,"t":"READY","d":{"user":{"id":"100000000000000001"}}})");
-    astral::luahost::observeGatewayMessage(
-        R"({"op":0,"t":"MESSAGE_CREATE","d":{"id":"200000000000000001","channel_id":"200000000000000002","author":{"id":"200000000000000003"},"mentions":[{"id":"100000000000000001"}],"content":"private message text"}})");
+    assert(astral::luahost::eval(
+               "astral.gateway-events-restricted",
+               "local p = astral.storage.get('permissions'); return tostring(p.events) .. ':' .. tostring(p.filters) .. ':' .. "
+               "tostring(p.haptics)") == "false:false:false");
+    assert(!astral::luahost::processGatewayMessage(R"({"op":0,"t":"READY","d":{"user":{"id":"100000000000000001"}}})"));
+    assert(!astral::luahost::processGatewayMessage(
+        R"({"op":0,"t":"MESSAGE_CREATE","d":{"id":"200000000000000001","channel_id":"200000000000000002","author":{"id":"200000000000000003"},"mentions":[{"id":"100000000000000001"}],"content":"private message text"}})"));
     assert(strengths == std::vector<std::string>({"medium"}));
     assert(astral::luahost::eval("astral.gateway-events-test", "return astral.storage.get('event').mentioned") == "true");
     assert(astral::luahost::eval("astral.gateway-events-test", "return astral.storage.get('event').content == nil") == "true");
-    astral::luahost::observeGatewayMessage(
-        R"({"op":0,"t":"MESSAGE_CREATE","d":{"id":"200000000000000004","channel_id":"200000000000000002","guild_id":"200000000000000005","author":{"id":"200000000000000003"},"mentions":[],"content":"private message text"}})");
+    assert(!astral::luahost::processGatewayMessage(
+        R"({"op":0,"t":"MESSAGE_CREATE","d":{"id":"200000000000000004","channel_id":"200000000000000002","guild_id":"200000000000000005","author":{"id":"200000000000000003"},"mentions":[],"content":"private message text"}})"));
     assert(strengths == std::vector<std::string>({"medium"}));
-    astral::luahost::observeGatewayMessage(
-        R"({"op":0,"t":"MESSAGE_CREATE","d":{"id":"200000000000000006","channel_id":"200000000000000007","author":{"id":"200000000000000003"},"mentions":[],"content":"private direct message"}})");
+    assert(!astral::luahost::processGatewayMessage(
+        R"({"op":0,"t":"MESSAGE_CREATE","d":{"id":"200000000000000006","channel_id":"200000000000000007","author":{"id":"200000000000000003"},"mentions":[],"content":"private direct message"}})"));
     assert(strengths == std::vector<std::string>({"medium", "medium"}));
-    astral::luahost::observeGatewayMessage(
-        R"({"op":0,"t":"MESSAGE_CREATE","d":{"id":"200000000000000008","channel_id":"200000000000000007","author":{"id":"100000000000000001"},"mentions":[{"id":"100000000000000001"}],"content":"own message"}})");
+    auto filtered = astral::luahost::processGatewayMessage(
+        R"({"op":0,"s":10,"t":"MESSAGE_CREATE","d":{"id":"200000000000000008","channel_id":"200000000000000007","author":{"id":"200000000000000003"},"mentions":[],"content":"filtered text"}})");
+    assert(filtered);
+    auto skipped = nlohmann::json::parse(*filtered);
+    assert(skipped["op"] == 0 && skipped["s"] == 10 && skipped["t"] == "ASTRAL_FILTERED");
+    assert(astral::luahost::eval("astral.gateway-events-test", "return astral.storage.get('event').message_id") == "200000000000000006");
+    assert(strengths == std::vector<std::string>({"medium", "medium"}));
+    assert(!astral::luahost::processGatewayMessage(
+        R"({"op":0,"t":"MESSAGE_CREATE","d":{"id":"200000000000000009","channel_id":"200000000000000007","author":{"id":"100000000000000001"},"mentions":[{"id":"100000000000000001"}],"content":"filtered own message"}})"));
     assert(strengths == std::vector<std::string>({"medium", "medium"}));
     astral::luahost::stop();
 }
