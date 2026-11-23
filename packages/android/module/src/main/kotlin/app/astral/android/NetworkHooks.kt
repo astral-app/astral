@@ -154,8 +154,9 @@ object NetworkHooks {
             module.hook(method)
                 .setExceptionMode(ExceptionMode.PROTECTIVE)
                 .intercept { chain ->
-                    if (!runCatching { Native.staffDevToolsEnabled() }.getOrDefault(false)) return@intercept chain.proceed()
                     val message = chain.getArg(index) as? String ?: return@intercept chain.proceed()
+                    PhoenixBridge.observeGatewayMessage(message)
+                    if (!runCatching { Native.staffDevToolsEnabled() }.getOrDefault(false)) return@intercept chain.proceed()
                     val updated = Native.withStaffReady(message) ?: return@intercept chain.proceed()
                     chain.proceed(chain.args.toTypedArray().apply { this[index] = updated })
                 }

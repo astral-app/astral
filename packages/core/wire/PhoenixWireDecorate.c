@@ -3,6 +3,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdatomic.h>
 #include <string.h>
 
 static const int32_t kFirstTagId = 0x7b000000;
@@ -10,7 +11,7 @@ static const int32_t kFirstTagId = 0x7b000000;
 static Tracked gTracked[kTrackCapacity];
 static uint64_t gMessageAuthors[kTrackCapacity][2];
 static AstralDecorator gDecorator;
-static uint64_t gCurrentChannel;
+static atomic_uint_fast64_t gCurrentChannel;
 static int32_t gNextTagId = kFirstTagId;
 
 static Decorated gDecorated[kMaxDecorated];
@@ -29,7 +30,7 @@ AstralWireStats astral_wire_stats(void)
 
 uint64_t astral_wire_current_channel(void)
 {
-    return gCurrentChannel;
+    return atomic_load_explicit(&gCurrentChannel, memory_order_relaxed);
 }
 
 Tracked *wireTrackSlot(int32_t id, int create)
@@ -136,8 +137,14 @@ static void observeProperties(const uint8_t *bytes, const Span *span)
         }
         wireSkipValue(&cursor, tag, 0);
     }
-    Tracked *slot = selected == 1 ? wireTrackSlot(span->id, 0) : NULL;
-    if (slot && slot->kind == kTrackChannel) gCurrentChannel = slot->value;
+    Tracked *slot = selected >= 0 ? wireTrackSlot(span->id, 0) : NULL;
+    if (slot && slot->kind == kTrackChannel) {
+        uint64_t current = atomic_load_explicit(&gCurrentChannel, memory_order_relaxed);
+        if (selected == 1)
+            atomic_store_explicit(&gCurrentChannel, slot->value, memory_order_relaxed);
+        else if (current == slot->value)
+            atomic_store_explicit(&gCurrentChannel, 0, memory_order_relaxed);
+    }
 }
 
 static void propagateAvatars(const uint8_t *bytes, const Span *spans, size_t count)
@@ -253,7 +260,7 @@ void wireDecorate(const uint8_t *bytes, const Span *spans, size_t count, Out *ou
             }
         }
         if (!matched) continue;
-        AstralDecorationContext context = {"message.author:", message, authorOf(message), gCurrentChannel};
+        AstralDecorationContext context = {"message.author:", message, authorOf(message), astral_wire_current_channel()};
         AstralTag tags[kMaxTags];
         memset(tags, 0, sizeof(tags));
         size_t tagCount = gDecorator(&context, tags, kMaxTags);
@@ -296,6 +303,9 @@ void wireObserveRemovals(const uint8_t *bytes, const Span *spans, size_t count, 
         if (span->op != 4) continue;
         for (uint32_t position = 0; position < span->childCount; position++) {
             int32_t id = wireChildAt(bytes, span, position);
+            Tracked *tracked = wireTrackSlot(id, 0);
+            if (tracked && tracked->kind == kTrackChannel && atomic_load_explicit(&gCurrentChannel, memory_order_relaxed) == tracked->value)
+                atomic_store_explicit(&gCurrentChannel, 0, memory_order_relaxed);
             forget(id);
             Decorated *slot = decoratedSlot(id, 0);
             if (slot && slot->count) {

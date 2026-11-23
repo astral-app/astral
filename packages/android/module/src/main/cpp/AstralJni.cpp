@@ -71,6 +71,7 @@ jmethodID gImportBackup = nullptr;
 jmethodID gOpenReport = nullptr;
 jmethodID gRefreshEmoji = nullptr;
 jmethodID gShowAlert = nullptr;
+jmethodID gTriggerHaptic = nullptr;
 jmethodID gCopyText = nullptr;
 jmethodID gPickFile = nullptr;
 jmethodID gCancelFilePick = nullptr;
@@ -385,6 +386,11 @@ astral::LuaHostPlatform platform(const std::string &state, const std::string &re
     platform.networkRequest = startNetworkRequest;
     platform.cancelNetworkRequest = cancelNetworkRequest;
     platform.showAlert = [](const std::string &title, const std::string &message) { callBridge(gShowAlert, title, message); };
+    platform.triggerHaptic = [](const std::string &strength) {
+        if (!gTriggerHaptic) return false;
+        callBridge(gTriggerHaptic, strength);
+        return true;
+    };
     platform.writeClipboard = [](const std::string &value) {
         if (!gCopyText) return false;
         callBridge(gCopyText, value);
@@ -1113,13 +1119,14 @@ ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_attachBridge
     jmethodID openReportMethod = env->GetStaticMethodID(reference, "openReport", "(Ljava/lang/String;)V");
     jmethodID refreshEmojiMethod = env->GetStaticMethodID(reference, "refreshEmoji", "()V");
     jmethodID showAlertMethod = env->GetStaticMethodID(reference, "showAlert", "(Ljava/lang/String;Ljava/lang/String;)V");
+    jmethodID triggerHapticMethod = env->GetStaticMethodID(reference, "triggerHaptic", "(Ljava/lang/String;)V");
     jmethodID copyTextMethod = env->GetStaticMethodID(reference, "copyText", "(Ljava/lang/String;)V");
     jmethodID pickFileMethod = env->GetStaticMethodID(reference, "pickFile", "(JLjava/lang/String;)V");
     jmethodID cancelFilePickMethod = env->GetStaticMethodID(reference, "cancelFilePick", "(J)V");
     jmethodID editTextMethod = env->GetStaticMethodID(reference, "editText", "(JLjava/lang/String;Ljava/lang/String;I)V");
     if (env->ExceptionCheck() || !deliverMethod || !fetchMethod || !requestMethod || !cancelMethod || !exportBackupMethod ||
-        !importBackupMethod || !openReportMethod || !refreshEmojiMethod || !showAlertMethod || !copyTextMethod || !pickFileMethod ||
-        !cancelFilePickMethod || !editTextMethod) {
+        !importBackupMethod || !openReportMethod || !refreshEmojiMethod || !showAlertMethod || !triggerHapticMethod || !copyTextMethod ||
+        !pickFileMethod || !cancelFilePickMethod || !editTextMethod) {
         env->ExceptionClear();
         env->DeleteGlobalRef(reference);
         return;
@@ -1137,6 +1144,7 @@ ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_attachBridge
         gOpenReport = openReportMethod;
         gRefreshEmoji = refreshEmojiMethod;
         gShowAlert = showAlertMethod;
+        gTriggerHaptic = triggerHapticMethod;
         gCopyText = copyTextMethod;
         gPickFile = pickFileMethod;
         gCancelFilePick = cancelFilePickMethod;
@@ -1243,6 +1251,11 @@ ASTRAL_EXPORT JNIEXPORT jstring JNICALL Java_app_astral_android_Native_applyBack
 ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_setSessionToken(JNIEnv *env, jclass, jstring token)
 {
     astral::session::setToken(plain(env, token));
+}
+
+ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_observeGatewayMessage(JNIEnv *env, jclass, jstring message)
+{
+    astral::luahost::observeGatewayMessage(fromJava(env, message));
 }
 
 ASTRAL_EXPORT JNIEXPORT jboolean JNICALL Java_app_astral_android_Native_isTelemetry(JNIEnv *env, jclass, jstring host, jstring path)

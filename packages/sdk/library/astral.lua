@@ -342,6 +342,7 @@ function astral.i18n.t(key) end
 astral.ui = {}
 function astral.ui.alert(title, message) end
 function astral.ui.copy(value) end
+function astral.ui.haptic(strength) end
 ---@param target astral.Target
 ---@param decorator fun(node: astral.Node): astral.Decoration
 function astral.ui.decorate(target, decorator) end

@@ -1,0 +1,11 @@
+id = "astral.mention-haptics"
+name = "Mention Haptics"
+description = "Taps your phone when a new message mentions you or arrives in a direct message."
+version = "0.0.1"
+icon = "BellIcon"
+main = "main.lua"
+permissions = ["events.messages", "ui.haptics"]
+
+[[authors]]
+name = "adrian"
+id = "224617799434108928"

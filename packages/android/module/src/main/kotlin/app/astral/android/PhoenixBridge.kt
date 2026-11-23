@@ -10,6 +10,7 @@ import android.net.Uri
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
+import android.view.HapticFeedbackConstants
 import android.text.InputFilter
 import android.text.InputType
 import android.widget.EditText
@@ -243,6 +244,26 @@ object PhoenixBridge {
             val activity = activeActivity() ?: return@post
             if (activity.isFinishing || activity.isDestroyed) return@post
             AlertDialog.Builder(activity).setTitle(title).setMessage(message).setPositiveButton("OK", null).show()
+        }
+    }
+
+    fun observeGatewayMessage(message: String) {
+        if (message.length > (1 shl 20)) return
+        mainHandler.post { Native.observeGatewayMessage(message) }
+    }
+
+    @JvmStatic
+    fun triggerHaptic(strength: String) {
+        mainHandler.post {
+            val activity = activeActivity() ?: return@post
+            if (activity.isFinishing || activity.isDestroyed) return@post
+            val feedback = when (strength) {
+                "light" -> if (android.os.Build.VERSION.SDK_INT >= 27) HapticFeedbackConstants.KEYBOARD_TAP else HapticFeedbackConstants.VIRTUAL_KEY
+                "medium" -> HapticFeedbackConstants.VIRTUAL_KEY
+                "heavy" -> HapticFeedbackConstants.LONG_PRESS
+                else -> return@post
+            }
+            activity.window.decorView.performHapticFeedback(feedback)
         }
     }
 
