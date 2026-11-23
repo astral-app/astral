@@ -43,7 +43,7 @@ object Native {
 
     @JvmStatic external fun emitEvent(event: String)
 
-    @JvmStatic external fun observeGatewayMessage(message: String)
+    @JvmStatic external fun processGatewayMessage(message: String): String?
 
     @JvmStatic external fun recordExitReport(kind: String, timestamp: Long, reason: Int, description: String, trace: String)
 

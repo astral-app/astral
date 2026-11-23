@@ -1253,9 +1253,10 @@ ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_setSessionTo
     astral::session::setToken(plain(env, token));
 }
 
-ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_observeGatewayMessage(JNIEnv *env, jclass, jstring message)
+ASTRAL_EXPORT JNIEXPORT jstring JNICALL Java_app_astral_android_Native_processGatewayMessage(JNIEnv *env, jclass, jstring message)
 {
-    astral::luahost::observeGatewayMessage(fromJava(env, message));
+    auto processed = astral::luahost::processGatewayMessage(fromJava(env, message));
+    return processed ? toJava(env, *processed) : nullptr;
 }
 
 ASTRAL_EXPORT JNIEXPORT jboolean JNICALL Java_app_astral_android_Native_isTelemetry(JNIEnv *env, jclass, jstring host, jstring path)

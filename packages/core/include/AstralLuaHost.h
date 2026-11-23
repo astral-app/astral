@@ -62,7 +62,7 @@ void completeNetworkRequest(uint64_t request, const nlohmann::json &response);
 void completeFilePick(uint64_t request, const std::optional<std::string> &name, const std::optional<std::string> &data,
                       const std::optional<std::string> &error);
 void emitEvent(const std::string &event);
-void observeGatewayMessage(std::string_view message);
+std::optional<std::string> processGatewayMessage(std::string_view message);
 bool hasOutgoingMessageTransforms();
 std::optional<std::string> transformOutgoingMessage(const std::string &channel, const std::string &operation, const std::string &content);
 std::string eval(const std::string &identifier, const std::string &code);

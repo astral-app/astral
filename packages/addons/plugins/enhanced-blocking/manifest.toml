@@ -1,0 +1,11 @@
+id = "astral.enhanced-blocking"
+name = "Enhanced Blocking"
+description = "Filters incoming messages by user, keyword or reply author before Phoenix handles them."
+version = "0.0.1"
+icon = "EyeSlashIcon"
+main = "main.lua"
+permissions = ["events.messages.filter"]
+
+[[authors]]
+name = "adrian"
+id = "224617799434108928"

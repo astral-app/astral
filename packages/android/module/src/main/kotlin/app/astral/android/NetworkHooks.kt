@@ -155,10 +155,10 @@ object NetworkHooks {
                 .setExceptionMode(ExceptionMode.PROTECTIVE)
                 .intercept { chain ->
                     val message = chain.getArg(index) as? String ?: return@intercept chain.proceed()
-                    PhoenixBridge.observeGatewayMessage(message)
-                    if (!runCatching { Native.staffDevToolsEnabled() }.getOrDefault(false)) return@intercept chain.proceed()
-                    val updated = Native.withStaffReady(message) ?: return@intercept chain.proceed()
-                    chain.proceed(chain.args.toTypedArray().apply { this[index] = updated })
+                    var outgoing = Native.processGatewayMessage(message) ?: message
+                    if (runCatching { Native.staffDevToolsEnabled() }.getOrDefault(false))
+                        outgoing = Native.withStaffReady(outgoing) ?: outgoing
+                    if (outgoing == message) chain.proceed() else chain.proceed(chain.args.toTypedArray().apply { this[index] = outgoing })
                 }
         }
         Log.info("Hooked Phoenix WebSocket READY messages")

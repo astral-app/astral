@@ -26,6 +26,13 @@ description = "Taps your phone when a new message mentions you or arrives in a d
 base = "plugins/astral.mention-haptics/"
 
 [[plugins]]
+id = "astral.enhanced-blocking"
+name = "Enhanced Blocking"
+version = "0.0.1"
+description = "Filters incoming messages by user, keyword or reply author before Phoenix handles them."
+base = "plugins/astral.enhanced-blocking/"
+
+[[plugins]]
 id = "astral.more-user-tags"
 name = "More User Tags"
 version = "0.0.1"

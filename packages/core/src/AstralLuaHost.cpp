@@ -499,6 +499,7 @@ static int SubscribeEvent(lua_State *state)
     const char *permission = nullptr;
     if (event == "app.foreground" || event == "app.background") permission = "events.lifecycle";
     if (event == "message.create") permission = "events.messages";
+    if (event == "message.filter") permission = "events.messages.filter";
     if (!permission) return luaL_error(state, "astral.events.on: unsupported event '%s'", event.c_str());
     RequirePermission(state, permission);
     luaL_checktype(state, 2, LUA_TFUNCTION);
@@ -514,7 +515,6 @@ static int SubscribeEvent(lua_State *state)
 static int UnsubscribeEvent(lua_State *state)
 {
     LuaPlugin *plugin = Self(state);
-    RequirePermission(state, "events.lifecycle");
     lua_Integer value = luaL_checkinteger(state, 1);
     if (value <= 0) {
         lua_pushboolean(state, false);
@@ -525,6 +525,12 @@ static int UnsubscribeEvent(lua_State *state)
         lua_pushboolean(state, false);
         return 1;
     }
+    if (found->second.event == "app.foreground" || found->second.event == "app.background")
+        RequirePermission(state, "events.lifecycle");
+    else if (found->second.event == "message.create")
+        RequirePermission(state, "events.messages");
+    else if (found->second.event == "message.filter")
+        RequirePermission(state, "events.messages.filter");
     luaL_unref(state, LUA_REGISTRYINDEX, found->second.reference);
     plugin->eventCallbacks.erase(found);
     lua_pushboolean(state, true);
@@ -1551,6 +1557,50 @@ static bool IsSnowflake(const std::string &value)
            std::all_of(value.begin(), value.end(), [](unsigned char character) { return character >= '0' && character <= '9'; });
 }
 
+static bool FilterMessageCreate(const std::string &messageID, const std::string &channelID, const std::string &authorID,
+                                const std::string &referencedAuthorID, const std::string &content, bool fromMe, bool direct, bool open)
+{
+    std::lock_guard<std::recursive_mutex> lock(gMutex);
+    for (auto *plugin : gPlugins) {
+        if (!plugin->state || plugin->failed) continue;
+        std::vector<uint64_t> subscriptions;
+        for (const auto &[subscription, callback] : plugin->eventCallbacks)
+            if (callback.event == "message.filter") subscriptions.push_back(subscription);
+        for (uint64_t subscription : subscriptions) {
+            auto found = plugin->eventCallbacks.find(subscription);
+            if (found == plugin->eventCallbacks.end() || !plugin->state || plugin->failed) continue;
+            lua_State *state = plugin->state;
+            lua_rawgeti(state, LUA_REGISTRYINDEX, found->second.reference);
+            lua_createtable(state, 0, 8);
+            lua_pushlstring(state, messageID.data(), messageID.size());
+            lua_setfield(state, -2, "message_id");
+            lua_pushlstring(state, channelID.data(), channelID.size());
+            lua_setfield(state, -2, "channel_id");
+            lua_pushlstring(state, authorID.data(), authorID.size());
+            lua_setfield(state, -2, "author_id");
+            lua_pushlstring(state, referencedAuthorID.data(), referencedAuthorID.size());
+            lua_setfield(state, -2, "referenced_author_id");
+            lua_pushlstring(state, content.data(), content.size());
+            lua_setfield(state, -2, "content");
+            lua_pushboolean(state, fromMe);
+            lua_setfield(state, -2, "from_me");
+            lua_pushboolean(state, direct);
+            lua_setfield(state, -2, "direct");
+            lua_pushboolean(state, open);
+            lua_setfield(state, -2, "open");
+            if (!Call(plugin, 1, 1, "message.filter")) {
+                MarkFailed(plugin);
+                Stop(plugin);
+                break;
+            }
+            bool filtered = lua_isboolean(state, -1) && lua_toboolean(state, -1);
+            lua_pop(state, 1);
+            if (filtered) return true;
+        }
+    }
+    return false;
+}
+
 static void EmitMessageCreate(const std::string &messageID, const std::string &channelID, const std::string &authorID, bool fromMe,
                               bool mentioned, bool direct, bool open)
 {
@@ -1589,42 +1639,55 @@ static void EmitMessageCreate(const std::string &messageID, const std::string &c
     }
 }
 
-void observeGatewayMessage(std::string_view message)
+std::optional<std::string> processGatewayMessage(std::string_view message)
 {
-    if (message.empty() || message.size() > (1u << 20)) return;
+    if (message.empty() || message.size() > (1u << 20)) return std::nullopt;
     nlohmann::json envelope = nlohmann::json::parse(message, nullptr, false);
-    if (!envelope.is_object()) return;
+    if (!envelope.is_object()) return std::nullopt;
     auto event = envelope.find("t");
     auto data = envelope.find("d");
-    if (event == envelope.end() || !event->is_string() || data == envelope.end() || !data->is_object()) return;
+    if (event == envelope.end() || !event->is_string() || data == envelope.end() || !data->is_object()) return std::nullopt;
     std::string type = event->get<std::string>();
     if (type == "READY") {
         auto user = data->find("user");
-        if (user == data->end() || !user->is_object()) return;
+        if (user == data->end() || !user->is_object()) return std::nullopt;
         auto id = user->find("id");
-        if (id == user->end() || !id->is_string()) return;
+        if (id == user->end() || !id->is_string()) return std::nullopt;
         std::string currentUser = id->get<std::string>();
-        if (!IsSnowflake(currentUser)) return;
+        if (!IsSnowflake(currentUser)) return std::nullopt;
         std::lock_guard<std::recursive_mutex> lock(gMutex);
         gCurrentUserID = std::move(currentUser);
-        return;
+        return std::nullopt;
     }
-    if (type != "MESSAGE_CREATE") return;
+    if (type != "MESSAGE_CREATE") return std::nullopt;
     auto channel = data->find("channel_id");
     auto author = data->find("author");
-    if (channel == data->end() || !channel->is_string() || author == data->end() || !author->is_object()) return;
+    if (channel == data->end() || !channel->is_string() || author == data->end() || !author->is_object()) return std::nullopt;
     auto authorID = author->find("id");
-    if (authorID == author->end() || !authorID->is_string()) return;
+    if (authorID == author->end() || !authorID->is_string()) return std::nullopt;
     std::string channelID = channel->get<std::string>();
     std::string senderID = authorID->get<std::string>();
-    if (!IsSnowflake(channelID) || !IsSnowflake(senderID)) return;
+    if (!IsSnowflake(channelID) || !IsSnowflake(senderID)) return std::nullopt;
     std::string messageID;
     auto id = data->find("id");
     if (id != data->end() && id->is_string() && IsSnowflake(id->get<std::string>())) messageID = id->get<std::string>();
+    std::string content;
+    auto contentField = data->find("content");
+    if (contentField != data->end() && contentField->is_string()) content = contentField->get<std::string>();
     std::string currentUser;
     {
         std::lock_guard<std::recursive_mutex> lock(gMutex);
         currentUser = gCurrentUserID;
+    }
+    std::string referencedAuthorID;
+    auto referenced = data->find("referenced_message");
+    if (referenced != data->end() && referenced->is_object()) {
+        auto referencedAuthor = referenced->find("author");
+        if (referencedAuthor != referenced->end() && referencedAuthor->is_object()) {
+            auto referencedID = referencedAuthor->find("id");
+            if (referencedID != referencedAuthor->end() && referencedID->is_string() && IsSnowflake(referencedID->get<std::string>()))
+                referencedAuthorID = referencedID->get<std::string>();
+        }
     }
     bool mentioned = false;
     if (!currentUser.empty()) {
@@ -1642,7 +1705,13 @@ void observeGatewayMessage(std::string_view message)
     bool direct = guild == data->end() || !guild->is_string();
     uint64_t selectedChannel = astral_wire_current_channel();
     bool open = selectedChannel != 0 && std::to_string(selectedChannel) == channelID;
-    EmitMessageCreate(messageID, channelID, senderID, senderID == currentUser, mentioned, direct, open);
+    bool fromMe = senderID == currentUser;
+    if (!fromMe && FilterMessageCreate(messageID, channelID, senderID, referencedAuthorID, content, fromMe, direct, open)) {
+        envelope["t"] = "ASTRAL_FILTERED";
+        return envelope.dump();
+    }
+    EmitMessageCreate(messageID, channelID, senderID, fromMe, mentioned, direct, open);
+    return std::nullopt;
 }
 
 bool hasOutgoingMessageTransforms()
