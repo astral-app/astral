@@ -17,6 +17,15 @@ class Astral : XposedModule() {
         runCatching { start(param) }.onFailure { Log.error("Failed to start astral", it) }
     }
 
+    private fun discordVersion(): String =
+        runCatching {
+            val thread = Class.forName("android.app.ActivityThread")
+            val current = thread.getMethod("currentActivityThread").invoke(null)
+            val context = thread.getMethod("getSystemContext").invoke(current) as android.content.Context
+            val info = context.packageManager.getPackageInfo(DISCORD_PACKAGE, 0)
+            "${info.versionName} · ${info.longVersionCode}"
+        }.getOrDefault("")
+
     private fun loadSession(dataDirectory: String) {
         Thread({
             repeat(SESSION_ATTEMPTS) {
@@ -34,6 +43,7 @@ class Astral : XposedModule() {
     }
 
     private fun start(param: PackageReadyParam) {
+        runCatching { ForcePhoenix.apply(param.applicationInfo.dataDir) }.onFailure { Log.error("Failed to keep Phoenix as Discord's client", it) }
         NativeLibrary.load(moduleApplicationInfo, param.applicationInfo)
         val names = runCatching { PropertyTable.names(param.applicationInfo, param.classLoader) }
             .onFailure { Log.error("Failed to read Phoenix's property table", it) }
@@ -41,7 +51,8 @@ class Astral : XposedModule() {
         if (names == null) Log.warning("Phoenix's property table was not found; astral uses its built-in property ids")
         val resources = Resources.extract(moduleApplicationInfo, param.applicationInfo)
         val languages = android.os.LocaleList.getDefault().let { list -> Array(list.size()) { list[it].toLanguageTag() } }
-        Native.initialize(names, param.applicationInfo.dataDir, resources.absolutePath, languages)
+        Native.initialize(names, param.applicationInfo.dataDir, resources.absolutePath, languages, discordVersion())
+        PhoenixBridge.pressEvent = names?.indexOf("press") ?: -1
         Capture.configure(param.applicationInfo.dataDir)
         PhoenixBridge.install(this, param.classLoader)
         runCatching { NetworkHooks.install(this, param.classLoader) }.onFailure { Log.error("Failed to hook Discord's network stack", it) }

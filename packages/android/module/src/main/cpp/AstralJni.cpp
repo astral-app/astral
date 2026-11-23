@@ -15,6 +15,8 @@
 #include "AstralReactors.h"
 #include "AstralRequestSink.h"
 #include "AstralSession.h"
+#include "AstralSettingsNavigator.h"
+#include "AstralSettingsPages.h"
 #include "AstralSettings.h"
 #include "PhoenixProperties.h"
 #include "PhoenixWire.h"
@@ -24,14 +26,6 @@
 namespace {
 
 constexpr jsize kMaxPropertyNames = 2048;
-
-const AstralRowSpec kCategoryRows[] = {
-    {"general", "astral", nullptr, nullptr, "res://astral_galaxy", kAstralRowLink, 0, 0, 0},
-    {"plugins", "Plugins", nullptr, nullptr, "res://ic_mana_puzzle_piece", kAstralRowLink, 0, 0, 0},
-    {"design", "Design", nullptr, nullptr, "res://ic_mana_paintbrush_thick", kAstralRowLink, 0, 0, 0},
-    {"marketplace", "Marketplace", nullptr, nullptr, "res://ic_mana_shop", kAstralRowLink, 0, 0, 0},
-    {"updates", "Updates", nullptr, nullptr, "res://ic_mana_download", kAstralRowLink, 0, 0, 0},
-};
 
 std::unique_ptr<astral::SettingsStore> gSettings;
 std::mutex gWireLock;
@@ -107,7 +101,10 @@ void startDeveloperServer(const std::string &state)
                                 {"authors", stats.authors},
                                 {"withUser", stats.with_user},
                                 {"withChannel", stats.with_channel},
-                                {"tagged", stats.tagged}}}};
+                                {"tagged", stats.tagged},
+                                {"pages", astral_page_template_status()},
+                                {"navigators", astral_page_navigator_count()},
+                                {"depth", astral_page_depth()}}}};
     };
     hooks.version = ASTRAL_VERSION;
     hooks.stateDirectory = state;
@@ -137,6 +134,46 @@ astral::LuaHostPlatform platform(const std::string &state, const std::string &re
     platform.storagePath = state + "/plugin-storage.sqlite";
     platform.bundledDirectory = resources;
     return platform;
+}
+
+std::vector<std::string> gCategoryStrings;
+
+void installCategory()
+{
+    nlohmann::json category = astral::pages::category();
+    nlohmann::json rows = category.value("rows", nlohmann::json::array());
+    gCategoryStrings.clear();
+    gCategoryStrings.reserve(rows.size() * 3 + 1);
+    std::vector<AstralRowSpec> specs;
+    for (const auto &row : rows) {
+        gCategoryStrings.push_back(row.value("key", ""));
+        const char *key = gCategoryStrings.back().c_str();
+        gCategoryStrings.push_back(row.value("title", ""));
+        const char *title = gCategoryStrings.back().c_str();
+        gCategoryStrings.push_back(row.value("icon", ""));
+        const char *icon = gCategoryStrings.back().c_str();
+        specs.push_back({key, title, nullptr, nullptr, icon, kAstralRowLink, 0, 0, 0});
+    }
+    gCategoryStrings.push_back(category.value("title", "astral"));
+    astral_wire_set_category(gCategoryStrings.back().c_str(), specs.data(), specs.size());
+}
+
+void configurePages(const std::string &discordVersion)
+{
+    astral::SettingsPagesPlatform pages;
+    pages.settings = gSettings.get();
+    pages.version = ASTRAL_VERSION;
+    pages.context = [discordVersion] { return astral::SettingsPageContext{false, discordVersion, "ready"}; };
+    pages.softRestart = [] {
+        for (const auto &plugin : astral::luahost::plugins())
+            if (plugin.value("enabled", false)) astral::luahost::reload(plugin.value("id", ""));
+    };
+    astral::pages::configure(std::move(pages));
+    astral::navigator::configure([](std::vector<uint8_t> bytes) { deliver(bytes); },
+                                 [](const std::function<void()> &work) {
+                                     std::lock_guard<std::mutex> lock(gWireLock);
+                                     work();
+                                 });
 }
 
 void installDecorators()
@@ -255,10 +292,10 @@ extern "C" {
 
 ASTRAL_EXPORT JNIEXPORT jint JNICALL Java_app_astral_android_Native_initialize(JNIEnv *env, jclass, jobjectArray names,
                                                                                jstring dataDirectory, jstring resourceDirectory,
-                                                                               jobjectArray languages)
+                                                                               jobjectArray languages, jstring discordVersion)
 {
     size_t resolved = resolveProperties(strings(env, names));
-    astral_wire_set_category("astral", kCategoryRows, sizeof(kCategoryRows) / sizeof(kCategoryRows[0]));
+    installCategory();
     std::string data = plain(env, dataDirectory);
     std::string resources = plain(env, resourceDirectory);
     std::string state = data + "/files/astral";
@@ -270,6 +307,7 @@ ASTRAL_EXPORT JNIEXPORT jint JNICALL Java_app_astral_android_Native_initialize(J
     astral::luahost::start({state + "/plugins", resources + "/plugins"}, gSettings.get(), !safeMode,
                            platform(state, resources, strings(env, languages)));
     installDecorators();
+    configurePages(plain(env, discordVersion));
     startDeveloperServer(state);
     __android_log_print(ANDROID_LOG_INFO, "astral", "astral %s resolved %zu Phoenix properties; %zu plugins", ASTRAL_VERSION, resolved,
                         astral::luahost::plugins().size());
@@ -284,7 +322,11 @@ ASTRAL_EXPORT JNIEXPORT jbyteArray JNICALL Java_app_astral_android_Native_rewrit
     AstralWireBuffer rewritten;
     {
         std::lock_guard<std::mutex> lock(gWireLock);
-        if (!astral_settings_rewrite(bytes.data(), bytes.size(), &rewritten)) return nullptr;
+        if (!astral_settings_rewrite(bytes.data(), bytes.size(), &rewritten)) {
+            astral_wire_note_identifiers(bytes.data(), bytes.size());
+            return nullptr;
+        }
+        astral_wire_note_identifiers(rewritten.bytes, rewritten.length);
     }
     jbyteArray result = env->NewByteArray((jsize)rewritten.length);
     if (result) env->SetByteArrayRegion(result, 0, (jsize)rewritten.length, reinterpret_cast<const jbyte *>(rewritten.bytes));
@@ -305,6 +347,18 @@ ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_setEnabled(J
 ASTRAL_EXPORT JNIEXPORT jstring JNICALL Java_app_astral_android_Native_eval(JNIEnv *env, jclass, jstring identifier, jstring code)
 {
     return text(env, astral::luahost::eval(plain(env, identifier), plain(env, code)));
+}
+
+ASTRAL_EXPORT JNIEXPORT jboolean JNICALL Java_app_astral_android_Native_press(JNIEnv *, jclass, jint node)
+{
+    char identifier[128];
+    {
+        std::lock_guard<std::mutex> lock(gWireLock);
+        if (!astral_wire_identifier(node, identifier, sizeof(identifier))) return JNI_FALSE;
+    }
+    if (!astral::navigator::handles(identifier)) return JNI_FALSE;
+    astral::navigator::tap(identifier);
+    return JNI_TRUE;
 }
 
 ASTRAL_EXPORT JNIEXPORT jbyteArray JNICALL Java_app_astral_android_Native_pendingUpdates(JNIEnv *env, jclass)

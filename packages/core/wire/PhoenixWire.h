@@ -215,6 +215,8 @@ void astral_wire_set_reaction_decorator(AstralReactionDecorator decorator);
 int astral_wire_pending_reactions(void);
 int astral_wire_retry_reactions(AstralWireBuffer *buffer);
 int astral_wire_refresh_reactions(AstralWireBuffer *buffer);
+void astral_wire_note_identifiers(const uint8_t *bytes, size_t length);
+int astral_wire_identifier(int32_t id, char *out, size_t capacity);
 
 typedef int (*AstralEmojiResolver)(const char *codepoints, char *url, size_t capacity);
 
@@ -230,6 +232,8 @@ int astral_page_push(const AstralPageSpec *page, AstralWireBuffer *buffer);
 int astral_page_refresh(const AstralPageSpec *page, AstralWireBuffer *buffer);
 int astral_page_pop(AstralWireBuffer *buffer);
 int astral_page_depth(void);
+const char *astral_page_template_status(void);
+unsigned astral_page_navigator_count(void);
 
 void astral_wire_set_settings_backdrop(int enabled, double dim);
 int astral_wire_settings_backdrop_enabled(void);

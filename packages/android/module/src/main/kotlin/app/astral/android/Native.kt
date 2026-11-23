@@ -6,6 +6,7 @@ object Native {
         dataDirectory: String,
         resourceDirectory: String,
         languages: Array<String>,
+        discordVersion: String,
     ): Int
 
     @JvmStatic external fun rewrite(ops: ByteArray, length: Int): ByteArray?
@@ -17,6 +18,8 @@ object Native {
     @JvmStatic external fun eval(identifier: String, code: String): String
 
     @JvmStatic external fun pendingUpdates(): ByteArray?
+
+    @JvmStatic external fun press(node: Int): Boolean
 
     @JvmStatic external fun attachBridge(bridge: Class<*>)
 

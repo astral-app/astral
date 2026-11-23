@@ -287,6 +287,9 @@ static struct {
 } gTemplates[kRoleCount];
 
 static int gTemplatesReady;
+static int gHeaderHasPad;
+static int gTitleHasInner;
+static const char *gTemplateFailure = "no settings batch seen";
 
 typedef struct {
     int32_t id;
@@ -369,7 +372,11 @@ static void captureTemplates(const uint8_t *bytes, const Span *spans, size_t cou
     ids[kRoot] = ids[kPhone] ? wireParentOf(bytes, spans, count, ids[kPhone]) : 0;
     ids[kSpacer] = firstChild(bytes, spans, count, ids[kContainer], 0);
     ids[kHairline] = firstChild(bytes, spans, count, ids[kContainer], 1);
-    if (firstChild(bytes, spans, count, ids[kContainer], 2) != ids[kScroll]) return;
+    if (firstChild(bytes, spans, count, ids[kContainer], 2) != ids[kScroll]) {
+        gTemplateFailure =
+            ids[kScroll] ? "the scroll view is not the container's third child" : "the row's ancestors do not reach a scroll view";
+        return;
+    }
     ids[kHeaderBar] = firstChild(bytes, spans, count, ids[kContainer], 3);
     ids[kHeaderLeft] = firstChild(bytes, spans, count, ids[kHeaderBar], 0);
     ids[kHeaderLeftInner] = firstChild(bytes, spans, count, ids[kHeaderLeft], 0);
@@ -378,9 +385,22 @@ static void captureTemplates(const uint8_t *bytes, const Span *spans, size_t cou
     ids[kBackStack] = firstChild(bytes, spans, count, ids[kBack], 0);
     ids[kBackStackInner] = firstChild(bytes, spans, count, ids[kBackStack], 0);
     ids[kBackIcon] = firstChild(bytes, spans, count, ids[kBackStackInner], 0);
+    int hasPad = ids[kBackIcon] != 0;
+    if (!hasPad) {
+        ids[kBack] = ids[kHeaderLeftPad];
+        ids[kHeaderLeftPad] = 0;
+        ids[kBackStack] = firstChild(bytes, spans, count, ids[kBack], 0);
+        ids[kBackStackInner] = firstChild(bytes, spans, count, ids[kBackStack], 0);
+        ids[kBackIcon] = firstChild(bytes, spans, count, ids[kBackStackInner], 0);
+    }
     ids[kTitleWrap] = firstChild(bytes, spans, count, ids[kHeaderBar], 1);
     ids[kTitleInner] = firstChild(bytes, spans, count, ids[kTitleWrap], 0);
     ids[kTitle] = firstChild(bytes, spans, count, ids[kTitleInner], 0);
+    int hasInner = ids[kTitle] != 0;
+    if (!hasInner) {
+        ids[kTitle] = ids[kTitleInner];
+        ids[kTitleInner] = 0;
+    }
     ids[kGroupHeader] = firstChild(bytes, spans, count, ids[kGroup], 0);
     ids[kSeparator] = firstChild(bytes, spans, count, ids[kCard], 1);
     ids[kSeparatorLine] = firstChild(bytes, spans, count, ids[kSeparator], 0);
@@ -390,11 +410,23 @@ static void captureTemplates(const uint8_t *bytes, const Span *spans, size_t cou
     ids[kRowTrailing] = firstChild(bytes, spans, count, ids[kRowContent], 2);
     ids[kRowChevron] = firstChild(bytes, spans, count, ids[kRowTrailing], 0);
     int32_t navigator = wireParentOf(bytes, spans, count, ids[kRoot]);
-    if (!navigator || !navigatorWithId(navigator)) return;
-    for (int role = 0; role < kRoleCount; role++) {
-        if (!storeTemplate(bytes, spans, count, role, ids[role])) return;
+    if (!navigator || !navigatorWithId(navigator)) {
+        gTemplateFailure = navigator ? "the settings root's parent is not a known navigator" : "the settings root has no parent";
+        return;
     }
+    for (int role = 0; role < kRoleCount; role++) {
+        if ((role == kHeaderLeftPad && !hasPad) || (role == kTitleInner && !hasInner)) continue;
+        if (!storeTemplate(bytes, spans, count, role, ids[role])) {
+            static char missing[64];
+            snprintf(missing, sizeof(missing), "settings template role %d was missing", role);
+            gTemplateFailure = missing;
+            return;
+        }
+    }
+    gTemplateFailure = "";
     gSettingsNavigator = navigator;
+    gHeaderHasPad = hasPad;
+    gTitleHasInner = hasInner;
     gTemplatesReady = 1;
 }
 
@@ -952,7 +984,7 @@ int astral_page_push(const AstralPageSpec *page, AstralWireBuffer *buffer)
     int32_t headerBar = cloneRole(&out, kHeaderBar, NULL, 0);
     int32_t left = cloneRole(&out, kHeaderLeft, NULL, 0);
     int32_t leftInner = cloneRole(&out, kHeaderLeftInner, NULL, 0);
-    int32_t leftPad = cloneRole(&out, kHeaderLeftPad, NULL, 0);
+    int32_t leftPad = gHeaderHasPad ? cloneRole(&out, kHeaderLeftPad, NULL, 0) : 0;
     Change backChange = {P(accessibilityId), kString, "astral.back", 0};
     int32_t back = cloneRole(&out, kBack, &backChange, 1);
     int32_t backStack = cloneRole(&out, kBackStack, NULL, 0);
@@ -960,7 +992,7 @@ int astral_page_push(const AstralPageSpec *page, AstralWireBuffer *buffer)
     Change backIconChange = {P(uri), kString, "res://ic_mana_arrow_large_left", 0};
     int32_t backIcon = cloneRole(&out, kBackIcon, &backIconChange, 1);
     int32_t titleWrap = cloneRole(&out, kTitleWrap, NULL, 0);
-    int32_t titleInner = cloneRole(&out, kTitleInner, NULL, 0);
+    int32_t titleInner = gTitleHasInner ? cloneRole(&out, kTitleInner, NULL, 0) : 0;
     Change titleChanges[] = {{P(accessibilityId), kString, "settings-astral-title", 0}, {P(text), kString, page->title, 0}};
     int32_t title = cloneRole(&out, kTitle, titleChanges, 2);
 
@@ -972,13 +1004,21 @@ int astral_page_push(const AstralPageSpec *page, AstralWireBuffer *buffer)
     wirePutChildren(&out, list, sections, sectionCount);
     wirePutChildren(&out, headerBar, (int32_t[]){left, titleWrap}, 2);
     wirePutChildren(&out, left, (int32_t[]){leftInner}, 1);
-    wirePutChildren(&out, leftInner, (int32_t[]){leftPad}, 1);
-    wirePutChildren(&out, leftPad, (int32_t[]){back}, 1);
+    if (leftPad) {
+        wirePutChildren(&out, leftInner, (int32_t[]){leftPad}, 1);
+        wirePutChildren(&out, leftPad, (int32_t[]){back}, 1);
+    } else {
+        wirePutChildren(&out, leftInner, (int32_t[]){back}, 1);
+    }
     wirePutChildren(&out, back, (int32_t[]){backStack}, 1);
     wirePutChildren(&out, backStack, (int32_t[]){backStackInner}, 1);
     wirePutChildren(&out, backStackInner, (int32_t[]){backIcon}, 1);
-    wirePutChildren(&out, titleWrap, (int32_t[]){titleInner}, 1);
-    wirePutChildren(&out, titleInner, (int32_t[]){title}, 1);
+    if (titleInner) {
+        wirePutChildren(&out, titleWrap, (int32_t[]){titleInner}, 1);
+        wirePutChildren(&out, titleInner, (int32_t[]){title}, 1);
+    } else {
+        wirePutChildren(&out, titleWrap, (int32_t[]){title}, 1);
+    }
 
     gPage->root = root;
     gPage->list = list;
@@ -994,7 +1034,7 @@ int astral_page_push(const AstralPageSpec *page, AstralWireBuffer *buffer)
     wirePut8(&out, 2);
     wirePut32(&out, (uint32_t)navigator->id);
     wirePut16(&out, 1);
-    wirePut16(&out, 252);
+    wirePut16(&out, P(index));
     wirePut8(&out, 3);
     wirePut32(&out, navigator->count);
     if (out.failed || gPage->count >= kMaxPageNodes) {
@@ -1067,7 +1107,7 @@ int astral_page_pop(AstralWireBuffer *buffer)
     wirePut8(&out, 2);
     wirePut32(&out, (uint32_t)navigator->id);
     wirePut16(&out, 1);
-    wirePut16(&out, 252);
+    wirePut16(&out, P(index));
     wirePut8(&out, 3);
     wirePut32(&out, (uint32_t)gPage->previousIndex);
     wirePutChildren(&out, navigator->id, gPage->previousChildren, gPage->previousCount);
@@ -1129,4 +1169,14 @@ void wireRewritePages(const uint8_t *bytes, const Span *spans, size_t count, Out
         free(category.bytes);
         return;
     }
+}
+
+const char *astral_page_template_status(void)
+{
+    return gTemplatesReady ? "ready" : gTemplateFailure;
+}
+
+unsigned astral_page_navigator_count(void)
+{
+    return gNavigatorCount;
 }
