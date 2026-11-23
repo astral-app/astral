@@ -1,0 +1,11 @@
+id = "astral.highlight-replies"
+name = "Highlight Replies"
+description = "Tints the text of messages that reply to your messages."
+version = "0.0.1"
+icon = "ChatBubbleLeftRightIcon"
+main = "main.lua"
+permissions = ["discord.messages"]
+
+[[authors]]
+name = "adrian"
+id = "224617799434108928"

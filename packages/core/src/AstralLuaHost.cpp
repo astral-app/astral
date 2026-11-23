@@ -2141,22 +2141,50 @@ int AstralLuaMessageTextColor(uint64_t messageID, uint64_t channelID, uint32_t *
     std::unique_lock<std::recursive_mutex> lock(gMutex, std::try_to_lock);
     if (!lock.owns_lock()) return 0;
     bool wanted = false;
-    for (auto *plugin : gPlugins) wanted = wanted || (plugin->state && !plugin->failed && !plugin->colorizers.empty());
+    bool wantsReplyContext = false;
+    for (auto *plugin : gPlugins) {
+        if (!plugin->state || plugin->failed || plugin->colorizers.empty()) continue;
+        wanted = true;
+        wantsReplyContext = wantsReplyContext || plugin->permissions.count("discord.messages");
+    }
     if (!wanted) return 0;
     std::string message = Snowflake(messageID);
     std::string channel = ResolveChannel(channelID, message);
-    if (channel.empty() || !gPlatform.message || !gPlatform.message(channel, message)) return -1;
+    if (channel.empty() || !gPlatform.message) return -1;
+    auto messageRecord = gPlatform.message(channel, message);
+    if (!messageRecord) return -1;
+    bool repliesToCurrentUser = false;
+    if (wantsReplyContext && !gCurrentUserID.empty() && messageRecord->is_object()) {
+        const auto &author = messageRecord->value("author", nlohmann::json::object());
+        const auto authorID = author.is_object() ? author.value("id", std::string()) : std::string();
+        const auto &reference = messageRecord->value("reference", nlohmann::json::object());
+        if (!authorID.empty() && authorID != gCurrentUserID && reference.is_object()) {
+            const auto referencedChannel = reference.value("channel_id", std::string());
+            const auto referencedMessage = reference.value("message_id", std::string());
+            if (!referencedChannel.empty() && !referencedMessage.empty()) {
+                auto target = gPlatform.message(referencedChannel, referencedMessage);
+                if (target && target->is_object()) {
+                    const auto &targetAuthor = target->value("author", nlohmann::json::object());
+                    repliesToCurrentUser = targetAuthor.is_object() && targetAuthor.value("id", std::string()) == gCurrentUserID;
+                }
+            }
+        }
+    }
     auto guild = gPlatform.channelGuild ? gPlatform.channelGuild(channel) : std::nullopt;
     for (auto *plugin : gPlugins) {
         if (!plugin->state || plugin->failed) continue;
         for (int colorizer : plugin->colorizers) {
             lua_State *state = plugin->state;
             lua_rawgeti(state, LUA_REGISTRYINDEX, colorizer);
-            lua_createtable(state, 0, 3);
+            lua_createtable(state, 0, 4);
             lua_pushstring(state, message.c_str());
             lua_setfield(state, -2, "message_id");
             lua_pushstring(state, channel.c_str());
             lua_setfield(state, -2, "channel_id");
+            if (plugin->permissions.count("discord.messages")) {
+                lua_pushboolean(state, repliesToCurrentUser);
+                lua_setfield(state, -2, "reply_to_me");
+            }
             if (guild) {
                 lua_pushstring(state, guild->c_str());
                 lua_setfield(state, -2, "guild_id");

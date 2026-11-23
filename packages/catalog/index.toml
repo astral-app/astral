@@ -33,6 +33,13 @@ description = "Filters incoming messages by user, keyword or reply author before
 base = "plugins/astral.enhanced-blocking/"
 
 [[plugins]]
+id = "astral.highlight-replies"
+name = "Highlight Replies"
+version = "0.0.1"
+description = "Tints the text of messages that reply to your messages."
+base = "plugins/astral.highlight-replies/"
+
+[[plugins]]
 id = "astral.more-user-tags"
 name = "More User Tags"
 version = "0.0.1"
