@@ -1,0 +1,11 @@
+id = "astral.live-markdown"
+name = "Live Markdown"
+description = "Styles Discord markdown as you type in the message composer."
+version = "0.0.1"
+icon = "TextIcon"
+main = "main.lua"
+permissions = ["ui.composer"]
+
+[[authors]]
+name = "adrian"
+id = "224617799434108928"

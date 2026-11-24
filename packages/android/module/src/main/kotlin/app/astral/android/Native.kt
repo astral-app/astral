@@ -75,6 +75,8 @@ object Native {
 
     @JvmStatic external fun emojiURL(codepoints: String): String?
 
+    @JvmStatic external fun composerStyles(text: String): String
+
     @JvmStatic external fun markVisible()
 
     @JvmStatic external fun markHidden()

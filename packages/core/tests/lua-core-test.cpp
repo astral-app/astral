@@ -641,6 +641,41 @@ static void testOutgoingMessageTransforms(const std::string &work)
     assert(!astral::luahost::hasOutgoingMessageTransforms());
 }
 
+static void testComposerStyles(const std::string &work)
+{
+    auto root = std::filesystem::path(work) / "composer-format-host";
+    auto plugin = root / "plugins" / "formatter";
+    auto restricted = root / "plugins" / "restricted";
+    std::filesystem::create_directories(plugin);
+    std::filesystem::create_directories(restricted);
+    writeText(plugin / "manifest.toml", "id = 'astral.composer-test'\nname = 'Composer test'\nversion = '1.0'\nmain = 'main.lua'\n"
+                                        "permissions = ['ui.composer']\n");
+    writeText(plugin / "main.lua", "astral.ui.composer(function(text)\n"
+                                   "  return {{start = 1, length = 2, style = 'bold'}, {start = 2, length = 1, style = 'italic'}, "
+                                   "{start = 1, length = #text, style = 'spoiler'}, {start = 3, length = 1, style = 'underline'}, "
+                                   "{start = 1, length = 1, style = 'unknown'}}\n"
+                                   "end)\n");
+    writeText(restricted / "manifest.toml", "id = 'astral.composer-restricted'\nname = 'Restricted'\nversion = '1.0'\nmain = 'main.lua'\n"
+                                            "permissions = ['storage']\n");
+    writeText(restricted / "main.lua", "local ok = pcall(function() astral.ui.composer(function() return {} end) end)\n"
+                                       "astral.storage.set('allowed', ok)\n");
+    astral::SettingsStore settings((root / "settings.json").string());
+    settings.set("astral", "developer-mode", true);
+    astral::LuaHostPlatform platform;
+    platform.storagePath = (root / "storage.sqlite").string();
+    astral::luahost::start({(root / "plugins").string()}, &settings, true, std::move(platform));
+    auto styles = astral::luahost::composerStyles("éx");
+    assert(styles.size() == 3);
+    assert(styles[0] == nlohmann::json({{"start", 1}, {"length", 2}, {"style", "bold"}}));
+    assert(styles[1] == nlohmann::json({{"start", 1}, {"length", 3}, {"style", "spoiler"}}));
+    assert(styles[2] == nlohmann::json({{"start", 3}, {"length", 1}, {"style", "underline"}}));
+    assert(astral::luahost::composerStyles(std::string(8193, 'x')).empty());
+    assert(astral::luahost::eval("astral.composer-restricted", "return astral.storage.get('allowed')") == "false");
+    astral::luahost::setEnabled("astral.composer-test", false);
+    assert(astral::luahost::composerStyles("éx").empty());
+    astral::luahost::stop();
+}
+
 static void testFilePickerAndDialogs(const std::string &work)
 {
     auto root = std::filesystem::path(work) / "native-ui-host";
@@ -914,6 +949,7 @@ int main(int argc, char **argv)
     testSharedSignatures(argv[1], argv[2]);
     testNetworkRequests(argv[1]);
     testOutgoingMessageTransforms(argv[1]);
+    testComposerStyles(argv[1]);
     testFilePickerAndDialogs(argv[1]);
     testGatewayMessageEventsAndHaptics(argv[1]);
     testSliderSettingsAndNavigation(argv[1]);

@@ -423,7 +423,10 @@ astral::LuaHostPlatform platform(const std::string &state, const std::string &re
     platform.developerLog = developerLog;
     platform.recordFailure = recordPluginFailure;
     platform.reactors = astral::reactors::lookup;
-    platform.refreshDecorations = [] { gRefreshDecorations = true; };
+    platform.refreshDecorations = [] {
+        gRefreshDecorations = true;
+        if (gRefreshEmoji) callBridge(gRefreshEmoji);
+    };
     platform.preferredLanguages = std::move(languages);
     platform.storagePath = state + "/plugin-storage.sqlite";
     platform.verifySignature = [](const std::string &directory, const std::string &main) {
@@ -1389,6 +1392,12 @@ ASTRAL_EXPORT JNIEXPORT jstring JNICALL Java_app_astral_android_Native_emojiURL(
 {
     if (!gPacks || !codepoints) return text(env, "");
     return text(env, gPacks->emojiURL(plain(env, codepoints)));
+}
+
+ASTRAL_EXPORT JNIEXPORT jstring JNICALL Java_app_astral_android_Native_composerStyles(JNIEnv *env, jclass, jstring value)
+{
+    if (!value) return text(env, "[]");
+    return text(env, astral::luahost::composerStyles(fromJava(env, value)).dump());
 }
 
 ASTRAL_EXPORT JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *)
