@@ -487,6 +487,8 @@ void AstralPhoenixRefreshDecorations(void)
         if (live && astral_wire_refresh_reactions(&buffer)) Send(&buffer);
         AstralWireBuffer texts = {};
         if (live && astral_wire_refresh_message_texts(&texts)) Send(&texts);
+        AstralWireBuffer backgrounds = {};
+        if (live && astral_wire_refresh_message_backgrounds(&backgrounds)) Send(&backgrounds);
         pthread_mutex_unlock(&gLock);
         ScheduleRetry();
     });

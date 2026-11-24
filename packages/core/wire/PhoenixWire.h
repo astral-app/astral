@@ -261,6 +261,7 @@ typedef int (*AstralSendTransform)(uint64_t channel_id, const char *text, char *
 void astral_wire_set_send_transform(AstralSendTransform transform);
 int astral_wire_composer_event(const uint8_t *event, size_t length, AstralWireBuffer *before);
 int astral_wire_refresh_message_texts(AstralWireBuffer *buffer);
+int astral_wire_refresh_message_backgrounds(AstralWireBuffer *buffer);
 uint64_t astral_wire_message_for_node(int32_t node);
 uint64_t astral_wire_message_for_row(int32_t list, int64_t index);
 void astral_wire_note_identifiers(const uint8_t *bytes, size_t length);
