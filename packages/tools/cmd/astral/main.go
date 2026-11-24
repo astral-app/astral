@@ -34,6 +34,7 @@ var commands = map[string]command{
 	"palette":        {"palette semantic --source <generated-definitions.tsx> --origin <description> [--output <toml>]", runPalette},
 	"vphone":         {"vphone <boot|status|install|launch|shell|push|pull|deploy> ...", runVphone},
 	"sdk":            {"sdk install", runSDK},
+	"readme":         {"readme [--check]", runReadme},
 	"doctor":         {"doctor", runDoctor},
 	"replay":         {"replay <plugin>... <capture>", runReplay},
 	"check":          {"check [--staged] [file ...]", runCheck},
