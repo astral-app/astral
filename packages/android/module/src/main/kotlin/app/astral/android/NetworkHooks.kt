@@ -6,10 +6,13 @@ import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Modifier
 import java.lang.reflect.Proxy
 import java.net.URI
+import java.util.Collections
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 
 object NetworkHooks {
+    private val hookedListeners = Collections.newSetFromMap(ConcurrentHashMap<Class<*>, Boolean>())
     private const val ENGINE_BUILDER = "org.chromium.net.CronetEngine\$Builder"
     private const val INTERCEPTOR = "okhttp3.Interceptor"
     private const val CLIENT_BUILDER = "okhttp3.OkHttpClient\$Builder"
@@ -144,24 +147,42 @@ object NetworkHooks {
     }
 
     private fun installPhoenixWebSocketHooks(module: XposedModule, loader: ClassLoader) {
-        val listener = loader.loadClass("com.discord.nativeapp.modules.u6")
-        val methods = listener.declaredMethods.filter { method ->
-            method.name == "m" && method.parameterTypes.lastOrNull() == String::class.java
+        val clientType = loader.loadClass(PhoenixClasses.OKHTTP_CLIENT)
+        val requestType = loader.loadClass(PhoenixClasses.OKHTTP_REQUEST)
+        val openers = clientType.declaredMethods.filter { method ->
+            !Modifier.isStatic(method.modifiers) && method.parameterTypes.size == 2 && method.parameterTypes[0] == requestType &&
+                !method.parameterTypes[1].isPrimitive && method.returnType != Void.TYPE
         }
-        for (method in methods) {
-            val index = method.parameterTypes.indexOf(String::class.java)
-            if (index < 0) continue
-            module.hook(method)
-                .setExceptionMode(ExceptionMode.PROTECTIVE)
-                .intercept { chain ->
-                    val message = chain.getArg(index) as? String ?: return@intercept chain.proceed()
-                    var outgoing = Native.processGatewayMessage(message) ?: message
-                    if (runCatching { Native.staffDevToolsEnabled() }.getOrDefault(false))
-                        outgoing = Native.withStaffReady(outgoing) ?: outgoing
-                    if (outgoing == message) chain.proceed() else chain.proceed(chain.args.toTypedArray().apply { this[index] = outgoing })
-                }
+        val opener = openers.singleOrNull()
+            ?: throw NoSuchMethodException("${clientType.name} has ${openers.size} WebSocket openers; expected one")
+        val socketType = opener.returnType
+        module.hook(opener)
+            .setExceptionMode(ExceptionMode.PROTECTIVE)
+            .intercept { chain ->
+                chain.getArg(1)?.let { listener -> hookWebSocketListener(module, listener.javaClass, socketType) }
+                chain.proceed()
+            }
+        Log.info("Hooked Phoenix WebSocket creation through ${clientType.name}.${opener.name}")
+    }
+
+    private fun hookWebSocketListener(module: XposedModule, listener: Class<*>, socketType: Class<*>) {
+        if (!hookedListeners.add(listener)) return
+        val messages = listener.declaredMethods.filter { method ->
+            method.returnType == Void.TYPE && method.parameterTypes.size == 2 && method.parameterTypes[0].isAssignableFrom(socketType) &&
+                method.parameterTypes[1] == String::class.java
         }
-        Log.info("Hooked Phoenix WebSocket READY messages")
+        val method = messages.singleOrNull()
+            ?: return Log.warning("${listener.name} has ${messages.size} text message callbacks; its WebSocket messages are not processed")
+        module.hook(method)
+            .setExceptionMode(ExceptionMode.PROTECTIVE)
+            .intercept { chain ->
+                val message = chain.getArg(1) as? String ?: return@intercept chain.proceed()
+                var outgoing = Native.processGatewayMessage(message) ?: message
+                if (runCatching { Native.staffDevToolsEnabled() }.getOrDefault(false))
+                    outgoing = Native.withStaffReady(outgoing) ?: outgoing
+                if (outgoing == message) chain.proceed() else chain.proceed(chain.args.toTypedArray().apply { this[1] = outgoing })
+            }
+        Log.info("Hooked Phoenix WebSocket messages through ${listener.name}.${method.name}")
     }
 
     private fun interceptOkHttp(chain: Any?, loader: ClassLoader): Any? {

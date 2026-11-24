@@ -39,6 +39,15 @@ Results from running astral on real Phoenix builds. Each row names the device, t
 | Plugins page | Author avatars and plugin icons show. Chat Bubbles, Highlight Replies and Translate named icons Phoenix lacks; they now use `ChatDotsIcon`, `ArrowAngleLeftUpIcon` and `LanguageIcon` |
 | Marketplace and row subtitles | The catalog loads; rows show the plugin's icon. Subtitles were cut off and wrapped early because they inherited `flex: 1` from Discord's title text, which split the column's height; they now size to their text at Discord's 12 / 16 subtitle size |
 
+## Android: Discord 357.0 alpha (357200), upgraded in place
+
+| Area | Result |
+| --- | --- |
+| Gateway messages | Broke silently: the hook named the listener class (`u6`) and its method (`m`); in 357 `u6` is an unrelated class, so message filters, gateway events and the Staff DevTools READY patch stopped. The listener is now found when Discord opens its WebSocket: the client's opener is matched by its parameter types and the listener's text callback by `(socket, String)` |
+| Emoji packs in the composer | Broke silently: the composer class `ej` became an unrelated class. Phoenix inputs are now recognised by package instead of a class name |
+| Shaded OkHttp | Discord's existing-client field moved; that patch was redundant (every client is built after the constructor hook) and is gone. Request, URL, method and response fields are found by type, each with exactly one match or an error |
+| Compatibility scan | `android-compat` now checks every obfuscated class astral still names, from `PhoenixClasses.kt` |
+
 ## Compatibility scans, 2026-11-24
 
 | Build | Result |

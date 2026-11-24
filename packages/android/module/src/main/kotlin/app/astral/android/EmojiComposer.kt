@@ -32,7 +32,7 @@ import okhttp3.Request
 import okhttp3.Response
 
 object EmojiComposer {
-    private const val COMPOSER = "com.discord.nativeapp.modules.ej"
+    private const val PHOENIX_PACKAGE = "com.discord.nativeapp."
     private const val MAXIMUM_EMOJI = 64
     private const val MAXIMUM_DOWNLOAD_BYTES = 1 shl 20
     private const val MAXIMUM_DIMENSION = 384
@@ -52,8 +52,9 @@ object EmojiComposer {
         .cache(null)
         .build()
 
-    fun install(module: XposedModule, loader: ClassLoader) {
-        val composerType = loader.loadClass(COMPOSER)
+    private fun isPhoenixInput(view: EditText): Boolean = view.javaClass.name.startsWith(PHOENIX_PACKAGE)
+
+    fun install(module: XposedModule) {
         val changed = TextView::class.java.getDeclaredMethod(
             "onTextChanged",
             CharSequence::class.java,
@@ -64,7 +65,7 @@ object EmojiComposer {
         module.hook(changed).setExceptionMode(ExceptionMode.PROTECTIVE).intercept { chain ->
             val result = chain.proceed()
             val view = chain.thisObject as? EditText
-            if (view != null && composerType.isInstance(view)) {
+            if (view != null && isPhoenixInput(view)) {
                 synchronized(composers) { composers.add(view) }
                 main.post {
                     apply(view)
