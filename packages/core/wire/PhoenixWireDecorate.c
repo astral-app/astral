@@ -258,9 +258,8 @@ static int32_t backgroundParent(const BackgroundLink *links, int32_t id)
     return 0;
 }
 
-static void backgroundPutRow(int32_t *rows, int32_t id, size_t rowIndex)
+static void backgroundPutRow(int32_t *rows, int32_t id)
 {
-    (void)rowIndex;
     if (!id) return;
     size_t index = backgroundIndex(id, kBackgroundRowMapCapacity);
     for (size_t probe = 0; probe < kBackgroundRowMapCapacity; probe++) {
@@ -397,7 +396,7 @@ static void wireMessageBackgrounds(const uint8_t *bytes, const Span *spans, size
         } else if (span->op == 1 && wireStringProperty(bytes, span, P(accessibilityId), "message-row") &&
                    rowCount < kBackgroundRowCapacity) {
             rows[rowCount].id = span->id;
-            backgroundPutRow(rowMap, span->id, rowCount);
+            backgroundPutRow(rowMap, span->id);
             rowCount++;
         }
     }
@@ -408,7 +407,7 @@ static void wireMessageBackgrounds(const uint8_t *bytes, const Span *spans, size
         if (!state || !state->hasOriginal || backgroundWasRemoved(bytes, spans, count, span->id)) continue;
         if (backgroundRowIndex(rows, rowCount, span->id) < rowCount) continue;
         rows[rowCount] = (BackgroundRow){state->id, state->message, state->user};
-        backgroundPutRow(rowMap, state->id, rowCount);
+        backgroundPutRow(rowMap, state->id);
         rowCount++;
     }
     if (!rowCount) return;
