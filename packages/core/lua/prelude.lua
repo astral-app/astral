@@ -246,7 +246,9 @@ local Pill = astral.class("Pill")
 
 function Pill:init(text, options)
 	options = options or {}
-	self.text = tostring(text)
+	self.text = text ~= nil and tostring(text) or ""
+	self.icon = options.icon
+	self.tint = options.tint and Color.from(options.tint) or nil
 	self.shape = options.shape or astral.Shape.Pill
 	self.stops = {}
 	for _, stop in ipairs(options.colors or { options.color }) do
@@ -283,6 +285,9 @@ function Pill:describe()
 end
 
 function Pill:build()
+	if self.icon then
+		return { icon = self.icon, text = self.text, tint = self.tint and self.tint.value or nil }
+	end
 	local stops = #self.stops > 0 and self.stops or { Color.Blurple }
 	local built = {
 		text = self.text,

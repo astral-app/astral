@@ -96,6 +96,7 @@ typedef struct {
 typedef enum {
     kAstralTagPill,
     kAstralTagOriginalPoster,
+    kAstralTagIcon,
 } AstralTagShape;
 
 typedef struct {
@@ -106,6 +107,8 @@ typedef struct {
     uint32_t gradient[3];
     uint32_t gradientCount;
     AstralTagShape shape;
+    char icon[512];
+    uint32_t tint;
 } AstralTag;
 
 typedef size_t (*AstralDecorator)(const AstralDecorationContext *context, AstralTag *tags, size_t capacity);

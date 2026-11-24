@@ -1,0 +1,11 @@
+id = "astral.new-member-sprout"
+name = "New Member Sprout"
+description = "Shows desktop's new member sprout beside people who joined the server in the last week."
+version = "0.0.1"
+icon = "UserPlusIcon"
+main = "main.lua"
+permissions = ["discord.guilds", "discord.members"]
+
+[[authors]]
+name = "adrian"
+id = "224617799434108928"

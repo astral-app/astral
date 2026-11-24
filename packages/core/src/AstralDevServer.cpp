@@ -26,7 +26,7 @@ namespace {
 constexpr uint16_t kPort = 9324;
 constexpr std::chrono::milliseconds kRelistenDelay{500};
 constexpr size_t kMaxAssetBytes = 384u << 10;
-const std::set<std::string> kAssetExtensions = {".mp3", ".m4a", ".wav", ".caf", ".aac"};
+const std::set<std::string> kAssetExtensions = {".mp3", ".m4a", ".wav", ".caf", ".aac", ".png", ".webp"};
 
 std::optional<std::string> decodeBase64(const std::string &text)
 {
