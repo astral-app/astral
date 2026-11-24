@@ -80,6 +80,7 @@ jmethodID gCancelFilePick = nullptr;
 jmethodID gOpenWebAuth = nullptr;
 jmethodID gCancelWebAuth = nullptr;
 jmethodID gEditText = nullptr;
+jmethodID gRestartGatewaySession = nullptr;
 std::mutex gTextEditLock;
 std::map<uint64_t, std::function<void(std::optional<std::string>)>> gTextEditCallbacks;
 std::atomic<uint64_t> gNextTextEditRequest{1};
@@ -476,6 +477,7 @@ void configurePages(const std::string &discordVersion)
     astral::SettingsPagesPlatform pages;
     pages.settings = gSettings.get();
     pages.crashReports = pluginReports;
+    pages.restartGatewaySession = [] { callBridge(gRestartGatewaySession); };
     pages.openReport = [](size_t index) {
         nlohmann::json reports = pluginReports();
         if (index >= reports.size()) return;
@@ -1229,9 +1231,11 @@ ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_attachBridge
     jmethodID openWebAuthMethod = env->GetStaticMethodID(reference, "openWebAuth", "(JLjava/lang/String;Ljava/lang/String;)V");
     jmethodID cancelWebAuthMethod = env->GetStaticMethodID(reference, "cancelWebAuth", "(J)V");
     jmethodID editTextMethod = env->GetStaticMethodID(reference, "editText", "(JLjava/lang/String;Ljava/lang/String;I)V");
+    jmethodID restartGatewaySessionMethod = env->GetStaticMethodID(reference, "restartGatewaySession", "()V");
     if (env->ExceptionCheck() || !deliverMethod || !fetchMethod || !requestMethod || !cancelMethod || !exportBackupMethod ||
         !importBackupMethod || !openReportMethod || !refreshEmojiMethod || !showAlertMethod || !triggerHapticMethod || !copyTextMethod ||
-        !pickFileMethod || !cancelFilePickMethod || !showToastMethod || !openWebAuthMethod || !cancelWebAuthMethod || !editTextMethod) {
+        !pickFileMethod || !cancelFilePickMethod || !showToastMethod || !openWebAuthMethod || !cancelWebAuthMethod || !editTextMethod ||
+        !restartGatewaySessionMethod) {
         env->ExceptionClear();
         env->DeleteGlobalRef(reference);
         return;
@@ -1257,6 +1261,7 @@ ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_attachBridge
         gOpenWebAuth = openWebAuthMethod;
         gCancelWebAuth = cancelWebAuthMethod;
         gEditText = editTextMethod;
+        gRestartGatewaySession = restartGatewaySessionMethod;
     }
     astral::reactors::setFetcher(fetch);
 }

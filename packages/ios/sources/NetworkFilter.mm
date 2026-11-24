@@ -229,6 +229,10 @@ typedef void (^MessageHandler)(NSURLSessionWebSocketMessage *, NSError *);
 
 static void (*gOriginalReceive)(id, SEL, MessageHandler);
 static NSMutableArray<NSString *> *gInjected;
+static NSString *const kInvalidSession = @"{\"op\":9,\"d\":false}";
+static __weak id gGatewayTask;
+static BOOL gGatewayUncompressed;
+static BOOL gInvalidateAfterHello;
 
 static NSURLSessionWebSocketMessage *WithStaffReady(NSURLSessionWebSocketMessage *message)
 {
@@ -254,9 +258,34 @@ static NSString *NextInjected(void)
     }
 }
 
+static void QueueInjected(NSString *message)
+{
+    @synchronized(NSMutableArray.class) {
+        if (!gInjected) gInjected = [NSMutableArray array];
+        [gInjected addObject:message];
+    }
+}
+
+static BOOL IsGatewayTask(id task)
+{
+    @synchronized(NSMutableArray.class) {
+        return task && task == gGatewayTask;
+    }
+}
+
+static void InvalidateAfterHello(id task)
+{
+    @synchronized(NSMutableArray.class) {
+        if (!gInvalidateAfterHello || task != gGatewayTask || !gGatewayUncompressed) return;
+        gInvalidateAfterHello = NO;
+    }
+    QueueInjected(kInvalidSession);
+    AstralDevAppendLog(@"network filter: asked Discord for a new gateway session");
+}
+
 static void Receive(id self, SEL selector, MessageHandler handler)
 {
-    NSString *injected = handler ? NextInjected() : nil;
+    NSString *injected = handler && IsGatewayTask(self) ? NextInjected() : nil;
     if (injected) {
         NSURLSessionWebSocketMessage *message = [[NSURLSessionWebSocketMessage alloc] initWithString:injected];
         dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
@@ -279,6 +308,7 @@ static void Receive(id self, SEL selector, MessageHandler handler)
             }
         }
         handler(WithStaffReady(forwarded), error);
+        if (!error) InvalidateAfterHello(self);
     });
 }
 
@@ -295,18 +325,30 @@ static NSURL *WithoutGatewayCompression(NSURL *url)
     return components.URL ?: url;
 }
 
+static id RememberGateway(id task, NSURL *requested, NSURL *opened)
+{
+    if (!task || ![requested.host hasPrefix:@"gateway"]) return task;
+    @synchronized(NSMutableArray.class) {
+        gGatewayTask = task;
+        gGatewayUncompressed = ![opened isEqual:requested];
+    }
+    return task;
+}
+
 static id (*gOriginalWebSocketWithURL)(id, SEL, NSURL *);
 
 static id WebSocketWithURL(id self, SEL selector, NSURL *url)
 {
-    return gOriginalWebSocketWithURL(self, selector, WithoutGatewayCompression(url));
+    NSURL *opened = WithoutGatewayCompression(url);
+    return RememberGateway(gOriginalWebSocketWithURL(self, selector, opened), url, opened);
 }
 
 static id (*gOriginalWebSocketWithURLProtocols)(id, SEL, NSURL *, NSArray *);
 
 static id WebSocketWithURLProtocols(id self, SEL selector, NSURL *url, NSArray *protocols)
 {
-    return gOriginalWebSocketWithURLProtocols(self, selector, WithoutGatewayCompression(url), protocols);
+    NSURL *opened = WithoutGatewayCompression(url);
+    return RememberGateway(gOriginalWebSocketWithURLProtocols(self, selector, opened, protocols), url, opened);
 }
 
 static id (*gOriginalWebSocketWithRequest)(id, SEL, NSURLRequest *);
@@ -314,10 +356,10 @@ static id (*gOriginalWebSocketWithRequest)(id, SEL, NSURLRequest *);
 static id WebSocketWithRequest(id self, SEL selector, NSURLRequest *request)
 {
     NSURL *url = WithoutGatewayCompression(request.URL);
-    if (url == request.URL) return gOriginalWebSocketWithRequest(self, selector, request);
+    if (url == request.URL) return RememberGateway(gOriginalWebSocketWithRequest(self, selector, request), request.URL, url);
     NSMutableURLRequest *changed = [request mutableCopy];
     changed.URL = url;
-    return gOriginalWebSocketWithRequest(self, selector, changed);
+    return RememberGateway(gOriginalWebSocketWithRequest(self, selector, changed), request.URL, url);
 }
 
 static void Swizzle(Class cls, SEL selector, IMP replacement, IMP *original)
@@ -355,11 +397,29 @@ void AstralInstallNetworkFilter(BOOL (^staffDevTools)(void))
 BOOL AstralInjectGatewayMessage(NSString *message)
 {
     if (!StaffDevTools() || !message.length) return NO;
-    @synchronized(NSMutableArray.class) {
-        if (!gInjected) gInjected = [NSMutableArray array];
-        [gInjected addObject:message];
-    }
+    QueueInjected(message);
     return YES;
+}
+
+void AstralRestartGatewaySession(void)
+{
+    id task;
+    BOOL uncompressed;
+    @synchronized(NSMutableArray.class) {
+        task = gGatewayTask;
+        uncompressed = gGatewayUncompressed;
+    }
+    if (!task) return;
+    if (uncompressed && !StaffDevTools()) {
+        QueueInjected(kInvalidSession);
+        AstralDevAppendLog(@"network filter: asked Discord for a new gateway session");
+        return;
+    }
+    @synchronized(NSMutableArray.class) {
+        gInvalidateAfterHello = YES;
+    }
+    [task cancelWithCloseCode:NSURLSessionWebSocketCloseCodeGoingAway reason:nil];
+    AstralDevAppendLog(@"network filter: closed the gateway so it reconnects with the new settings");
 }
 
 NSDictionary *AstralNetworkFilterStats(void)

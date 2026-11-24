@@ -24,6 +24,7 @@ struct SettingsPagesPlatform {
     std::string version;
     std::function<SettingsPageContext()> context;
     std::function<nlohmann::json()> crashReports;
+    std::function<void()> restartGatewaySession;
     std::function<void(size_t index)> openReport;
     std::function<uint64_t()> blockedRequests;
     std::function<nlohmann::json()> themes;
