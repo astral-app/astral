@@ -60,6 +60,7 @@ int astral_settings_rewrite(const uint8_t *bytes, size_t length, AstralWireBuffe
     if (changed) wirePut(&out, bytes, length);
     wireObserve(bytes, spans, count);
     wireTrackMessageNodes(bytes, spans, count);
+    wireTrackComposer(bytes, spans, count);
     wireSetTemplateSource(raw);
     wireRewritePages(bytes, spans, count, &out, &changed, length);
     wireSetTemplateSource(NULL);

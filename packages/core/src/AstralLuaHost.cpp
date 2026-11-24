@@ -2909,3 +2909,11 @@ int AstralLuaMessageText(uint64_t messageID, char *text, size_t textCapacity, ch
     snprintf(note, noteCapacity, "%s", found->second.note.c_str());
     return 1;
 }
+
+int AstralLuaSendTransform(uint64_t channelID, const char *text, char *rewritten, size_t capacity)
+{
+    auto changed = astral::luahost::transformOutgoingMessage(Snowflake(channelID), "send", text);
+    if (!changed || changed->size() >= capacity) return 0;
+    snprintf(rewritten, capacity, "%s", changed->c_str());
+    return 1;
+}

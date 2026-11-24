@@ -99,6 +99,7 @@ void wireSkipValue(Cursor *cursor, uint8_t tag, int depth);
 void wireCloneCreation(Out *out, const uint8_t *bytes, const Span *span, int32_t id, const Change *changes, size_t changeCount);
 void wireMessageMenu(const uint8_t *bytes, const Span *spans, size_t count, Out *out, int *changed, size_t length);
 void wireMessageTexts(const uint8_t *bytes, const Span *spans, size_t count, Out *out, int *changed, size_t length);
+void wireTrackComposer(const uint8_t *bytes, const Span *spans, size_t count);
 void wireTrackMessageNodes(const uint8_t *bytes, const Span *spans, size_t count);
 int wireScan(const uint8_t *bytes, size_t length, Span *spans, size_t *count);
 int32_t wireChild(const uint8_t *bytes, const Span *span, uint32_t index);

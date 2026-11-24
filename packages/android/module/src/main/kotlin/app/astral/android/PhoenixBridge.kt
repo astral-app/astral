@@ -23,6 +23,7 @@ import android.webkit.WebViewClient
 import io.github.libxposed.api.XposedInterface.ExceptionMode
 import io.github.libxposed.api.XposedModule
 import java.lang.reflect.Method
+import java.lang.reflect.Proxy
 import java.lang.ref.WeakReference
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
@@ -92,6 +93,7 @@ object PhoenixBridge {
             .setExceptionMode(ExceptionMode.PROTECTIVE)
             .intercept { chain ->
                 val event = chain.getArg(0) as? ByteArray
+                event?.let(Native::composerEvent)?.let { before -> deliverEvent(chain.thisObject, enqueue, function0, before) }
                 if (event != null && handled(event)) {
                     chain.getArg(1)?.let { done -> handler.post { runCatching { done.javaClass.getMethod("invoke").invoke(done) } } }
                     null
@@ -100,6 +102,18 @@ object PhoenixBridge {
                 }
             }
         Log.info("Hooked GuestHost.${enqueue.name} for events")
+    }
+
+    private fun deliverEvent(host: Any?, enqueue: Method, function0: Class<*>, event: ByteArray) {
+        val done = Proxy.newProxyInstance(function0.classLoader, arrayOf(function0)) { proxy, method, arguments ->
+            when (method.name) {
+                "equals" -> proxy === arguments?.firstOrNull()
+                "hashCode" -> System.identityHashCode(proxy)
+                "toString" -> "astral.event"
+                else -> Unit
+            }
+        }
+        runCatching { enqueue.invoke(host, event, done) }.onFailure { Log.error("Failed to deliver the rewritten message text", it) }
     }
 
     private fun handled(event: ByteArray): Boolean {
