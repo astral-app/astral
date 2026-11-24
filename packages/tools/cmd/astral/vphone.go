@@ -27,6 +27,7 @@ const vphoneUsage = `usage: astral vphone <command>
   crashes [--process Discord]      the newest crash report, with astral frames symbolicated
   capture [--seconds 30] <dir>     record Phoenix's ViewWire batches while you use Discord, decoded to <dir>/wire.jsonl
   screenshot [file]                save the screen as a JPEG (vphone-screenshot.jpg by default)
+  open <target>                    open a Discord link: user <id>, channel <guild> <channel> [message], dm [channel], settings [section] or a URL
   boot [--name vphone]              restart the VM with its guest API on, using a stored token
   status                           bootstrap state and the frontmost app
   call <method> [json params]      call any guest API method
@@ -390,6 +391,13 @@ func runVphone(args []string) error {
 		return runVphoneCapture(client, args[1:])
 	case "screenshot":
 		return runVphoneScreenshot(client, args[1:])
+	case "open":
+		link, err := discordLink(args[1:])
+		if err != nil {
+			return err
+		}
+		client.call("screen.unlock", map[string]any{"timeout_ms": 5000}, nil)
+		return client.call("apps.launch", map[string]any{"bundle_id": discordBundleID, "url": link}, nil)
 	case "setup":
 		return runVphoneSetup(args[1:])
 	case "discord":

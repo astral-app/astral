@@ -15,6 +15,8 @@ static std::atomic<unsigned long long> gBlocked;
 static std::atomic<unsigned long long> gStaffUsers;
 static std::atomic<unsigned long long> gStaffReadies;
 static std::atomic<unsigned long long> gCompressedFrames;
+static std::atomic<unsigned long long> gDiscordRequests;
+static std::atomic<unsigned long long> gMessageRequests;
 
 static BOOL StaffDevTools(void)
 {
@@ -38,9 +40,12 @@ static BOOL IsCurrentUser(NSURLRequest *request)
     return reading && url && astral::isCurrentUserRequest(Text(url.host), Text(url.path));
 }
 
+static const NSUInteger kMaxMessageBody = 1u << 20;
+
 static BOOL IsJSONMessageRequest(NSURLRequest *request)
 {
-    if (!request.HTTPBody || request.HTTPBody.length > (1u << 20)) return NO;
+    if (!request.HTTPBody && !request.HTTPBodyStream) return NO;
+    if (request.HTTPBody.length > kMaxMessageBody) return NO;
     NSString *contentType = [[request valueForHTTPHeaderField:@"Content-Type"] lowercaseString];
     return [contentType containsString:@"application/json"];
 }
@@ -51,8 +56,29 @@ static BOOL IsOutgoingMessage(NSURLRequest *request)
            astral::outgoingMessageTarget(Text(request.URL.host), Text(request.URL.path), Text(request.HTTPMethod)).has_value();
 }
 
+static NSData *StreamedBody(NSInputStream *stream)
+{
+    NSMutableData *body = [NSMutableData data];
+    uint8_t buffer[16384];
+    [stream open];
+    while (body.length <= kMaxMessageBody) {
+        NSInteger read = [stream read:buffer maxLength:sizeof(buffer)];
+        if (read <= 0) break;
+        [body appendBytes:buffer length:(NSUInteger)read];
+    }
+    [stream close];
+    return body;
+}
+
+static void MaterializeBody(NSMutableURLRequest *request)
+{
+    if (request.HTTPBody || !request.HTTPBodyStream) return;
+    request.HTTPBody = StreamedBody(request.HTTPBodyStream);
+}
+
 static void TransformOutgoingMessage(NSMutableURLRequest *request)
 {
+    MaterializeBody(request);
     if (!request.URL || !IsJSONMessageRequest(request)) return;
     auto transformed = astral::transformOutgoingMessageBody(Text(request.URL.host), Text(request.URL.path), Text(request.HTTPMethod),
                                                             std::string_view((const char *)request.HTTPBody.bytes, request.HTTPBody.length),
@@ -75,6 +101,10 @@ static void TransformOutgoingMessage(NSMutableURLRequest *request)
 + (BOOL)canInitWithRequest:(NSURLRequest *)request
 {
     if ([NSURLProtocol propertyForKey:kHandledKey inRequest:request]) return NO;
+    if (request.URL && astral::isDiscordHost(Text(request.URL.host))) {
+        gDiscordRequests++;
+        if ([request.HTTPMethod isEqualToString:@"POST"] && [request.URL.path hasSuffix:@"/messages"]) gMessageRequests++;
+    }
     return IsTelemetry(request.URL) || (StaffDevTools() && IsCurrentUser(request)) || IsOutgoingMessage(request);
 }
 
@@ -339,5 +369,7 @@ NSDictionary *AstralNetworkFilterStats(void)
         @"staffUsers" : @(gStaffUsers.load()),
         @"staffReadies" : @(gStaffReadies.load()),
         @"compressedFrames" : @(gCompressedFrames.load()),
+        @"discordRequests" : @(gDiscordRequests.load()),
+        @"messageRequests" : @(gMessageRequests.load()),
     };
 }

@@ -1,6 +1,7 @@
 local astral = astral
 local native = {
 	switch = astral.settings.switch,
+	set = astral.settings.set,
 	choice = astral.settings.choice,
 	number = astral.settings.number,
 	text = astral.settings.text,
@@ -366,6 +367,13 @@ end
 function astral.settings.text(key, title, default, options)
 	values[key] = native.text(key, title, default, options)
 	return values[key]
+end
+
+function astral.settings.set(key, value)
+	native.set(key, value)
+	if values[key] ~= nil and values[key] ~= value then
+		astral.on_setting(key, value)
+	end
 end
 
 function astral.settings.on_change(key, listener)
