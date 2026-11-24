@@ -137,7 +137,7 @@ json generalPage(const astral::SettingsPageContext &context)
              "astral",
              {with(row("version", "Version", "res://ic_mana_circle_information", kAstralRowInfo), {{"detail", gPlatform.version}}),
               with(row("discord", "Discord", "res://ic_mana_mobile_phone_settings", kAstralRowInfo), {{"detail", context.discordVersion}}),
-              with(row("engine", "Engine", "res://ic_mana_bug", kAstralRowInfo), {{"detail", "Phoenix"}}),
+              with(row("engine", "Engine", "res://ic_mana_settings", kAstralRowInfo), {{"detail", "Phoenix"}}),
               with(row("runtime", "Plugin runtime", "res://ic_mana_puzzle_piece", kAstralRowInfo), {{"detail", "Lua 5.4"}})}),
          section("Preferences",
                  {with(row("safe-mode", "Safe mode", "res://ic_mana_shield", kAstralRowSwitch),
