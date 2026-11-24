@@ -593,6 +593,32 @@ static int OpenURL(lua_State *state)
     return 1;
 }
 
+static int Notify(lua_State *state)
+{
+    LuaPlugin *plugin = Self(state);
+    RequirePermission(state, "ui.notifications");
+    std::string title = luaL_checkstring(state, 1);
+    std::string body = luaL_checkstring(state, 2);
+    if (title.size() > 120 || body.size() > 2048) return luaL_error(state, "astral.ui.notify: text exceeds its limit");
+    double delay = 0;
+    if (lua_istable(state, 3)) {
+        lua_getfield(state, 3, "delay");
+        delay = lua_isnumber(state, -1) ? lua_tonumber(state, -1) : 0;
+        lua_pop(state, 1);
+    }
+    if (!std::isfinite(delay) || delay < 0 || delay > 7 * 24 * 60 * 60)
+        return luaL_error(state, "astral.ui.notify: delay is 0 to 604800 seconds");
+    if (!gPlatform.notify) return luaL_error(state, "astral.ui.notify: notifications are unavailable on this build");
+    std::string identifier = "astral." + plugin->identifier + "." + std::to_string(gNextRequest++);
+    bool scheduled = false;
+    try {
+        scheduled = gPlatform.notify(identifier, title, body, delay);
+    } catch (...) {
+    }
+    lua_pushboolean(state, scheduled);
+    return 1;
+}
+
 static int Haptic(lua_State *state)
 {
     RequirePermission(state, "ui.haptics");
@@ -1446,6 +1472,7 @@ static void InstallAPI(LuaPlugin *plugin)
     Function(state, plugin, "copy", CopyText);
     Function(state, plugin, "paste", PasteText);
     Function(state, plugin, "open", OpenURL);
+    Function(state, plugin, "notify", Notify);
     Function(state, plugin, "composer", RegisterComposerDecorator);
     Function(state, plugin, "message_background", RegisterMessageBackground);
     Function(state, plugin, "haptic", Haptic);

@@ -5,6 +5,9 @@ import android.app.AlertDialog
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Intent
 import android.net.Uri
 import android.os.Handler
@@ -33,6 +36,8 @@ object PhoenixBridge {
     private const val GUEST_HOST = "com.discord.nativeapp.bridge.GuestHost"
     private const val RETRY_INTERVAL_MS = 1000L
     private const val TWEEN_FRAME_MS = 16L
+    private const val NOTIFICATION_CHANNEL = "astral"
+    private val notificationIds = java.util.concurrent.atomic.AtomicInteger(0x7a57)
     private val tweening = java.util.concurrent.atomic.AtomicBoolean(false)
 
     private const val EVENT_FRAME = 1
@@ -551,6 +556,25 @@ object PhoenixBridge {
         val activity = activeActivity() ?: return null
         val clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return null
         return clipboard.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(activity)?.toString()
+    }
+
+    @JvmStatic
+    fun notify(delayMs: Long, title: String, body: String) {
+        val post = Runnable {
+            val context = activeActivity()?.applicationContext ?: return@Runnable
+            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return@Runnable
+            manager.createNotificationChannel(NotificationChannel(NOTIFICATION_CHANNEL, "astral", NotificationManager.IMPORTANCE_DEFAULT))
+            val notification = Notification.Builder(context, NOTIFICATION_CHANNEL)
+                .setSmallIcon(context.applicationInfo.icon)
+                .setContentTitle(title)
+                .setContentText(body)
+                .setStyle(Notification.BigTextStyle().bigText(body))
+                .setAutoCancel(true)
+                .build()
+            runCatching { manager.notify(notificationIds.incrementAndGet(), notification) }
+                .onFailure { Log.warning("Failed to post notification $title: ${it.javaClass.simpleName}") }
+        }
+        if (delayMs > 0) mainHandler.postDelayed(post, delayMs) else mainHandler.post(post)
     }
 
     @JvmStatic

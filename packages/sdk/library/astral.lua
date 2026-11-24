@@ -363,6 +363,11 @@ function astral.ui.paste() end
 ---@param url string
 ---@return boolean
 function astral.ui.open(url) end
+---@param title string
+---@param body string
+---@param options? { delay: number }
+---@return boolean
+function astral.ui.notify(title, body, options) end
 function astral.ui.haptic(strength) end
 function astral.ui.composer(formatter) end
 ---@param target astral.Target

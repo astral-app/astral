@@ -10,6 +10,7 @@
 #include <netinet/in.h>
 #include <random>
 #include <sys/socket.h>
+#include <cerrno>
 #include <thread>
 #include <unistd.h>
 
@@ -21,6 +22,7 @@
 namespace {
 
 constexpr uint16_t kPort = 9324;
+constexpr std::chrono::milliseconds kRelistenDelay{500};
 constexpr size_t kMaxLog = 500;
 constexpr size_t kMaxRequest = 512u << 10;
 constexpr const char *kPairingAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -283,10 +285,10 @@ void serve(int client)
     close(client);
 }
 
-void listenLoop()
+int openListener()
 {
     int listener = socket(AF_INET, SOCK_STREAM, 0);
-    if (listener < 0) return;
+    if (listener < 0) return -1;
     int reuse = 1;
     setsockopt(listener, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
     sockaddr_in address{};
@@ -295,12 +297,26 @@ void listenLoop()
     address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     if (bind(listener, reinterpret_cast<sockaddr *>(&address), sizeof(address)) != 0 || listen(listener, 8) != 0) {
         close(listener);
-        return;
+        return -1;
     }
+    return listener;
+}
+
+void listenLoop()
+{
     while (true) {
-        int client = accept(listener, nullptr, nullptr);
-        if (client < 0) continue;
-        std::thread(serve, client).detach();
+        int listener = openListener();
+        while (listener >= 0) {
+            int client = accept(listener, nullptr, nullptr);
+            if (client >= 0) {
+                std::thread(serve, client).detach();
+                continue;
+            }
+            if (errno == EINTR) continue;
+            close(listener);
+            listener = -1;
+        }
+        std::this_thread::sleep_for(kRelistenDelay);
     }
 }
 

@@ -83,6 +83,7 @@ jmethodID gEditText = nullptr;
 jmethodID gRestartGatewaySession = nullptr;
 jmethodID gPasteText = nullptr;
 jmethodID gOpenURL = nullptr;
+jmethodID gNotify = nullptr;
 std::mutex gTextEditLock;
 std::map<uint64_t, std::function<void(std::optional<std::string>)>> gTextEditCallbacks;
 std::atomic<uint64_t> gNextTextEditRequest{1};
@@ -421,6 +422,10 @@ astral::LuaHostPlatform platform(const std::string &state, const std::string &re
         return true;
     };
     platform.readClipboard = []() -> std::optional<std::string> { return pasteFromBridge(); };
+    platform.notify = [](const std::string &, const std::string &title, const std::string &body, double delay) {
+        if (!gNotify) return false;
+        return callBridge(gNotify, static_cast<jlong>(delay * 1000), title, body);
+    };
     platform.openURL = [](const std::string &url) {
         if (!gOpenURL) return false;
         callBridge(gOpenURL, url);
@@ -1277,10 +1282,11 @@ ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_attachBridge
     jmethodID restartGatewaySessionMethod = env->GetStaticMethodID(reference, "restartGatewaySession", "()V");
     jmethodID pasteTextMethod = env->GetStaticMethodID(reference, "pasteText", "()Ljava/lang/String;");
     jmethodID openURLMethod = env->GetStaticMethodID(reference, "openURL", "(Ljava/lang/String;)V");
+    jmethodID notifyMethod = env->GetStaticMethodID(reference, "notify", "(JLjava/lang/String;Ljava/lang/String;)V");
     if (env->ExceptionCheck() || !deliverMethod || !fetchMethod || !requestMethod || !cancelMethod || !exportBackupMethod ||
         !importBackupMethod || !openReportMethod || !refreshEmojiMethod || !showAlertMethod || !triggerHapticMethod || !copyTextMethod ||
         !pickFileMethod || !cancelFilePickMethod || !showToastMethod || !openWebAuthMethod || !cancelWebAuthMethod || !editTextMethod ||
-        !restartGatewaySessionMethod || !pasteTextMethod || !openURLMethod) {
+        !restartGatewaySessionMethod || !pasteTextMethod || !openURLMethod || !notifyMethod) {
         env->ExceptionClear();
         env->DeleteGlobalRef(reference);
         return;
@@ -1309,6 +1315,7 @@ ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_attachBridge
         gRestartGatewaySession = restartGatewaySessionMethod;
         gPasteText = pasteTextMethod;
         gOpenURL = openURLMethod;
+        gNotify = notifyMethod;
     }
     astral::reactors::setFetcher(fetch);
 }
