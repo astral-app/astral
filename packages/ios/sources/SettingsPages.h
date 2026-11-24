@@ -13,6 +13,7 @@ typedef struct {
 NSDictionary *_Nonnull AstralSettingsCategory(void);
 NSDictionary *_Nonnull AstralSettingsPageModel(NSString *_Nonnull route, AstralPageContext context);
 NSString *_Nullable AstralSettingsPageAction(NSString *_Nonnull route, NSString *_Nonnull key, void (^_Nonnull changed)(void));
+void AstralRefreshCatalogIfDue(BOOL force, void (^_Nonnull changed)(void));
 
 #ifdef __cplusplus
 }

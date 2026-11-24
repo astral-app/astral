@@ -215,7 +215,7 @@ static void StartPlugins(void)
     astral_wire_set_emoji_resolver(AstralEmojiResolve);
     AstralInstallEmojiComposer();
     AstralInstallLuaComposer();
-    AstralCatalogRefresh(^{
+    AstralRefreshCatalogIfDue(YES, ^{
         AstralRefreshPhoenixSettings();
     });
     AstralAuthorAvatarsOnChange(^{
@@ -302,6 +302,9 @@ __attribute__((constructor)) static void AstralBootstrap(void)
                                                          queue:NSOperationQueue.mainQueue
                                                     usingBlock:^(__unused NSNotification *notification) {
                                                         AstralLuaHostEmitEvent(@"app.foreground");
+                                                        AstralRefreshCatalogIfDue(NO, ^{
+                                                            AstralRefreshPhoenixSettings();
+                                                        });
                                                         if (started) astral::ExitRecord(stateDirectory).clear();
                                                         if (readinessScheduled) return;
                                                         readinessAttempts = 0;

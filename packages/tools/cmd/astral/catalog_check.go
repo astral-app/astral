@@ -17,6 +17,9 @@ type catalogPlugin struct {
 }
 
 type catalogIndex struct {
+	Astral struct {
+		Version string `toml:"version"`
+	} `toml:"astral"`
 	Plugins []catalogPlugin `toml:"plugins"`
 }
 
@@ -37,6 +40,14 @@ func catalogDrift() ([]string, error) {
 	if err := toml.Unmarshal(data, &index); err != nil {
 		return nil, fmt.Errorf("packages/catalog/index.toml: %w", err)
 	}
+	version, err := os.ReadFile(repoPath("version.txt"))
+	if err != nil {
+		return nil, err
+	}
+	var drift []string
+	if strings.TrimSpace(string(version)) != index.Astral.Version {
+		drift = append(drift, fmt.Sprintf("astral version: catalog %q, version.txt %q", index.Astral.Version, strings.TrimSpace(string(version))))
+	}
 	listed := map[string]catalogPlugin{}
 	for _, plugin := range index.Plugins {
 		listed[plugin.ID] = plugin
@@ -45,7 +56,6 @@ func catalogDrift() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	var drift []string
 	for _, plugin := range plugins {
 		manifestData, err := os.ReadFile(repoPath("packages", "addons", "plugins", plugin.folder, "manifest.toml"))
 		if err != nil {

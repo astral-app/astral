@@ -30,6 +30,7 @@ Results from running astral on real Phoenix builds. Each row names the device, t
 | Plugin host | All 15 bundled plugins start; Phoenix stays the client across relaunches |
 | Telemetry filter | `/api/v9/science` requests are blocked |
 | Clear URLs | Did not work: the network rewrite depended on obfuscated OkHttp class names. Outgoing text is now rewritten at the send itself: astral checks the composer's last typed text against the value Phoenix echoes, transforms it when the send button is pressed and delivers one corrected text change first. Sends and edits are cleaned |
+| Updates | The catalog refreshes at launch and, at most every 6 hours, when Discord returns to the foreground. Pending plugin and theme updates install on their own unless "Update automatically" is off; a newer astral in the catalog shows one notice per version. The repository catalog had announced astral 0.0.3 while builds are 0.0.1; `astral test` now checks it against `version.txt` |
 | Staff DevTools | Staff Settings, Show Dev Tools and Build Overrides appear in Discord's settings after a relaunch |
 | Display cutout | The logo was drawn over Android's padded cutout rectangle, larger than the hole; it now follows the cutout path, so it hides behind the camera and only shows in screenshots |
 | Plugin message actions | Long presses arrive on the message list as `rowPressDown` with a data index; astral tracks each list's rendered window (`first` plus children) to find the message. Rows look like Discord's; a tap closes the sheet through the activity's back handling |

@@ -458,6 +458,11 @@ void installCategory()
     astral_wire_set_category(gCategoryStrings.back().c_str(), specs.data(), specs.size());
 }
 
+void refreshCatalogIfDue(bool force)
+{
+    astral::pages::refreshCatalogIfDue(static_cast<int64_t>(time(nullptr)), force, [] { astral::navigator::refresh(); });
+}
+
 void configurePages(const std::string &discordVersion)
 {
     astral::SettingsPagesPlatform pages;
@@ -548,13 +553,14 @@ void configurePages(const std::string &discordVersion)
         for (const auto &plugin : astral::luahost::plugins())
             if (plugin.value("enabled", false)) astral::luahost::reload(plugin.value("id", ""));
     };
+    pages.notify = [](const std::string &title, const std::string &message) { callBridge(gShowToast, title, message); };
     astral::pages::configure(std::move(pages));
     astral::navigator::configure([](std::vector<uint8_t> bytes) { deliver(bytes); },
                                  [](const std::function<void()> &work) {
                                      std::lock_guard<std::mutex> lock(gWireLock);
                                      work();
                                  });
-    if (gMarketplace) gMarketplace->refreshCatalog([] { astral::navigator::refresh(); });
+    refreshCatalogIfDue(true);
 }
 
 void installDecorators()
@@ -1325,7 +1331,9 @@ ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_completeText
 
 ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_emitEvent(JNIEnv *env, jclass, jstring event)
 {
-    astral::luahost::emitEvent(plain(env, event));
+    std::string name = plain(env, event);
+    astral::luahost::emitEvent(name);
+    if (name == "app.foreground") refreshCatalogIfDue(false);
 }
 
 ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_recordExitReport(JNIEnv *env, jclass, jstring kind, jlong timestamp,
