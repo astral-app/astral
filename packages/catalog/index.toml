@@ -56,7 +56,7 @@ base = "plugins/astral.highlight-replies/"
 id = "astral.translate"
 name = "Translate"
 version = "0.0.1"
-description = "Translates messages with Unbound Translate or Google and MyMemory, then copies the result and shows a toast."
+description = "Translates a message in place from its long-press menu with Unbound Translate, Google or MyMemory; tap again for the original."
 icon = "LanguageIcon"
 base = "plugins/astral.translate/"
 

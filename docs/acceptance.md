@@ -35,7 +35,7 @@ Results from running astral on real Phoenix builds. Each row names the device, t
 | Plugin message actions | Long presses arrive on the message list as `rowPressDown` with a data index; astral tracks each list's rendered window (`first` plus children) to find the message. Rows look like Discord's; a tap closes the sheet through the activity's back handling |
 | Translate | Same as iOS: in place with a "(translated)" note, restored on a second tap |
 | Plugins page | Author avatars and plugin icons show. Chat Bubbles, Highlight Replies and Translate named icons Phoenix lacks; they now use `ChatDotsIcon`, `ArrowAngleLeftUpIcon` and `LanguageIcon` |
-| Marketplace | The catalog loads; rows show the plugin's icon (installed plugin first, then the catalog's new `icon` field). Open: some two-line subtitles are cut off because the row is sized for fewer lines than Phoenix draws |
+| Marketplace and row subtitles | The catalog loads; rows show the plugin's icon. Subtitles were cut off and wrapped early because they inherited `flex: 1` from Discord's title text, which split the column's height; they now size to their text at Discord's 12 / 16 subtitle size |
 
 ## Compatibility scans, 2026-11-24
 
