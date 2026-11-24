@@ -18,11 +18,26 @@ static int32_t gNextTagId = kFirstTagId;
 
 static Decorated gDecorated[kMaxDecorated];
 
-enum { kBackgroundLinkCapacity = 16384, kBackgroundRowCapacity = 512, kBackgroundRowMapCapacity = 1024, kBubbleChildren = 4 };
+enum {
+    kBackgroundLinkCapacity = 16384,
+    kBackgroundRowCapacity = 512,
+    kBackgroundRowMapCapacity = 1024,
+    kBubbleChildren = 4,
+    kBubbleBlocks = 6,
+    kMediaCapacity = 512,
+    kInsideCapacity = 256
+};
 
 static const double kIconTagSize = 16;
 static const char kContentPrefix[] = "message.content:";
 static const float kBubblePadding[4] = {10, 6, 10, 6};
+static const float kMediaBlockPadding[4] = {0, 8, 0, 0};
+static const float kMediaInset = 4;
+static const double kMediaRadius = 16;
+static const float kReplyPadding[4] = {8, 3, 8, 3};
+static const double kReplyRadius = 9;
+static const float kQuotePadding[4] = {8, 4, 8, 4};
+static const uint32_t kQuoteColor = 0x26000000;
 
 typedef struct {
     int32_t id;
@@ -38,6 +53,16 @@ typedef struct {
 
 typedef struct {
     int32_t id;
+    int media;
+    int32_t card;
+    uint32_t cardColor;
+    double cardRadius;
+    int32_t children[kBubbleChildren];
+    uint32_t childCount;
+} BubbleBlock;
+
+typedef struct {
+    int32_t id;
     uint64_t message;
     uint64_t user;
     uint64_t channel;
@@ -48,9 +73,18 @@ typedef struct {
     int hasOriginal;
     int active;
     int bubble;
-    int32_t content;
-    int32_t contentChildren[kBubbleChildren];
-    uint32_t contentChildCount;
+    int replyShown;
+    int32_t column;
+    int32_t reply;
+    int32_t replyBar;
+    int32_t barChildren[kBubbleChildren];
+    uint32_t barChildCount;
+    float barPadding[4];
+    float barMargin[4];
+    int32_t quotedIn;
+    BubbleBlock blocks[kBubbleBlocks];
+    uint32_t blockCount;
+    uint32_t shownBlocks;
 } BackgroundState;
 
 static BackgroundState gBackgroundStates[kMaxDecorated];
@@ -354,24 +388,60 @@ static void putUnsetWidth(Out *out, int32_t node, int fill)
     }
 }
 
-static void writeBubbleUpdate(Out *out, const BackgroundState *state, int shown, uint32_t color, double radius)
+static void writeCardUpdate(Out *out, const BubbleBlock *block, int shown, uint32_t color, double radius)
 {
     wirePut8(out, 2);
-    wirePut32(out, (uint32_t)state->content);
-    wirePropCount(out, 4);
+    wirePut32(out, (uint32_t)block->card);
+    wirePropCount(out, 2);
+    wirePropLong(out, P(background), shown ? (int64_t)color : (int64_t)block->cardColor);
+    wirePropNumber(out, P(radius), shown ? radius : block->cardRadius);
+}
+
+static void writeBlockUpdate(Out *out, const BubbleBlock *block, int shown, uint32_t color, double radius)
+{
+    if (block->card) {
+        writeCardUpdate(out, block, shown, color, radius);
+        return;
+    }
+    const float *padding = block->media ? kMediaBlockPadding : (const float[4]){0, 0, 0, 0};
+    double blockRadius = block->media ? fmax(radius, kMediaRadius + kMediaInset) : radius;
+    wirePut8(out, 2);
+    wirePut32(out, (uint32_t)block->id);
+    wirePropCount(out, block->media ? 5 : 4);
     wirePropLong(out, P(background), shown ? (int64_t)color : 0);
-    wirePropNumber(out, P(radius), shown ? radius : 0);
-    if (shown)
-        wirePropQuad(out, P(padding), kBubblePadding[0], kBubblePadding[1], kBubblePadding[2], kBubblePadding[3]);
+    wirePropNumber(out, P(radius), shown ? blockRadius : 0);
+    if (!shown)
+        wirePropQuad(out, P(padding), padding[0], padding[1], padding[2], padding[3]);
+    else if (block->media)
+        wirePropQuad(out, P(padding), kMediaInset, kMediaInset, kMediaInset, kMediaInset);
     else
-        wirePropQuad(out, P(padding), 0, 0, 0, 0);
+        wirePropQuad(out, P(padding), kBubblePadding[0], kBubblePadding[1], kBubblePadding[2], kBubblePadding[3]);
+    if (block->media) wirePropQuad(out, P(margin), 0, shown ? kMediaInset : 0, 0, 0);
     if (shown) {
         wirePut16(out, P(width));
         wirePut8(out, 0);
     } else {
         wirePropString(out, P(width), "fill");
     }
-    for (uint32_t index = 0; index < state->contentChildCount; index++) putUnsetWidth(out, state->contentChildren[index], !shown);
+    for (uint32_t index = 0; index < block->childCount; index++) putUnsetWidth(out, block->children[index], !shown);
+}
+
+static void writeBubbleUpdate(Out *out, const BackgroundState *state, int shown, uint32_t color, double radius)
+{
+    for (uint32_t index = 0; index < state->blockCount; index++) writeBlockUpdate(out, &state->blocks[index], shown, color, radius);
+}
+
+static void writePreviewStyle(Out *out, int32_t preview, int mode, uint32_t color, double radius)
+{
+    static const float none[4] = {0, 0, 0, 0};
+    const float *padding = mode == AstralReplyBubble ? kReplyPadding : mode == AstralReplyInside ? kQuotePadding : none;
+    wirePut8(out, 2);
+    wirePut32(out, (uint32_t)preview);
+    wirePropCount(out, 4);
+    wirePropLong(out, P(background), mode == AstralReplyBubble ? (int64_t)color : mode == AstralReplyInside ? kQuoteColor : 0);
+    wirePropNumber(out, P(radius), mode == AstralReplyBubble ? kReplyRadius : mode == AstralReplyInside ? fmax(radius - 4, 4) : 0);
+    wirePropQuad(out, P(padding), padding[0], padding[1], padding[2], padding[3]);
+    wirePropQuad(out, P(margin), 0, 0, 0, mode == AstralReplyInside ? 6 : 0);
 }
 
 static void writeBackgroundUpdate(Out *out, const BackgroundState *state, uint32_t color, double radius)
@@ -424,14 +494,215 @@ static void captureOriginalBackground(const uint8_t *bytes, const Span *creation
     state->hasOriginal = 1;
 }
 
-static void rememberContent(const uint8_t *bytes, const Span *spans, size_t count, BackgroundState *state, int32_t content)
+static int quadProperty(const uint8_t *bytes, const Span *span, uint16_t wanted, float quad[4])
 {
-    state->content = content;
-    const Span *list = wireChildList(bytes, spans, count, content);
+    Cursor cursor = {bytes, span->end, span->start + 1 + 4, 0};
+    if (span->op == 1) wireSkip(&cursor, wireRead16(&cursor));
+    uint16_t count = wireRead16(&cursor);
+    for (uint16_t index = 0; index < count && !cursor.failed; index++) {
+        uint16_t property = wireRead16(&cursor);
+        uint8_t tag = wireRead8(&cursor);
+        if (property == wanted && tag == 9) {
+            if (!wireNeed(&cursor, sizeof(float) * 4)) return 0;
+            memcpy(quad, bytes + cursor.offset, sizeof(float) * 4);
+            return 1;
+        }
+        wireSkipValue(&cursor, tag, 0);
+    }
+    return 0;
+}
+
+static int isMediaBlock(const uint8_t *bytes, const Span *span)
+{
+    float padding[4];
+    return span->op == 1 && wireTypeIs(bytes, span, "view") && wireStringProperty(bytes, span, P(width), "fill") &&
+           quadProperty(bytes, span, P(padding), padding) && memcmp(padding, kMediaBlockPadding, sizeof(padding)) == 0;
+}
+
+static BubbleBlock *addBlock(BackgroundState *state, int32_t id, int media)
+{
+    for (uint32_t index = 0; index < state->blockCount; index++) {
+        if (state->blocks[index].id == id) return &state->blocks[index];
+    }
+    if (state->blockCount >= kBubbleBlocks) return NULL;
+    BubbleBlock *block = &state->blocks[state->blockCount++];
+    *block = (BubbleBlock){.id = id, .media = media};
+    return block;
+}
+
+static void rememberBlockChildren(const uint8_t *bytes, const Span *spans, size_t count, BubbleBlock *block)
+{
+    const Span *list = wireChildList(bytes, spans, count, block->id);
     if (!list) return;
-    state->contentChildCount = 0;
-    for (uint32_t position = 0; position < list->childCount && state->contentChildCount < kBubbleChildren; position++)
-        state->contentChildren[state->contentChildCount++] = wireChildAt(bytes, list, position);
+    block->childCount = 0;
+    for (uint32_t position = 0; position < list->childCount && block->childCount < kBubbleChildren; position++) {
+        int32_t child = wireChildAt(bytes, list, position);
+        const Span *creation = wireCreation(spans, count, child);
+        uint32_t cardColor = 0;
+        if (block->media && position == 0 && creation && wireColorProperty(bytes, creation, P(background), &cardColor) && cardColor) {
+            block->card = child;
+            block->cardColor = cardColor;
+            block->cardRadius = 0;
+            numberProperty(bytes, creation, P(radius), &block->cardRadius);
+            return;
+        }
+        if (block->media && !(creation && wireStringProperty(bytes, creation, P(width), "fill"))) continue;
+        block->children[block->childCount++] = child;
+    }
+}
+
+static int32_t childOf(const uint8_t *bytes, const Span *spans, size_t count, int32_t parent, uint32_t position)
+{
+    const Span *list = wireChildList(bytes, spans, count, parent);
+    return list && position < list->childCount ? wireChildAt(bytes, list, position) : 0;
+}
+
+static void rememberReply(const uint8_t *bytes, const Span *spans, size_t count, BackgroundState *state, int32_t row)
+{
+    int32_t body = childOf(bytes, spans, count, row, 1);
+    const Span *creation = wireCreation(spans, count, body);
+    if (!creation || !wireStringProperty(bytes, creation, P(direction), "column")) return;
+    int32_t bar = childOf(bytes, spans, count, body, 0);
+    const Span *barCreation = wireCreation(spans, count, bar);
+    const Span *barList = wireChildList(bytes, spans, count, bar);
+    int32_t preview = childOf(bytes, spans, count, bar, 1);
+    const Span *previewCreation = wireCreation(spans, count, preview);
+    if (!barCreation || !barList || !previewCreation || !wireTypeIs(bytes, previewCreation, "stack")) return;
+    state->reply = preview;
+    state->replyBar = bar;
+    state->barChildCount = 0;
+    for (uint32_t position = 0; position < barList->childCount && state->barChildCount < kBubbleChildren; position++)
+        state->barChildren[state->barChildCount++] = wireChildAt(bytes, barList, position);
+    memset(state->barPadding, 0, sizeof(state->barPadding));
+    memset(state->barMargin, 0, sizeof(state->barMargin));
+    quadProperty(bytes, barCreation, P(padding), state->barPadding);
+    quadProperty(bytes, barCreation, P(margin), state->barMargin);
+}
+
+static const BubbleBlock *findBlock(const BackgroundState *state, int32_t id)
+{
+    for (uint32_t index = 0; index < state->blockCount; index++) {
+        if (state->blocks[index].id == id) return &state->blocks[index];
+    }
+    return NULL;
+}
+
+static const BubbleBlock *textBlock(const BackgroundState *state)
+{
+    for (uint32_t index = 0; index < state->blockCount; index++) {
+        if (!state->blocks[index].media) return &state->blocks[index];
+    }
+    return NULL;
+}
+
+static void writeQuoteMove(Out *out, const BackgroundState *state, const BubbleBlock *text, int inside)
+{
+    int32_t children[kBubbleChildren + 1];
+    uint32_t childCount = 0;
+    wirePutChildren(out, state->replyBar, state->barChildren, inside ? 0 : state->barChildCount);
+    wirePut8(out, 2);
+    wirePut32(out, (uint32_t)state->replyBar);
+    wirePropCount(out, 2);
+    const float *padding = state->barPadding;
+    const float *margin = state->barMargin;
+    if (inside) {
+        wirePropQuad(out, P(padding), 0, 0, 0, 0);
+        wirePropQuad(out, P(margin), 0, 0, 0, 0);
+    } else {
+        wirePropQuad(out, P(padding), padding[0], padding[1], padding[2], padding[3]);
+        wirePropQuad(out, P(margin), margin[0], margin[1], margin[2], margin[3]);
+    }
+    childCount = 0;
+    if (inside) children[childCount++] = state->reply;
+    for (uint32_t index = 0; index < text->childCount; index++) children[childCount++] = text->children[index];
+    wirePutChildren(out, text->id, children, childCount);
+    wirePut8(out, 2);
+    wirePut32(out, (uint32_t)text->id);
+    wirePropCount(out, 1);
+    if (inside) {
+        wirePropString(out, P(direction), "column");
+    } else {
+        wirePut16(out, P(direction));
+        wirePut8(out, 0);
+    }
+}
+
+static void putOriginalOnce(Out *out, const uint8_t *bytes, size_t length, int *changed)
+{
+    if (!*changed) wirePut(out, bytes, length);
+    *changed = 1;
+}
+
+static int32_t gInsideRows[kInsideCapacity];
+
+static void trackInside(int32_t row, int inside)
+{
+    for (size_t index = 0; index < kInsideCapacity; index++) {
+        if (gInsideRows[index] == row) {
+            if (!inside) gInsideRows[index] = 0;
+            return;
+        }
+    }
+    if (!inside) return;
+    for (size_t index = 0; index < kInsideCapacity; index++) {
+        if (!gInsideRows[index]) {
+            gInsideRows[index] = row;
+            return;
+        }
+    }
+}
+
+static void writeReplyStyle(Out *out, BackgroundState *state, int mode, uint32_t color, double radius)
+{
+    if (state->replyShown == AstralReplyInside && mode != AstralReplyInside) {
+        const BubbleBlock *quoted = findBlock(state, state->quotedIn);
+        if (quoted) writeQuoteMove(out, state, quoted, 0);
+        state->quotedIn = 0;
+    }
+    if (mode == AstralReplyInside) {
+        const BubbleBlock *text = textBlock(state);
+        writeQuoteMove(out, state, text, 1);
+        state->quotedIn = text->id;
+    }
+    writePreviewStyle(out, state->reply, mode, color, radius);
+    trackInside(state->id, mode == AstralReplyInside);
+    state->replyShown = mode;
+}
+
+static void keepQuotesInside(const uint8_t *bytes, const Span *spans, size_t count, Out *out, int *changed, size_t length)
+{
+    for (size_t slot = 0; slot < kInsideCapacity; slot++) {
+        if (!gInsideRows[slot]) continue;
+        BackgroundState *state = backgroundState(gInsideRows[slot], 0);
+        if (!state || state->replyShown != AstralReplyInside) {
+            gInsideRows[slot] = 0;
+            continue;
+        }
+        const Span *barList = wireChildList(bytes, spans, count, state->replyBar);
+        const Span *textList = wireChildList(bytes, spans, count, state->quotedIn);
+        if (!barList && !textList) continue;
+        if (barList) {
+            state->barChildCount = 0;
+            for (uint32_t position = 0; position < barList->childCount && state->barChildCount < kBubbleChildren; position++)
+                state->barChildren[state->barChildCount++] = wireChildAt(bytes, barList, position);
+            if (state->barChildCount > 1) state->reply = state->barChildren[1];
+        }
+        BubbleBlock *text = (BubbleBlock *)findBlock(state, state->quotedIn);
+        if (!text) continue;
+        if (textList) rememberBlockChildren(bytes, spans, count, text);
+        putOriginalOnce(out, bytes, length, changed);
+        writeQuoteMove(out, state, text, 1);
+        if (barList) writePreviewStyle(out, state->reply, AstralReplyInside, state->appliedColor, state->appliedRadius);
+    }
+}
+
+static BackgroundState *stateForColumn(int32_t column)
+{
+    if (!column) return NULL;
+    for (size_t index = 0; index < kMaxDecorated; index++) {
+        if (gBackgroundStates[index].column == column) return &gBackgroundStates[index];
+    }
+    return NULL;
 }
 
 static void wireAuthorColors(const uint8_t *bytes, const Span *spans, size_t count, Out *out, int *changed, size_t length)
@@ -453,13 +724,76 @@ static void wireAuthorColors(const uint8_t *bytes, const Span *spans, size_t cou
     }
 }
 
+static void resetBubbleNodes(BackgroundState *state)
+{
+    state->blockCount = 0;
+    state->shownBlocks = 0;
+    state->column = 0;
+    state->reply = 0;
+    state->bubble = 0;
+    state->replyShown = 0;
+    state->replyBar = 0;
+    state->quotedIn = 0;
+    trackInside(state->id, 0);
+}
+
+static void rememberBlock(const uint8_t *bytes, const Span *spans, size_t count, const BackgroundLink *links, BackgroundState *state,
+                          int32_t id, int media)
+{
+    BubbleBlock *block = addBlock(state, id, media);
+    if (!block) return;
+    rememberBlockChildren(bytes, spans, count, block);
+    int32_t column = backgroundParent(links, id);
+    if (column) state->column = column;
+}
+
+static void replaceTextBlock(BackgroundState *state, int32_t id)
+{
+    for (uint32_t index = 0; index < state->blockCount; index++) {
+        BubbleBlock *block = &state->blocks[index];
+        if (block->media || block->id == id) continue;
+        if (state->quotedIn == block->id) state->quotedIn = id;
+        *block = (BubbleBlock){.id = id};
+        if (state->shownBlocks > index) state->shownBlocks = index;
+        return;
+    }
+}
+
+static void bubbleLateBlocks(const uint8_t *bytes, const Span *spans, size_t count, const BackgroundLink *links, const int32_t *blocks,
+                             size_t blockCount, int media, Out *out, int *changed, size_t length)
+{
+    for (size_t index = 0; index < blockCount; index++) {
+        if (!blocks[index]) continue;
+        BackgroundState *state = stateForColumn(backgroundParent(links, blocks[index]));
+        if (!state) continue;
+        if (!media) replaceTextBlock(state, blocks[index]);
+        rememberBlock(bytes, spans, count, links, state, blocks[index], media);
+        if (!state->bubble || state->shownBlocks == state->blockCount) continue;
+        putOriginalOnce(out, bytes, length, changed);
+        for (uint32_t block = state->shownBlocks; block < state->blockCount; block++)
+            writeBlockUpdate(out, &state->blocks[block], 1, state->appliedColor, state->appliedRadius);
+        state->shownBlocks = state->blockCount;
+        const BubbleBlock *quoted = findBlock(state, state->quotedIn);
+        if (state->replyShown == AstralReplyInside && quoted) writeQuoteMove(out, state, quoted, 1);
+    }
+}
+
+static void bubbleLateNodes(const uint8_t *bytes, const Span *spans, size_t count, const BackgroundLink *links, const int32_t *contents,
+                            size_t contentCount, const int32_t *media, size_t mediaCount, Out *out, int *changed, size_t length)
+{
+    bubbleLateBlocks(bytes, spans, count, links, contents, contentCount, 0, out, changed, length);
+    bubbleLateBlocks(bytes, spans, count, links, media, mediaCount, 1, out, changed, length);
+}
+
 static void wireMessageBackgrounds(const uint8_t *bytes, const Span *spans, size_t count, Out *out, int *changed, size_t length)
 {
     static BackgroundLink links[kBackgroundLinkCapacity];
     static int32_t rowMap[kBackgroundRowMapCapacity];
     static BackgroundRow rows[kBackgroundRowCapacity];
     static int32_t contents[kBackgroundRowCapacity];
+    static int32_t media[kMediaCapacity];
     size_t contentCount = 0;
+    size_t mediaCount = 0;
     memset(links, 0, sizeof(links));
     memset(rowMap, 0, sizeof(rowMap));
     memset(rows, 0, sizeof(rows));
@@ -480,6 +814,8 @@ static void wireMessageBackgrounds(const uint8_t *bytes, const Span *spans, size
             rows[rowCount].id = span->id;
             backgroundPutRow(rowMap, span->id);
             rowCount++;
+        } else if (mediaCount < kMediaCapacity && isMediaBlock(bytes, span)) {
+            media[mediaCount++] = span->id;
         }
     }
     for (size_t index = 0; index < count && rowCount < kBackgroundRowCapacity; index++) {
@@ -488,11 +824,15 @@ static void wireMessageBackgrounds(const uint8_t *bytes, const Span *spans, size
         BackgroundState *state = backgroundState(span->id, 0);
         if (!state || !state->hasOriginal || backgroundWasRemoved(bytes, spans, count, span->id)) continue;
         if (backgroundRowIndex(rows, rowCount, span->id) < rowCount) continue;
-        rows[rowCount] = (BackgroundRow){state->id, state->message, state->user, state->content};
+        rows[rowCount] = (BackgroundRow){state->id, state->message, state->user, 0};
         backgroundPutRow(rowMap, state->id);
         rowCount++;
     }
-    if (!rowCount) return;
+    if (!rowCount) {
+        bubbleLateNodes(bytes, spans, count, links, contents, contentCount, media, mediaCount, out, changed, length);
+        keepQuotesInside(bytes, spans, count, out, changed, length);
+        return;
+    }
     for (size_t index = 0; index < count; index++) {
         const Span *span = &spans[index];
         if (span->op != 1 && span->op != 2) continue;
@@ -507,9 +847,10 @@ static void wireMessageBackgrounds(const uint8_t *bytes, const Span *spans, size
     for (size_t index = 0; index < contentCount; index++) {
         int32_t id = backgroundRowForNode(links, rowMap, contents[index]);
         size_t rowIndex = backgroundRowIndex(rows, rowCount, id);
-        if (rowIndex < rowCount) rows[rowIndex].content = contents[index];
+        if (rowIndex == rowCount) continue;
+        rows[rowIndex].content = contents[index];
+        contents[index] = 0;
     }
-    int wroteOriginal = 0;
     for (size_t index = 0; index < rowCount; index++) {
         BackgroundRow *row = &rows[index];
         const Span *creation = wireCreation(spans, count, row->id);
@@ -519,6 +860,8 @@ static void wireMessageBackgrounds(const uint8_t *bytes, const Span *spans, size
         if (!state) continue;
         if (creation) {
             captureOriginalBackground(bytes, creation, state);
+            resetBubbleNodes(state);
+            rememberReply(bytes, spans, count, state, row->id);
             state->active = 0;
             state->message = row->message;
             state->user = row->user;
@@ -529,35 +872,46 @@ static void wireMessageBackgrounds(const uint8_t *bytes, const Span *spans, size
             state->channel = astral_wire_current_channel();
         }
         if (!state->hasOriginal) captureOriginalBackground(bytes, creation, state);
-        if (row->content) rememberContent(bytes, spans, count, state, row->content);
+        if (row->content) {
+            replaceTextBlock(state, row->content);
+            rememberBlock(bytes, spans, count, links, state, row->content, 0);
+        }
+        for (size_t block = 0; block < mediaCount; block++) {
+            if (!media[block] || backgroundRowForNode(links, rowMap, media[block]) != row->id) continue;
+            rememberBlock(bytes, spans, count, links, state, media[block], 1);
+            media[block] = 0;
+        }
         AstralMessageBackgroundContext context = {state->message, state->user, state->channel};
         AstralMessageBackgroundStyle style = {0};
         int result = gMessageBackgroundDecorator ? gMessageBackgroundDecorator(&context, &style) : 0;
         if (result < 0) continue;
         int active = result > 0 && validBackgroundStyle(&style);
-        int bubble = active && style.bubble && state->content;
+        int bubble = active && style.bubble && state->blockCount;
+        int reply = bubble && state->reply ? style.reply : AstralReplyAbove;
+        if (reply == AstralReplyInside && !textBlock(state)) reply = AstralReplyBubble;
         uint32_t color = active ? style.color : state->originalColor;
         double radius = active ? style.radius : state->originalRadius;
-        if (active == state->active && bubble == state->bubble &&
+        if (active == state->active && bubble == state->bubble && reply == state->replyShown &&
+            (!bubble || state->shownBlocks == state->blockCount) &&
             (!active || (color == state->appliedColor && radius == state->appliedRadius)))
             continue;
-        if (!wroteOriginal && !*changed) {
-            wirePut(out, bytes, length);
-            wroteOriginal = 1;
-        }
-        *changed = 1;
+        putOriginalOnce(out, bytes, length, changed);
         if (bubble || state->bubble) writeBubbleUpdate(out, state, bubble, color, radius);
+        if (reply != state->replyShown) writeReplyStyle(out, state, reply, color, radius);
         if (bubble)
             writeBackgroundUpdate(out, state, state->originalColor, state->originalRadius);
         else
             writeBackgroundUpdate(out, state, color, radius);
         state->bubble = bubble;
+        state->shownBlocks = bubble ? state->blockCount : 0;
         if (active) {
             state->appliedColor = color;
             state->appliedRadius = radius;
         }
         state->active = active;
     }
+    bubbleLateNodes(bytes, spans, count, links, contents, contentCount, media, mediaCount, out, changed, length);
+    keepQuotesInside(bytes, spans, count, out, changed, length);
 }
 
 static int32_t tagId(void)

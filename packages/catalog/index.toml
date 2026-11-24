@@ -7,8 +7,8 @@ passive = []
 [[plugins]]
 id = "astral.chat-bubbles"
 name = "Chat Bubbles"
-version = "0.0.1"
-description = "Adds rounded color cards behind Phoenix message rows."
+version = "0.0.2"
+description = "Draws a rounded bubble behind each message's text, media and embeds."
 icon = "ChatDotsIcon"
 base = "plugins/astral.chat-bubbles/"
 

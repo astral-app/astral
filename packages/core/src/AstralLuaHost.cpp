@@ -2989,10 +2989,17 @@ int AstralLuaMessageBackground(const AstralMessageBackgroundContext *context, As
                 lua_getfield(state, -1, "bubble");
                 bool bubble = lua_toboolean(state, -1);
                 lua_pop(state, 1);
+                lua_getfield(state, -1, "reply");
+                const char *reply = lua_isstring(state, -1) ? lua_tostring(state, -1) : "";
+                int replyStyle = std::strcmp(reply, "inside") == 0   ? AstralReplyInside
+                                 : std::strcmp(reply, "bubble") == 0 ? AstralReplyBubble
+                                                                     : AstralReplyAbove;
+                lua_pop(state, 1);
                 if (validColor && std::isfinite(radius) && radius >= 0 && radius <= 32) {
                     style->color = color;
                     style->radius = radius;
                     style->bubble = bubble;
+                    style->reply = replyStyle;
                     found = true;
                 }
             }
