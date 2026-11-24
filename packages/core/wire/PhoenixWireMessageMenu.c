@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-enum { kMessageNodeCapacity = 32768, kMaxMenuEntries = 12, kMaxSubtree = 256, kMaxGroupChildren = 64 };
+enum { kMessageNodeCapacity = 32768, kMaxMenuEntries = 12, kMaxSubtree = 256, kMaxGroupChildren = 64, kMaxLists = 16, kMaxListRows = 512 };
 
 static const int32_t kFirstMenuId = 0x7d000000;
 static const char kActionPrefix[] = "message.actions.";
@@ -14,7 +14,16 @@ typedef struct {
     uint64_t message;
 } MessageNode;
 
+typedef struct {
+    int32_t list;
+    int64_t first;
+    uint32_t rowCount;
+    int32_t rows[kMaxListRows];
+} ListWindow;
+
 static MessageNode gMessageNodes[kMessageNodeCapacity];
+static ListWindow gLists[kMaxLists];
+static uint32_t gNextList;
 static AstralMessageMenuProvider gMenuProvider;
 static int32_t gNextMenuId = kFirstMenuId;
 
@@ -66,6 +75,72 @@ static uint64_t messageOf(const uint8_t *bytes, const Span *span)
     return 0;
 }
 
+static int numberAt(const uint8_t *bytes, const Span *span, uint16_t wanted, int64_t *value)
+{
+    Cursor cursor = {bytes, span->end, span->start + 1 + 4, 0};
+    if (span->op == 1) wireSkip(&cursor, wireRead16(&cursor));
+    uint16_t count = wireRead16(&cursor);
+    for (uint16_t index = 0; index < count && !cursor.failed; index++) {
+        uint16_t property = wireRead16(&cursor);
+        uint8_t tag = wireRead8(&cursor);
+        if (property != wanted) {
+            wireSkipValue(&cursor, tag, 0);
+            continue;
+        }
+        if (tag == 3) {
+            *value = (int32_t)wireRead32(&cursor);
+            return !cursor.failed;
+        }
+        if ((tag != 4 && tag != 5) || !wireNeed(&cursor, 8)) return 0;
+        uint64_t raw = 0;
+        memcpy(&raw, bytes + cursor.offset, 8);
+        if (tag == 4) {
+            *value = (int64_t)raw;
+            return 1;
+        }
+        double number = 0;
+        memcpy(&number, &raw, 8);
+        *value = (int64_t)number;
+        return 1;
+    }
+    return 0;
+}
+
+static ListWindow *listWindow(int32_t list, int create)
+{
+    for (size_t index = 0; index < kMaxLists; index++)
+        if (gLists[index].list == list) return &gLists[index];
+    if (!create) return NULL;
+    ListWindow *window = &gLists[gNextList++ % kMaxLists];
+    memset(window, 0, sizeof(*window));
+    window->list = list;
+    return window;
+}
+
+static void trackListWindow(const uint8_t *bytes, const Span *span)
+{
+    ListWindow *window = NULL;
+    if (span->op == 1 && wireTypeIs(bytes, span, "list"))
+        window = listWindow(span->id, 1);
+    else if (span->op == 2 || span->op == 3)
+        window = listWindow(span->id, 0);
+    if (!window) return;
+    if (span->op != 3) {
+        numberAt(bytes, span, P(first), &window->first);
+        return;
+    }
+    Cursor cursor = {bytes, span->end, span->children, 0};
+    window->rowCount = span->childCount < kMaxListRows ? span->childCount : kMaxListRows;
+    for (uint32_t position = 0; position < window->rowCount; position++) window->rows[position] = (int32_t)wireRead32(&cursor);
+}
+
+uint64_t astral_wire_message_for_row(int32_t list, int64_t index)
+{
+    ListWindow *window = listWindow(list, 0);
+    if (!window || index < window->first || index - window->first >= window->rowCount) return 0;
+    return astral_wire_message_for_node(window->rows[index - window->first]);
+}
+
 static size_t subtree(const uint8_t *bytes, const Span *spans, size_t count, int32_t root, int32_t *nodes, size_t capacity)
 {
     size_t used = 0, cursor = 0;
@@ -83,6 +158,7 @@ void wireTrackMessageNodes(const uint8_t *bytes, const Span *spans, size_t count
     int32_t nodes[kMaxSubtree];
     for (size_t index = 0; index < count; index++) {
         const Span *span = &spans[index];
+        trackListWindow(bytes, span);
         if (span->op != 1 || !wireStringProperty(bytes, span, P(accessibilityId), "message-row")) continue;
         size_t found = subtree(bytes, spans, count, span->id, nodes, kMaxSubtree);
         uint64_t message = 0;

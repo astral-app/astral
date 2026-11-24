@@ -34,6 +34,8 @@ object PhoenixBridge {
     private const val EVENT_FRAME = 1
     private const val NODE_OFFSET = 2
     private const val EVENT_OFFSET = 6
+    private const val OBJECT_TAG = 8
+    private const val INT_TAG = 3
     private const val FUNCTION0 = "kotlin.jvm.functions.Function0"
     private const val MAIN_ACTIVITY = "com.discord.nativeapp.MainActivity"
     private const val EXPORT_BACKUP_REQUEST = 0xA571
@@ -43,6 +45,8 @@ object PhoenixBridge {
 
     @Volatile var pressEvent = -1
     @Volatile var changeEvent = -1
+    @Volatile var rowPressDownEvent = -1
+    @Volatile var indexProperty = -1
     @Volatile private var guestHost: Any? = null
     private var applyOps: Method? = null
     private val delivering = ThreadLocal.withInitial { false }
@@ -102,11 +106,49 @@ object PhoenixBridge {
         if (event.size < EVENT_OFFSET + 2 || event[0].toInt() != EVENT_FRAME || event[1].toInt() != EVENT_FRAME) return false
         val buffer = java.nio.ByteBuffer.wrap(event).order(java.nio.ByteOrder.LITTLE_ENDIAN)
         val kind = buffer.getShort(EVENT_OFFSET).toInt() and 0xFFFF
+        val node = buffer.getInt(NODE_OFFSET)
         return when (kind) {
-            pressEvent -> Native.press(buffer.getInt(NODE_OFFSET))
-            changeEvent -> Native.slide(buffer.getInt(NODE_OFFSET), event.copyOfRange(EVENT_OFFSET + 2, event.size))
+            pressEvent -> press(node)
+            changeEvent -> Native.slide(node, event.copyOfRange(EVENT_OFFSET + 2, event.size))
+            rowPressDownEvent -> {
+                Native.touchMessage(node, rowIndex(buffer))
+                false
+            }
             else -> false
         }
+    }
+
+    private fun rowIndex(buffer: java.nio.ByteBuffer): Long {
+        var offset = EVENT_OFFSET + 2
+        if (buffer.limit() < offset + 5 || buffer.get(offset).toInt() != OBJECT_TAG) return -1
+        val fields = buffer.getInt(offset + 1)
+        offset += 5
+        repeat(fields) {
+            if (buffer.limit() < offset + 7) return -1
+            val property = buffer.getShort(offset).toInt() and 0xFFFF
+            if (buffer.get(offset + 2).toInt() != INT_TAG) return -1
+            if (property == indexProperty) return buffer.getInt(offset + 3).toLong()
+            offset += 7
+        }
+        return -1
+    }
+
+    private fun press(node: Int): Boolean {
+        if (Native.press(node)) return true
+        if (Native.pressMessageAction(node)) {
+            mainHandler.post { dismissMessageMenu() }
+            return true
+        }
+        Native.touchMessage(node, -1)
+        return false
+    }
+
+    private fun dismissMessageMenu() {
+        val activity = activeActivity() ?: return
+        runCatching {
+            @Suppress("DEPRECATION")
+            activity.onBackPressed()
+        }.onFailure { Log.error("Failed to close the message menu", it) }
     }
 
     private fun installBackupActions(module: XposedModule, loader: ClassLoader) {
