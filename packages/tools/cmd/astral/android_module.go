@@ -11,7 +11,8 @@ import (
 
 const androidUsage = `usage: astral android <command>
   build [--java-home <JDK>] [--output <directory>] [--patcher <LSPatch.jar> <Discord APK>...]
-  deploy --device <adb serial> --mode <module|sideload> <APK>...`
+  deploy --device <adb serial> --mode <module|sideload> <APK>...
+  download [--channel alpha] [--output <directory>]`
 
 func runAndroid(args []string) error {
 	if len(args) == 0 {
@@ -22,6 +23,8 @@ func runAndroid(args []string) error {
 		return buildAndroidModule(args[1:])
 	case "deploy":
 		return deployAndroidModule(args[1:])
+	case "download":
+		return runAndroidDownload(args[1:])
 	default:
 		return errors.New(androidUsage)
 	}

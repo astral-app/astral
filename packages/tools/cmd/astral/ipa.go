@@ -296,6 +296,13 @@ func runBuildIPA(args []string) error {
 		}
 		*deb = newest
 	}
+	for _, path := range []*string{ipa, deb, destination} {
+		absolute, err := filepath.Abs(*path)
+		if err != nil {
+			return err
+		}
+		*path = absolute
+	}
 	work, cleanup, err := temporaryDirectory()
 	if err != nil {
 		return err

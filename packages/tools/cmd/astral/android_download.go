@@ -20,7 +20,10 @@ const (
 	maximumDiscordAPKSize = 512 << 20
 )
 
-var discordAPKSplits = []string{"base", "config.arm64_v8a"}
+var (
+	discordScanSplits    = []string{"base", "config.arm64_v8a"}
+	discordInstallSplits = []string{"base", "config.arm64_v8a", "config.xxhdpi", "config.en"}
+)
 
 type discordAPKIndex struct {
 	Latest map[string]int `json:"latest"`
@@ -137,7 +140,7 @@ func verifyDiscordAPK(apksigner string, apk string) error {
 	return fmt.Errorf("%s has no signer certificate", filepath.Base(apk))
 }
 
-func downloadDiscordAPKs(channel string, directory string) (int, []string, error) {
+func downloadDiscordAPKs(channel string, splits []string, directory string) (int, []string, error) {
 	code, err := discordVersionCode(channel)
 	if err != nil {
 		return 0, nil, err
@@ -147,7 +150,7 @@ func downloadDiscordAPKs(channel string, directory string) (int, []string, error
 		return 0, nil, err
 	}
 	var apks []string
-	for _, split := range discordAPKSplits {
+	for _, split := range splits {
 		apk, err := downloadDiscordSplit(code, split, directory)
 		if err != nil {
 			return 0, nil, err
@@ -158,4 +161,25 @@ func downloadDiscordAPKs(channel string, directory string) (int, []string, error
 		apks = append(apks, apk)
 	}
 	return code, apks, nil
+}
+
+func runAndroidDownload(args []string) error {
+	flags := newFlags("android download")
+	channel := flags.String("channel", "alpha", "Discord channel: stable, beta or alpha")
+	destination := flags.String("output", repoPath("packages", "android", "build", "discord"), "output directory")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(*destination, 0o755); err != nil {
+		return err
+	}
+	code, apks, err := downloadDiscordAPKs(*channel, discordInstallSplits, *destination)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Discord %s %d, signed by Discord:\n", *channel, code)
+	for _, apk := range apks {
+		fmt.Println(apk)
+	}
+	return nil
 }

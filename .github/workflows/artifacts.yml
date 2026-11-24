@@ -1,0 +1,176 @@
+name: Release artifacts
+
+on:
+  workflow_dispatch:
+    inputs:
+      ios_source:
+        description: Discord for iOS to inject into
+        type: choice
+        options: [appstore, testflight]
+        default: appstore
+      android_channel:
+        description: Discord for Android to patch (Phoenix ships in alpha first)
+        type: choice
+        options: [alpha, beta, stable]
+        default: alpha
+  schedule:
+    - cron: "17 5 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-artifacts
+  cancel-in-progress: true
+
+env:
+  LSPATCH_VERSION: v1.2
+  LSPATCH_JAR: lspatch-v1.2-487-release.jar
+  LSPATCH_SHA256: d238fdc414d121b7fa454d8b4ccf420df3a8c97d563761861ff92bd9c5da2165
+  RETENTION_DAYS: 14
+
+jobs:
+  deb:
+    name: Build the package
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          submodules: true
+          persist-credentials: false
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
+        with:
+          go-version-file: packages/tools/go.mod
+          cache-dependency-path: packages/tools/go.sum
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ${{ github.workspace }}/theos
+          key: theos-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: theos-${{ runner.os }}-
+      - name: Prepare Theos
+        run: |
+          echo "THEOS=${{ github.workspace }}/theos" >> "$GITHUB_ENV"
+          go run ./packages/tools/cmd/astral prepare-theos --theos "${{ github.workspace }}/theos"
+      - name: Build
+        run: |
+          gnubin="$(brew --prefix make)/libexec/gnubin"
+          export PATH="$gnubin:$PATH"
+          make -C packages/ios package FINALPACKAGE=1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: astral-deb
+          path: packages/ios/packages/*.deb
+          retention-days: ${{ env.RETENTION_DAYS }}
+
+  ipa:
+    name: Build the sideload IPA
+    needs: deb
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
+        with:
+          go-version-file: packages/tools/go.mod
+          cache-dependency-path: packages/tools/go.sum
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: astral-deb
+          path: deb
+      - name: Download Discord for iOS
+        timeout-minutes: 42
+        uses: castdrian/dkrypt@90e77358afff7fc913376dd732d30b222f922e0d
+        with:
+          api-url: ${{ vars.DKRYPT_BASE_URL || 'https://ipa.dylib.dev' }}
+          api-key: ${{ secrets.DKRYPT_API_KEY }}
+          bundle-id: com.hammerandchisel.discord
+          channel: ${{ inputs.ios_source || 'appstore' }}
+          output: discord.ipa
+          timeout-seconds: "1800"
+      - name: Inject astral
+        run: |
+          set -euo pipefail
+          deb=$(find deb -name '*.deb' | head -1)
+          go run ./packages/tools/cmd/astral build-ipa --ipa discord.ipa --deb "$deb" --output astral.ipa
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: astral-ipa
+          path: astral.ipa
+          retention-days: ${{ env.RETENTION_DAYS }}
+
+  android:
+    name: Build the Android module and LSPatch APKs
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CHANNEL: ${{ inputs.android_channel || 'alpha' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          submodules: true
+          persist-credentials: false
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
+        with:
+          go-version-file: packages/tools/go.mod
+          cache-dependency-path: packages/tools/go.sum
+      - name: Select Java 21
+        run: echo "JAVA_HOME=$JAVA_HOME_21_X64" >> "$GITHUB_ENV"
+      - name: Install Android build tools
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            --sdk_root="$ANDROID_HOME" \
+            "platforms;android-37.0" \
+            "ndk;27.3.13750724" \
+            "cmake;3.22.1"
+          if [ ! -e "$ANDROID_HOME/platforms/android-37" ]; then
+            ln -s android-37.0 "$ANDROID_HOME/platforms/android-37"
+          fi
+      - name: Download LSPatch
+        run: |
+          set -euo pipefail
+          curl --fail --location --silent --show-error --retry 10 --retry-max-time 300 --retry-all-errors \
+            "https://github.com/JingMatrix/LSPatch/releases/download/$LSPATCH_VERSION/$LSPATCH_JAR" -o "$LSPATCH_JAR"
+          echo "$LSPATCH_SHA256  $LSPATCH_JAR" | sha256sum -c -
+      - name: Download Discord for Android
+        run: go run ./packages/tools/cmd/astral android download --channel "$CHANNEL" --output discord
+      - name: Build
+        run: go run ./packages/tools/cmd/astral android build --output astral-android --patcher "$LSPATCH_JAR" discord/base.apk discord/config.arm64_v8a.apk discord/config.xxhdpi.apk discord/config.en.apk
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: astral-android
+          path: astral-android
+          retention-days: ${{ env.RETENTION_DAYS }}
+
+  checksums:
+    name: Record checksums and provenance
+    needs: [deb, ipa, android]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          path: artifacts
+      - name: Record
+        run: |
+          set -euo pipefail
+          cd artifacts
+          find . -type f \( -name '*.deb' -o -name '*.ipa' -o -name '*.apk' \) -print0 | sort -z | xargs -0 sha256sum | sed 's#  \./#  #' > ../SHA256SUMS
+          cd ..
+          jq -n \
+            --arg commit "$GITHUB_SHA" \
+            --arg repository "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
+            --arg run "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT" \
+            --arg workflow "$GITHUB_WORKFLOW_REF" \
+            --arg built "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --rawfile sums SHA256SUMS \
+            '{source: {repository: $repository, commit: $commit}, builder: {workflow: $workflow, run: $run}, built: $built, released: false,
+              artifacts: ($sums | split("\n") | map(select(length > 0) | split("  ") | {name: .[1], sha256: .[0]}))}' > provenance.json
+          cat SHA256SUMS >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: astral-checksums
+          path: |
+            SHA256SUMS
+            provenance.json
+          retention-days: ${{ env.RETENTION_DAYS }}
