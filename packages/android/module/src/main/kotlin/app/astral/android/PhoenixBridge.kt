@@ -542,6 +542,9 @@ object PhoenixBridge {
     fun refreshEmoji() = EmojiComposer.refresh()
 
     @JvmStatic
+    fun restartGatewaySession() = NetworkHooks.restartGatewaySession()
+
+    @JvmStatic
     fun fetch(url: String, token: String): ByteArray = Http.get(url, token)
 
     @JvmStatic

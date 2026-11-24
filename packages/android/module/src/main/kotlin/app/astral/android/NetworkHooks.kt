@@ -159,8 +159,12 @@ object NetworkHooks {
         module.hook(opener)
             .setExceptionMode(ExceptionMode.PROTECTIVE)
             .intercept { chain ->
-                chain.getArg(1)?.let { listener -> hookWebSocketListener(module, listener.javaClass, socketType) }
-                chain.proceed()
+                val listener = chain.getArg(1)
+                listener?.let { hookWebSocketListener(module, it.javaClass, socketType) }
+                val socket = chain.proceed()
+                if (socket != null && listener != null && chain.getArg(0).toString().contains("://gateway"))
+                    GatewaySession.opened(socket, listener, runCatching { Native.staffDevToolsEnabled() }.getOrDefault(false))
+                socket
             }
         Log.info("Hooked Phoenix WebSocket creation through ${clientType.name}.${opener.name}")
     }
@@ -180,10 +184,14 @@ object NetworkHooks {
                 var outgoing = Native.processGatewayMessage(message) ?: message
                 if (runCatching { Native.staffDevToolsEnabled() }.getOrDefault(false))
                     outgoing = Native.withStaffReady(outgoing) ?: outgoing
-                if (outgoing == message) chain.proceed() else chain.proceed(chain.args.toTypedArray().apply { this[1] = outgoing })
+                val result = if (outgoing == message) chain.proceed() else chain.proceed(chain.args.toTypedArray().apply { this[1] = outgoing })
+                GatewaySession.afterMessage(chain.getArg(0), method)
+                result
             }
         Log.info("Hooked Phoenix WebSocket messages through ${listener.name}.${method.name}")
     }
+
+    fun restartGatewaySession() = GatewaySession.restart()
 
     private fun interceptOkHttp(chain: Any?, loader: ClassLoader): Any? {
         if (chain == null) return null

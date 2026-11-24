@@ -145,6 +145,7 @@ static astral::SettingsPagesPlatform Platform(void)
     platform.exportBackup = [] { AstralExportBackup(); };
     platform.importBackup = [](const std::function<void()> &changed) { AstralImportBackup(Block(changed)); };
     platform.softRestart = [] { AstralSoftRestart(); };
+    platform.restartGatewaySession = [] { AstralRestartGatewaySession(); };
     platform.notify = [](const std::string &title, const std::string &message) { AstralShowToast(Native(title), Native(message)); };
     return platform;
 }

@@ -147,7 +147,9 @@ json generalPage(const astral::SettingsPageContext &context)
                         {"subtitle", developer ? "Pairing code " + astral::dev::pairingCode() + " for astral dev"
                                                : std::string("Run plugins that astral has not signed")}}),
                   with(row("staff-devtools", "Staff DevTools", "res://ic_mana_wrench", kAstralRowSwitch),
-                       {{"on", setting("staff-devtools")}, {"subtitle", "Unlock Discord's staff Dev Tools; relaunch Discord to apply"}}),
+                       {{"on", setting("staff-devtools")},
+                        {"subtitle", gPlatform.restartGatewaySession ? "Unlock Discord's staff DevTools"
+                                                                     : "Unlock Discord's staff DevTools; relaunch Discord to apply"}}),
                   with(row("force-phoenix", "Force Phoenix", "res://ic_mana_settings_arrow_up", kAstralRowInfo),
                        {{"detail", "On"}, {"subtitle", "The React Native fallback stays off"}})}),
          section("Backup", {with(row("export-backup", "Export settings", "res://ic_mana_download", kAstralRowLink),
@@ -817,6 +819,7 @@ std::optional<std::string> action(const std::string &route, const std::string &k
     }
     if (key == "switch.staff-devtools") {
         toggle("staff-devtools");
+        if (gPlatform.restartGatewaySession) gPlatform.restartGatewaySession();
         return std::nullopt;
     }
     if (key == "switch.safe-mode") {
