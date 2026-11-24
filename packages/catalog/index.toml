@@ -40,6 +40,13 @@ description = "Tints the text of messages that reply to your messages."
 base = "plugins/astral.highlight-replies/"
 
 [[plugins]]
+id = "astral.translate"
+name = "Translate"
+version = "0.0.1"
+description = "Translates messages with Unbound Translate or Google and MyMemory, then copies the result and shows a toast."
+base = "plugins/astral.translate/"
+
+[[plugins]]
 id = "astral.more-user-tags"
 name = "More User Tags"
 version = "0.0.1"

@@ -28,7 +28,10 @@ struct LuaHostPlatform {
         permissions;
     std::function<void(uint64_t request, const nlohmann::json &options)> networkRequest;
     std::function<void(uint64_t request)> cancelNetworkRequest;
+    std::function<bool(uint64_t request, const std::string &url, const std::string &callbackURL)> webAuth;
+    std::function<void(uint64_t request)> cancelWebAuth;
     std::function<void(const std::string &title, const std::string &message)> showAlert;
+    std::function<void(const std::string &title, const std::string &message)> showToast;
     std::function<bool(const std::string &strength)> triggerHaptic;
     std::function<bool(const std::string &value)> writeClipboard;
     std::function<bool(uint64_t request, const std::vector<std::string> &extensions)> pickFile;
@@ -59,10 +62,13 @@ void setNumber(const std::string &identifier, const std::string &key, double val
 void setText(const std::string &identifier, const std::string &key, const std::string &value);
 void resetSettings(const std::string &identifier);
 void completeNetworkRequest(uint64_t request, const nlohmann::json &response);
+void completeWebAuth(uint64_t request, const std::optional<std::string> &url, const std::optional<std::string> &cookies,
+                     const std::optional<std::string> &error);
 void completeFilePick(uint64_t request, const std::optional<std::string> &name, const std::optional<std::string> &data,
                       const std::optional<std::string> &error);
 void emitEvent(const std::string &event);
 std::optional<std::string> processGatewayMessage(std::string_view message);
+bool pressMessageAction(std::string_view identifier);
 bool hasOutgoingMessageTransforms();
 std::optional<std::string> transformOutgoingMessage(const std::string &channel, const std::string &operation, const std::string &content);
 std::string eval(const std::string &identifier, const std::string &code);

@@ -6,8 +6,12 @@ local native = {
 	text = astral.settings.text,
 	decorate = astral.ui.decorate,
 	relabel = astral.ui.relabel,
+	toast = astral.ui.toast,
+	web_auth = astral.ui.web_auth,
+	cancel_web_auth = astral.ui.cancel_web_auth,
 	mention = astral.ui.mention,
 	message_color = astral.ui.message_color,
+	message_action = astral.ui.message_action,
 	name_color = astral.ui.name_color,
 	typing = astral.ui.typing,
 	reaction = astral.ui.reaction,
@@ -509,6 +513,24 @@ function astral.ui.message_color(colorizer)
 		end
 		return astral.Color.from(color).value
 	end)
+end
+
+function astral.ui.message_action(label, callback)
+	return native.message_action(label, function(node)
+		return callback(wrapNode(node))
+	end)
+end
+
+function astral.ui.toast(title, message)
+	return native.toast(title, message)
+end
+
+function astral.ui.web_auth(url, callback_url, callback)
+	return native.web_auth(url, callback_url, callback)
+end
+
+function astral.ui.cancel_web_auth(request)
+	return native.cancel_web_auth(request)
 end
 
 function astral.ui.name_color(colorizer)

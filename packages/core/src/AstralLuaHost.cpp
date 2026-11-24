@@ -4,6 +4,8 @@
 #include <atomic>
 #include <cmath>
 #include <cctype>
+#include <charconv>
+#include <chrono>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
@@ -17,6 +19,7 @@
 #include <vector>
 
 #include "AstralLog.h"
+#include "AstralJSON.h"
 #include "AstralSettings.h"
 #include "LuaJSON.h"
 #include "LuaLocale.h"
@@ -39,6 +42,7 @@ static const size_t kStorageLimit = 512u << 10;
 static const int kBudgetSlices = 40;
 static const int kSliceInstructions = 5000;
 static const int kMaxErrors = 5;
+static const size_t kMaximumChoiceOptions = 64;
 
 struct LuaOption {
     std::string value;
@@ -75,6 +79,12 @@ struct LuaEventCallback {
     int reference;
 };
 
+struct LuaMessageAction {
+    uint64_t identifier;
+    std::string label;
+    int reference;
+};
+
 struct LuaPlugin : astral::PluginPackage, astral::PluginHealth {
     bool bundled = false;
     bool signedByAstral = false;
@@ -92,13 +102,17 @@ struct LuaPlugin : astral::PluginPackage, astral::PluginHealth {
     std::vector<int> typingDecorators;
     std::vector<int> reactionDecorators;
     std::vector<int> outgoingMessageTransforms;
+    std::vector<LuaMessageAction> messageActions;
     std::map<uint64_t, int> networkRequests;
+    std::map<uint64_t, int> webAuthRequests;
     std::map<uint64_t, int> filePicks;
     std::map<uint64_t, LuaEventCallback> eventCallbacks;
 };
 
 static int Translate(lua_State *state);
 static void RequirePermission(lua_State *state, const char *permission);
+static bool ContainsControl(const std::string &value);
+static bool ValidUTF8(const std::string &value);
 
 static std::recursive_mutex gMutex;
 static std::vector<LuaPlugin *> gPlugins;
@@ -107,6 +121,7 @@ static std::vector<std::string> gDirectories;
 static bool gStartEnabled;
 static astral::LuaHostPlatform gPlatform;
 static std::atomic<uint64_t> gNextRequest{1};
+static std::atomic<uint64_t> gNextMessageAction{1};
 static std::string gCurrentUserID;
 
 static void DeveloperLog(const std::string &line)
@@ -199,6 +214,13 @@ static int Log(lua_State *state)
     return 0;
 }
 
+static int TimeNowMilliseconds(lua_State *state)
+{
+    auto now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+    lua_pushinteger(state, static_cast<lua_Integer>(now));
+    return 1;
+}
+
 static int SettingsSwitch(lua_State *state)
 {
     LuaPlugin *plugin = Self(state);
@@ -242,11 +264,18 @@ static int SettingsChoice(lua_State *state)
         entry.section = FieldString(state, 5, "section").substr(0, 48);
     }
     lua_Integer count = luaL_len(state, 3);
-    for (lua_Integer index = 1; index <= count && entry.options.size() < 8; index++) {
+    if (count <= 0 || count > static_cast<lua_Integer>(kMaximumChoiceOptions)) {
+        return luaL_error(state, "astral.settings.choice: provide between 1 and %d choices", static_cast<int>(kMaximumChoiceOptions));
+    }
+    for (lua_Integer index = 1; index <= count; index++) {
         lua_rawgeti(state, 3, index);
         if (lua_istable(state, -1)) {
             LuaOption option{FieldString(state, -1, "value"), FieldString(state, -1, "title"), FieldString(state, -1, "subtitle")};
-            if (!option.value.empty()) entry.options.push_back(option);
+            if (option.value.size() > 128 || option.title.size() > 96 || option.subtitle.size() > 120) {
+                lua_pop(state, 1);
+                return luaL_error(state, "astral.settings.choice: option text exceeds its limit");
+            }
+            if (!option.value.empty()) entry.options.push_back(std::move(option));
         }
         lua_pop(state, 1);
     }
@@ -389,6 +418,21 @@ static int ShowAlert(lua_State *state)
     return 0;
 }
 
+static int ShowToast(lua_State *state)
+{
+    RequirePermission(state, "ui.toasts");
+    std::string title = luaL_checkstring(state, 1);
+    std::string message = luaL_checkstring(state, 2);
+    if (title.size() > 120 || message.size() > 2048) return luaL_error(state, "astral.ui.toast: text exceeds its limit");
+    if (!gPlatform.showToast) return luaL_error(state, "astral.ui.toast: notifications are unavailable on this build");
+    try {
+        gPlatform.showToast(title, message);
+    } catch (...) {
+        return luaL_error(state, "astral.ui.toast: could not show the notification");
+    }
+    return 0;
+}
+
 static int CopyText(lua_State *state)
 {
     RequirePermission(state, "ui.clipboard");
@@ -492,6 +536,81 @@ static int CancelFilePick(lua_State *state)
     return 1;
 }
 
+static bool ValidAuthorizationURL(const std::string &url, size_t maximumLength)
+{
+    if (url.size() > maximumLength || url.rfind("https://", 0) != 0 || url.find('\\') != std::string::npos || ContainsControl(url) ||
+        !ValidUTF8(url))
+        return false;
+    size_t authorityEnd = url.find_first_of("/?#", 8);
+    std::string authority = authorityEnd == std::string::npos ? url.substr(8) : url.substr(8, authorityEnd - 8);
+    return !authority.empty() && authority.find('@') == std::string::npos;
+}
+
+static int WebAuth(lua_State *state)
+{
+    LuaPlugin *plugin = Self(state);
+    RequirePermission(state, "ui.web_auth");
+    std::string url = luaL_checkstring(state, 1);
+    std::string callbackURL = luaL_checkstring(state, 2);
+    luaL_checktype(state, 3, LUA_TFUNCTION);
+    if (!ValidAuthorizationURL(url, 4096) || !ValidAuthorizationURL(callbackURL, 1024))
+        return luaL_error(state, "astral.ui.web_auth: URLs must be valid HTTPS URLs without credentials");
+    size_t urlAuthorityEnd = url.find_first_of("/?#", 8);
+    size_t callbackAuthorityEnd = callbackURL.find_first_of("/?#", 8);
+    std::string urlAuthority = urlAuthorityEnd == std::string::npos ? url.substr(8) : url.substr(8, urlAuthorityEnd - 8);
+    std::string callbackAuthority =
+        callbackAuthorityEnd == std::string::npos ? callbackURL.substr(8) : callbackURL.substr(8, callbackAuthorityEnd - 8);
+    if (urlAuthority != callbackAuthority || callbackURL.find_first_of("?#") != std::string::npos)
+        return luaL_error(state, "astral.ui.web_auth: callback must be a path on the authorization URL's HTTPS host");
+    for (auto *pending : gPlugins) {
+        if (!pending->webAuthRequests.empty()) return luaL_error(state, "astral.ui.web_auth: another authorization flow is already active");
+    }
+    if (!gPlatform.webAuth) return luaL_error(state, "astral.ui.web_auth: browser authorization is unavailable on this client");
+    uint64_t request = gNextRequest.fetch_add(1);
+    if (request == 0) request = gNextRequest.fetch_add(1);
+    lua_pushvalue(state, 3);
+    plugin->webAuthRequests[request] = luaL_ref(state, LUA_REGISTRYINDEX);
+    bool started = false;
+    try {
+        started = gPlatform.webAuth(request, url, callbackURL);
+    } catch (...) {
+    }
+    if (!started) {
+        luaL_unref(state, LUA_REGISTRYINDEX, plugin->webAuthRequests[request]);
+        plugin->webAuthRequests.erase(request);
+        return luaL_error(state, "astral.ui.web_auth: could not open the authorization window");
+    }
+    lua_pushinteger(state, static_cast<lua_Integer>(request));
+    return 1;
+}
+
+static int CancelWebAuth(lua_State *state)
+{
+    LuaPlugin *plugin = Self(state);
+    RequirePermission(state, "ui.web_auth");
+    lua_Integer value = luaL_checkinteger(state, 1);
+    if (value <= 0) {
+        lua_pushboolean(state, false);
+        return 1;
+    }
+    uint64_t request = static_cast<uint64_t>(value);
+    auto found = plugin->webAuthRequests.find(request);
+    if (found == plugin->webAuthRequests.end()) {
+        lua_pushboolean(state, false);
+        return 1;
+    }
+    luaL_unref(state, LUA_REGISTRYINDEX, found->second);
+    plugin->webAuthRequests.erase(found);
+    if (gPlatform.cancelWebAuth) {
+        try {
+            gPlatform.cancelWebAuth(request);
+        } catch (...) {
+        }
+    }
+    lua_pushboolean(state, true);
+    return 1;
+}
+
 static int SubscribeEvent(lua_State *state)
 {
     LuaPlugin *plugin = Self(state);
@@ -576,6 +695,23 @@ static int MessageColor(lua_State *state)
     lua_pushvalue(state, 1);
     plugin->colorizers.push_back(luaL_ref(state, LUA_REGISTRYINDEX));
     return 0;
+}
+
+static int MessageAction(lua_State *state)
+{
+    LuaPlugin *plugin = Self(state);
+    RequirePermission(state, "ui.message_actions");
+    size_t length = 0;
+    const char *label = luaL_checklstring(state, 1, &length);
+    luaL_checktype(state, 2, LUA_TFUNCTION);
+    if (!length || length > 24) return luaL_error(state, "astral.ui.message_action: label must be 1 to 24 bytes");
+    if (plugin->messageActions.size() >= 4) return luaL_error(state, "astral.ui.message_action: at most 4 actions per plugin");
+    uint64_t identifier = gNextMessageAction.fetch_add(1);
+    if (!identifier) identifier = gNextMessageAction.fetch_add(1);
+    lua_pushvalue(state, 2);
+    plugin->messageActions.push_back({identifier, std::string(label, length), luaL_ref(state, LUA_REGISTRYINDEX)});
+    lua_pushinteger(state, static_cast<lua_Integer>(identifier));
+    return 1;
 }
 
 static int NameColor(lua_State *state)
@@ -814,7 +950,9 @@ static int Nickname(lua_State *state)
 static int Message(lua_State *state)
 {
     RequirePermission(state, "discord.messages");
-    PushObject(state, gPlatform.message ? gPlatform.message(Argument(state, 1), Argument(state, 2)) : std::nullopt);
+    auto message = gPlatform.message ? gPlatform.message(Argument(state, 1), Argument(state, 2)) : std::nullopt;
+    if (message && !Self(state)->permissions.count("discord.messages.content")) message->erase("content");
+    PushObject(state, message);
     return 1;
 }
 
@@ -1073,14 +1211,22 @@ static void InstallAPI(LuaPlugin *plugin)
     lua_setfield(state, -2, "i18n");
 
     lua_newtable(state);
+    Function(state, plugin, "now_ms", TimeNowMilliseconds);
+    lua_setfield(state, -2, "time");
+
+    lua_newtable(state);
     Function(state, plugin, "decorate", Decorate);
     Function(state, plugin, "relabel", Relabel);
     Function(state, plugin, "alert", ShowAlert);
+    Function(state, plugin, "toast", ShowToast);
     Function(state, plugin, "copy", CopyText);
     Function(state, plugin, "haptic", Haptic);
+    Function(state, plugin, "web_auth", WebAuth);
+    Function(state, plugin, "cancel_web_auth", CancelWebAuth);
     Function(state, plugin, "settings_backdrop", SettingsBackdrop);
     Function(state, plugin, "mention", Mention);
     Function(state, plugin, "message_color", MessageColor);
+    Function(state, plugin, "message_action", MessageAction);
     Function(state, plugin, "name_color", NameColor);
     Function(state, plugin, "typing", TypingDecorator);
     Function(state, plugin, "reaction", ReactionDecorator);
@@ -1164,6 +1310,17 @@ static void Stop(LuaPlugin *plugin)
         }
         if (plugin->state) luaL_unref(plugin->state, LUA_REGISTRYINDEX, reference);
     }
+    auto webAuthRequests = std::move(plugin->webAuthRequests);
+    plugin->webAuthRequests.clear();
+    for (const auto &[request, reference] : webAuthRequests) {
+        if (gPlatform.cancelWebAuth) {
+            try {
+                gPlatform.cancelWebAuth(request);
+            } catch (...) {
+            }
+        }
+        if (plugin->state) luaL_unref(plugin->state, LUA_REGISTRYINDEX, reference);
+    }
     auto filePicks = std::move(plugin->filePicks);
     plugin->filePicks.clear();
     for (const auto &[request, reference] : filePicks) {
@@ -1179,6 +1336,11 @@ static void Stop(LuaPlugin *plugin)
     plugin->eventCallbacks.clear();
     for (const auto &[subscription, callback] : eventCallbacks) {
         if (plugin->state) luaL_unref(plugin->state, LUA_REGISTRYINDEX, callback.reference);
+    }
+    auto messageActions = std::move(plugin->messageActions);
+    plugin->messageActions.clear();
+    for (const auto &action : messageActions) {
+        if (plugin->state) luaL_unref(plugin->state, LUA_REGISTRYINDEX, action.reference);
     }
     auto outgoingMessageTransforms = std::move(plugin->outgoingMessageTransforms);
     plugin->outgoingMessageTransforms.clear();
@@ -1475,6 +1637,10 @@ void completeNetworkRequest(uint64_t request, const nlohmann::json &result)
             }
         }
         response["headers"] = std::move(headers);
+        if (response["body"].get_ref<const std::string &>().size() <= (64u << 10)) {
+            nlohmann::json parsed = astral::parseBoundedJSON(response["body"].get_ref<const std::string &>(), 64);
+            if (!parsed.is_discarded()) response["json"] = std::move(parsed);
+        }
         if (result.is_object() && result.contains("error") && result["error"].is_string())
             response["error"] = result["error"].get<std::string>().substr(0, 512);
         if (response["body"].get_ref<const std::string &>().size() > (1u << 20)) {
@@ -1487,6 +1653,52 @@ void completeNetworkRequest(uint64_t request, const nlohmann::json &result)
         luaL_unref(state, LUA_REGISTRYINDEX, reference);
         astral::lua::pushJSON(state, response);
         if (!Call(plugin, 1, 0, "network callback")) {
+            MarkFailed(plugin);
+            Stop(plugin);
+        }
+        return;
+    }
+}
+
+void completeWebAuth(uint64_t request, const std::optional<std::string> &url, const std::optional<std::string> &cookies,
+                     const std::optional<std::string> &error)
+{
+    std::lock_guard<std::recursive_mutex> lock(gMutex);
+    std::optional<std::string> resultURL = url;
+    std::optional<std::string> resultCookies = cookies;
+    std::optional<std::string> resultError = error;
+    if (resultURL && resultURL->size() > 4096) {
+        resultURL.reset();
+        resultCookies.reset();
+        resultError = "authorization callback URL exceeds 4096 bytes";
+    }
+    if (resultCookies && resultCookies->size() > 8192) {
+        resultCookies.reset();
+        resultError = "authorization cookies exceed 8192 bytes";
+    }
+    if (resultError && resultError->size() > 512) resultError->resize(512);
+    for (auto *plugin : gPlugins) {
+        auto found = plugin->webAuthRequests.find(request);
+        if (found == plugin->webAuthRequests.end()) continue;
+        int reference = found->second;
+        plugin->webAuthRequests.erase(found);
+        if (!plugin->state || plugin->failed) return;
+        lua_State *state = plugin->state;
+        lua_rawgeti(state, LUA_REGISTRYINDEX, reference);
+        luaL_unref(state, LUA_REGISTRYINDEX, reference);
+        if (resultURL)
+            lua_pushlstring(state, resultURL->data(), resultURL->size());
+        else
+            lua_pushnil(state);
+        if (resultCookies)
+            lua_pushlstring(state, resultCookies->data(), resultCookies->size());
+        else
+            lua_pushnil(state);
+        if (resultError)
+            lua_pushlstring(state, resultError->data(), resultError->size());
+        else
+            lua_pushnil(state);
+        if (!Call(plugin, 3, 0, "web authorization callback")) {
             MarkFailed(plugin);
             Stop(plugin);
         }
@@ -2365,6 +2577,16 @@ size_t AstralLuaDecorate(const AstralDecorationContext *context, AstralTag *tags
     size_t count = 0;
     for (auto *plugin : gPlugins) {
         if (!plugin->state || plugin->failed) continue;
+        for (const auto &action : plugin->messageActions) {
+            if (count >= capacity || message.empty() || channel.empty()) break;
+            AstralTag *tag = &tags[count++];
+            memset(tag, 0, sizeof(*tag));
+            snprintf(tag->text, sizeof(tag->text), "%s", action.label.c_str());
+            snprintf(tag->action_id, sizeof(tag->action_id), "astral.action.%llu.%s.%s", static_cast<unsigned long long>(action.identifier),
+                     channel.c_str(), message.c_str());
+            tag->background = 0xFF5865F2;
+            tag->foreground = 0xFFFFFFFF;
+        }
         for (auto &decorator : plugin->decorators) {
             if (count >= capacity) break;
             lua_State *state = plugin->state;
@@ -2390,4 +2612,72 @@ size_t AstralLuaDecorate(const AstralDecorationContext *context, AstralTag *tags
         if (plugin->failed) Stop(plugin);
     }
     return count;
+}
+
+namespace astral::luahost {
+
+bool pressMessageAction(std::string_view identifier)
+{
+    std::lock_guard<std::recursive_mutex> lock(gMutex);
+    constexpr std::string_view prefix = "astral.action.";
+    if (identifier.rfind(prefix, 0) != 0) return false;
+    identifier.remove_prefix(prefix.size());
+    size_t firstDot = identifier.find('.');
+    if (firstDot == std::string_view::npos) return false;
+    size_t secondDot = identifier.find('.', firstDot + 1);
+    if (secondDot == std::string_view::npos || identifier.find('.', secondDot + 1) != std::string_view::npos) return false;
+    auto parse = [](std::string_view value, uint64_t &result) {
+        auto [end, error] = std::from_chars(value.data(), value.data() + value.size(), result);
+        return error == std::errc() && end == value.data() + value.size() && result != 0;
+    };
+    uint64_t actionID = 0, channelID = 0, messageID = 0;
+    if (!parse(identifier.substr(0, firstDot), actionID) || !parse(identifier.substr(firstDot + 1, secondDot - firstDot - 1), channelID) ||
+        !parse(identifier.substr(secondDot + 1), messageID))
+        return false;
+    LuaPlugin *owner = nullptr;
+    const LuaMessageAction *selected = nullptr;
+    for (auto *plugin : gPlugins) {
+        if (!plugin->state || plugin->failed) continue;
+        auto found = std::find_if(plugin->messageActions.begin(), plugin->messageActions.end(),
+                                  [actionID](const LuaMessageAction &action) { return action.identifier == actionID; });
+        if (found != plugin->messageActions.end()) {
+            owner = plugin;
+            selected = &*found;
+            break;
+        }
+    }
+    if (!owner || !selected) return false;
+    std::string channel = std::to_string(channelID);
+    std::string message = std::to_string(messageID);
+    if (!gPlatform.message) return false;
+    auto record = gPlatform.message(channel, message);
+    if (!record) return false;
+    auto guild = gPlatform.channelGuild ? gPlatform.channelGuild(channel) : std::nullopt;
+    std::string user;
+    if (record && record->is_object()) {
+        const auto &author = record->value("author", nlohmann::json::object());
+        if (author.is_object()) user = author.value("id", std::string());
+    }
+    lua_State *state = owner->state;
+    lua_rawgeti(state, LUA_REGISTRYINDEX, selected->reference);
+    lua_createtable(state, 0, 4);
+    lua_pushstring(state, message.c_str());
+    lua_setfield(state, -2, "message_id");
+    lua_pushstring(state, channel.c_str());
+    lua_setfield(state, -2, "channel_id");
+    if (!user.empty()) {
+        lua_pushstring(state, user.c_str());
+        lua_setfield(state, -2, "user_id");
+    }
+    if (guild) {
+        lua_pushstring(state, guild->c_str());
+        lua_setfield(state, -2, "guild_id");
+    }
+    if (!Call(owner, 1, 0, "message.action")) {
+        MarkFailed(owner);
+        Stop(owner);
+    }
+    return true;
+}
+
 }

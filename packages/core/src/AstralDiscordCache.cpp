@@ -373,7 +373,7 @@ std::optional<nlohmann::json> message(const std::string &channelID, const std::s
     if (!record) return std::nullopt;
     nlohmann::json author = record->contains("author") && (*record)["author"].is_object() ? (*record)["author"] : nlohmann::json::object();
     nlohmann::json found = {{"id", messageID}, {"channel_id", channelID}};
-    copyStrings(*record, found, {"webhook_id"});
+    copyStrings(*record, found, {"content", "webhook_id"});
     nlohmann::json authorRecord = {{"id", stringField(author, "id")},
                                    {"bot", author.contains("bot") && author["bot"].is_boolean() && author["bot"].get<bool>()}};
     copyStrings(author, authorRecord, {"username", "global_name"});

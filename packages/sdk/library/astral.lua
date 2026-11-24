@@ -339,8 +339,14 @@ astral.i18n.locale = ""
 ---@return string
 function astral.i18n.t(key) end
 
+astral.time = {}
+function astral.time.now_ms() end
+
 astral.ui = {}
 function astral.ui.alert(title, message) end
+function astral.ui.toast(title, message) end
+function astral.ui.web_auth(url, callback_url, callback) end
+function astral.ui.cancel_web_auth(request) end
 function astral.ui.copy(value) end
 function astral.ui.haptic(strength) end
 ---@param target astral.Target
@@ -359,6 +365,7 @@ function astral.ui.relabel(target, relabeler) end
 function astral.ui.mention(decorator) end
 ---@param colorizer fun(node: astral.Node): astral.Color|integer|string|nil
 function astral.ui.message_color(colorizer) end
+function astral.ui.message_action(label, callback) end
 ---@param colorizer fun(node: astral.Node): astral.Color|integer|string|nil
 function astral.ui.name_color(colorizer) end
 ---@param decorator fun(node: astral.Node): { image: string, round?: boolean }?

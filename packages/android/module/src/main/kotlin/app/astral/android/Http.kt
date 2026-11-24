@@ -61,7 +61,7 @@ object Http {
         val requestBuilder =
             runCatching {
                 Request.Builder().url(url).method(method, requestBody).apply {
-                    headers.keys().forEach { name -> addHeader(name, headers.getString(name)) }
+                    headers.keys().forEach { name -> header(name, headers.getString(name)) }
                 }
             }.getOrElse {
                 completeLater(id, 0, false, "", JSONObject(), "", "invalid request")

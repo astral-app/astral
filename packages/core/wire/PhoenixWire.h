@@ -100,6 +100,7 @@ typedef enum {
 
 typedef struct {
     char text[32];
+    char action_id[96];
     uint32_t background;
     uint32_t foreground;
     uint32_t gradient[3];

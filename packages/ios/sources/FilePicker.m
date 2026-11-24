@@ -22,6 +22,8 @@
 @end
 
 static AstralFilePicker *gPicker;
+static UIView *gToastView;
+static uint64_t gToastGeneration;
 static IMP gOriginalStartAccessing;
 
 static BOOL StartAccessingResource(id object, SEL selector)
@@ -225,6 +227,71 @@ void AstralShowAlert(NSString *title, NSString *message)
                                                                 preferredStyle:UIAlertControllerStyleAlert];
         [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
         [top presentViewController:alert animated:YES completion:nil];
+    });
+}
+
+void AstralShowToast(NSString *title, NSString *message)
+{
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIWindow *window = AstralPhoenixWindow();
+        if (!window) return;
+        [gToastView removeFromSuperview];
+        UIView *container = [UIView new];
+        container.translatesAutoresizingMaskIntoConstraints = NO;
+        container.backgroundColor = [UIColor colorWithWhite:0.12 alpha:0.94];
+        container.layer.cornerRadius = 14;
+        container.layer.masksToBounds = YES;
+        container.isAccessibilityElement = YES;
+        container.accessibilityLabel = [NSString stringWithFormat:@"%@, %@", title, message];
+        UILabel *titleLabel = [UILabel new];
+        titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
+        titleLabel.text = title;
+        titleLabel.textColor = UIColor.whiteColor;
+        titleLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleHeadline];
+        titleLabel.numberOfLines = 1;
+        UILabel *messageLabel = [UILabel new];
+        messageLabel.translatesAutoresizingMaskIntoConstraints = NO;
+        messageLabel.text = message;
+        messageLabel.textColor = UIColor.whiteColor;
+        messageLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline];
+        messageLabel.numberOfLines = 5;
+        messageLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+        UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[ titleLabel, messageLabel ]];
+        stack.translatesAutoresizingMaskIntoConstraints = NO;
+        stack.axis = UILayoutConstraintAxisVertical;
+        stack.spacing = 4;
+        [container addSubview:stack];
+        [window addSubview:container];
+        UILayoutGuide *safe = window.safeAreaLayoutGuide;
+        [NSLayoutConstraint activateConstraints:@[
+            [container.leadingAnchor constraintGreaterThanOrEqualToAnchor:safe.leadingAnchor constant:16],
+            [container.trailingAnchor constraintLessThanOrEqualToAnchor:safe.trailingAnchor constant:-16],
+            [container.centerXAnchor constraintEqualToAnchor:safe.centerXAnchor],
+            [container.bottomAnchor constraintEqualToAnchor:safe.bottomAnchor constant:-16],
+            [container.widthAnchor constraintLessThanOrEqualToAnchor:safe.widthAnchor constant:-32],
+            [stack.topAnchor constraintEqualToAnchor:container.topAnchor constant:12],
+            [stack.bottomAnchor constraintEqualToAnchor:container.bottomAnchor constant:-12],
+            [stack.leadingAnchor constraintEqualToAnchor:container.leadingAnchor constant:14],
+            [stack.trailingAnchor constraintEqualToAnchor:container.trailingAnchor constant:-14],
+        ]];
+        gToastView = container;
+        uint64_t generation = ++gToastGeneration;
+        container.alpha = 0;
+        [UIView animateWithDuration:0.2
+                         animations:^{
+                             container.alpha = 1;
+                         }];
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(4 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            if (generation != gToastGeneration) return;
+            [UIView animateWithDuration:0.2
+                animations:^{
+                    container.alpha = 0;
+                }
+                completion:^(BOOL finished) {
+                    [container removeFromSuperview];
+                    if (gToastView == container) gToastView = nil;
+                }];
+        });
     });
 }
 
