@@ -9,7 +9,6 @@ enum { kMaxPills = 256, kMaxPillChildren = 8, kMaxStackNodes = kAstralReactionFa
 static const int32_t kFirstStackId = 0x7c000000;
 static const char kReactionPrefix[] = "message.reaction:";
 static const double kFaceSize = 16.2;
-static const double kFadeMs = 180;
 static const double kFaceStep = 4.5;
 static const double kBadgeFontSize = 7.2;
 static const double kTrailingInset = -2;
@@ -200,9 +199,15 @@ static uint64_t decorationHash(const AstralReactionDecoration *decoration)
     return hash ? hash : 1;
 }
 
+static double stackWidth(uint32_t members)
+{
+    return members ? kFaceSize + (members - 1) * kFaceStep : 0;
+}
+
 static void removeStack(Out *out, Pill *pill)
 {
     if (!pill->nodeCount) return;
+    for (uint32_t index = 0; index < pill->nodeCount; index++) wireTweenForget(pill->nodes[index]);
     wirePut8(out, 4);
     wirePut32(out, pill->nodeCount);
     for (uint32_t index = 0; index < pill->nodeCount; index++) wirePut32(out, (uint32_t)pill->nodes[index]);
@@ -224,9 +229,7 @@ static int32_t newStackNode(Out *out, Pill *pill, const char *type)
 static int32_t putFace(Out *out, Pill *pill, const char *image, int first)
 {
     int32_t face = newStackNode(out, pill, "image");
-    wirePropCount(out, 10);
-    wirePropBool(out, P(fade), 1);
-    wirePropNumber(out, P(fadeMs), kFadeMs);
+    wirePropCount(out, 8);
     wirePropString(out, P(uri), image);
     wirePropString(out, P(pool), "small");
     wirePropNumber(out, P(width), kFaceSize);
@@ -272,17 +275,16 @@ static void putStack(Out *out, Pill *pill, const AstralReactionDecoration *decor
     for (uint32_t face = 0; face < faces; face++) members[used++] = putFace(out, pill, decoration->images[face], face == 0);
     if (decoration->total > faces && faces == kAstralReactionFaces) members[used++] = putBadge(out, pill, decoration->total - faces);
     int32_t stack = newStackNode(out, pill, "view");
-    wirePropCount(out, 5);
-    wirePropBool(out, P(animateLayout), 1);
+    wirePropCount(out, 7);
     wirePropString(out, P(direction), "row");
     wirePropString(out, P(align), "center");
-    wirePropQuad(out, P(margin), 0, 0, (float)kTrailingInset, 0);
+    wirePropQuad(out, P(margin), 0, 0, 0, 0);
     wirePropNumber(out, P(shrink), 0);
+    wirePropBool(out, P(clip), 1);
+    wirePropNumber(out, P(opacity), 0);
+    wirePropNumber(out, P(maxWidth), 0);
+    wireTweenIn(stack, stackWidth(used), kTrailingInset);
     wirePutChildren(out, stack, members, used);
-    wirePut8(out, 2);
-    wirePut32(out, (uint32_t)pill->pill);
-    wirePropCount(out, 1);
-    wirePropBool(out, P(animateLayout), 1);
     int32_t children[kMaxPillChildren + 1];
     memcpy(children, pill->children, pill->childCount * sizeof(int32_t));
     children[pill->childCount] = stack;
@@ -328,7 +330,9 @@ static void forgetRemoved(const uint8_t *bytes, const Span *span)
 {
     for (uint32_t position = 0; position < span->childCount; position++) {
         Pill *pill = pillWithId(wireChildAt(bytes, span, position));
-        if (pill) memset(pill, 0, sizeof(*pill));
+        if (!pill) continue;
+        for (uint32_t index = 0; index < pill->nodeCount; index++) wireTweenForget(pill->nodes[index]);
+        memset(pill, 0, sizeof(*pill));
     }
 }
 
