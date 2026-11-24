@@ -39,6 +39,7 @@ extern "C" {
     X(focusBorderColor, 201)                                                                                                               \
     X(fontSize, 207)                                                                                                                       \
     X(fontWeight, 208)                                                                                                                     \
+    X(fullScreenBack, 218)                                                                                                                 \
     X(gap, 220)                                                                                                                            \
     X(height, 235)                                                                                                                         \
     X(image, 249)                                                                                                                          \
@@ -52,6 +53,7 @@ extern "C" {
     X(maxTrackTint, 295)                                                                                                                   \
     X(minTrackTint, 300)                                                                                                                   \
     X(minWidth, 301)                                                                                                                       \
+    X(presentation, 373)                                                                                                                   \
     X(on, 320)                                                                                                                             \
     X(opacity, 322)                                                                                                                        \
     X(padding, 332)                                                                                                                        \
@@ -76,6 +78,7 @@ extern "C" {
     X(textTransform, 508)                                                                                                                  \
     X(tint, 522)                                                                                                                           \
     X(translateX, 535)                                                                                                                     \
+    X(uikitPush, 801)                                                                                                                      \
     X(uri, 542)                                                                                                                            \
     X(value, 543)                                                                                                                          \
     X(weight, 551)                                                                                                                         \

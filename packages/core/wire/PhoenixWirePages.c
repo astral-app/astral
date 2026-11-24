@@ -42,6 +42,8 @@ static void putValue(Out *out, const Change *change)
         wirePut8(out, 6);
         wirePut32(out, (uint32_t)length);
         wirePut(out, change->text, length);
+    } else if (change->edit == kBool) {
+        wirePut8(out, change->number ? 2 : 1);
     } else if (change->edit == kInteger) {
         wirePut8(out, 3);
         wirePut32(out, (uint32_t)(int32_t)change->number);
@@ -963,7 +965,8 @@ int astral_page_push(const AstralPageSpec *page, AstralWireBuffer *buffer)
     gPage->count = 0;
     gPage->firstId = kFirstPageId + (int32_t)gDepth * kPageIdStride;
     wirePut8(&out, 1);
-    int32_t root = cloneRole(&out, kRoot, NULL, 0);
+    Change pushedPage[] = {{P(presentation), kDrop, NULL, 0}, {P(fullScreenBack), kBool, NULL, 1}, {P(uikitPush), kBool, NULL, 1}};
+    int32_t root = cloneRole(&out, kRoot, pushedPage, 3);
     int32_t phone = cloneRole(&out, kPhone, NULL, 0);
     int32_t column = cloneRole(&out, kColumn, NULL, 0);
     int32_t container = cloneRole(&out, kContainer, NULL, 0);

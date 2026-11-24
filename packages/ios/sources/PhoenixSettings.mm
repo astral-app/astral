@@ -53,6 +53,8 @@ static HookPoints LocateHookPoints(const struct mach_header *image)
 static NSString *const kOverviewRow = @"settings.row.astral";
 static NSString *const kOverviewRowPrefix = @"settings.row.astral.";
 static NSString *const kBack = @"astral.back";
+static const CGFloat kEdgeSwipeDistance = 60;
+static const CGFloat kEdgeSwipeStart = 24;
 static NSString *const kRowPrefix = @"astral.row.";
 static NSString *const kSwitchPrefix = @"astral.switch.";
 static NSString *const kSliderPrefix = @"astral.slider.";
@@ -484,10 +486,30 @@ static void Pop(void)
     RefreshTop();
 }
 
-@interface AstralSettingsTarget : NSObject
+@interface AstralSettingsTarget : NSObject <UIGestureRecognizerDelegate>
 @end
 
 @implementation AstralSettingsTarget
+- (void)edgeSwiped:(UIPanGestureRecognizer *)recognizer
+{
+    if (recognizer.state != UIGestureRecognizerStateEnded || astral_page_depth() == 0) return;
+    if ([recognizer translationInView:recognizer.view].x >= kEdgeSwipeDistance) Pop();
+}
+
+- (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)recognizer
+{
+    if (astral_page_depth() == 0 || ![recognizer isKindOfClass:UIPanGestureRecognizer.class]) return NO;
+    UIPanGestureRecognizer *pan = (UIPanGestureRecognizer *)recognizer;
+    CGPoint touch = [pan locationInView:pan.view];
+    CGPoint moved = [pan translationInView:pan.view];
+    return touch.x - moved.x <= kEdgeSwipeStart && moved.x > fabs(moved.y);
+}
+
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)recognizer shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)other
+{
+    return YES;
+}
+
 - (void)tapped:(UITapGestureRecognizer *)recognizer
 {
     if (recognizer.state != UIGestureRecognizerStateEnded) return;
@@ -621,8 +643,20 @@ static void SetIdentifier(UIView *view, SEL selector, NSString *identifier)
     });
 }
 
+static const char gEdgeSwipeKey = 0;
+
+static void AttachEdgeSwipe(UIView *host)
+{
+    if (!host || objc_getAssociatedObject(host, &gEdgeSwipeKey)) return;
+    UIPanGestureRecognizer *swipe = [[UIPanGestureRecognizer alloc] initWithTarget:gTarget action:@selector(edgeSwiped:)];
+    swipe.delegate = gTarget;
+    [host addGestureRecognizer:swipe];
+    objc_setAssociatedObject(host, &gEdgeSwipeKey, swipe, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
+
 static BOOL ShouldReceive(id navigator, SEL selector, UIGestureRecognizer *recognizer, UITouch *touch)
 {
+    AttachEdgeSwipe(recognizer.view);
     if (astral_page_depth() > 0 && [recognizer isKindOfClass:UIPanGestureRecognizer.class]) return NO;
     return originalShouldReceive(navigator, selector, recognizer, touch);
 }
