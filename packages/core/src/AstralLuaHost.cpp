@@ -7,6 +7,7 @@
 #include <cctype>
 #include <charconv>
 #include <chrono>
+#include <condition_variable>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
@@ -17,6 +18,7 @@
 #include <set>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <vector>
 
 #include "AstralLog.h"
@@ -87,6 +89,11 @@ struct LuaMessageAction {
     int reference;
 };
 
+struct LuaTimer {
+    int reference = LUA_NOREF;
+    int64_t interval = 0;
+};
+
 struct LuaPlugin : astral::PluginPackage, astral::PluginHealth {
     bool bundled = false;
     bool signedByAstral = false;
@@ -108,6 +115,7 @@ struct LuaPlugin : astral::PluginPackage, astral::PluginHealth {
     std::vector<int> messageBackgroundDecorators;
     std::vector<LuaMessageAction> messageActions;
     std::map<uint64_t, int> networkRequests;
+    std::map<uint64_t, LuaTimer> timers;
     std::map<uint64_t, int> webAuthRequests;
     std::map<uint64_t, int> filePicks;
     std::map<uint64_t, LuaEventCallback> eventCallbacks;
@@ -229,11 +237,99 @@ static int Log(lua_State *state)
     return 0;
 }
 
+constexpr size_t kMaxTimersPerPlugin = 64;
+constexpr int64_t kMaxTimerDelay = 24 * 60 * 60 * 1000;
+constexpr int64_t kMinTimerInterval = 16;
+
+static std::mutex gTimerLock;
+static std::condition_variable gTimerWake;
+static std::multimap<std::chrono::steady_clock::time_point, uint64_t> gTimerQueue;
+static std::once_flag gTimerThread;
+
+static void FireTimer(uint64_t identifier);
+
+static void TimerLoop()
+{
+    std::unique_lock<std::mutex> lock(gTimerLock);
+    for (;;) {
+        if (gTimerQueue.empty()) {
+            gTimerWake.wait(lock);
+            continue;
+        }
+        auto next = gTimerQueue.begin()->first;
+        if (std::chrono::steady_clock::now() < next) {
+            gTimerWake.wait_until(lock, next);
+            continue;
+        }
+        std::vector<uint64_t> due;
+        auto now = std::chrono::steady_clock::now();
+        while (!gTimerQueue.empty() && gTimerQueue.begin()->first <= now) {
+            due.push_back(gTimerQueue.begin()->second);
+            gTimerQueue.erase(gTimerQueue.begin());
+        }
+        lock.unlock();
+        for (uint64_t identifier : due) FireTimer(identifier);
+        lock.lock();
+    }
+}
+
+static void ScheduleTimer(uint64_t identifier, int64_t delay)
+{
+    std::call_once(gTimerThread, [] { std::thread(TimerLoop).detach(); });
+    std::lock_guard<std::mutex> lock(gTimerLock);
+    gTimerQueue.emplace(std::chrono::steady_clock::now() + std::chrono::milliseconds(delay), identifier);
+    gTimerWake.notify_one();
+}
+
+static void ReleaseTimers(LuaPlugin *plugin)
+{
+    auto timers = std::move(plugin->timers);
+    plugin->timers.clear();
+    for (const auto &[identifier, timer] : timers)
+        if (plugin->state) luaL_unref(plugin->state, LUA_REGISTRYINDEX, timer.reference);
+}
+
 static int TimeNowMilliseconds(lua_State *state)
 {
     auto now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
     lua_pushinteger(state, static_cast<lua_Integer>(now));
     return 1;
+}
+
+static int AddTimer(lua_State *state, int64_t interval)
+{
+    LuaPlugin *plugin = Self(state);
+    lua_Integer delay = luaL_checkinteger(state, 1);
+    luaL_checktype(state, 2, LUA_TFUNCTION);
+    if (delay < 0 || delay > kMaxTimerDelay) return luaL_error(state, "astral.time: delay is 0 to 86400000 milliseconds");
+    if (plugin->timers.size() >= kMaxTimersPerPlugin) return luaL_error(state, "astral.time: at most 64 timers per plugin");
+    lua_pushvalue(state, 2);
+    int reference = luaL_ref(state, LUA_REGISTRYINDEX);
+    uint64_t identifier = gNextRequest++;
+    plugin->timers[identifier] = LuaTimer{reference, interval ? std::max<int64_t>(delay, kMinTimerInterval) : 0};
+    ScheduleTimer(identifier, interval ? std::max<int64_t>(delay, kMinTimerInterval) : delay);
+    lua_pushinteger(state, static_cast<lua_Integer>(identifier));
+    return 1;
+}
+
+static int TimeAfter(lua_State *state)
+{
+    return AddTimer(state, 0);
+}
+
+static int TimeEvery(lua_State *state)
+{
+    return AddTimer(state, 1);
+}
+
+static int TimeCancel(lua_State *state)
+{
+    LuaPlugin *plugin = Self(state);
+    auto found = plugin->timers.find(static_cast<uint64_t>(luaL_checkinteger(state, 1)));
+    if (found == plugin->timers.end()) return 0;
+    luaL_unref(state, LUA_REGISTRYINDEX, found->second.reference);
+    plugin->timers.erase(found);
+    return 0;
 }
 
 static int SettingsSwitch(lua_State *state)
@@ -461,6 +557,39 @@ static int CopyText(lua_State *state)
     } catch (...) {
     }
     lua_pushboolean(state, copied);
+    return 1;
+}
+
+static int PasteText(lua_State *state)
+{
+    RequirePermission(state, "ui.clipboard");
+    if (!gPlatform.readClipboard) return luaL_error(state, "astral.ui.paste: clipboard is unavailable on this build");
+    std::optional<std::string> value;
+    try {
+        value = gPlatform.readClipboard();
+    } catch (...) {
+    }
+    if (!value) return 0;
+    lua_pushlstring(state, value->data(), std::min<size_t>(value->size(), 16384));
+    return 1;
+}
+
+static bool OpenableURL(const std::string &url)
+{
+    return url.size() <= 2048 && (url.rfind("https://", 0) == 0 || url.rfind("discord://", 0) == 0);
+}
+
+static int OpenURL(lua_State *state)
+{
+    std::string url = luaL_checkstring(state, 1);
+    if (!OpenableURL(url)) return luaL_error(state, "astral.ui.open: only https:// and discord:// links up to 2048 bytes");
+    if (!gPlatform.openURL) return luaL_error(state, "astral.ui.open: opening links is unavailable on this build");
+    bool opened = false;
+    try {
+        opened = gPlatform.openURL(url);
+    } catch (...) {
+    }
+    lua_pushboolean(state, opened);
     return 1;
 }
 
@@ -1304,6 +1433,9 @@ static void InstallAPI(LuaPlugin *plugin)
 
     lua_newtable(state);
     Function(state, plugin, "now_ms", TimeNowMilliseconds);
+    Function(state, plugin, "after", TimeAfter);
+    Function(state, plugin, "every", TimeEvery);
+    Function(state, plugin, "cancel", TimeCancel);
     lua_setfield(state, -2, "time");
 
     lua_newtable(state);
@@ -1312,6 +1444,8 @@ static void InstallAPI(LuaPlugin *plugin)
     Function(state, plugin, "alert", ShowAlert);
     Function(state, plugin, "toast", ShowToast);
     Function(state, plugin, "copy", CopyText);
+    Function(state, plugin, "paste", PasteText);
+    Function(state, plugin, "open", OpenURL);
     Function(state, plugin, "composer", RegisterComposerDecorator);
     Function(state, plugin, "message_background", RegisterMessageBackground);
     Function(state, plugin, "haptic", Haptic);
@@ -1403,6 +1537,7 @@ static void TraceRunningPlugins()
 
 static void Stop(LuaPlugin *plugin)
 {
+    ReleaseTimers(plugin);
     auto requests = std::move(plugin->networkRequests);
     plugin->networkRequests.clear();
     for (const auto &[request, reference] : requests) {
@@ -1467,6 +1602,31 @@ static void Stop(LuaPlugin *plugin)
     plugin->messageBackgroundDecorators.clear();
     ApplySettingsBackdrop();
     TraceRunningPlugins();
+}
+
+static void FireTimer(uint64_t identifier)
+{
+    std::lock_guard<std::recursive_mutex> lock(gMutex);
+    for (auto *plugin : gPlugins) {
+        auto found = plugin->timers.find(identifier);
+        if (found == plugin->timers.end()) continue;
+        LuaTimer timer = found->second;
+        if (!timer.interval) plugin->timers.erase(found);
+        if (!plugin->state || plugin->failed) return;
+        lua_State *state = plugin->state;
+        int top = lua_gettop(state);
+        lua_rawgeti(state, LUA_REGISTRYINDEX, timer.reference);
+        if (!timer.interval) luaL_unref(state, LUA_REGISTRYINDEX, timer.reference);
+        if (!Call(plugin, 0, 0, "timer")) {
+            lua_settop(state, top);
+            MarkFailed(plugin);
+            Stop(plugin);
+            return;
+        }
+        lua_settop(state, top);
+        if (timer.interval && plugin->timers.count(identifier)) ScheduleTimer(identifier, timer.interval);
+        return;
+    }
 }
 
 static bool Runnable(LuaPlugin *plugin)

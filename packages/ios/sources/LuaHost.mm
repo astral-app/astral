@@ -104,8 +104,32 @@ static astral::LuaHostPlatform Platform(void)
         return true;
     };
     platform.writeClipboard = [](const std::string &value) {
+        NSString *text = Native(value);
         dispatch_async(dispatch_get_main_queue(), ^{
-            UIPasteboard.generalPasteboard.string = Native(value);
+            UIPasteboard.generalPasteboard.string = text;
+        });
+        return true;
+    };
+    platform.readClipboard = []() -> std::optional<std::string> {
+        __block NSString *value = nil;
+        if (NSThread.isMainThread) {
+            value = UIPasteboard.generalPasteboard.string;
+        } else {
+            dispatch_semaphore_t read = dispatch_semaphore_create(0);
+            dispatch_async(dispatch_get_main_queue(), ^{
+                value = UIPasteboard.generalPasteboard.string;
+                dispatch_semaphore_signal(read);
+            });
+            if (dispatch_semaphore_wait(read, dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC))) return std::nullopt;
+        }
+        if (!value) return std::nullopt;
+        return std::string(value.UTF8String ?: "");
+    };
+    platform.openURL = [](const std::string &url) {
+        NSURL *link = [NSURL URLWithString:Native(url)];
+        if (!link) return false;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [UIApplication.sharedApplication openURL:link options:@{} completionHandler:nil];
         });
         return true;
     };

@@ -547,6 +547,22 @@ object PhoenixBridge {
     fun refreshEmoji() = EmojiComposer.refresh()
 
     @JvmStatic
+    fun pasteText(): String? {
+        val activity = activeActivity() ?: return null
+        val clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return null
+        return clipboard.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(activity)?.toString()
+    }
+
+    @JvmStatic
+    fun openURL(url: String) {
+        mainHandler.post {
+            val activity = activeActivity() ?: return@post
+            runCatching { activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+                .onFailure { Log.warning("Failed to open $url: ${it.javaClass.simpleName}") }
+        }
+    }
+
+    @JvmStatic
     fun restartGatewaySession() = NetworkHooks.restartGatewaySession()
 
     @JvmStatic
