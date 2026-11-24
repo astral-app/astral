@@ -81,6 +81,8 @@ jmethodID gOpenWebAuth = nullptr;
 jmethodID gCancelWebAuth = nullptr;
 jmethodID gEditText = nullptr;
 jmethodID gRestartGatewaySession = nullptr;
+jmethodID gPasteText = nullptr;
+jmethodID gOpenURL = nullptr;
 std::mutex gTextEditLock;
 std::map<uint64_t, std::function<void(std::optional<std::string>)>> gTextEditCallbacks;
 std::atomic<uint64_t> gNextTextEditRequest{1};
@@ -94,6 +96,7 @@ std::string sha256(const std::string &data);
 void startNetworkRequest(uint64_t request, const nlohmann::json &options);
 void cancelNetworkRequest(uint64_t request);
 JNIEnv *currentEnvironment(bool &attached);
+std::optional<std::string> pasteFromBridge();
 jstring toJava(JNIEnv *env, std::string_view value);
 void callBridge(jmethodID method);
 void callBridge(jmethodID method, const std::string &argument);
@@ -417,6 +420,12 @@ astral::LuaHostPlatform platform(const std::string &state, const std::string &re
         callBridge(gCopyText, value);
         return true;
     };
+    platform.readClipboard = []() -> std::optional<std::string> { return pasteFromBridge(); };
+    platform.openURL = [](const std::string &url) {
+        if (!gOpenURL) return false;
+        callBridge(gOpenURL, url);
+        return true;
+    };
     platform.pickFile = [](uint64_t request, const std::vector<std::string> &extensions) {
         std::string encoded;
         for (const auto &extension : extensions) {
@@ -724,6 +733,23 @@ std::string fromJava(JNIEnv *env, jstring value)
         appendUtf8(result, codepoint);
     }
     env->ReleaseStringChars(value, characters);
+    return result;
+}
+
+std::optional<std::string> pasteFromBridge()
+{
+    if (!gVM || !gBridge || !gPasteText) return std::nullopt;
+    bool attached = false;
+    JNIEnv *env = currentEnvironment(attached);
+    if (!env) return std::nullopt;
+    auto value = static_cast<jstring>(env->CallStaticObjectMethod(gBridge, gPasteText));
+    std::optional<std::string> result;
+    if (env->ExceptionCheck())
+        env->ExceptionClear();
+    else if (value)
+        result = fromJava(env, value);
+    if (value) env->DeleteLocalRef(value);
+    if (attached) gVM->DetachCurrentThread();
     return result;
 }
 
@@ -1249,10 +1275,12 @@ ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_attachBridge
     jmethodID cancelWebAuthMethod = env->GetStaticMethodID(reference, "cancelWebAuth", "(J)V");
     jmethodID editTextMethod = env->GetStaticMethodID(reference, "editText", "(JLjava/lang/String;Ljava/lang/String;I)V");
     jmethodID restartGatewaySessionMethod = env->GetStaticMethodID(reference, "restartGatewaySession", "()V");
+    jmethodID pasteTextMethod = env->GetStaticMethodID(reference, "pasteText", "()Ljava/lang/String;");
+    jmethodID openURLMethod = env->GetStaticMethodID(reference, "openURL", "(Ljava/lang/String;)V");
     if (env->ExceptionCheck() || !deliverMethod || !fetchMethod || !requestMethod || !cancelMethod || !exportBackupMethod ||
         !importBackupMethod || !openReportMethod || !refreshEmojiMethod || !showAlertMethod || !triggerHapticMethod || !copyTextMethod ||
         !pickFileMethod || !cancelFilePickMethod || !showToastMethod || !openWebAuthMethod || !cancelWebAuthMethod || !editTextMethod ||
-        !restartGatewaySessionMethod) {
+        !restartGatewaySessionMethod || !pasteTextMethod || !openURLMethod) {
         env->ExceptionClear();
         env->DeleteGlobalRef(reference);
         return;
@@ -1279,6 +1307,8 @@ ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_attachBridge
         gCancelWebAuth = cancelWebAuthMethod;
         gEditText = editTextMethod;
         gRestartGatewaySession = restartGatewaySessionMethod;
+        gPasteText = pasteTextMethod;
+        gOpenURL = openURLMethod;
     }
     astral::reactors::setFetcher(fetch);
 }

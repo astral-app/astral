@@ -341,6 +341,16 @@ function astral.i18n.t(key) end
 
 astral.time = {}
 function astral.time.now_ms() end
+---@param delay_ms integer
+---@param callback fun()
+---@return integer timer
+function astral.time.after(delay_ms, callback) end
+---@param interval_ms integer
+---@param callback fun()
+---@return integer timer
+function astral.time.every(interval_ms, callback) end
+---@param timer integer
+function astral.time.cancel(timer) end
 
 astral.ui = {}
 function astral.ui.alert(title, message) end
@@ -348,6 +358,11 @@ function astral.ui.toast(title, message) end
 function astral.ui.web_auth(url, callback_url, callback) end
 function astral.ui.cancel_web_auth(request) end
 function astral.ui.copy(value) end
+---@return string?
+function astral.ui.paste() end
+---@param url string
+---@return boolean
+function astral.ui.open(url) end
 function astral.ui.haptic(strength) end
 function astral.ui.composer(formatter) end
 ---@param target astral.Target
