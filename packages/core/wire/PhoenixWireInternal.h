@@ -86,7 +86,7 @@ typedef struct {
     uint32_t count;
 } Decorated;
 
-typedef enum { kKeep, kDrop, kString, kNumber, kInteger } Edit;
+typedef enum { kKeep, kDrop, kString, kNumber, kInteger, kBool } Edit;
 
 typedef struct {
     uint16_t property;
