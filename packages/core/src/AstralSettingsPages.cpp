@@ -546,10 +546,56 @@ std::vector<std::pair<json, std::string>> pendingUpdates()
     return pending;
 }
 
-json updatesPage(const astral::SettingsPageContext &context)
+constexpr int64_t kCatalogRefreshSeconds = 6 * 60 * 60;
+
+bool autoUpdates()
+{
+    return !gPlatform.settings || gPlatform.settings->getBoolean("astral", "auto-update", true);
+}
+
+void toggleAutoUpdates()
+{
+    if (!gPlatform.settings) return;
+    if (gPlatform.settings->set("astral", "auto-update", !autoUpdates())) gPlatform.settings->save();
+}
+
+std::string latestAstralVersion()
 {
     json packages = catalog();
-    std::string latest = packages.contains("astral") && packages["astral"].is_object() ? text(packages["astral"], "version") : "";
+    return packages.contains("astral") && packages["astral"].is_object() ? text(packages["astral"], "version") : "";
+}
+
+void noticeAstralUpdate()
+{
+    std::string latest = latestAstralVersion();
+    if (latest.empty() || !astral::pages::versionIsNewer(latest, gPlatform.version) || !gPlatform.settings) return;
+    if (gPlatform.settings->getString("astral", "update-notice", "") == latest) return;
+    if (gPlatform.settings->set("astral", "update-notice", latest)) gPlatform.settings->save();
+    if (gPlatform.notify) gPlatform.notify("astral " + latest + " is available", "See Settings, astral, Updates");
+}
+
+void installPendingUpdates(const std::function<void()> &changed)
+{
+    if (!gPlatform.installPackage) return;
+    for (const auto &[package, kind] : pendingUpdates()) gPlatform.installPackage(package, kind, changed);
+}
+
+void catalogRefreshed(const std::function<void()> &changed)
+{
+    if (autoUpdates()) installPendingUpdates(changed);
+    noticeAstralUpdate();
+    changed();
+}
+
+int64_t lastCatalogRefresh()
+{
+    auto value = gPlatform.settings ? gPlatform.settings->get("astral", "catalog-refreshed-at") : std::nullopt;
+    return value && value->is_number_integer() ? value->get<int64_t>() : 0;
+}
+
+json updatesPage(const astral::SettingsPageContext &context)
+{
+    std::string latest = latestAstralVersion();
     std::string astralStatus = latest.empty()                                             ? "Unknown"
                                : astral::pages::versionIsNewer(latest, gPlatform.version) ? "Update to " + latest
                                                                                           : "Up to date";
@@ -572,7 +618,10 @@ json updatesPage(const astral::SettingsPageContext &context)
                                                 {{"detail", context.compatibility == "ready" ? "Supported" : "Unsupported"},
                                                  {"subtitle", context.discordVersion}})}));
     sections.push_back(section("Plugins and themes", addonRows));
-    sections.push_back(section("Check", {row("refresh", "Check for updates", "res://ic_mana_refresh", kAstralRowLink)}));
+    sections.push_back(
+        section("Check", {row("refresh", "Check for updates", "res://ic_mana_refresh", kAstralRowLink),
+                          with(row("auto-update", "Update automatically", "res://ic_mana_download", kAstralRowSwitch),
+                               {{"on", autoUpdates()}, {"subtitle", "Install plugin and theme updates when Discord opens"}})}));
     return page("Updates", sections);
 }
 
@@ -654,6 +703,18 @@ std::optional<std::string> pluginAction(const std::string &identifier, const std
 } // namespace
 
 namespace astral::pages {
+
+bool catalogRefreshDue(int64_t now, int64_t last)
+{
+    return last <= 0 || now < last || now - last >= kCatalogRefreshSeconds;
+}
+
+void refreshCatalogIfDue(int64_t now, bool force, const std::function<void()> &changed)
+{
+    if (!gPlatform.refreshCatalog || (!force && !catalogRefreshDue(now, lastCatalogRefresh()))) return;
+    if (gPlatform.settings && gPlatform.settings->set("astral", "catalog-refreshed-at", now)) gPlatform.settings->save();
+    gPlatform.refreshCatalog([changed] { catalogRefreshed(changed); });
+}
 
 void configure(SettingsPagesPlatform platform)
 {
@@ -751,6 +812,10 @@ std::optional<std::string> action(const std::string &route, const std::string &k
             if (flag(plugin, "enabled") && !flag(plugin, "signed")) luahost::setEnabled(text(plugin, "id"), true);
         return std::nullopt;
     }
+    if (key == "switch.auto-update") {
+        toggleAutoUpdates();
+        return std::nullopt;
+    }
     if (key == "switch.staff-devtools") {
         toggle("staff-devtools");
         return std::nullopt;
@@ -785,12 +850,11 @@ std::optional<std::string> action(const std::string &route, const std::string &k
         return std::nullopt;
     }
     if (key == "refresh") {
-        if (gPlatform.refreshCatalog) gPlatform.refreshCatalog(changed);
+        refreshCatalogIfDue(static_cast<int64_t>(std::time(nullptr)), true, changed);
         return std::nullopt;
     }
     if (key == "update-all") {
-        if (gPlatform.installPackage)
-            for (const auto &[package, kind] : pendingUpdates()) gPlatform.installPackage(package, kind, changed);
+        installPendingUpdates(changed);
         return std::nullopt;
     }
     if (route == "marketplace" || route == "updates") installFromKey(key, changed);

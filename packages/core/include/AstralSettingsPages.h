@@ -53,6 +53,7 @@ struct SettingsPagesPlatform {
     std::function<void()> exportBackup;
     std::function<void(const std::function<void()> &changed)> importBackup;
     std::function<void()> softRestart;
+    std::function<void(const std::string &title, const std::string &message)> notify;
 };
 
 namespace pages {
@@ -62,6 +63,8 @@ nlohmann::json category();
 nlohmann::json model(const std::string &route);
 std::optional<std::string> action(const std::string &route, const std::string &key, const std::function<void()> &changed);
 bool versionIsNewer(const std::string &candidate, const std::string &installed);
+bool catalogRefreshDue(int64_t now, int64_t last);
+void refreshCatalogIfDue(int64_t now, bool force, const std::function<void()> &changed);
 void withSpec(const nlohmann::json &model, const std::function<void(const AstralPageSpec *page)> &body);
 
 } // namespace pages

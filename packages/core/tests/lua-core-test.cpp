@@ -962,6 +962,52 @@ static void testGatewayMessageEventsAndHaptics(const std::string &work)
     astral::luahost::stop();
 }
 
+static void testBackgroundCatalogUpdates(const std::string &work)
+{
+    assert(astral::pages::catalogRefreshDue(1000, 0));
+    assert(!astral::pages::catalogRefreshDue(1000 + 60, 1000));
+    assert(astral::pages::catalogRefreshDue(1000 + 6 * 60 * 60, 1000));
+    assert(astral::pages::catalogRefreshDue(500, 1000));
+    auto root = std::filesystem::path(work) / "catalog-updates";
+    std::filesystem::create_directories(root);
+    astral::SettingsStore settings((root / "settings.json").string());
+    std::vector<std::string> installs;
+    std::vector<std::string> notices;
+    size_t refreshes = 0;
+    size_t changes = 0;
+    astral::SettingsPagesPlatform platform;
+    platform.settings = &settings;
+    platform.version = "0.0.1";
+    platform.catalog = [] {
+        return nlohmann::json{{"astral", {{"version", "0.0.2"}}},
+                              {"themes", nlohmann::json::array({{{"id", "astral.theme"}, {"name", "Theme"}, {"version", "2.0"}}})}};
+    };
+    platform.themes = [] { return nlohmann::json::array({{{"id", "astral.theme"}, {"version", "1.0"}}}); };
+    platform.installPackage = [&](const nlohmann::json &package, const std::string &kind, const std::function<void()> &) {
+        installs.push_back(kind + ":" + package.value("id", ""));
+    };
+    platform.refreshCatalog = [&](const std::function<void()> &changed) {
+        refreshes++;
+        changed();
+    };
+    platform.notify = [&](const std::string &title, const std::string &) { notices.push_back(title); };
+    astral::pages::configure(std::move(platform));
+    astral::pages::refreshCatalogIfDue(10000, true, [&] { changes++; });
+    assert(refreshes == 1 && changes == 1);
+    assert(installs.size() == 1 && installs[0] == "theme:astral.theme");
+    assert(notices.size() == 1 && notices[0] == "astral 0.0.2 is available");
+    astral::pages::refreshCatalogIfDue(10060, false, [&] { changes++; });
+    assert(refreshes == 1);
+    astral::pages::refreshCatalogIfDue(10000 + 6 * 60 * 60, false, [&] { changes++; });
+    assert(refreshes == 2 && notices.size() == 1);
+    astral::pages::action("updates", "switch.auto-update", [] {});
+    assert(!settings.getBoolean("astral", "auto-update", true));
+    size_t installed = installs.size();
+    astral::pages::refreshCatalogIfDue(0, true, [&] { changes++; });
+    assert(installs.size() == installed);
+    astral::pages::configure({});
+}
+
 int main(int argc, char **argv)
 {
     assert(argc == 3);
@@ -996,6 +1042,7 @@ int main(int argc, char **argv)
     testGatewayMessageEventsAndHaptics(argv[1]);
     testSliderSettingsAndNavigation(argv[1]);
     testTextSettings(argv[1]);
+    testBackgroundCatalogUpdates(argv[1]);
     puts("ok");
     return 0;
 }

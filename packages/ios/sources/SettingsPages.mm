@@ -145,16 +145,29 @@ static astral::SettingsPagesPlatform Platform(void)
     platform.exportBackup = [] { AstralExportBackup(); };
     platform.importBackup = [](const std::function<void()> &changed) { AstralImportBackup(Block(changed)); };
     platform.softRestart = [] { AstralSoftRestart(); };
+    platform.notify = [](const std::string &title, const std::string &message) { AstralShowToast(Native(title), Native(message)); };
     return platform;
 }
 
-static void Configure(AstralPageContext context)
+static void ConfigurePlatform(void)
 {
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         astral::pages::configure(Platform());
     });
+}
+
+static void Configure(AstralPageContext context)
+{
+    ConfigurePlatform();
     gContext = {(bool)context.recovering, Plain(context.discordVersion), Plain(context.compatibility)};
+}
+
+void AstralRefreshCatalogIfDue(BOOL force, void (^changed)(void))
+{
+    ConfigurePlatform();
+    void (^copied)(void) = [changed copy];
+    astral::pages::refreshCatalogIfDue((int64_t)time(nullptr), force, [copied] { copied(); });
 }
 
 NSDictionary *AstralSettingsCategory(void)
