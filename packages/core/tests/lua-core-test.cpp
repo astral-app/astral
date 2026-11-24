@@ -492,14 +492,20 @@ static void testTextSettings(const std::string &work)
     std::filesystem::create_directories(plugin);
     writeText(plugin / "manifest.toml",
               "id = 'astral.text-setting-test'\nname = 'Text setting test'\nversion = '1.0'\nmain = 'main.lua'\n");
-    writeText(plugin / "main.lua", "astral.settings.text('rules', 'Rules', 'first => second', { max_length = 64, section = 'Rules' })\n"
-                                   "astral.settings.on_change('rules', function(value) astral.state.changed = value end)");
+    writeText(plugin / "main.lua",
+              "astral.settings.text('rules', 'Rules', 'first => second', { max_length = 64, section = 'Rules' })\n"
+              "local choices = {}\n"
+              "for index = 1, 40 do choices[index] = astral.settings.option('lang-' .. index, 'Language ' .. index) end\n"
+              "astral.settings.choice('language', 'Language', choices, 'lang-40')\n"
+              "astral.settings.on_change('rules', function(value) astral.state.changed = value end)");
     astral::SettingsStore settings((root / "settings.json").string());
     settings.set("astral", "developer-mode", true);
     astral::luahost::start({(root / "plugins").string()}, &settings, true, {});
     assert(astral::luahost::eval("astral.text-setting-test", "return astral.settings.values.rules") == "first => second");
+    assert(astral::luahost::eval("astral.text-setting-test", "return astral.time.now_ms() > 0") == "true");
     auto plugins = astral::luahost::plugins();
     assert(plugins.size() == 1 && plugins[0]["textSettings"][0]["maxLength"] == 64);
+    assert(plugins[0]["switches"][0]["options"].size() == 40);
     astral::SettingsPagesPlatform platform;
     platform.settings = &settings;
     bool changed = false;
@@ -510,7 +516,10 @@ static void testTextSettings(const std::string &work)
     };
     astral::pages::configure(std::move(platform));
     auto model = astral::pages::model("plugin-settings:astral.text-setting-test");
-    assert(model["sections"][0]["rows"][0]["key"] == "text.rules");
+    assert(model["sections"][0]["rows"][39]["key"] == "choice.language.lang-40");
+    astral::pages::action("plugin-settings:astral.text-setting-test", "choice.language.lang-40", [] {});
+    assert(astral::luahost::eval("astral.text-setting-test", "return astral.settings.values.language") == "lang-40");
+    assert(model["sections"][1]["rows"][0]["key"] == "text.rules");
     astral::pages::action("plugin-settings:astral.text-setting-test", "text.rules", [&] { changed = true; });
     assert(changed);
     assert(astral::luahost::eval("astral.text-setting-test", "return astral.settings.values.rules") == "first => third");
@@ -556,8 +565,13 @@ static void testNetworkRequests(const std::string &work)
                                                         {"ok", true},
                                                         {"url", "https://example.com/api"},
                                                         {"headers", {{"content-type", "application/json"}}},
-                                                        {"body", "complete"}});
-    assert(astral::luahost::eval("astral.network-test", "return astral.storage.get('response').body") == "complete");
+                                                        {"body", R"({"result":{"translatedText":"complete"}})"}});
+    assert(astral::luahost::eval("astral.network-test", "return astral.storage.get('response').json.result.translatedText") == "complete");
+    uint64_t invalidJSONRequest = std::stoull(
+        astral::luahost::eval("astral.network-test", "return astral.net.request({ url = 'https://example.com/invalid-json' }, "
+                                                     "function(response) astral.storage.set('invalid_json', response.json) end)"));
+    astral::luahost::completeNetworkRequest(invalidJSONRequest, {{"status", 200}, {"ok", true}, {"body", "not json"}});
+    assert(astral::luahost::eval("astral.network-test", "return astral.storage.get('invalid_json') == nil") == "true");
     uint64_t cancelledRequest =
         std::stoull(astral::luahost::eval("astral.network-test", "return astral.net.request({ url = 'https://example.com/cancel' }, "
                                                                  "function() astral.storage.set('cancelled_callback', true) end)"));
@@ -634,12 +648,17 @@ static void testFilePickerAndDialogs(const std::string &work)
     auto restricted = root / "plugins" / "restricted";
     std::filesystem::create_directories(plugin);
     std::filesystem::create_directories(restricted);
-    writeText(plugin / "manifest.toml",
-              "id = 'astral.native-ui-test'\nname = 'Native UI test'\nversion = '1.0'\nmain = "
-              "'main.lua'\npermissions = ['files.read', 'ui.dialogs', 'ui.clipboard', 'events.lifecycle', 'storage']\n");
+    writeText(plugin / "manifest.toml", "id = 'astral.native-ui-test'\nname = 'Native UI test'\nversion = '1.0'\nmain = "
+                                        "'main.lua'\npermissions = ['files.read', 'ui.dialogs', 'ui.clipboard', 'ui.toasts', "
+                                        "'ui.web_auth', 'events.lifecycle', 'storage']\n");
     writeText(plugin / "main.lua",
               "astral.ui.alert('Ready', 'Choose a file')\n"
+              "astral.ui.toast('Status', 'Ready')\n"
               "astral.ui.copy('exported rules')\n"
+              "local auth = astral.ui.web_auth('https://example.com/auth', 'https://example.com/callback', function(url, cookies, error)\n"
+              "  astral.storage.set('authorization', {url = url, cookies = cookies, error = error})\n"
+              "end)\n"
+              "astral.storage.set('auth_request', auth)\n"
               "local request = astral.files.pick({'json', '.TOML', 'json'}, function(file, reason)\n"
               "  if file then astral.storage.set('file', {name = file.name, data = file.data})\n"
               "  else astral.storage.set('failure', reason) end\n"
@@ -649,26 +668,46 @@ static void testFilePickerAndDialogs(const std::string &work)
               "astral.storage.set('subscription', subscription)\n");
     writeText(restricted / "manifest.toml",
               "id = 'astral.native-ui-restricted'\nname = 'Restricted'\nversion = '1.0'\nmain = 'main.lua'\npermissions = ['storage']\n");
-    writeText(restricted / "main.lua",
-              "local alertOK = pcall(function() astral.ui.alert('No', 'permission') end)\n"
-              "local pickerOK = pcall(function() astral.files.pick({'json'}, function() end) end)\n"
-              "local copyOK = pcall(function() astral.ui.copy('private') end)\n"
-              "local eventOK = pcall(function() astral.events.on('app.foreground', function() end) end)\n"
-              "astral.storage.set('permissions', {alert = alertOK, picker = pickerOK, copy = copyOK, event = eventOK})\n");
+    writeText(restricted / "main.lua", "local alertOK = pcall(function() astral.ui.alert('No', 'permission') end)\n"
+                                       "local toastOK = pcall(function() astral.ui.toast('No', 'permission') end)\n"
+                                       "local authOK = pcall(function() astral.ui.web_auth('https://example.com/auth', "
+                                       "'https://example.com/callback', function() end) end)\n"
+                                       "local pickerOK = pcall(function() astral.files.pick({'json'}, function() end) end)\n"
+                                       "local copyOK = pcall(function() astral.ui.copy('private') end)\n"
+                                       "local eventOK = pcall(function() astral.events.on('app.foreground', function() end) end)\n"
+                                       "astral.storage.set('permissions', {alert = alertOK, toast = toastOK, auth = authOK, picker = "
+                                       "pickerOK, copy = copyOK, event = eventOK})\n");
     astral::SettingsStore settings((root / "settings.json").string());
     settings.set("astral", "developer-mode", true);
     std::string shownTitle;
     std::string shownMessage;
+    std::string toastTitle;
+    std::string toastMessage;
     std::string clipboard;
+    uint64_t authorized = 0;
+    std::string authorizationURL;
+    std::string authorizationCallback;
     uint64_t picked = 0;
     std::vector<std::string> pickedExtensions;
     std::vector<uint64_t> cancelled;
+    std::vector<uint64_t> cancelledAuthRequests;
     astral::LuaHostPlatform platform;
     platform.storagePath = (root / "storage.sqlite").string();
     platform.showAlert = [&](const std::string &title, const std::string &message) {
         shownTitle = title;
         shownMessage = message;
     };
+    platform.showToast = [&](const std::string &title, const std::string &message) {
+        toastTitle = title;
+        toastMessage = message;
+    };
+    platform.webAuth = [&](uint64_t request, const std::string &url, const std::string &callbackURL) {
+        if (!authorized) authorized = request;
+        authorizationURL = url;
+        authorizationCallback = callbackURL;
+        return true;
+    };
+    platform.cancelWebAuth = [&](uint64_t request) { cancelledAuthRequests.push_back(request); };
     platform.writeClipboard = [&](const std::string &value) {
         clipboard = value;
         return true;
@@ -681,16 +720,37 @@ static void testFilePickerAndDialogs(const std::string &work)
     platform.cancelFilePick = [&](uint64_t request) { cancelled.push_back(request); };
     astral::luahost::start({(root / "plugins").string()}, &settings, true, std::move(platform));
     assert(shownTitle == "Ready" && shownMessage == "Choose a file");
+    assert(toastTitle == "Status" && toastMessage == "Ready");
     assert(clipboard == "exported rules");
+    assert(authorized > 0 && authorizationURL == "https://example.com/auth" && authorizationCallback == "https://example.com/callback");
+    assert(std::stoull(astral::luahost::eval("astral.native-ui-test", "return astral.storage.get('auth_request')")) == authorized);
+    assert(astral::luahost::eval("astral.native-ui-test", "local ok = pcall(function() astral.ui.web_auth('https://example.com/auth', "
+                                                          "'https://example.com/callback', function() end) end); return ok") == "false");
     assert(picked > 0 && pickedExtensions == std::vector<std::string>({"json", "toml"}));
     assert(std::stoull(astral::luahost::eval("astral.native-ui-test", "return astral.storage.get('request')")) == picked);
     astral::luahost::completeFilePick(picked, "theme.json", "{\"name\":\"fixture\"}", std::nullopt);
     assert(astral::luahost::eval("astral.native-ui-test", "return astral.storage.get('file').name") == "theme.json");
     assert(astral::luahost::eval("astral.native-ui-test", "return astral.storage.get('file').data") == "{\"name\":\"fixture\"}");
-    assert(astral::luahost::eval("astral.native-ui-restricted",
-                                 "local p = astral.storage.get('permissions'); return tostring(p.alert) .. "
-                                 "':' .. tostring(p.picker) .. ':' .. tostring(p.copy) .. ':' .. tostring(p.event)") ==
-           "false:false:false:false");
+    assert(
+        astral::luahost::eval("astral.native-ui-restricted",
+                              "local p = astral.storage.get('permissions'); return tostring(p.alert) .. ':' .. tostring(p.toast) .. ':' .. "
+                              "tostring(p.auth) .. ':' .. tostring(p.picker) .. ':' .. tostring(p.copy) .. ':' .. tostring(p.event)") ==
+        "false:false:false:false:false:false");
+    assert(astral::luahost::eval("astral.native-ui-test", "local ok = pcall(function() astral.ui.web_auth('https://example.com/auth', "
+                                                          "'https://other.example/callback', function() end) end); return ok") == "false");
+    astral::luahost::completeWebAuth(authorized, std::string("https://example.com/callback?code=ok"), std::string("session=ok"),
+                                     std::nullopt);
+    assert(astral::luahost::eval("astral.native-ui-test", "return astral.storage.get('authorization').url") ==
+           "https://example.com/callback?code=ok");
+    assert(astral::luahost::eval("astral.native-ui-test", "return astral.storage.get('authorization').cookies") == "session=ok");
+    uint64_t cancelledAuth = std::stoull(astral::luahost::eval(
+        "astral.native-ui-test", "local request = astral.ui.web_auth('https://example.com/auth', 'https://example.com/callback', "
+                                 "function() astral.storage.set('cancelled_auth_callback', true) end); "
+                                 "astral.ui.cancel_web_auth(request); return request"));
+    assert(cancelledAuth != authorized);
+    assert(!cancelledAuthRequests.empty() && cancelledAuthRequests.back() == cancelledAuth);
+    astral::luahost::completeWebAuth(cancelledAuth, std::string("https://example.com/callback"), std::nullopt, std::nullopt);
+    assert(astral::luahost::eval("astral.native-ui-test", "return astral.storage.get('cancelled_auth_callback') == nil") == "true");
     uint64_t subscription = std::stoull(astral::luahost::eval("astral.native-ui-test", "return astral.storage.get('subscription')"));
     astral::luahost::emitEvent("app.foreground");
     assert(astral::luahost::eval("astral.native-ui-test", "return astral.storage.get('event')") == "app.foreground");
@@ -727,14 +787,18 @@ static void testGatewayMessageEventsAndHaptics(const std::string &work)
     auto root = std::filesystem::path(work) / "gateway-events-host";
     auto plugin = root / "plugins" / "mention-haptics";
     auto restricted = root / "plugins" / "restricted";
+    auto contentReader = root / "plugins" / "content-reader";
     std::filesystem::create_directories(plugin);
     std::filesystem::create_directories(restricted);
+    std::filesystem::create_directories(contentReader);
     writeText(plugin / "manifest.toml",
               "id = 'astral.gateway-events-test'\nname = 'Gateway events test'\nversion = '1.0'\nmain = 'main.lua'\npermissions = "
-              "['discord.messages', 'events.messages', 'events.messages.filter', 'ui.haptics', 'storage']\n");
+              "['discord.messages', 'events.messages', 'events.messages.filter', 'ui.haptics', 'ui.message_actions', 'storage']\n");
     writeText(plugin / "main.lua",
               "astral.events.on('message.filter', function(message) return message.content:find('filtered', 1, true) ~= nil end)\n"
               "astral.ui.message_color(function(message) if message.reply_to_me then return 0x805865F2 end end)\n"
+              "astral.ui.message_action('Inspect', function(message) astral.storage.set('action', message.message_id .. ':' .. "
+              "message.channel_id) end)\n"
               "astral.events.on('message.create', function(message)\n"
               "  astral.storage.set('event', message)\n"
               "  if not message.from_me and not (message.open and not astral.settings.get('open', false)) and "
@@ -747,15 +811,22 @@ static void testGatewayMessageEventsAndHaptics(const std::string &work)
               "local events = pcall(function() astral.events.on('message.create', function() end) end)\n"
               "local filters = pcall(function() astral.events.on('message.filter', function() end) end)\n"
               "local haptics = pcall(function() astral.ui.haptic('light') end)\n"
+              "local actions = pcall(function() astral.ui.message_action('Inspect', function() end) end)\n"
               "astral.ui.message_color(function(message) astral.storage.set('reply_context', tostring(message.reply_to_me)) end)\n"
-              "astral.storage.set('permissions', {events = events, filters = filters, haptics = haptics})\n");
+              "astral.storage.set('permissions', {events = events, filters = filters, haptics = haptics, actions = actions})\n");
+    writeText(contentReader / "manifest.toml",
+              "id = 'astral.gateway-content-reader'\nname = 'Content reader'\nversion = '1.0'\nmain = 'main.lua'\npermissions = "
+              "['discord.messages', 'discord.messages.content', 'storage']\n");
+    writeText(contentReader / "main.lua", "local message = astral.discord.message('200000000000000007', '200000000000000010')\n"
+                                          "astral.storage.set('content', message.content)\n");
     astral::SettingsStore settings((root / "settings.json").string());
     settings.set("astral", "developer-mode", true);
     astral::LuaHostPlatform platform;
     platform.storagePath = (root / "storage.sqlite").string();
     platform.message = [](const std::string &channel, const std::string &message) -> std::optional<nlohmann::json> {
         if (channel != "200000000000000007") return std::nullopt;
-        if (message == "200000000000000010") return nlohmann::json{{"author", {{"id", "100000000000000001"}}}};
+        if (message == "200000000000000010")
+            return nlohmann::json{{"content", "cached message text"}, {"author", {{"id", "100000000000000001"}}}};
         if (message == "200000000000000011")
             return nlohmann::json{{"author", {{"id", "200000000000000003"}}},
                                   {"reference", {{"channel_id", channel}, {"message_id", "200000000000000010"}}}};
@@ -770,10 +841,13 @@ static void testGatewayMessageEventsAndHaptics(const std::string &work)
         return true;
     };
     astral::luahost::start({(root / "plugins").string()}, &settings, true, std::move(platform));
+    assert(astral::luahost::eval("astral.gateway-events-test",
+                                 "return astral.discord.message('200000000000000007', '200000000000000010').content == nil") == "true");
+    assert(astral::luahost::eval("astral.gateway-content-reader", "return astral.storage.get('content')") == "cached message text");
     assert(astral::luahost::eval(
                "astral.gateway-events-restricted",
                "local p = astral.storage.get('permissions'); return tostring(p.events) .. ':' .. tostring(p.filters) .. ':' .. "
-               "tostring(p.haptics)") == "false:false:false");
+               "tostring(p.haptics) .. ':' .. tostring(p.actions)") == "false:false:false:false");
     assert(!astral::luahost::processGatewayMessage(R"({"op":0,"t":"READY","d":{"user":{"id":"100000000000000001"}}})"));
     assert(!astral::luahost::processGatewayMessage(
         R"({"op":0,"t":"MESSAGE_CREATE","d":{"id":"200000000000000001","channel_id":"200000000000000002","author":{"id":"200000000000000003"},"mentions":[{"id":"100000000000000001"}],"content":"private message text"}})"));
@@ -801,6 +875,14 @@ static void testGatewayMessageEventsAndHaptics(const std::string &work)
     assert(color == 0x805865F2);
     assert(astral::luahost::eval("astral.gateway-events-restricted", "return astral.storage.get('reply_context')") == "nil");
     assert(AstralLuaMessageTextColor(200000000000000012ULL, 200000000000000007ULL, &color) == 0);
+    AstralDecorationContext actionContext = {"message.author:", 200000000000000011ULL, 200000000000000003ULL, 200000000000000007ULL};
+    AstralTag actionTags[4] = {};
+    assert(AstralLuaDecorate(&actionContext, actionTags, 4) == 1);
+    assert(std::string(actionTags[0].text) == "Inspect");
+    assert(std::string(actionTags[0].action_id).rfind("astral.action.", 0) == 0);
+    assert(astral::luahost::pressMessageAction(actionTags[0].action_id));
+    assert(astral::luahost::eval("astral.gateway-events-test", "return astral.storage.get('action')") ==
+           "200000000000000011:200000000000000007");
     astral::luahost::stop();
 }
 

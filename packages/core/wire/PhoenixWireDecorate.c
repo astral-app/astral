@@ -210,7 +210,7 @@ int32_t wireBuildTag(Out *out, const AstralTag *tag, Decorated *slot)
     wirePut32(out, (uint32_t)pill);
     wirePut16(out, 4);
     wirePut(out, "view", 4);
-    wirePut16(out, 6);
+    wirePropCount(out, tag->action_id[0] ? 9 : 6);
     wirePropString(out, P(align), "center");
     if (gradient)
         wirePropGradient(out, P(backgroundGradient), 90, tag->gradient, tag->gradientCount > 3 ? 3 : tag->gradientCount);
@@ -220,6 +220,11 @@ int32_t wireBuildTag(Out *out, const AstralTag *tag, Decorated *slot)
     wirePropNumber(out, P(height), originalPoster ? 16 : 18);
     wirePropQuad(out, P(padding), originalPoster ? 5 : 4, 0, originalPoster ? 5 : 4, 0);
     wirePropNumber(out, P(radius), originalPoster ? 8 : 4);
+    if (tag->action_id[0]) {
+        wirePropString(out, P(accessibilityId), tag->action_id);
+        wirePropString(out, P(accessibilityLabel), tag->text);
+        wirePropEvents(out, P(on), "press");
+    }
     int32_t label = tagId();
     wirePut8(out, 1);
     wirePut32(out, (uint32_t)label);

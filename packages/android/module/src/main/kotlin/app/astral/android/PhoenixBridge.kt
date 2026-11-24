@@ -17,10 +17,15 @@ import android.widget.EditText
 import android.widget.Toast
 import android.provider.OpenableColumns
 import android.webkit.MimeTypeMap
+import android.webkit.WebResourceRequest
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import io.github.libxposed.api.XposedInterface.ExceptionMode
 import io.github.libxposed.api.XposedModule
 import java.lang.reflect.Method
 import java.lang.ref.WeakReference
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 
 object PhoenixBridge {
     private const val GUEST_HOST = "com.discord.nativeapp.bridge.GuestHost"
@@ -44,9 +49,11 @@ object PhoenixBridge {
     private val worker = HandlerThread("astral-wire").apply { start() }
     private val handler = Handler(worker.looper)
     private val mainHandler = Handler(Looper.getMainLooper())
+    private data class PendingWebAuth(val activity: WeakReference<Activity>, val finish: (String?, String?, String?) -> Unit)
     @Volatile private var currentActivity: WeakReference<Activity>? = null
     @Volatile private var pendingExport: String? = null
     @Volatile private var pendingFilePick: Long? = null
+    private val pendingWebAuth = ConcurrentHashMap<Long, PendingWebAuth>()
 
     fun install(module: XposedModule, loader: ClassLoader) {
         val type = loader.loadClass(GUEST_HOST)
@@ -126,6 +133,22 @@ object PhoenixBridge {
                     val result = chain.proceed()
                     val activity = chain.thisObject as? Activity
                     if (activity != null && activity.javaClass.name == MAIN_ACTIVITY) Native.emitEvent("app.background")
+                    result
+                }
+        }
+        val onDestroy = activityMethod(mainActivity, "onDestroy", emptyArray())
+        if (onDestroy != null) {
+            module.hook(onDestroy)
+                .setExceptionMode(ExceptionMode.PROTECTIVE)
+                .intercept { chain ->
+                    val activity = chain.thisObject as? Activity
+                    if (activity != null) {
+                        pendingWebAuth.entries.filter { it.value.activity.get() === activity }.forEach { entry ->
+                            entry.value.finish(null, null, "cancelled")
+                        }
+                    }
+                    val result = chain.proceed()
+                    if (activity != null && currentActivity?.get() === activity) currentActivity = null
                     result
                 }
         }
@@ -245,6 +268,84 @@ object PhoenixBridge {
             if (activity.isFinishing || activity.isDestroyed) return@post
             AlertDialog.Builder(activity).setTitle(title).setMessage(message).setPositiveButton("OK", null).show()
         }
+    }
+
+    @JvmStatic
+    fun showToast(title: String, message: String) {
+        mainHandler.post {
+            val activity = activeActivity() ?: return@post
+            val text = if (title.isEmpty()) message else "$title\n$message"
+            Toast.makeText(activity, text, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    @JvmStatic
+    fun openWebAuth(request: Long, url: String, callbackURL: String) {
+        mainHandler.post {
+            val activity = activeActivity()
+            if (activity == null || activity.isFinishing || activity.isDestroyed) {
+                Native.completeWebAuth(request, null, null, "unavailable")
+                return@post
+            }
+            val callback = runCatching { Uri.parse(callbackURL) }.getOrNull()
+            val webView = WebView(activity)
+            webView.layoutParams = android.view.ViewGroup.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                (activity.resources.displayMetrics.heightPixels * 0.68f).toInt(),
+            )
+            webView.settings.javaScriptEnabled = true
+            webView.settings.domStorageEnabled = true
+            android.webkit.CookieManager.getInstance().setAcceptCookie(true)
+            val existingCookies = android.webkit.CookieManager.getInstance().getCookie(callbackURL).orEmpty()
+                .split(';').map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+            val completed = AtomicBoolean(false)
+            lateinit var dialog: AlertDialog
+            val finish: (String?, String?, String?) -> Unit = { resultURL, cookies, error ->
+                if (completed.compareAndSet(false, true)) {
+                    pendingWebAuth.remove(request)
+                    webView.stopLoading()
+                    dialog.dismiss()
+                    webView.destroy()
+                    Native.completeWebAuth(request, resultURL, cookies, error)
+                }
+            }
+            dialog = AlertDialog.Builder(activity)
+                .setTitle("Authorize")
+                .setView(webView)
+                .setNegativeButton("Cancel") { _, _ -> finish(null, null, "cancelled") }
+                .create()
+            webView.webViewClient = object : WebViewClient() {
+                override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                    val uri = request.url
+                    if (request.isForMainFrame && callback != null && matchesWebAuthCallback(uri, callback)) {
+                        val cookies = android.webkit.CookieManager.getInstance().getCookie(uri.toString()).orEmpty()
+                            .split(';').map { it.trim() }.filter { it.isNotEmpty() && it !in existingCookies }.joinToString("; ")
+                        finish(uri.toString(), cookies, null)
+                        return true
+                    }
+                    return false
+                }
+            }
+            dialog.setOnCancelListener { finish(null, null, "cancelled") }
+            dialog.setOnDismissListener { finish(null, null, "cancelled") }
+            dialog.show()
+            pendingWebAuth[request] = PendingWebAuth(WeakReference(activity), finish)
+            runCatching { webView.loadUrl(url) }.onFailure { finish(null, null, "unavailable") }
+        }
+    }
+
+    @JvmStatic
+    fun cancelWebAuth(request: Long) {
+        mainHandler.post { pendingWebAuth[request]?.finish?.invoke(null, null, "cancelled") }
+    }
+
+    private fun matchesWebAuthCallback(url: Uri, callback: Uri): Boolean {
+        val urlPort = if (url.port == -1) 443 else url.port
+        val callbackPort = if (callback.port == -1) 443 else callback.port
+        return url.scheme.equals(callback.scheme, ignoreCase = true) &&
+            url.host.equals(callback.host, ignoreCase = true) &&
+            urlPort == callbackPort &&
+            url.encodedPath == callback.encodedPath
     }
 
     @JvmStatic

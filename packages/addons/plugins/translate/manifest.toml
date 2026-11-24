@@ -1,0 +1,20 @@
+id = "astral.translate"
+name = "Translate"
+description = "Translates messages with Unbound Translate or Google and MyMemory, then copies the result and shows a toast."
+version = "0.0.1"
+icon = "TranslateIcon"
+main = "main.lua"
+permissions = [
+	"discord.messages",
+	"discord.messages.content",
+	"network",
+	"storage",
+	"ui.clipboard",
+	"ui.message_actions",
+	"ui.toasts",
+	"ui.web_auth",
+]
+
+[[authors]]
+name = "adrian"
+id = "224617799434108928"

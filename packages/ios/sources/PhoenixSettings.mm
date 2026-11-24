@@ -11,6 +11,7 @@
 #import <vector>
 
 #import "AstralState.h"
+#include "AstralLuaHost.h"
 #import "DevServer.h"
 #import "PhoenixHostCall.h"
 #import "PhoenixImage.h"
@@ -54,6 +55,7 @@ static NSString *const kBack = @"astral.back";
 static NSString *const kRowPrefix = @"astral.row.";
 static NSString *const kSwitchPrefix = @"astral.switch.";
 static NSString *const kSliderPrefix = @"astral.slider.";
+static NSString *const kActionPrefix = @"astral.action.";
 
 static pthread_mutex_t gLock = PTHREAD_MUTEX_INITIALIZER;
 static AstralHostCall gHostOriginal;
@@ -481,6 +483,8 @@ static void Pop(void)
         Push(route);
     } else if ([identifier isEqualToString:kBack]) {
         Pop();
+    } else if ([identifier hasPrefix:kActionPrefix]) {
+        astral::luahost::pressMessageAction(identifier.UTF8String ?: "");
     } else {
         BOOL isSwitch = [identifier hasPrefix:kSwitchPrefix];
         NSString *prefix = isSwitch ? kSwitchPrefix : kRowPrefix;
@@ -565,7 +569,7 @@ static void RouteSlider(UIView *view, NSString *identifier)
 static BOOL Routed(NSString *identifier)
 {
     return [identifier hasPrefix:kOverviewRow] || [identifier isEqualToString:kBack] || [identifier hasPrefix:kRowPrefix] ||
-           [identifier hasPrefix:kSwitchPrefix];
+           [identifier hasPrefix:kSwitchPrefix] || [identifier hasPrefix:kActionPrefix];
 }
 
 static void Route(UIView *view)

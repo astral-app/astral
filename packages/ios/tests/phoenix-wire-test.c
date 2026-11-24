@@ -19,6 +19,7 @@ static size_t tagOwner(const AstralDecorationContext *context, AstralTag *tags, 
 {
     if (capacity < 1 || context->user_id != 100000000000000001ull || context->channel_id != 100000000000000002ull) return 0;
     strcpy(tags[0].text, "OWNER");
+    strcpy(tags[0].action_id, "astral.action.42.2.3");
     tags[0].background = 0xFFED4245;
     tags[0].foreground = 0xFFFFFFFF;
     return 1;
@@ -64,6 +65,8 @@ static void decorationTest(void)
     assert(strstr(line, "\"complete\":true"));
     assert(strstr(line, "[3,920,[921,922,2063597568,923]]"));
     assert(strstr(line, "[499,6,{\"n\":5"));
+    assert(strstr(line, "astral.action.42.2.3"));
+    assert(strstr(line, "press"));
     astral_wire_buffer_free(&out);
 
     Batch again = {.length = 0};

@@ -71,10 +71,13 @@ jmethodID gImportBackup = nullptr;
 jmethodID gOpenReport = nullptr;
 jmethodID gRefreshEmoji = nullptr;
 jmethodID gShowAlert = nullptr;
+jmethodID gShowToast = nullptr;
 jmethodID gTriggerHaptic = nullptr;
 jmethodID gCopyText = nullptr;
 jmethodID gPickFile = nullptr;
 jmethodID gCancelFilePick = nullptr;
+jmethodID gOpenWebAuth = nullptr;
+jmethodID gCancelWebAuth = nullptr;
 jmethodID gEditText = nullptr;
 std::mutex gTextEditLock;
 std::map<uint64_t, std::function<void(std::optional<std::string>)>> gTextEditCallbacks;
@@ -95,6 +98,7 @@ void callBridge(jmethodID method, const std::string &argument);
 void callBridge(jmethodID method, const std::string &first, const std::string &second);
 void callBridge(jmethodID method, jlong request);
 bool callBridge(jmethodID method, jlong request, const std::string &argument);
+bool callBridge(jmethodID method, jlong request, const std::string &first, const std::string &second);
 bool callBridge(jmethodID method, jlong request, const std::string &title, const std::string &value, jint maximumLength);
 
 std::string reportText(const nlohmann::json &report, const char *key)
@@ -386,6 +390,14 @@ astral::LuaHostPlatform platform(const std::string &state, const std::string &re
     platform.networkRequest = startNetworkRequest;
     platform.cancelNetworkRequest = cancelNetworkRequest;
     platform.showAlert = [](const std::string &title, const std::string &message) { callBridge(gShowAlert, title, message); };
+    platform.showToast = [](const std::string &title, const std::string &message) { callBridge(gShowToast, title, message); };
+    platform.webAuth = [](uint64_t request, const std::string &url, const std::string &callbackURL) {
+        if (!gOpenWebAuth) return false;
+        return callBridge(gOpenWebAuth, static_cast<jlong>(request), url, callbackURL);
+    };
+    platform.cancelWebAuth = [](uint64_t request) {
+        if (gCancelWebAuth) callBridge(gCancelWebAuth, static_cast<jlong>(request));
+    };
     platform.triggerHaptic = [](const std::string &strength) {
         if (!gTriggerHaptic) return false;
         callBridge(gTriggerHaptic, strength);
@@ -897,6 +909,28 @@ bool callBridge(jmethodID method, jlong request, const std::string &argument)
     return succeeded;
 }
 
+bool callBridge(jmethodID method, jlong request, const std::string &first, const std::string &second)
+{
+    bool attached = false;
+    JNIEnv *env = currentEnvironment(attached);
+    if (!env) return false;
+    bool succeeded = false;
+    {
+        std::lock_guard<std::mutex> lock(gNetworkLock);
+        jstring firstValue = toJava(env, first);
+        jstring secondValue = toJava(env, second);
+        if (gBridge && method && firstValue && secondValue) {
+            env->CallStaticVoidMethod(gBridge, method, request, firstValue, secondValue);
+            succeeded = !env->ExceptionCheck();
+        }
+        if (env->ExceptionCheck()) env->ExceptionClear();
+        if (firstValue) env->DeleteLocalRef(firstValue);
+        if (secondValue) env->DeleteLocalRef(secondValue);
+    }
+    if (attached) gVM->DetachCurrentThread();
+    return succeeded;
+}
+
 bool callBridge(jmethodID method, jlong request, const std::string &title, const std::string &value, jint maximumLength)
 {
     bool attached = false;
@@ -1066,9 +1100,11 @@ ASTRAL_EXPORT JNIEXPORT jboolean JNICALL Java_app_astral_android_Native_press(JN
         std::lock_guard<std::mutex> lock(gWireLock);
         if (!astral_wire_identifier(node, identifier, sizeof(identifier))) return JNI_FALSE;
     }
-    if (!astral::navigator::handles(identifier)) return JNI_FALSE;
-    astral::navigator::tap(identifier);
-    return JNI_TRUE;
+    if (astral::navigator::handles(identifier)) {
+        astral::navigator::tap(identifier);
+        return JNI_TRUE;
+    }
+    return astral::luahost::pressMessageAction(identifier) ? JNI_TRUE : JNI_FALSE;
 }
 
 ASTRAL_EXPORT JNIEXPORT jbyteArray JNICALL Java_app_astral_android_Native_pendingUpdates(JNIEnv *env, jclass)
@@ -1119,14 +1155,17 @@ ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_attachBridge
     jmethodID openReportMethod = env->GetStaticMethodID(reference, "openReport", "(Ljava/lang/String;)V");
     jmethodID refreshEmojiMethod = env->GetStaticMethodID(reference, "refreshEmoji", "()V");
     jmethodID showAlertMethod = env->GetStaticMethodID(reference, "showAlert", "(Ljava/lang/String;Ljava/lang/String;)V");
+    jmethodID showToastMethod = env->GetStaticMethodID(reference, "showToast", "(Ljava/lang/String;Ljava/lang/String;)V");
     jmethodID triggerHapticMethod = env->GetStaticMethodID(reference, "triggerHaptic", "(Ljava/lang/String;)V");
     jmethodID copyTextMethod = env->GetStaticMethodID(reference, "copyText", "(Ljava/lang/String;)V");
     jmethodID pickFileMethod = env->GetStaticMethodID(reference, "pickFile", "(JLjava/lang/String;)V");
     jmethodID cancelFilePickMethod = env->GetStaticMethodID(reference, "cancelFilePick", "(J)V");
+    jmethodID openWebAuthMethod = env->GetStaticMethodID(reference, "openWebAuth", "(JLjava/lang/String;Ljava/lang/String;)V");
+    jmethodID cancelWebAuthMethod = env->GetStaticMethodID(reference, "cancelWebAuth", "(J)V");
     jmethodID editTextMethod = env->GetStaticMethodID(reference, "editText", "(JLjava/lang/String;Ljava/lang/String;I)V");
     if (env->ExceptionCheck() || !deliverMethod || !fetchMethod || !requestMethod || !cancelMethod || !exportBackupMethod ||
         !importBackupMethod || !openReportMethod || !refreshEmojiMethod || !showAlertMethod || !triggerHapticMethod || !copyTextMethod ||
-        !pickFileMethod || !cancelFilePickMethod || !editTextMethod) {
+        !pickFileMethod || !cancelFilePickMethod || !showToastMethod || !openWebAuthMethod || !cancelWebAuthMethod || !editTextMethod) {
         env->ExceptionClear();
         env->DeleteGlobalRef(reference);
         return;
@@ -1144,10 +1183,13 @@ ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_attachBridge
         gOpenReport = openReportMethod;
         gRefreshEmoji = refreshEmojiMethod;
         gShowAlert = showAlertMethod;
+        gShowToast = showToastMethod;
         gTriggerHaptic = triggerHapticMethod;
         gCopyText = copyTextMethod;
         gPickFile = pickFileMethod;
         gCancelFilePick = cancelFilePickMethod;
+        gOpenWebAuth = openWebAuthMethod;
+        gCancelWebAuth = cancelWebAuthMethod;
         gEditText = editTextMethod;
     }
     astral::reactors::setFetcher(fetch);
@@ -1172,6 +1214,19 @@ ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_completeRequ
     }
     if (error) response["error"] = fromJava(env, error);
     astral::luahost::completeNetworkRequest(static_cast<uint64_t>(request), response);
+}
+
+ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_completeWebAuth(JNIEnv *env, jclass, jlong request, jstring url,
+                                                                                    jstring cookies, jstring error)
+{
+    if (request <= 0) return;
+    std::optional<std::string> resultURL;
+    std::optional<std::string> resultCookies;
+    std::optional<std::string> failure;
+    if (url) resultURL = fromJava(env, url);
+    if (cookies) resultCookies = fromJava(env, cookies);
+    if (error) failure = fromJava(env, error);
+    astral::luahost::completeWebAuth(static_cast<uint64_t>(request), resultURL, resultCookies, failure);
 }
 
 ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_completeFilePick(JNIEnv *env, jclass, jlong request, jstring name,

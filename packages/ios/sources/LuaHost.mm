@@ -3,6 +3,7 @@
 #include "AstralSettings.h"
 #include "AstralLuaHost.h"
 #import "AstralState.h"
+#import "BrowserAuth.h"
 #import "CrashReports.h"
 #import "DevServer.h"
 #import "DiscordCache.h"
@@ -75,7 +76,15 @@ static astral::LuaHostPlatform Platform(void)
     };
     platform.networkRequest = [](uint64_t request, const nlohmann::json &options) { astral::startNetworkRequest(request, options); };
     platform.cancelNetworkRequest = [](uint64_t request) { astral::cancelNetworkRequest(request); };
+    platform.webAuth = [](uint64_t request, const std::string &url, const std::string &callbackURL) {
+        return AstralOpenPluginWebAuth(request, Native(url), Native(callbackURL),
+                                       ^(uint64_t completedRequest, NSString *resultURL, NSString *cookies, NSString *error) {
+                                           astral::luahost::completeWebAuth(completedRequest, Text(resultURL), Text(cookies), Text(error));
+                                       });
+    };
+    platform.cancelWebAuth = [](uint64_t request) { AstralCancelPluginWebAuth(request); };
     platform.showAlert = [](const std::string &title, const std::string &message) { AstralShowAlert(Native(title), Native(message)); };
+    platform.showToast = [](const std::string &title, const std::string &message) { AstralShowToast(Native(title), Native(message)); };
     platform.triggerHaptic = [](const std::string &strength) {
         UIImpactFeedbackStyle style;
         if (strength == "light")
