@@ -73,15 +73,27 @@ static dispatch_queue_t gCaptureQueue;
 static NSUInteger gCaptured;
 static const NSUInteger kMaxCaptured = 400;
 
-static void Capture(NSData *batch)
+static void CaptureNamed(NSData *batch, NSUInteger sequence, NSString *suffix)
 {
-    if (!gCaptureDirectory || gCaptured >= kMaxCaptured) return;
-    NSUInteger sequence = ++gCaptured;
     NSData *copy = [batch copy];
     dispatch_async(gCaptureQueue, ^{
-        NSString *name = [NSString stringWithFormat:@"%04lu.bin", (unsigned long)sequence];
+        NSString *name = [NSString stringWithFormat:@"%04lu%@", (unsigned long)sequence, suffix];
         [copy writeToFile:[gCaptureDirectory stringByAppendingPathComponent:name] atomically:NO];
     });
+}
+
+static NSUInteger Capture(NSData *batch)
+{
+    if (!gCaptureDirectory || gCaptured >= kMaxCaptured) return 0;
+    NSUInteger sequence = ++gCaptured;
+    CaptureNamed(batch, sequence, @".bin");
+    return sequence;
+}
+
+static void CaptureRewrite(const uint8_t *bytes, size_t length, NSUInteger sequence)
+{
+    if (!gCaptureDirectory || !sequence) return;
+    CaptureNamed([NSData dataWithBytes:bytes length:length], sequence, @".bin.out");
 }
 
 static void StartCapture(void)
@@ -228,10 +240,11 @@ static bool InterceptHostCall(void *context, const uint8_t *frame, size_t length
     RecordFirstFrame(frame + 4, length - 4);
     bool handled;
     @autoreleasepool {
-        Capture([NSData dataWithBytesNoCopy:(void *)(frame + 4) length:length - 4 freeWhenDone:NO]);
+        NSUInteger captured = Capture([NSData dataWithBytesNoCopy:(void *)(frame + 4) length:length - 4 freeWhenDone:NO]);
         int unsupportedBefore = astral_wire_unsupported_version();
         AstralWireBuffer rewritten;
         if (astral_settings_rewrite(frame + 4, length - 4, &rewritten)) {
+            CaptureRewrite(rewritten.bytes, rewritten.length, captured);
             std::vector<uint8_t> replacement(4 + rewritten.length, 0);
             memcpy(replacement.data() + 4, rewritten.bytes, rewritten.length);
             astral_wire_buffer_free(&rewritten);

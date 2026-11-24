@@ -7,6 +7,9 @@ astral = {
 		choice = function(_, _, _, default)
 			return default
 		end,
+		set = function(key, value)
+			registered.stored = { key, value }
+		end,
 	},
 	ui = {
 		message_background = function(decorator)
@@ -69,6 +72,9 @@ assert(section:switch("enabled", "Enabled", true) == true)
 assert(astral.settings.values.enabled == true)
 astral.on_setting("enabled", false)
 assert(astral.settings.values.enabled == false and changed == false)
+astral.settings.set("enabled", true)
+assert(registered.stored[1] == "enabled" and registered.stored[2] == true)
+assert(astral.settings.values.enabled == true and changed == true)
 
 astral.ui.decorate(astral.Target.MessageAuthor, function(node)
 	return { Pill(node:is_bot() and "Bot" or "User"), { text = "Raw", color = 0xFF000000 } }

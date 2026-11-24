@@ -12,7 +12,7 @@ static BOOL IsComposer(UITextView *textView)
 {
     UIView *view = textView;
     for (NSUInteger depth = 0; view && depth < 32; depth++, view = view.superview) {
-        if ([NSStringFromClass(view.class) isEqualToString:@"DCDChatInputComponentView"]) return YES;
+        if ([view.accessibilityIdentifier isEqualToString:@"chat-input-container"]) return YES;
     }
     return NO;
 }

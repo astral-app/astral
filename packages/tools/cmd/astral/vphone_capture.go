@@ -48,14 +48,16 @@ func pullCapturedBatches(client vphoneClient, wire string, destination string) (
 	}
 	var batches []string
 	for _, entry := range entries {
-		if !strings.HasSuffix(entry.Name, ".bin") {
+		if !strings.HasSuffix(entry.Name, ".bin") && !strings.HasSuffix(entry.Name, ".bin.out") {
 			continue
 		}
 		local := filepath.Join(destination, entry.Name)
 		if err := client.pull(path.Join(wire, entry.Name), local); err != nil {
 			return nil, err
 		}
-		batches = append(batches, local)
+		if strings.HasSuffix(entry.Name, ".bin") {
+			batches = append(batches, local)
+		}
 	}
 	sort.Strings(batches)
 	return batches, nil

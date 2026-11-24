@@ -14,6 +14,7 @@ type command struct {
 
 var commands = map[string]command{
 	"android":        {"android <build|deploy> ...", runAndroid},
+	"avd":            {"avd <boot|stop|status|discord|deploy|launch|screenshot|tap|settings|logs> ...", runAVD},
 	"test":           {"test [--phoenix <PhoenixFatClient>]", runTest},
 	"lint":           {"lint", runLint},
 	"format":         {"format", runFormat},
