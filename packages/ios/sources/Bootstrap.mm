@@ -14,6 +14,7 @@
 #include "AstralFiles.h"
 #include "AstralLaunchGuard.h"
 #include "AstralLog.h"
+#include "AstralPluginTrace.h"
 #include "AstralSettings.h"
 #import "AstralState.h"
 #import "DevServer.h"
@@ -196,6 +197,12 @@ static void StartPlugins(void)
     started = YES;
     AstralInitializeDynamicCutout();
     auto previous = astral::ExitRecord(stateDirectory).take(false);
+    auto session = astral::trace::open(stateDirectory, (int64_t)time(nullptr));
+    if (previous == astral::PreviousExit::Unknown && session && !session->active.empty()) {
+        NSMutableArray<NSString *> *running = [NSMutableArray array];
+        for (const auto &plugin : session->running) [running addObject:@(plugin.c_str())];
+        AstralRecordUnexpectedExit(@(session->active.c_str()), running);
+    }
     auto verdict = astral::LaunchGuard(stateDirectory).begin(previous);
     recovering = verdict.enterRecovery;
     bool safeMode = settings->getBoolean("astral", "safe-mode", false);

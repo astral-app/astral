@@ -15,6 +15,7 @@
 #include "AstralTOML.h"
 #include "AstralThemes.h"
 #include "AstralSignatures.h"
+#include "AstralPluginTrace.h"
 #include "AstralSettingsPages.h"
 #include "AstralSettingsNavigator.h"
 #include "AstralLuaHost.h"
@@ -1008,6 +1009,27 @@ static void testBackgroundCatalogUpdates(const std::string &work)
     astral::pages::configure({});
 }
 
+static void testPluginTrace(const std::string &work)
+{
+    auto root = std::filesystem::path(work) / "plugin-trace";
+    std::filesystem::create_directories(root);
+    assert(!astral::trace::open(root.string(), 100));
+    astral::trace::setRunning({"astral.one", "astral.two"});
+    astral::trace::enter("astral.one");
+    astral::trace::enter("astral.two");
+    astral::trace::leave();
+    astral::trace::close();
+    auto crashed = astral::trace::open(root.string(), 200);
+    assert(crashed && crashed->started == 100 && crashed->active == "astral.one" && crashed->last == "astral.two");
+    assert((crashed->running == std::vector<std::string>{"astral.one", "astral.two"}));
+    astral::trace::enter("astral.one");
+    astral::trace::leave();
+    astral::trace::close();
+    auto clean = astral::trace::open(root.string(), 300);
+    assert(clean && clean->started == 200 && clean->active.empty() && clean->last == "astral.one" && clean->running.empty());
+    astral::trace::close();
+}
+
 int main(int argc, char **argv)
 {
     assert(argc == 3);
@@ -1043,6 +1065,7 @@ int main(int argc, char **argv)
     testSliderSettingsAndNavigation(argv[1]);
     testTextSettings(argv[1]);
     testBackgroundCatalogUpdates(argv[1]);
+    testPluginTrace(argv[1]);
     puts("ok");
     return 0;
 }

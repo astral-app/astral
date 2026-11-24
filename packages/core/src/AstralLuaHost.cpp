@@ -1,4 +1,5 @@
 #include "AstralLuaHost.h"
+#include "AstralPluginTrace.h"
 
 #include <algorithm>
 #include <atomic>
@@ -207,7 +208,9 @@ static void Report(LuaPlugin *plugin, const char *stage, const std::string &mess
 
 static bool Call(LuaPlugin *plugin, int arguments, int results, const char *stage)
 {
+    astral::trace::enter(plugin->identifier);
     auto error = plugin->sandbox->call(arguments, results);
+    astral::trace::leave();
     if (!error) return true;
     Report(plugin, stage, *error);
     return false;
@@ -1390,6 +1393,14 @@ static bool RunPrelude(LuaPlugin *plugin)
     return Call(plugin, 0, 0, "prelude");
 }
 
+static void TraceRunningPlugins()
+{
+    std::vector<std::string> running;
+    for (auto *plugin : gPlugins)
+        if (plugin->state && !plugin->failed) running.push_back(plugin->identifier);
+    astral::trace::setRunning(running);
+}
+
 static void Stop(LuaPlugin *plugin)
 {
     auto requests = std::move(plugin->networkRequests);
@@ -1455,6 +1466,7 @@ static void Stop(LuaPlugin *plugin)
     plugin->composerDecorators.clear();
     plugin->messageBackgroundDecorators.clear();
     ApplySettingsBackdrop();
+    TraceRunningPlugins();
 }
 
 static bool Runnable(LuaPlugin *plugin)
@@ -1496,6 +1508,7 @@ static bool Start(LuaPlugin *plugin)
         Stop(plugin);
         return false;
     }
+    TraceRunningPlugins();
     return true;
 }
 
@@ -2143,9 +2156,12 @@ std::string eval(const std::string &pluginID, const std::string &source)
             return "error: " + *error;
         }
     }
-    if (auto error = plugin->sandbox->call(0, LUA_MULTRET)) {
+    astral::trace::enter(plugin->identifier);
+    auto evaluated = plugin->sandbox->call(0, LUA_MULTRET);
+    astral::trace::leave();
+    if (evaluated) {
         lua_settop(state, top);
-        return "error: " + *error;
+        return "error: " + *evaluated;
     }
     std::string joined;
     for (int index = top + 1; index <= lua_gettop(state); index++) {
