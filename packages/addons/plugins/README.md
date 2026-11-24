@@ -1,6 +1,6 @@
 # Plugins
 
-15 first-party plugins for astral, each in its own folder here.
+16 first-party plugins for astral, each in its own folder here.
 
 <!-- Generated from each manifest.toml by `astral readme`. Do not edit by hand. -->
 
@@ -8,6 +8,7 @@
 - <img src="../../assets/readme-icons/link-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Clear URLs](clear-urls/): Removes common tracking parameters from links before messages are sent or edited.
 - <img src="../../assets/readme-icons/eye-slash-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Enhanced Blocking](enhanced-blocking/): Filters incoming messages by user, keyword or reply author before Phoenix handles them.
 - <img src="../../assets/readme-icons/arrow-angle-left-up-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Highlight Replies](highlight-replies/): Tints the text of messages that reply to your messages.
+- <img src="../../assets/readme-icons/paint-palette-icon.svg" width="20" height="20" align="absmiddle" alt=""> [IRC Colors](irc-colors/): Gives everyone in chat their own username color, picked from their user id like in IRC clients.
 - <img src="../../assets/readme-icons/text-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Live Markdown](live-markdown/): Styles Discord markdown as you type in the message composer.
 - <img src="../../assets/readme-icons/user-circle-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Mention Avatars](mention-avatars/): Shows user avatars and role icons inside mentions.
 - <img src="../../assets/readme-icons/bell-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Mention Haptics](mention-haptics/): Taps your phone when a new message mentions you or arrives in a direct message.

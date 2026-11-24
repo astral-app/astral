@@ -153,6 +153,10 @@ typedef struct {
 typedef int (*AstralMessageBackgroundDecorator)(const AstralMessageBackgroundContext *context, AstralMessageBackgroundStyle *style);
 
 void astral_wire_set_message_background_decorator(AstralMessageBackgroundDecorator decorator);
+
+typedef int (*AstralAuthorColorizer)(uint64_t message_id, uint64_t user_id, uint64_t channel_id, uint32_t *color);
+
+void astral_wire_set_author_colorizer(AstralAuthorColorizer colorizer);
 void astral_wire_set_relabeler(AstralRelabeler relabeler);
 void astral_wire_set_palette(const uint32_t *from, const uint32_t *to, size_t count);
 void astral_wire_set_scales(double radius, double font);

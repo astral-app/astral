@@ -45,6 +45,7 @@
 ---@field kind astral.NodeKind
 ---@field text string
 ---@field user_id? astral.Snowflake
+---@field author_id? astral.Snowflake
 ---@field channel_id? astral.Snowflake
 ---@field guild_id? astral.Snowflake
 ---@field message_id? astral.Snowflake
@@ -403,6 +404,8 @@ function astral.ui.message_color(colorizer) end
 ---@field bubble? boolean
 ---@param decorator fun(node: astral.Node): astral.MessageBackgroundStyle?
 function astral.ui.message_background(decorator) end
+---@param colorizer fun(node: astral.Node): astral.Color|integer|string|nil
+function astral.ui.author_color(colorizer) end
 ---@class astral.MessageActionOptions
 ---@field icon? string
 ---@param label string
