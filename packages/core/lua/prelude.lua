@@ -7,6 +7,7 @@ local native = {
 	decorate = astral.ui.decorate,
 	relabel = astral.ui.relabel,
 	composer = astral.ui.composer,
+	message_background = astral.ui.message_background,
 	toast = astral.ui.toast,
 	web_auth = astral.ui.web_auth,
 	cancel_web_auth = astral.ui.cancel_web_auth,
@@ -513,6 +514,16 @@ function astral.ui.message_color(colorizer)
 			return nil
 		end
 		return astral.Color.from(color).value
+	end)
+end
+
+function astral.ui.message_background(decorator)
+	return native.message_background(function(node)
+		local style = decorator(wrapNode(node))
+		if type(style) ~= "table" or style.color == nil then
+			return nil
+		end
+		return { color = astral.Color.from(style.color).value, radius = style.radius or 0 }
 	end)
 end
 

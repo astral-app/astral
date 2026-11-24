@@ -9,6 +9,9 @@ astral = {
 		end,
 	},
 	ui = {
+		message_background = function(decorator)
+			registered.message_background = decorator
+		end,
 		decorate = function(target, decorator)
 			registered[target] = decorator
 		end,
@@ -72,6 +75,13 @@ astral.ui.decorate(astral.Target.MessageAuthor, function(node)
 end)
 local pills = registered["message.author"]({ channel_id = "c", message_id = "m", user_id = "u" })
 assert(#pills == 2 and pills[1].text == "Bot" and pills[2].text_color == 0xFFFFFFFF)
+
+astral.ui.message_background(function(node)
+	assert(node.message_id == "m" and node.author_id == "u" and node.channel_id == "c")
+	return { color = "#805865F2", radius = 12 }
+end)
+local background = registered.message_background({ message_id = "m", author_id = "u", channel_id = "c" })
+assert(background.color == 0x805865F2 and background.radius == 12)
 
 local Animal = astral.class("Animal")
 function Animal:init(name)

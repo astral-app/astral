@@ -560,6 +560,7 @@ void configurePages(const std::string &discordVersion)
 void installDecorators()
 {
     astral_wire_set_decorator(AstralLuaDecorate);
+    astral_wire_set_message_background_decorator(AstralLuaMessageBackground);
     astral_wire_set_relabeler(AstralLuaRelabel);
     astral_wire_set_mention_decorator(AstralLuaMention);
     astral_wire_set_message_text_colorizer(AstralLuaMessageTextColor);

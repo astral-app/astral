@@ -25,6 +25,97 @@ static size_t tagOwner(const AstralDecorationContext *context, AstralTag *tags, 
     return 1;
 }
 
+static int gMessageBackgroundEnabled = 1;
+static size_t gMessageBackgroundCalls;
+static uint64_t gMessageBackgroundUser;
+
+static int messageBackground(const AstralMessageBackgroundContext *context, AstralMessageBackgroundStyle *style)
+{
+    gMessageBackgroundCalls++;
+    gMessageBackgroundUser = context->user_id;
+    if (!gMessageBackgroundEnabled || context->message_id != 100000000000000003ull || context->channel_id != 100000000000000002ull)
+        return 0;
+    style->color = 0x806B46E8;
+    style->radius = 14;
+    return 1;
+}
+
+static void messageBackgroundBatch(Batch *batch)
+{
+    const char *channel = "navigation.channel:100000000000000002";
+    const char *author = "message.author:100000000000000003";
+    const char *avatar = "message.avatar:100000000000000003";
+    batch->length = 0;
+    b8(batch, 1);
+    create(batch, 799, "view", 2);
+    b16(batch, 9);
+    b8(batch, 6);
+    bstr(batch, channel);
+    b16(batch, 13);
+    b8(batch, 2);
+    create(batch, 800, "view", 3);
+    b16(batch, 9);
+    b8(batch, 6);
+    bstr(batch, "message-row");
+    b16(batch, 90);
+    b8(batch, 4);
+    int64_t originalColor = 0xFF112233;
+    memcpy(batch->bytes + batch->length, &originalColor, sizeof(originalColor));
+    batch->length += sizeof(originalColor);
+    b16(batch, 388);
+    b8(batch, 5);
+    double radius = 3;
+    memcpy(batch->bytes + batch->length, &radius, sizeof(radius));
+    batch->length += sizeof(radius);
+    create(batch, 801, "text", 1);
+    b16(batch, 9);
+    b8(batch, 6);
+    bstr(batch, author);
+    create(batch, 810, "view", 1);
+    b16(batch, 9);
+    b8(batch, 6);
+    bstr(batch, avatar);
+    create(batch, 811, "image", 1);
+    b16(batch, 542);
+    b8(batch, 6);
+    bstr(batch, "https://cdn.discordapp.com/avatars/100000000000000001/abc.webp");
+    create(batch, 812, "view", 0);
+    children(batch, 812, 1, (int[]){811});
+    children(batch, 810, 1, (int[]){812});
+    children(batch, 800, 2, (int[]){810, 801});
+}
+
+static void messageBackgroundTest(void)
+{
+    AstralWireBuffer out;
+    Batch batch;
+    astral_wire_set_decorator(NULL);
+    astral_wire_set_message_background_decorator(messageBackground);
+    gMessageBackgroundEnabled = 1;
+    gMessageBackgroundCalls = 0;
+    gMessageBackgroundUser = 0;
+    messageBackgroundBatch(&batch);
+    assert(astral_settings_rewrite(batch.bytes, batch.length, &out));
+    assert(gMessageBackgroundCalls == 1);
+    assert(gMessageBackgroundUser == 100000000000000001ull);
+    assert(astral_wire_summarise(out.bytes, out.length, sink, NULL) > 0);
+    assert(strstr(line, "[2,800,[[90,4,2154514152],[388,5,14]]]"));
+    astral_wire_buffer_free(&out);
+
+    gMessageBackgroundEnabled = 0;
+    batch.length = 0;
+    b8(&batch, 1);
+    b8(&batch, 2);
+    b32(&batch, 800);
+    b16(&batch, 0);
+    assert(astral_settings_rewrite(batch.bytes, batch.length, &out));
+    assert(gMessageBackgroundCalls == 2);
+    assert(astral_wire_summarise(out.bytes, out.length, sink, NULL) > 0);
+    assert(strstr(line, "[2,800,[[90,4,4279312947],[388,5,3]]]"));
+    astral_wire_buffer_free(&out);
+    astral_wire_set_message_background_decorator(NULL);
+}
+
 static void decorationTest(void)
 {
     AstralWireBuffer out;
@@ -586,6 +677,7 @@ static void unsupportedVersionTest(void)
 
 int main(void)
 {
+    messageBackgroundTest();
     decorationTest();
     gradientTagTest();
     relabelTest();

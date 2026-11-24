@@ -225,6 +225,7 @@ std::pair<std::string, std::string> permissionDescription(const std::string &per
         {"events.lifecycle", {"Receives app foreground and background events", "res://ic_mana_calendar"}},
         {"ui.clipboard", {"Copies text to the system clipboard", "res://ic_mana_copy"}},
         {"ui.composer", {"Reads and styles draft text in the message composer", "res://ic_mana_chat"}},
+        {"ui.message_background", {"Styles Phoenix message row backgrounds", "res://ic_mana_chat"}},
         {"ui.haptics", {"Triggers haptic feedback", "res://ic_mana_bell"}},
         {"ui.toasts", {"Shows brief notifications", "res://ic_mana_bell"}},
         {"ui.message_actions", {"Adds interactive actions to messages", "res://ic_mana_chat"}},

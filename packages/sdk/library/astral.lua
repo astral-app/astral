@@ -366,6 +366,11 @@ function astral.ui.relabel(target, relabeler) end
 function astral.ui.mention(decorator) end
 ---@param colorizer fun(node: astral.Node): astral.Color|integer|string|nil
 function astral.ui.message_color(colorizer) end
+---@class astral.MessageBackgroundStyle
+---@field color astral.Color|integer|string
+---@field radius? number
+---@param decorator fun(node: astral.Node): astral.MessageBackgroundStyle?
+function astral.ui.message_background(decorator) end
 function astral.ui.message_action(label, callback) end
 ---@param colorizer fun(node: astral.Node): astral.Color|integer|string|nil
 function astral.ui.name_color(colorizer) end

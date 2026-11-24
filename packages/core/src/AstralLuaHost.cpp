@@ -103,6 +103,7 @@ struct LuaPlugin : astral::PluginPackage, astral::PluginHealth {
     std::vector<int> reactionDecorators;
     std::vector<int> outgoingMessageTransforms;
     std::vector<int> composerDecorators;
+    std::vector<int> messageBackgroundDecorators;
     std::vector<LuaMessageAction> messageActions;
     std::map<uint64_t, int> networkRequests;
     std::map<uint64_t, int> webAuthRequests;
@@ -680,6 +681,18 @@ static int RegisterComposerDecorator(lua_State *state)
     return 0;
 }
 
+static int RegisterMessageBackground(lua_State *state)
+{
+    LuaPlugin *plugin = Self(state);
+    RequirePermission(state, "ui.message_background");
+    luaL_checktype(state, 1, LUA_TFUNCTION);
+    if (!plugin->messageBackgroundDecorators.empty())
+        return luaL_error(state, "astral.ui.message_background: at most one decorator per plugin");
+    lua_pushvalue(state, 1);
+    plugin->messageBackgroundDecorators.push_back(luaL_ref(state, LUA_REGISTRYINDEX));
+    return 0;
+}
+
 static int Decorate(lua_State *state)
 {
     LuaPlugin *plugin = Self(state);
@@ -1233,6 +1246,7 @@ static void InstallAPI(LuaPlugin *plugin)
     Function(state, plugin, "toast", ShowToast);
     Function(state, plugin, "copy", CopyText);
     Function(state, plugin, "composer", RegisterComposerDecorator);
+    Function(state, plugin, "message_background", RegisterMessageBackground);
     Function(state, plugin, "haptic", Haptic);
     Function(state, plugin, "web_auth", WebAuth);
     Function(state, plugin, "cancel_web_auth", CancelWebAuth);
@@ -1373,6 +1387,7 @@ static void Stop(LuaPlugin *plugin)
     plugin->typingDecorators.clear();
     plugin->reactionDecorators.clear();
     plugin->composerDecorators.clear();
+    plugin->messageBackgroundDecorators.clear();
     ApplySettingsBackdrop();
 }
 
@@ -2474,6 +2489,68 @@ int AstralLuaMessageTextColor(uint64_t messageID, uint64_t channelID, uint32_t *
                 if (found) return 1;
             }
             if (plugin->failed) break;
+        }
+        if (plugin->failed) Stop(plugin);
+    }
+    return 0;
+}
+
+int AstralLuaMessageBackground(const AstralMessageBackgroundContext *context, AstralMessageBackgroundStyle *style)
+{
+    if (!context || !style) return 0;
+    std::unique_lock<std::recursive_mutex> lock(gMutex, std::try_to_lock);
+    if (!lock.owns_lock()) return -1;
+    bool wanted = false;
+    for (auto *plugin : gPlugins) {
+        if (plugin->state && !plugin->failed && !plugin->messageBackgroundDecorators.empty()) wanted = true;
+    }
+    if (!wanted) return 0;
+    std::string message = Snowflake(context->message_id);
+    std::string user = Snowflake(context->user_id);
+    std::string channel = Snowflake(context->channel_id);
+    for (auto *plugin : gPlugins) {
+        if (!plugin->state || plugin->failed) continue;
+        for (int decorator : plugin->messageBackgroundDecorators) {
+            lua_State *state = plugin->state;
+            int top = lua_gettop(state);
+            lua_rawgeti(state, LUA_REGISTRYINDEX, decorator);
+            lua_createtable(state, 0, 3);
+            if (!message.empty()) {
+                lua_pushstring(state, message.c_str());
+                lua_setfield(state, -2, "message_id");
+            }
+            if (!user.empty()) {
+                lua_pushstring(state, user.c_str());
+                lua_setfield(state, -2, "author_id");
+            }
+            if (!channel.empty()) {
+                lua_pushstring(state, channel.c_str());
+                lua_setfield(state, -2, "channel_id");
+            }
+            if (!Call(plugin, 1, 1, "message background")) {
+                lua_settop(state, top);
+                MarkFailed(plugin);
+                Stop(plugin);
+                break;
+            }
+            bool found = false;
+            if (lua_istable(state, -1)) {
+                lua_getfield(state, -1, "color");
+                bool validColor = lua_isinteger(state, -1) && lua_tointeger(state, -1) >= 0 &&
+                                  static_cast<uint64_t>(lua_tointeger(state, -1)) <= UINT32_MAX;
+                uint32_t color = validColor ? static_cast<uint32_t>(lua_tointeger(state, -1)) : 0;
+                lua_pop(state, 1);
+                lua_getfield(state, -1, "radius");
+                double radius = lua_isnumber(state, -1) ? lua_tonumber(state, -1) : -1;
+                lua_pop(state, 1);
+                if (validColor && std::isfinite(radius) && radius >= 0 && radius <= 32) {
+                    style->color = color;
+                    style->radius = radius;
+                    found = true;
+                }
+            }
+            lua_settop(state, top);
+            if (found) return 1;
         }
         if (plugin->failed) Stop(plugin);
     }
