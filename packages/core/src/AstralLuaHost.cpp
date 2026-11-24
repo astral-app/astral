@@ -82,6 +82,7 @@ struct LuaEventCallback {
 struct LuaMessageAction {
     uint64_t identifier;
     std::string label;
+    std::string icon;
     int reference;
 };
 
@@ -124,6 +125,15 @@ static bool gStartEnabled;
 static astral::LuaHostPlatform gPlatform;
 static std::atomic<uint64_t> gNextRequest{1};
 static std::atomic<uint64_t> gNextMessageAction{1};
+static uint64_t gMenuChannel;
+struct DisplayedText {
+    std::string text;
+    std::string note;
+};
+static std::map<uint64_t, DisplayedText> gDisplayedTexts;
+static constexpr size_t kMaxDisplayedTexts = 512;
+static constexpr size_t kMaxDisplayedText = 8000;
+static uint64_t gMenuMessage;
 static std::string gCurrentUserID;
 
 static void DeveloperLog(const std::string &line)
@@ -722,6 +732,51 @@ static int MessageColor(lua_State *state)
     return 0;
 }
 
+static uint64_t MessageArgument(lua_State *state, int index)
+{
+    const char *value = luaL_checkstring(state, index);
+    char *end = nullptr;
+    unsigned long long parsed = strtoull(value, &end, 10);
+    if (!parsed || !end || *end) luaL_error(state, "astral.messages: '%s' is not a message id", value);
+    return parsed;
+}
+
+static int SetMessageText(lua_State *state)
+{
+    RequirePermission(state, "messages.display");
+    uint64_t message = MessageArgument(state, 2);
+    if (lua_isnoneornil(state, 3)) {
+        gDisplayedTexts.erase(message);
+    } else {
+        size_t length = 0;
+        const char *text = luaL_checklstring(state, 3, &length);
+        if (!length || length > kMaxDisplayedText)
+            return luaL_error(state, "astral.messages.set_text: text must be 1 to %d bytes", (int)kMaxDisplayedText);
+        std::string note;
+        if (lua_istable(state, 4)) {
+            lua_getfield(state, 4, "note");
+            if (lua_isstring(state, -1)) note = std::string(lua_tostring(state, -1)).substr(0, 48);
+            lua_pop(state, 1);
+        }
+        if (gDisplayedTexts.size() >= kMaxDisplayedTexts && !gDisplayedTexts.count(message)) gDisplayedTexts.erase(gDisplayedTexts.begin());
+        gDisplayedTexts[message] = {std::string(text, length), note};
+    }
+    RefreshDecorations();
+    return 0;
+}
+
+static int GetMessageText(lua_State *state)
+{
+    RequirePermission(state, "messages.display");
+    auto found = gDisplayedTexts.find(MessageArgument(state, 1));
+    if (found == gDisplayedTexts.end()) {
+        lua_pushnil(state);
+        return 1;
+    }
+    lua_pushlstring(state, found->second.text.data(), found->second.text.size());
+    return 1;
+}
+
 static int MessageAction(lua_State *state)
 {
     LuaPlugin *plugin = Self(state);
@@ -731,10 +786,19 @@ static int MessageAction(lua_State *state)
     luaL_checktype(state, 2, LUA_TFUNCTION);
     if (!length || length > 24) return luaL_error(state, "astral.ui.message_action: label must be 1 to 24 bytes");
     if (plugin->messageActions.size() >= 4) return luaL_error(state, "astral.ui.message_action: at most 4 actions per plugin");
+    std::string icon = "res://ic_mana_puzzle_piece";
+    if (lua_istable(state, 3)) {
+        lua_getfield(state, 3, "icon");
+        if (lua_isstring(state, -1)) {
+            std::string chosen = lua_tostring(state, -1);
+            if (chosen.rfind("res://", 0) == 0 && chosen.size() < 120) icon = chosen;
+        }
+        lua_pop(state, 1);
+    }
     uint64_t identifier = gNextMessageAction.fetch_add(1);
     if (!identifier) identifier = gNextMessageAction.fetch_add(1);
     lua_pushvalue(state, 2);
-    plugin->messageActions.push_back({identifier, std::string(label, length), luaL_ref(state, LUA_REGISTRYINDEX)});
+    plugin->messageActions.push_back({identifier, std::string(label, length), icon, luaL_ref(state, LUA_REGISTRYINDEX)});
     lua_pushinteger(state, static_cast<lua_Integer>(identifier));
     return 1;
 }
@@ -1271,6 +1335,8 @@ static void InstallAPI(LuaPlugin *plugin)
 
     lua_newtable(state);
     Function(state, plugin, "transform", RegisterOutgoingMessageTransform);
+    Function(state, plugin, "set_text", SetMessageText);
+    Function(state, plugin, "get_text", GetMessageText);
     lua_setfield(state, -2, "messages");
 
     lua_newtable(state);
@@ -2720,16 +2786,6 @@ size_t AstralLuaDecorate(const AstralDecorationContext *context, AstralTag *tags
     size_t count = 0;
     for (auto *plugin : gPlugins) {
         if (!plugin->state || plugin->failed) continue;
-        for (const auto &action : plugin->messageActions) {
-            if (count >= capacity || message.empty() || channel.empty()) break;
-            AstralTag *tag = &tags[count++];
-            memset(tag, 0, sizeof(*tag));
-            snprintf(tag->text, sizeof(tag->text), "%s", action.label.c_str());
-            snprintf(tag->action_id, sizeof(tag->action_id), "astral.action.%llu.%s.%s", static_cast<unsigned long long>(action.identifier),
-                     channel.c_str(), message.c_str());
-            tag->background = 0xFF5865F2;
-            tag->foreground = 0xFFFFFFFF;
-        }
         for (auto &decorator : plugin->decorators) {
             if (count >= capacity) break;
             lua_State *state = plugin->state;
@@ -2759,24 +2815,24 @@ size_t AstralLuaDecorate(const AstralDecorationContext *context, AstralTag *tags
 
 namespace astral::luahost {
 
+void setMenuMessage(uint64_t channelID, uint64_t messageID)
+{
+    std::lock_guard<std::recursive_mutex> lock(gMutex);
+    gMenuChannel = channelID;
+    gMenuMessage = messageID;
+}
+
 bool pressMessageAction(std::string_view identifier)
 {
     std::lock_guard<std::recursive_mutex> lock(gMutex);
     constexpr std::string_view prefix = "astral.action.";
     if (identifier.rfind(prefix, 0) != 0) return false;
     identifier.remove_prefix(prefix.size());
-    size_t firstDot = identifier.find('.');
-    if (firstDot == std::string_view::npos) return false;
-    size_t secondDot = identifier.find('.', firstDot + 1);
-    if (secondDot == std::string_view::npos || identifier.find('.', secondDot + 1) != std::string_view::npos) return false;
-    auto parse = [](std::string_view value, uint64_t &result) {
-        auto [end, error] = std::from_chars(value.data(), value.data() + value.size(), result);
-        return error == std::errc() && end == value.data() + value.size() && result != 0;
-    };
-    uint64_t actionID = 0, channelID = 0, messageID = 0;
-    if (!parse(identifier.substr(0, firstDot), actionID) || !parse(identifier.substr(firstDot + 1, secondDot - firstDot - 1), channelID) ||
-        !parse(identifier.substr(secondDot + 1), messageID))
-        return false;
+    uint64_t actionID = 0;
+    auto [end, error] = std::from_chars(identifier.data(), identifier.data() + identifier.size(), actionID);
+    if (error != std::errc() || end != identifier.data() + identifier.size() || !actionID) return false;
+    uint64_t channelID = gMenuChannel, messageID = gMenuMessage;
+    if (!channelID || !messageID) return false;
     LuaPlugin *owner = nullptr;
     const LuaMessageAction *selected = nullptr;
     for (auto *plugin : gPlugins) {
@@ -2823,4 +2879,33 @@ bool pressMessageAction(std::string_view identifier)
     return true;
 }
 
+}
+
+size_t AstralLuaMessageMenu(AstralMenuEntry *entries, size_t capacity)
+{
+    std::unique_lock<std::recursive_mutex> lock(gMutex, std::try_to_lock);
+    if (!lock.owns_lock()) return 0;
+    size_t count = 0;
+    for (auto *plugin : gPlugins) {
+        if (!plugin->state || plugin->failed) continue;
+        for (const auto &action : plugin->messageActions) {
+            if (count >= capacity) return count;
+            AstralMenuEntry *entry = &entries[count++];
+            snprintf(entry->action_id, sizeof(entry->action_id), "astral.action.%llu", static_cast<unsigned long long>(action.identifier));
+            snprintf(entry->label, sizeof(entry->label), "%s", action.label.c_str());
+            snprintf(entry->icon, sizeof(entry->icon), "%s", action.icon.c_str());
+        }
+    }
+    return count;
+}
+
+int AstralLuaMessageText(uint64_t messageID, char *text, size_t textCapacity, char *note, size_t noteCapacity)
+{
+    std::unique_lock<std::recursive_mutex> lock(gMutex, std::try_to_lock);
+    if (!lock.owns_lock()) return 0;
+    auto found = gDisplayedTexts.find(messageID);
+    if (found == gDisplayedTexts.end()) return 0;
+    snprintf(text, textCapacity, "%s", found->second.text.c_str());
+    snprintf(note, noteCapacity, "%s", found->second.note.c_str());
+    return 1;
 }

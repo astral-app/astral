@@ -7,7 +7,7 @@ local storage = {}
 local action
 local webAuth
 local toast
-local clipboard
+local displayed = {}
 local messageContent = "hello world"
 local nowMilliseconds = 1000000
 
@@ -54,16 +54,20 @@ astral = {
 		toast = function(title, message)
 			toast = { title = title, message = message }
 		end,
-		copy = function(value)
-			clipboard = value
-			return true
-		end,
 		web_auth = function(url, callbackURL, callback)
 			webAuth = { url = url, callbackURL = callbackURL, callback = callback }
 			return 77
 		end,
 		cancel_web_auth = function(request)
 			assert(request == 77)
+		end,
+	},
+	messages = {
+		set_text = function(_channel, message, text, options)
+			displayed[message] = text and { text = text, note = options and options.note } or nil
+		end,
+		get_text = function(message)
+			return displayed[message] and displayed[message].text
 		end,
 	},
 	net = {
@@ -83,8 +87,9 @@ assert(#requests == 1)
 assert(requests[1].options.url:find("clients5.google.com/translate_a/t", 1, true))
 assert(requests[1].options.url:find("q=hello%20world", 1, true))
 requests[1].callback({ ok = true, json = { { "bonjour", "en" } } })
-assert(clipboard == "bonjour")
-assert(toast.title == "Translated" and toast.message == "bonjour")
+assert(displayed["2"].text == "bonjour" and displayed["2"].note == "translated")
+action(node)
+assert(displayed["2"] == nil and #requests == 1)
 
 toast = nil
 action(node)
@@ -93,8 +98,8 @@ assert(#requests == 3)
 assert(requests[3].options.url:find("api.mymemory.translated.net/get", 1, true))
 assert(requests[3].options.url:find("langpair=autodetect%7Cen", 1, true))
 requests[3].callback({ ok = true, json = { responseStatus = 200, responseData = { translatedText = "hola" } } })
-assert(clipboard == "hola")
-assert(toast.title == "Translated" and toast.message == "hola")
+assert(displayed["2"].text == "hola")
+displayed = {}
 
 values.service = "mymemory"
 values.source = "fr"
@@ -173,9 +178,9 @@ requests[secondRetryIndex].callback({
 	ok = true,
 	json = { translations = { { translatedText = "guten tag", detectedSourceLanguage = "fr" } } },
 })
-assert(clipboard == "guten tag")
-assert(toast.title == "Translated" and toast.message == "guten tag")
+assert(displayed["2"].text == "guten tag")
 
+displayed = {}
 action(node)
 local cachedTranslateIndex = #requests
 assert(requests[cachedTranslateIndex].options.url == "https://translate.unbound.rip/translate")
@@ -186,6 +191,7 @@ requests[cachedTranslateIndex].callback({
 })
 
 nowMilliseconds = storage.expires_at_ms - 10000
+displayed = {}
 action(node)
 local proactiveRefreshIndex = #requests
 assert(requests[proactiveRefreshIndex].options.url == "https://translate.unbound.rip/auth/refresh")
@@ -229,6 +235,7 @@ assert(#requests == beforeCancelledCallback)
 
 values.service = "unbound"
 local disconnectedRequests = #requests
+displayed = {}
 action(node)
 assert(#requests == disconnectedRequests)
 assert(toast.title == "Translate Error")

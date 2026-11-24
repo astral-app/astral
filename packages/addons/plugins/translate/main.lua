@@ -288,21 +288,15 @@ local function readUnbound(payload)
 	return { text = text, detected = detected }
 end
 
-local function saveTranslation(translation)
+local function saveTranslation(translation, destination)
 	if type(translation.text) ~= "string" or translation.text == "" then
 		showError("Translation service returned an empty result")
 		return
 	end
-	local copiedOK, copyResult = pcall(astral.ui.copy, translation.text)
-	local copied = copiedOK and copyResult == true
-	if #translation.text > 1800 then
-		showToast("Translated", copied and "Translation copied to the clipboard" or "Translation is too long to copy")
-	else
-		showToast("Translated", translation.text)
-	end
+	astral.messages.set_text(destination.channel_id, destination.message_id, translation.text, { note = "translated" })
 end
 
-local function translateAnonymous(serviceList, index, content, source, target)
+local function translateAnonymous(serviceList, index, content, source, target, destination)
 	local service = serviceList[index]
 	if not service then
 		showError("No translation provider returned a usable result")
@@ -317,10 +311,10 @@ local function translateAnonymous(serviceList, index, content, source, target)
 			if source == "auto" and type(translation.detected) == "string" then
 				translation.source = translation.detected
 			end
-			saveTranslation(translation)
+			saveTranslation(translation, destination)
 			return
 		end
-		translateAnonymous(serviceList, index + 1, content, source, target)
+		translateAnonymous(serviceList, index + 1, content, source, target, destination)
 	end
 	request({ url = anonymousURL(service, content, source, target), timeout_ms = 15000 }, callback)
 end
@@ -378,7 +372,7 @@ local function refreshSession(callback)
 	)
 end
 
-local function sendUnbound(content, source, target, accessToken, retried)
+local function sendUnbound(content, source, target, accessToken, retried, destination)
 	requestJSON(
 		apiBaseURL .. "/translate",
 		"POST",
@@ -391,7 +385,7 @@ local function sendUnbound(content, source, target, accessToken, retried)
 						showError(refreshFailure or "Translate API authentication failed")
 						return
 					end
-					sendUnbound(content, source, target, retryToken, true)
+					sendUnbound(content, source, target, retryToken, true, destination)
 				end)
 				return
 			end
@@ -407,16 +401,16 @@ local function sendUnbound(content, source, target, accessToken, retried)
 			if source == "auto" and type(translation.detected) == "string" then
 				translation.source = translation.detected
 			end
-			saveTranslation(translation)
+			saveTranslation(translation, destination)
 		end
 	)
 end
 
-local function translateUnbound(content, source, target)
+local function translateUnbound(content, source, target, destination)
 	local accessToken = stored("access_token")
 	local expiresAt = astral.storage.get("expires_at_ms", 0)
 	if accessToken ~= "" and type(expiresAt) == "number" and expiresAt - 15000 > astral.time.now_ms() then
-		sendUnbound(content, source, target, accessToken, false)
+		sendUnbound(content, source, target, accessToken, false, destination)
 		return
 	end
 	refreshSession(function(refreshedAccessToken, failure)
@@ -424,11 +418,16 @@ local function translateUnbound(content, source, target)
 			showError(failure or "Translate API authentication failed")
 			return
 		end
-		sendUnbound(content, source, target, refreshedAccessToken, false)
+		sendUnbound(content, source, target, refreshedAccessToken, false, destination)
 	end)
 end
 
 local function translateMessage(node)
+	if astral.messages.get_text(node.message_id) then
+		astral.messages.set_text(node.channel_id, node.message_id, nil)
+		return
+	end
+	local destination = { channel_id = node.channel_id, message_id = node.message_id }
 	local message = node:message()
 	local content = message and message.content
 	if type(content) ~= "string" or content == "" then
@@ -452,16 +451,16 @@ local function translateMessage(node)
 		target = "en"
 	end
 	if useUnbound then
-		translateUnbound(content, source, target)
+		translateUnbound(content, source, target, destination)
 		return
 	end
 	if service == "google" then
-		translateAnonymous({ "google" }, 1, content, source, target)
+		translateAnonymous({ "google" }, 1, content, source, target, destination)
 	elseif service == "mymemory" then
-		translateAnonymous({ "mymemory" }, 1, content, source, target)
+		translateAnonymous({ "mymemory" }, 1, content, source, target, destination)
 	else
-		translateAnonymous({ "google", "mymemory" }, 1, content, source, target)
+		translateAnonymous({ "google", "mymemory" }, 1, content, source, target, destination)
 	end
 end
 
-astral.ui.message_action("Translate", translateMessage)
+astral.ui.message_action("Translate", translateMessage, { icon = "res://ic_mana_chat" })

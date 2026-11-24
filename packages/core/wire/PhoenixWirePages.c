@@ -25,15 +25,6 @@ static size_t gBatchLength;
 static size_t gCategoryRowCount = 1;
 static char gCategoryTitle[kCategoryText] = "astral";
 
-typedef enum { kKeep, kDrop, kString, kNumber, kInteger } Edit;
-
-typedef struct {
-    uint16_t property;
-    Edit edit;
-    const char *text;
-    double number;
-} Change;
-
 static const Change *changeFor(const Change *changes, size_t count, uint16_t property)
 {
     for (size_t index = 0; index < count; index++) {
@@ -58,7 +49,7 @@ static void putValue(Out *out, const Change *change)
     }
 }
 
-static void cloneCreation(Out *out, const uint8_t *bytes, const Span *span, int32_t id, const Change *changes, size_t changeCount)
+void wireCloneCreation(Out *out, const uint8_t *bytes, const Span *span, int32_t id, const Change *changes, size_t changeCount)
 {
     Cursor cursor = {bytes, span->end, span->start + 1 + 4, 0};
     uint16_t typeLength = wireRead16(&cursor);
@@ -158,7 +149,7 @@ static int32_t categoryNode(Out *out, const uint8_t *bytes, const Span *spans, s
     }
     int32_t id = kFirstId + (int32_t)gState.count;
     gState.ids[gState.count++] = id;
-    cloneCreation(out, bytes, span, id, changes, changeCount);
+    wireCloneCreation(out, bytes, span, id, changes, changeCount);
     return id;
 }
 
@@ -499,7 +490,7 @@ static int32_t cloneRole(Out *out, int role, const Change *changes, size_t chang
 {
     Span span = {1, 0, 0, gTemplates[role].length, 0, 0};
     int32_t id = allocate();
-    cloneCreation(out, gTemplates[role].bytes, &span, id, changes, changeCount);
+    wireCloneCreation(out, gTemplates[role].bytes, &span, id, changes, changeCount);
     return id;
 }
 

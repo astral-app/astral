@@ -18,7 +18,8 @@ Results from running astral on real Phoenix builds. Each row names the device, t
 | Clear URLs | Works after the network filter learned to read streamed request bodies; Phoenix sends message JSON as an `HTTPBodyStream` |
 | Live Markdown | Works after composer detection moved from React Native's `DCDChatInputComponentView` to Phoenix's `chat-input-container` |
 | Show Me Your Name | Works on newly drawn rows, but the label is cut off by the crowded header |
-| Translate | Its action pill sits in the message header and squeezes the author name; it moves into the message menu |
+| Translate | A row at the top of the long-press menu, styled like Discord's own; the translation replaces the text in place with a dimmed "(translated)" note, and a second tap restores the original |
+| Plugin message actions | Rows join the first group of Discord's message menu with its dividers and corner radii; the menu closes and the action runs on the pressed message |
 | Chat Bubbles | The rewriter writes the row background and radius (seen in captured output), but iOS does not draw it; open |
 | Plugin settings writes | `astral.settings.set` now updates `astral.settings.values` and calls change listeners |
 

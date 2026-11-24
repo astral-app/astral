@@ -535,10 +535,10 @@ function astral.ui.message_background(decorator)
 	end)
 end
 
-function astral.ui.message_action(label, callback)
+function astral.ui.message_action(label, callback, options)
 	return native.message_action(label, function(node)
 		return callback(wrapNode(node))
-	end)
+	end, options)
 end
 
 function astral.ui.composer(formatter)

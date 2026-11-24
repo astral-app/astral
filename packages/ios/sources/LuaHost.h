@@ -22,6 +22,7 @@ void AstralLuaReload(NSString *pluginID);
 NSString *AstralLuaEval(NSString *pluginID, NSString *code);
 void AstralLuaResetSettings(NSString *pluginID);
 int AstralLuaReaction(const AstralReactionContext *context, AstralReactionDecoration *decoration);
+int AstralLuaMessageText(uint64_t messageID, char *text, size_t textCapacity, char *note, size_t noteCapacity);
 int AstralLuaTyping(const AstralNameContext *context, AstralMentionDecoration *decoration);
 int AstralLuaNameColor(const AstralNameContext *context, uint32_t *color);
 int AstralLuaMessageTextColor(uint64_t messageID, uint64_t channelID, uint32_t *color);

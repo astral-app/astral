@@ -1,6 +1,6 @@
 id = "astral.translate"
 name = "Translate"
-description = "Translates messages with Unbound Translate or Google and MyMemory, then copies the result and shows a toast."
+description = "Translates a message in place from its long-press menu with Unbound Translate, Google or MyMemory; tap again for the original."
 version = "0.0.1"
 icon = "TranslateIcon"
 main = "main.lua"
@@ -9,7 +9,7 @@ permissions = [
 	"discord.messages.content",
 	"network",
 	"storage",
-	"ui.clipboard",
+	"messages.display",
 	"ui.message_actions",
 	"ui.toasts",
 	"ui.web_auth",
