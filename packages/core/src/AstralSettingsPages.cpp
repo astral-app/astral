@@ -233,6 +233,7 @@ std::pair<std::string, std::string> permissionDescription(const std::string &per
         {"ui.composer", {"Reads and styles draft text in the message composer", "res://ic_mana_chat"}},
         {"ui.message_background", {"Styles message backgrounds", "res://ic_mana_chat"}},
         {"ui.dialogs", {"Shows dialogs and pickers", "res://ic_mana_chat"}},
+        {"ui.patch", {"Restyles parts of Discord's screens", "res://ic_mana_paint_palette"}},
         {"files.read", {"Reads files you pick", "res://ic_mana_image"}},
         {"ui.haptics", {"Triggers haptic feedback", "res://ic_mana_bell"}},
         {"ui.toasts", {"Shows brief notifications", "res://ic_mana_bell"}},

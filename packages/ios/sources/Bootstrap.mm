@@ -211,6 +211,7 @@ static void StartPlugins(void)
                        !recovering && !safeMode);
     astral_wire_set_decorator(AstralLuaDecorate);
     astral_wire_set_message_background_decorator(AstralLuaMessageBackground);
+    astral_wire_set_node_patcher(AstralLuaPatchNode);
     AstralInstallMessageMenu();
     astral_wire_set_message_text_provider(AstralLuaMessageText);
     astral_wire_set_relabeler(AstralLuaRelabel);

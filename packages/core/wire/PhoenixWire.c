@@ -65,6 +65,7 @@ int astral_settings_rewrite(const uint8_t *bytes, size_t length, AstralWireBuffe
     wireRewritePages(bytes, spans, count, &out, &changed, length);
     wireSetTemplateSource(NULL);
     wireDecorate(bytes, spans, count, &out, &changed, length);
+    wirePatchNodes(bytes, spans, count, &out, &changed, length);
     wireDecorateMentions(bytes, spans, count, &out, &changed, length);
     wireMessageMenu(bytes, spans, count, &out, &changed, length);
     wireColorNames(bytes, spans, count, &out, &changed, length);

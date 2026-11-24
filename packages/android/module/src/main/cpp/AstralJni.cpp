@@ -605,6 +605,7 @@ void installDecorators()
 {
     astral_wire_set_decorator(AstralLuaDecorate);
     astral_wire_set_message_background_decorator(AstralLuaMessageBackground);
+    astral_wire_set_node_patcher(AstralLuaPatchNode);
     astral_wire_set_message_menu_provider(AstralLuaMessageMenu);
     astral_wire_set_message_text_provider(AstralLuaMessageText);
     astral_wire_set_send_transform(AstralLuaSendTransform);
@@ -641,6 +642,8 @@ std::vector<uint8_t> pendingUpdates()
         if (astral_wire_refresh_reactions(&buffer)) append(merged, buffer);
         if (astral_wire_refresh_message_texts(&buffer)) append(merged, buffer);
         if (astral_wire_refresh_message_backgrounds(&buffer)) append(merged, buffer);
+        if (astral_wire_refresh_node_patches(&buffer)) append(merged, buffer);
+        if (astral_wire_take_refresh_busy()) gRefreshDecorations = true;
     }
     return merged;
 }

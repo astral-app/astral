@@ -724,6 +724,34 @@ static void testMessageBackground(const std::string &work)
     astral::luahost::stop();
 }
 
+static void testNodePatch(const std::string &work)
+{
+    auto root = std::filesystem::path(work) / "node-patch-host";
+    auto plugin = root / "plugins" / "patcher";
+    std::filesystem::create_directories(plugin);
+    writeText(plugin / "manifest.toml", "id = 'astral.node-patch-test'\nname = 'Node patch test'\nversion = '1.0'\nmain = 'main.lua'\n"
+                                        "permissions = ['ui.patch']\n");
+    writeText(plugin / "main.lua", "astral.ui.patch({ id = 'demo.card:', type = 'view' }, function(node)\n"
+                                   "  if node.key == 'hide' then return { hidden = true } end\n"
+                                   "  return { background = '#5865F2', radius = 6, padding = 4 }\n"
+                                   "end)\n");
+    astral::SettingsStore settings((root / "settings.json").string());
+    settings.set("astral", "developer-mode", true);
+    astral::LuaHostPlatform platform;
+    platform.storagePath = (root / "storage.sqlite").string();
+    astral::luahost::start({(root / "plugins").string()}, &settings, true, std::move(platform));
+    AstralNodePatch patch = {};
+    assert(AstralLuaPatchNode("demo.card:42", "view", &patch) == 1);
+    assert(patch.background == 0xFF5865F2 && patch.radius == 6 && patch.padding[3] == 4);
+    assert(patch.fields == (AstralPatchBackground | AstralPatchRadius | AstralPatchPadding));
+    AstralNodePatch hidden = {};
+    assert(AstralLuaPatchNode("demo.card:hide", "view", &hidden) == 1 && hidden.fields == AstralPatchHidden);
+    AstralNodePatch other = {};
+    assert(AstralLuaPatchNode("demo.card:42", "text", &other) == 0);
+    assert(AstralLuaPatchNode("other:42", "view", &other) == 0);
+    astral::luahost::stop();
+}
+
 static void testFilePickerAndDialogs(const std::string &work)
 {
     auto root = std::filesystem::path(work) / "native-ui-host";
@@ -1070,6 +1098,7 @@ int main(int argc, char **argv)
     testOutgoingMessageTransforms(argv[1]);
     testComposerStyles(argv[1]);
     testMessageBackground(argv[1]);
+    testNodePatch(argv[1]);
     testFilePickerAndDialogs(argv[1]);
     testGatewayMessageEventsAndHaptics(argv[1]);
     testSliderSettingsAndNavigation(argv[1]);

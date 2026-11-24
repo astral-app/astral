@@ -83,6 +83,12 @@ struct LuaTextSetting {
     size_t order = 0;
 };
 
+struct LuaNodePatch {
+    std::string prefix;
+    std::string type;
+    int reference;
+};
+
 struct LuaEventCallback {
     std::string event;
     int reference;
@@ -120,6 +126,7 @@ struct LuaPlugin : astral::PluginPackage, astral::PluginHealth {
     std::vector<int> outgoingMessageTransforms;
     std::vector<int> composerDecorators;
     std::vector<int> messageBackgroundDecorators;
+    std::vector<LuaNodePatch> nodePatches;
     std::vector<int> authorColorizers;
     std::vector<LuaMessageAction> messageActions;
     std::map<uint64_t, int> networkRequests;
@@ -974,6 +981,34 @@ static int RegisterMessageBackground(lua_State *state)
     return 0;
 }
 
+static void SyncPatchPrefixes()
+{
+    std::vector<std::string> prefixes;
+    for (auto *plugin : gPlugins) {
+        if (!plugin->state || plugin->failed) continue;
+        for (const auto &patch : plugin->nodePatches)
+            if (std::find(prefixes.begin(), prefixes.end(), patch.prefix) == prefixes.end()) prefixes.push_back(patch.prefix);
+    }
+    std::vector<const char *> pointers;
+    for (const auto &prefix : prefixes) pointers.push_back(prefix.c_str());
+    astral_wire_set_patch_prefixes(pointers.data(), pointers.size());
+}
+
+static int RegisterNodePatch(lua_State *state)
+{
+    LuaPlugin *plugin = Self(state);
+    RequirePermission(state, "ui.patch");
+    std::string prefix = luaL_checkstring(state, 1);
+    std::string type = luaL_optstring(state, 2, "");
+    luaL_checktype(state, 3, LUA_TFUNCTION);
+    if (prefix.size() < 3 || prefix.size() >= 96) return luaL_error(state, "astral.ui.patch: id prefix must be 3 to 95 characters");
+    if (plugin->nodePatches.size() >= 16) return luaL_error(state, "astral.ui.patch: at most 16 patches per plugin");
+    lua_pushvalue(state, 3);
+    plugin->nodePatches.push_back({prefix, type, luaL_ref(state, LUA_REGISTRYINDEX)});
+    SyncPatchPrefixes();
+    return 0;
+}
+
 static int Decorate(lua_State *state)
 {
     LuaPlugin *plugin = Self(state);
@@ -1603,6 +1638,7 @@ static void InstallAPI(LuaPlugin *plugin)
     Function(state, plugin, "notify", Notify);
     Function(state, plugin, "composer", RegisterComposerDecorator);
     Function(state, plugin, "message_background", RegisterMessageBackground);
+    Function(state, plugin, "patch", RegisterNodePatch);
     Function(state, plugin, "haptic", Haptic);
     Function(state, plugin, "web_auth", WebAuth);
     Function(state, plugin, "cancel_web_auth", CancelWebAuth);
@@ -1757,6 +1793,8 @@ static void Stop(LuaPlugin *plugin)
     plugin->reactionDecorators.clear();
     plugin->composerDecorators.clear();
     plugin->messageBackgroundDecorators.clear();
+    plugin->nodePatches.clear();
+    SyncPatchPrefixes();
     plugin->authorColorizers.clear();
     ApplySettingsBackdrop();
     TraceRunningPlugins();
@@ -2977,6 +3015,95 @@ int AstralLuaMessageTextColor(uint64_t messageID, uint64_t channelID, uint32_t *
         if (plugin->failed) Stop(plugin);
     }
     return 0;
+}
+
+static bool PatchColor(lua_State *state, const char *field, uint32_t *color)
+{
+    lua_getfield(state, -1, field);
+    bool valid = lua_isinteger(state, -1) && lua_tointeger(state, -1) >= 0 && static_cast<uint64_t>(lua_tointeger(state, -1)) <= UINT32_MAX;
+    if (valid) *color = static_cast<uint32_t>(lua_tointeger(state, -1));
+    lua_pop(state, 1);
+    return valid;
+}
+
+static bool PatchNumber(lua_State *state, const char *field, double minimum, double maximum, double *value)
+{
+    lua_getfield(state, -1, field);
+    bool valid = lua_isnumber(state, -1) && std::isfinite(lua_tonumber(state, -1)) && lua_tonumber(state, -1) >= minimum &&
+                 lua_tonumber(state, -1) <= maximum;
+    if (valid) *value = lua_tonumber(state, -1);
+    lua_pop(state, 1);
+    return valid;
+}
+
+static bool PatchQuad(lua_State *state, const char *field, float quad[4])
+{
+    lua_getfield(state, -1, field);
+    bool valid = false;
+    if (lua_isnumber(state, -1)) {
+        double value = lua_tonumber(state, -1);
+        valid = std::isfinite(value) && value >= -64 && value <= 64;
+        for (int index = 0; index < 4 && valid; index++) quad[index] = static_cast<float>(value);
+    } else if (lua_istable(state, -1) && luaL_len(state, -1) == 4) {
+        valid = true;
+        for (int index = 0; index < 4; index++) {
+            lua_rawgeti(state, -1, index + 1);
+            double value = lua_isnumber(state, -1) ? lua_tonumber(state, -1) : NAN;
+            valid = valid && std::isfinite(value) && value >= -64 && value <= 64;
+            quad[index] = static_cast<float>(value);
+            lua_pop(state, 1);
+        }
+    }
+    lua_pop(state, 1);
+    return valid;
+}
+
+static void ReadNodePatch(lua_State *state, AstralNodePatch *patch)
+{
+    if (PatchColor(state, "background", &patch->background)) patch->fields |= AstralPatchBackground;
+    if (PatchNumber(state, "radius", 0, 64, &patch->radius)) patch->fields |= AstralPatchRadius;
+    if (PatchNumber(state, "opacity", 0, 1, &patch->opacity)) patch->fields |= AstralPatchOpacity;
+    if (PatchQuad(state, "padding", patch->padding)) patch->fields |= AstralPatchPadding;
+    if (PatchQuad(state, "margin", patch->margin)) patch->fields |= AstralPatchMargin;
+    if (PatchColor(state, "border_color", &patch->borderColor) && PatchNumber(state, "border_width", 0, 8, &patch->borderWidth))
+        patch->fields |= AstralPatchBorder;
+    if (PatchColor(state, "text_color", &patch->textColor)) patch->fields |= AstralPatchTextColor;
+    lua_getfield(state, -1, "hidden");
+    if (lua_toboolean(state, -1)) patch->fields |= AstralPatchHidden;
+    lua_pop(state, 1);
+}
+
+int AstralLuaPatchNode(const char *identifier, const char *type, AstralNodePatch *patch)
+{
+    if (!identifier || !type || !patch) return 0;
+    std::unique_lock<std::recursive_mutex> lock(gMutex, std::try_to_lock);
+    if (!lock.owns_lock()) return -1;
+    std::string_view id(identifier);
+    for (auto *plugin : gPlugins) {
+        if (!plugin->state || plugin->failed) continue;
+        for (const auto &entry : plugin->nodePatches) {
+            if (id.rfind(entry.prefix, 0) != 0 || (!entry.type.empty() && entry.type != type)) continue;
+            lua_State *state = plugin->state;
+            int top = lua_gettop(state);
+            lua_rawgeti(state, LUA_REGISTRYINDEX, entry.reference);
+            lua_createtable(state, 0, 3);
+            lua_pushstring(state, identifier);
+            lua_setfield(state, -2, "id");
+            lua_pushstring(state, identifier + entry.prefix.size());
+            lua_setfield(state, -2, "key");
+            lua_pushstring(state, type);
+            lua_setfield(state, -2, "type");
+            if (!Call(plugin, 1, 1, "node patch")) {
+                lua_settop(state, top);
+                MarkFailed(plugin);
+                Stop(plugin);
+                break;
+            }
+            if (lua_istable(state, -1)) ReadNodePatch(state, patch);
+            lua_settop(state, top);
+        }
+    }
+    return patch->fields ? 1 : 0;
 }
 
 int AstralLuaMessageBackground(const AstralMessageBackgroundContext *context, AstralMessageBackgroundStyle *style)

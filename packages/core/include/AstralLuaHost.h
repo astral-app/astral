@@ -99,5 +99,6 @@ int AstralLuaSendTransform(uint64_t channelID, const char *text, char *rewritten
 size_t AstralLuaMessageMenu(AstralMenuEntry *entries, size_t capacity);
 size_t AstralLuaDecorate(const AstralDecorationContext *context, AstralTag *tags, size_t capacity);
 int AstralLuaMessageBackground(const AstralMessageBackgroundContext *context, AstralMessageBackgroundStyle *style);
+int AstralLuaPatchNode(const char *identifier, const char *type, AstralNodePatch *patch);
 int AstralLuaRelabel(const AstralLabelContext *context, const char *text, size_t length, char *out, size_t capacity);
 }

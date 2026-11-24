@@ -418,6 +418,29 @@ function astral.ui.relabel(target, relabeler) end
 function astral.ui.mention(decorator) end
 ---@param colorizer fun(node: astral.Node): astral.Color|integer|string|nil
 function astral.ui.message_color(colorizer) end
+---@class astral.PatchSelector
+---@field id string accessibilityId prefix, such as "message.content:"
+---@field type? "view"|"text"|"image"|"stack"
+
+---@class astral.PatchTarget
+---@field id string
+---@field key string the part of id after the prefix, such as a message ID
+---@field type string
+
+---@class astral.NodePatch
+---@field background? astral.Color|integer|string
+---@field radius? number
+---@field opacity? number
+---@field padding? number|number[]
+---@field margin? number|number[]
+---@field border_color? astral.Color|integer|string
+---@field border_width? number
+---@field text_color? astral.Color|integer|string
+---@field hidden? boolean
+
+---@param selector string|astral.PatchSelector
+---@param patcher fun(node: astral.PatchTarget): astral.NodePatch?
+function astral.ui.patch(selector, patcher) end
 ---@class astral.MessageBackgroundStyle
 ---@field color astral.Color|integer|string
 ---@field radius? number
