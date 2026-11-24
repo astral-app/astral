@@ -9,6 +9,7 @@ enum { kMaxPills = 256, kMaxPillChildren = 8, kMaxStackNodes = kAstralReactionFa
 static const int32_t kFirstStackId = 0x7c000000;
 static const char kReactionPrefix[] = "message.reaction:";
 static const double kFaceSize = 16.2;
+static const double kFadeMs = 180;
 static const double kFaceStep = 4.5;
 static const double kBadgeFontSize = 7.2;
 static const double kTrailingInset = -2;
@@ -223,7 +224,9 @@ static int32_t newStackNode(Out *out, Pill *pill, const char *type)
 static int32_t putFace(Out *out, Pill *pill, const char *image, int first)
 {
     int32_t face = newStackNode(out, pill, "image");
-    wirePropCount(out, 8);
+    wirePropCount(out, 10);
+    wirePropBool(out, P(fade), 1);
+    wirePropNumber(out, P(fadeMs), kFadeMs);
     wirePropString(out, P(uri), image);
     wirePropString(out, P(pool), "small");
     wirePropNumber(out, P(width), kFaceSize);
@@ -269,12 +272,17 @@ static void putStack(Out *out, Pill *pill, const AstralReactionDecoration *decor
     for (uint32_t face = 0; face < faces; face++) members[used++] = putFace(out, pill, decoration->images[face], face == 0);
     if (decoration->total > faces && faces == kAstralReactionFaces) members[used++] = putBadge(out, pill, decoration->total - faces);
     int32_t stack = newStackNode(out, pill, "view");
-    wirePropCount(out, 4);
+    wirePropCount(out, 5);
+    wirePropBool(out, P(animateLayout), 1);
     wirePropString(out, P(direction), "row");
     wirePropString(out, P(align), "center");
     wirePropQuad(out, P(margin), 0, 0, (float)kTrailingInset, 0);
     wirePropNumber(out, P(shrink), 0);
     wirePutChildren(out, stack, members, used);
+    wirePut8(out, 2);
+    wirePut32(out, (uint32_t)pill->pill);
+    wirePropCount(out, 1);
+    wirePropBool(out, P(animateLayout), 1);
     int32_t children[kMaxPillChildren + 1];
     memcpy(children, pill->children, pill->childCount * sizeof(int32_t));
     children[pill->childCount] = stack;

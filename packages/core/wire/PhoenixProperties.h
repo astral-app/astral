@@ -17,6 +17,7 @@ extern "C" {
     X(accessibilityId, 9)                                                                                                                  \
     X(accessibilityKeepsChildren, 10)                                                                                                      \
     X(accessibilityLabel, 11)                                                                                                              \
+    X(animateLayout, 72)                                                                                                                   \
     X(accessibilitySelected, 13)                                                                                                           \
     X(accessibilityTapLabel, 14)                                                                                                           \
     X(activeBackground, 21)                                                                                                                \
@@ -34,6 +35,8 @@ extern "C" {
     X(changeText, 576)                                                                                                                     \
     X(color, 129)                                                                                                                          \
     X(direction, 147)                                                                                                                      \
+    X(fade, 187)                                                                                                                           \
+    X(fadeMs, 189)                                                                                                                         \
     X(first, 194)                                                                                                                          \
     X(flex, 198)                                                                                                                           \
     X(focusBorderColor, 201)                                                                                                               \
