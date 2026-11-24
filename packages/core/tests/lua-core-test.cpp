@@ -498,6 +498,7 @@ static void testTextSettings(const std::string &work)
               "local choices = {}\n"
               "for index = 1, 40 do choices[index] = astral.settings.option('lang-' .. index, 'Language ' .. index) end\n"
               "astral.settings.choice('language', 'Language', choices, 'lang-40')\n"
+              "astral.settings.color('tint', 'Tint', '', { section = 'Rules' })\n"
               "astral.settings.on_change('rules', function(value) astral.state.changed = value end)");
     astral::SettingsStore settings((root / "settings.json").string());
     settings.set("astral", "developer-mode", true);
@@ -517,10 +518,19 @@ static void testTextSettings(const std::string &work)
     };
     astral::pages::configure(std::move(platform));
     auto model = astral::pages::model("plugin-settings:astral.text-setting-test");
-    assert(model["sections"][0]["rows"][39]["key"] == "choice.language.lang-40");
+    assert(model["sections"][1]["rows"][39]["key"] == "choice.language.lang-40");
+    assert(model["sections"][0]["rows"][1]["key"] == "color.tint" && model["sections"][0]["rows"][1]["detail"] == "Automatic");
+    assert(astral::pages::action("plugin-settings:astral.text-setting-test", "color.tint", [] {}) ==
+           "plugin-color:astral.text-setting-test:tint");
+    auto colorPage = astral::pages::model("plugin-color:astral.text-setting-test:tint");
+    assert(colorPage["sections"][0]["rows"][1]["icon"].get<std::string>().rfind("data:image/png;base64,", 0) == 0);
+    astral::pages::action("plugin-color:astral.text-setting-test:tint", "swatch.5865F2", [] {});
+    assert(astral::luahost::eval("astral.text-setting-test", "return astral.settings.values.tint") == "#5865F2");
+    astral::luahost::setText("astral.text-setting-test", "tint", "blue");
+    assert(astral::luahost::eval("astral.text-setting-test", "return astral.settings.values.tint") == "#5865F2");
     astral::pages::action("plugin-settings:astral.text-setting-test", "choice.language.lang-40", [] {});
     assert(astral::luahost::eval("astral.text-setting-test", "return astral.settings.values.language") == "lang-40");
-    assert(model["sections"][1]["rows"][0]["key"] == "text.rules");
+    assert(model["sections"][0]["rows"][0]["key"] == "text.rules");
     astral::pages::action("plugin-settings:astral.text-setting-test", "text.rules", [&] { changed = true; });
     assert(changed);
     assert(astral::luahost::eval("astral.text-setting-test", "return astral.settings.values.rules") == "first => third");

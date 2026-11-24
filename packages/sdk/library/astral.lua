@@ -228,10 +228,12 @@ function Pill:build() end
 ---@field default? number
 ---@field subtitle? string
 ---@field section? string
+---@field icon? string
 
 ---@class astral.SettingOptions
 ---@field subtitle? string
 ---@field section? string
+---@field icon? string
 
 ---@class astral.ChoiceOption
 ---@field value string
@@ -244,9 +246,15 @@ local Section = {}
 ---@param key string
 ---@param title string
 ---@param default boolean
----@param subtitle? string
+---@param options? string|astral.SettingOptions
 ---@return boolean
-function Section:switch(key, title, default, subtitle) end
+function Section:switch(key, title, default, options) end
+---@param key string
+---@param title string
+---@param default? string
+---@param options? string|astral.SettingOptions
+---@return string
+function Section:color(key, title, default, options) end
 function Section:text(key, title, default, options) end
 ---@param key string
 ---@param title string
@@ -257,9 +265,9 @@ function Section:number(key, title, options) end
 ---@param title string
 ---@param choices astral.ChoiceOption[]
 ---@param default string
----@param subtitle? string
+---@param options? string|astral.SettingOptions
 ---@return string
-function Section:choice(key, title, choices, default, subtitle) end
+function Section:choice(key, title, choices, default, options) end
 
 ---@alias astral.Decoration astral.Pill|astral.PillOptions|(astral.Pill|astral.PillOptions)[]|nil
 
@@ -321,6 +329,12 @@ function astral.settings.choice(key, title, choices, default, options) end
 ---@return number
 function astral.settings.number(key, title, options) end
 function astral.settings.text(key, title, default, options) end
+---@param key string
+---@param title string
+---@param default? string
+---@param options? astral.SettingOptions
+---@return string
+function astral.settings.color(key, title, default, options) end
 ---@param key string
 ---@return astral.SettingValue?
 function astral.settings.get(key, fallback) end

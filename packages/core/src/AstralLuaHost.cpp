@@ -1,5 +1,6 @@
 #include "AstralLuaHost.h"
 #include "AstralPluginTrace.h"
+#include "AstralSwatch.h"
 
 #include <algorithm>
 #include <atomic>
@@ -66,6 +67,8 @@ struct LuaSwitch {
     double maximum = 100;
     double step = 1;
     double fallbackNumber = 0;
+    std::string icon = {};
+    size_t order = 0;
 };
 
 struct LuaTextSetting {
@@ -75,6 +78,9 @@ struct LuaTextSetting {
     std::string section;
     std::string fallback;
     size_t maximumLength = 0;
+    bool color = false;
+    std::string icon = {};
+    size_t order = 0;
 };
 
 struct LuaEventCallback {
@@ -85,7 +91,7 @@ struct LuaEventCallback {
 struct LuaMessageAction {
     uint64_t identifier;
     std::string label;
-    std::string icon;
+    std::string icon = {};
     int reference;
 };
 
@@ -102,6 +108,7 @@ struct LuaPlugin : astral::PluginPackage, astral::PluginHealth {
     lua_State *state = nullptr;
     std::vector<LuaSwitch> switches;
     std::vector<LuaTextSetting> textSettings;
+    size_t settingCount = 0;
     std::vector<std::pair<std::string, int>> decorators;
     std::vector<std::pair<std::string, int>> relabelers;
     std::optional<double> settingsBackdrop;
@@ -339,18 +346,25 @@ static int SettingsSwitch(lua_State *state)
     std::string key = luaL_checkstring(state, 1);
     std::string title = luaL_checkstring(state, 2);
     bool fallback = lua_toboolean(state, 3);
-    std::string subtitle, section;
+    std::string subtitle, section, icon;
     if (lua_istable(state, 4)) {
         lua_getfield(state, 4, "subtitle");
         lua_getfield(state, 4, "section");
-        if (lua_isstring(state, -2)) subtitle = lua_tostring(state, -2);
-        if (lua_isstring(state, -1)) section = lua_tostring(state, -1);
-        lua_pop(state, 2);
+        lua_getfield(state, 4, "icon");
+        if (lua_isstring(state, -3)) subtitle = lua_tostring(state, -3);
+        if (lua_isstring(state, -2)) section = lua_tostring(state, -2);
+        if (lua_isstring(state, -1)) icon = lua_tostring(state, -1);
+        lua_pop(state, 3);
     }
     if (key.empty() || key.size() > 48 || plugin->switches.size() >= 32) return luaL_error(state, "astral.settings.switch: invalid key");
     bool known = false;
     for (auto &entry : plugin->switches) known = known || entry.key == key;
-    if (!known) plugin->switches.push_back({key, title.substr(0, 64), subtitle.substr(0, 120), section.substr(0, 48), fallback, {}, {}});
+    if (!known) {
+        LuaSwitch entry{key, title.substr(0, 64), subtitle.substr(0, 120), section.substr(0, 48), fallback, {}, {}};
+        entry.icon = icon.substr(0, 64);
+        entry.order = plugin->settingCount++;
+        plugin->switches.push_back(std::move(entry));
+    }
     lua_pushboolean(state, StoredBool(SettingKey(plugin, key), fallback));
     return 1;
 }
@@ -374,6 +388,7 @@ static int SettingsChoice(lua_State *state)
     if (lua_istable(state, 5)) {
         entry.subtitle = FieldString(state, 5, "subtitle").substr(0, 120);
         entry.section = FieldString(state, 5, "section").substr(0, 48);
+        entry.icon = FieldString(state, 5, "icon").substr(0, 64);
     }
     lua_Integer count = luaL_len(state, 3);
     if (count <= 0 || count > static_cast<lua_Integer>(kMaximumChoiceOptions)) {
@@ -396,7 +411,10 @@ static int SettingsChoice(lua_State *state)
     }
     bool known = false;
     for (auto &existing : plugin->switches) known = known || existing.key == key;
-    if (!known) plugin->switches.push_back(entry);
+    if (!known) {
+        entry.order = plugin->settingCount++;
+        plugin->switches.push_back(entry);
+    }
     lua_pushstring(state, StoredString(SettingKey(plugin, key), fallback).c_str());
     return 1;
 }
@@ -430,6 +448,7 @@ static int SettingsNumber(lua_State *state)
     entry.step = FieldNumber(state, 3, "step", 1);
     entry.subtitle = FieldString(state, 3, "subtitle").substr(0, 120);
     entry.section = FieldString(state, 3, "section").substr(0, 48);
+    entry.icon = FieldString(state, 3, "icon").substr(0, 64);
     bool valid = !key.empty() && key.size() <= 48 && plugin->switches.size() < 32 && std::isfinite(entry.minimum) &&
                  std::isfinite(entry.maximum) && entry.maximum > entry.minimum && entry.step > 0 &&
                  (entry.maximum - entry.minimum) / entry.step <= 1000;
@@ -437,7 +456,10 @@ static int SettingsNumber(lua_State *state)
     entry.fallbackNumber = SteppedNumber(entry, FieldNumber(state, 3, "default", entry.minimum));
     bool known = false;
     for (auto &existing : plugin->switches) known = known || existing.key == key;
-    if (!known) plugin->switches.push_back(entry);
+    if (!known) {
+        entry.order = plugin->settingCount++;
+        plugin->switches.push_back(entry);
+    }
     PushNumber(state, SteppedNumber(entry, StoredNumber(SettingKey(plugin, key), entry.fallbackNumber)));
     return 1;
 }
@@ -453,20 +475,30 @@ static int SettingsText(lua_State *state)
     if (lua_istable(state, 4)) {
         entry.subtitle = FieldString(state, 4, "subtitle").substr(0, 120);
         entry.section = FieldString(state, 4, "section").substr(0, 48);
+        entry.icon = FieldString(state, 4, "icon").substr(0, 64);
+        lua_getfield(state, 4, "color");
+        entry.color = lua_toboolean(state, -1);
+        lua_pop(state, 1);
         double requestedMaximum = FieldNumber(state, 4, "max_length", static_cast<double>(maximumLength));
         if (!std::isfinite(requestedMaximum) || requestedMaximum < 1 || requestedMaximum > maximumLength ||
             std::floor(requestedMaximum) != requestedMaximum)
             return luaL_error(state, "astral.settings.text: max_length must be between 1 and 16384");
         entry.maximumLength = static_cast<size_t>(requestedMaximum);
     }
+    if (entry.color) entry.maximumLength = 9;
     if (key.empty() || key.size() > 48 || fallback.size() > entry.maximumLength || plugin->textSettings.size() >= 16)
         return luaL_error(state, "astral.settings.text: invalid text setting");
+    if (entry.color && !astral::settings::isColorText(fallback))
+        return luaL_error(state, "astral.settings.color: default must be empty, #RRGGBB or #AARRGGBB");
     bool known = false;
     for (auto &existing : plugin->textSettings) known = known || existing.key == key;
     for (auto &existing : plugin->switches) known = known || existing.key == key;
-    if (!known) plugin->textSettings.push_back(entry);
+    if (!known) {
+        entry.order = plugin->settingCount++;
+        plugin->textSettings.push_back(entry);
+    }
     std::string value = StoredString(SettingKey(plugin, key), fallback);
-    if (value.size() > entry.maximumLength) value = fallback;
+    if (value.size() > entry.maximumLength || (entry.color && !astral::settings::isColorText(value))) value = fallback;
     lua_pushlstring(state, value.data(), value.size());
     return 1;
 }
@@ -1714,6 +1746,7 @@ static void Stop(LuaPlugin *plugin)
     plugin->state = nullptr;
     plugin->switches.clear();
     plugin->textSettings.clear();
+    plugin->settingCount = 0;
     plugin->decorators.clear();
     plugin->relabelers.clear();
     plugin->settingsBackdrop.reset();
@@ -1922,7 +1955,9 @@ nlohmann::json plugins()
                                 {"number", entry.number},
                                 {"min", entry.minimum},
                                 {"max", entry.maximum},
-                                {"step", entry.step}});
+                                {"step", entry.step},
+                                {"icon", entry.icon},
+                                {"order", entry.order}});
         }
         nlohmann::json textSettings = nlohmann::json::array();
         for (const auto &entry : plugin->textSettings) {
@@ -1933,7 +1968,10 @@ nlohmann::json plugins()
                                     {"subtitle", entry.subtitle},
                                     {"section", entry.section},
                                     {"value", value},
-                                    {"maxLength", entry.maximumLength}});
+                                    {"maxLength", entry.maximumLength},
+                                    {"color", entry.color},
+                                    {"icon", entry.icon},
+                                    {"order", entry.order}});
         }
         nlohmann::json authors = nlohmann::json::array();
         for (auto &author : plugin->authors) authors.push_back({{"name", author.first}, {"id", author.second}});
@@ -2585,6 +2623,7 @@ void setText(const std::string &pluginID, const std::string &key, const std::str
     for (const auto &candidate : plugin->textSettings)
         if (candidate.key == key) setting = &candidate;
     if (!setting || value.size() > setting->maximumLength) return;
+    if (setting->color && !astral::settings::isColorText(value)) return;
     if (StoredString(SettingKey(plugin, key), setting->fallback) == value) return;
     Store(SettingKey(plugin, key), value);
     NotifySetting(plugin, key, [&](lua_State *state) { lua_pushlstring(state, value.data(), value.size()); });

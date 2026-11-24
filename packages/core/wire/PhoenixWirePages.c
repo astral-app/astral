@@ -597,8 +597,10 @@ static int32_t buildSpecRow(Out *out, const AstralRowSpec *row, int first, int l
     }
     int32_t rowId = cloneRole(out, kRow, rowChanges, used);
     int32_t content = cloneRole(out, kRowContent, NULL, 0);
-    Change iconChange = {P(uri), kString, row->icon ? row->icon : "res://ic_mana_sparkles", 0};
-    int32_t icon = cloneRole(out, kRowIcon, &iconChange, 1);
+    int hasIcon = !row->icon || row->icon[0];
+    int imageIcon = row->icon && strncmp(row->icon, "data:", 5) == 0;
+    Change iconChanges[] = {{P(uri), kString, row->icon ? row->icon : "res://ic_mana_sparkles", 0}, {P(tint), kDrop, NULL, 0}};
+    int32_t icon = hasIcon ? cloneRole(out, kRowIcon, iconChanges, imageIcon ? 2 : 1) : 0;
     int hasSubtitle = row->subtitle && row->subtitle[0];
     Change titleChanges[] = {{P(text), kString, row->title, 0},
                              hasSubtitle ? (Change){P(flex), kDrop, NULL, 0} : (Change){P(flex), kNumber, NULL, 1}};
@@ -619,6 +621,10 @@ static int32_t buildSpecRow(Out *out, const AstralRowSpec *row, int first, int l
     }
     int32_t children[4] = {icon, title, 0, 0};
     uint32_t childCount = 2;
+    if (!hasIcon) {
+        children[0] = title;
+        childCount = 1;
+    }
     if (row->detail && row->detail[0]) {
         Change detailChanges[] = {{P(text), kString, row->detail, 0},
                                   {P(fontSize), kNumber, NULL, 14},
