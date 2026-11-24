@@ -12,6 +12,7 @@ extern "C" {
 #endif
 
 NSArray<NSDictionary *> *AstralLuaPlugins(void);
+NSArray<NSDictionary *> *AstralLuaComposerStyles(NSString *text);
 void AstralLuaRemoveStorage(NSString *identifier);
 void AstralLuaSetEnabled(NSString *pluginID, BOOL enabled);
 void AstralLuaSetSwitch(NSString *pluginID, NSString *key, BOOL on);

@@ -349,6 +349,7 @@ function astral.ui.web_auth(url, callback_url, callback) end
 function astral.ui.cancel_web_auth(request) end
 function astral.ui.copy(value) end
 function astral.ui.haptic(strength) end
+function astral.ui.composer(formatter) end
 ---@param target astral.Target
 ---@param decorator fun(node: astral.Node): astral.Decoration
 function astral.ui.decorate(target, decorator) end

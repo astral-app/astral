@@ -1,5 +1,6 @@
 #include <dlfcn.h>
 #import "EmojiComposer.h"
+#import "LuaComposer.h"
 #import "EmojiPacks.h"
 #import "NetworkFilter.h"
 #import "VirtualCamera.h"
@@ -209,6 +210,7 @@ static void StartPlugins(void)
     astral_wire_set_reaction_decorator(AstralLuaReaction);
     astral_wire_set_emoji_resolver(AstralEmojiResolve);
     AstralInstallEmojiComposer();
+    AstralInstallLuaComposer();
     AstralCatalogRefresh(^{
         AstralRefreshPhoenixSettings();
     });

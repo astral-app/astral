@@ -47,6 +47,13 @@ description = "Translates messages with Unbound Translate or Google and MyMemory
 base = "plugins/astral.translate/"
 
 [[plugins]]
+id = "astral.live-markdown"
+name = "Live Markdown"
+version = "0.0.1"
+description = "Styles Discord markdown as you type in the message composer."
+base = "plugins/astral.live-markdown/"
+
+[[plugins]]
 id = "astral.more-user-tags"
 name = "More User Tags"
 version = "0.0.1"

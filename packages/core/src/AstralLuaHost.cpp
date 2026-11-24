@@ -102,6 +102,7 @@ struct LuaPlugin : astral::PluginPackage, astral::PluginHealth {
     std::vector<int> typingDecorators;
     std::vector<int> reactionDecorators;
     std::vector<int> outgoingMessageTransforms;
+    std::vector<int> composerDecorators;
     std::vector<LuaMessageAction> messageActions;
     std::map<uint64_t, int> networkRequests;
     std::map<uint64_t, int> webAuthRequests;
@@ -668,6 +669,17 @@ static int RegisterOutgoingMessageTransform(lua_State *state)
     return 0;
 }
 
+static int RegisterComposerDecorator(lua_State *state)
+{
+    LuaPlugin *plugin = Self(state);
+    RequirePermission(state, "ui.composer");
+    luaL_checktype(state, 1, LUA_TFUNCTION);
+    if (!plugin->composerDecorators.empty()) return luaL_error(state, "astral.ui.composer: at most one formatter per plugin");
+    lua_pushvalue(state, 1);
+    plugin->composerDecorators.push_back(luaL_ref(state, LUA_REGISTRYINDEX));
+    return 0;
+}
+
 static int Decorate(lua_State *state)
 {
     LuaPlugin *plugin = Self(state);
@@ -1220,6 +1232,7 @@ static void InstallAPI(LuaPlugin *plugin)
     Function(state, plugin, "alert", ShowAlert);
     Function(state, plugin, "toast", ShowToast);
     Function(state, plugin, "copy", CopyText);
+    Function(state, plugin, "composer", RegisterComposerDecorator);
     Function(state, plugin, "haptic", Haptic);
     Function(state, plugin, "web_auth", WebAuth);
     Function(state, plugin, "cancel_web_auth", CancelWebAuth);
@@ -1359,6 +1372,7 @@ static void Stop(LuaPlugin *plugin)
     plugin->nameColorizers.clear();
     plugin->typingDecorators.clear();
     plugin->reactionDecorators.clear();
+    plugin->composerDecorators.clear();
     ApplySettingsBackdrop();
 }
 
@@ -1980,6 +1994,58 @@ std::optional<std::string> transformOutgoingMessage(const std::string &channel, 
         return std::nullopt;
     }
     return transformed;
+}
+
+nlohmann::json composerStyles(std::string_view text)
+{
+    nlohmann::json result = nlohmann::json::array();
+    if (text.empty() || text.size() > 8192 || !ValidUTF8(std::string(text))) return result;
+    static const std::set<std::string> styles = {"bold",   "italic",   "underline", "strike",   "code",    "spoiler",
+                                                 "marker", "heading1", "heading2",  "heading3", "subtext", "quote"};
+    std::lock_guard<std::recursive_mutex> lock(gMutex);
+    for (auto *plugin : gPlugins) {
+        if (!plugin->state || plugin->failed || plugin->composerDecorators.empty()) continue;
+        lua_State *state = plugin->state;
+        for (int reference : plugin->composerDecorators) {
+            int top = lua_gettop(state);
+            lua_rawgeti(state, LUA_REGISTRYINDEX, reference);
+            lua_pushlstring(state, text.data(), text.size());
+            if (!Call(plugin, 1, 1, "composer formatting")) {
+                lua_settop(state, top);
+                MarkFailed(plugin);
+                Stop(plugin);
+                break;
+            }
+            nlohmann::json formatted;
+            if (astral::lua::toJSON(state, -1, formatted) && formatted.is_array()) {
+                for (size_t index = 0; index < formatted.size() && index < 128 && result.size() < 256; index++) {
+                    const auto &run = formatted[index];
+                    if (!run.is_object()) continue;
+                    auto start = run.find("start");
+                    auto length = run.find("length");
+                    auto style = run.find("style");
+                    if (start == run.end() || length == run.end() || style == run.end() || !start->is_number_integer() ||
+                        !length->is_number_integer() || !style->is_string())
+                        continue;
+                    int64_t byteStart = start->get<int64_t>();
+                    int64_t byteLength = length->get<int64_t>();
+                    std::string name = style->get<std::string>();
+                    if (byteStart < 1 || byteLength < 1 || byteStart > static_cast<int64_t>(text.size()) ||
+                        byteLength > static_cast<int64_t>(text.size()) - byteStart + 1 || !styles.contains(name))
+                        continue;
+                    size_t first = static_cast<size_t>(byteStart - 1);
+                    size_t end = first + static_cast<size_t>(byteLength);
+                    if ((first > 0 && (static_cast<uint8_t>(text[first]) & 0xc0) == 0x80) ||
+                        (end < text.size() && (static_cast<uint8_t>(text[end]) & 0xc0) == 0x80))
+                        continue;
+                    result.push_back({{"start", byteStart}, {"length", byteLength}, {"style", std::move(name)}});
+                }
+            }
+            lua_settop(state, top);
+            if (result.size() >= 256) return result;
+        }
+    }
+    return result;
 }
 
 std::string eval(const std::string &pluginID, const std::string &source)

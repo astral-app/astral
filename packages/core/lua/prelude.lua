@@ -6,6 +6,7 @@ local native = {
 	text = astral.settings.text,
 	decorate = astral.ui.decorate,
 	relabel = astral.ui.relabel,
+	composer = astral.ui.composer,
 	toast = astral.ui.toast,
 	web_auth = astral.ui.web_auth,
 	cancel_web_auth = astral.ui.cancel_web_auth,
@@ -519,6 +520,10 @@ function astral.ui.message_action(label, callback)
 	return native.message_action(label, function(node)
 		return callback(wrapNode(node))
 	end)
+end
+
+function astral.ui.composer(formatter)
+	return native.composer(formatter)
 end
 
 function astral.ui.toast(title, message)

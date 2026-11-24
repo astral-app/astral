@@ -66,7 +66,10 @@ object EmojiComposer {
             val view = chain.thisObject as? EditText
             if (view != null && composerType.isInstance(view)) {
                 synchronized(composers) { composers.add(view) }
-                main.post { apply(view) }
+                main.post {
+                    apply(view)
+                    MarkdownComposer.apply(view)
+                }
             }
             result
         }
@@ -75,7 +78,12 @@ object EmojiComposer {
 
     fun refresh() {
         val views = synchronized(composers) { composers.toList() }
-        main.post { views.forEach(::apply) }
+        main.post {
+            views.forEach { view ->
+                apply(view)
+                MarkdownComposer.apply(view)
+            }
+        }
     }
 
     private fun apply(view: EditText) {

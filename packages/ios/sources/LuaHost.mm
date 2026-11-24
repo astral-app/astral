@@ -1,4 +1,5 @@
 #import "LuaHost.h"
+#import "LuaComposer.h"
 
 #include "AstralSettings.h"
 #include "AstralLuaHost.h"
@@ -129,7 +130,10 @@ static astral::LuaHostPlatform Platform(void)
         AstralRecordPluginFailure(Native(identifier), Native(name), Native(error));
     };
     platform.developerLog = [](const std::string &line) { AstralDevAppendLog(Native(line)); };
-    platform.refreshDecorations = [] { AstralPhoenixRefreshDecorations(); };
+    platform.refreshDecorations = [] {
+        AstralPhoenixRefreshDecorations();
+        AstralRepaintLuaComposers();
+    };
     platform.preferredLanguages = PreferredLanguages();
     platform.storagePath = Plain([AstralStateDirectory() stringByAppendingPathComponent:@"plugin-storage.sqlite"]);
     platform.bundledDirectory = Plain(AstralResourceDirectory());
@@ -146,6 +150,11 @@ void AstralLuaHostStart(NSArray<NSString *> *directories, astral::SettingsStore 
 void AstralLuaHostEmitEvent(NSString *event)
 {
     astral::luahost::emitEvent(Plain(event));
+}
+
+NSArray<NSDictionary *> *AstralLuaComposerStyles(NSString *text)
+{
+    return AstralObjectFromJSON(astral::luahost::composerStyles(Plain(text))) ?: @[];
 }
 
 NSArray<NSDictionary *> *AstralLuaPlugins(void)
