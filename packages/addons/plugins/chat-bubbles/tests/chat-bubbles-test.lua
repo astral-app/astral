@@ -1,7 +1,21 @@
 local callback
 local values = {}
 
+local function color(value)
+	return {
+		value = value,
+		with_alpha = function(self, alpha)
+			return color((alpha << 24) | (self.value & 0xFFFFFF))
+		end,
+	}
+end
+
 astral = {
+	Color = {
+		from = function(text)
+			return color(0xFF000000 | tonumber(text:sub(2), 16))
+		end,
+	},
 	settings = {
 		values = values,
 		option = function(value, title)
@@ -10,6 +24,9 @@ astral = {
 		section = function()
 			return {
 				choice = function(_, key, _, _, fallback)
+					values[key] = fallback
+				end,
+				color = function(_, key, _, fallback)
 					values[key] = fallback
 				end,
 				number = function(_, key, _, options)
@@ -28,15 +45,14 @@ astral = {
 dofile(arg[1])
 
 assert(callback)
-local neutral = callback({ message_id = "m1" })
-assert(neutral.color == 0x24FFFFFF and neutral.radius == 12 and neutral.bubble and neutral.reply == "inside")
-values.color = "blue"
+local automatic = callback({ message_id = "m1" })
+assert(automatic.color == 0x24FFFFFF and automatic.radius == 12 and automatic.bubble and automatic.reply == "inside")
+values.color = "#5865F2"
 values.radius = 24
-local blue = callback({ message_id = "m2" })
-assert(blue.color == 0x665865F2 and blue.radius == 24)
-values.color = "unknown"
-local fallback = callback({ message_id = "m3" })
-assert(fallback.color == 0x24FFFFFF and fallback.radius == 24)
+local picked = callback({ message_id = "m2" })
+assert(picked.color.value == 0x665865F2 and picked.radius == 24)
+values.opacity = 100
+assert(callback({ message_id = "m3" }).color.value == 0xFF5865F2)
 values.reply = "bubble"
 assert(callback({ message_id = "m4" }).reply == "bubble")
 

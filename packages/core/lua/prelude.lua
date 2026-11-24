@@ -375,6 +375,15 @@ function astral.settings.text(key, title, default, options)
 	return values[key]
 end
 
+function astral.settings.color(key, title, default, options)
+	local merged = { color = true }
+	for name, value in pairs(options or {}) do
+		merged[name] = value
+	end
+	values[key] = native.text(key, title, default or "", merged)
+	return values[key]
+end
+
 function astral.settings.set(key, value)
 	native.set(key, value)
 	if values[key] ~= nil and values[key] ~= value then
@@ -393,28 +402,36 @@ function Section:init(title)
 	self.title = title
 end
 
-function Section:switch(key, title, default, subtitle)
-	return astral.settings.switch(key, title, default, { subtitle = subtitle, section = self.title })
+function Section:options(extra)
+	local merged = { section = self.title }
+	if type(extra) == "table" then
+		for name, value in pairs(extra) do
+			merged[name] = value
+		end
+	else
+		merged.subtitle = extra
+	end
+	return merged
 end
 
-function Section:choice(key, title, choices, default, subtitle)
-	return astral.settings.choice(key, title, choices, default, { subtitle = subtitle, section = self.title })
+function Section:switch(key, title, default, options)
+	return astral.settings.switch(key, title, default, self:options(options))
+end
+
+function Section:choice(key, title, choices, default, options)
+	return astral.settings.choice(key, title, choices, default, self:options(options))
+end
+
+function Section:color(key, title, default, options)
+	return astral.settings.color(key, title, default, self:options(options))
 end
 
 function Section:number(key, title, options)
-	local merged = { section = self.title }
-	for name, value in pairs(options or {}) do
-		merged[name] = value
-	end
-	return astral.settings.number(key, title, merged)
+	return astral.settings.number(key, title, self:options(options))
 end
 
 function Section:text(key, title, default, options)
-	local merged = { section = self.title }
-	for name, value in pairs(options or {}) do
-		merged[name] = value
-	end
-	return astral.settings.text(key, title, default, merged)
+	return astral.settings.text(key, title, default, self:options(options))
 end
 
 function Section:describe()

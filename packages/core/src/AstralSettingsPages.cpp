@@ -1,5 +1,7 @@
 #include "AstralSettingsPages.h"
+#include "AstralSwatch.h"
 
+#include <algorithm>
 #include <cctype>
 #include <cmath>
 #include <ctime>
@@ -18,6 +20,7 @@ using nlohmann::json;
 
 const std::string kPluginRoute = "plugin:";
 const std::string kPluginSettingsRoute = "plugin-settings:";
+const std::string kPluginColorRoute = "plugin-color:";
 
 astral::SettingsPagesPlatform gPlatform;
 std::mutex gFilterMutex;
@@ -228,7 +231,9 @@ std::pair<std::string, std::string> permissionDescription(const std::string &per
         {"events.lifecycle", {"Receives app foreground and background events", "res://ic_mana_calendar"}},
         {"ui.clipboard", {"Copies text to the system clipboard", "res://ic_mana_copy"}},
         {"ui.composer", {"Reads and styles draft text in the message composer", "res://ic_mana_chat"}},
-        {"ui.message_background", {"Styles Phoenix message row backgrounds", "res://ic_mana_chat"}},
+        {"ui.message_background", {"Styles message backgrounds", "res://ic_mana_chat"}},
+        {"ui.dialogs", {"Shows dialogs and pickers", "res://ic_mana_chat"}},
+        {"files.read", {"Reads files you pick", "res://ic_mana_image"}},
         {"ui.haptics", {"Triggers haptic feedback", "res://ic_mana_bell"}},
         {"ui.toasts", {"Shows brief notifications", "res://ic_mana_bell"}},
         {"ui.notifications", {"Posts system notifications", "res://ic_mana_bell"}},
@@ -352,6 +357,93 @@ json pluginPage(const std::string &identifier)
     return page(text(plugin, "name"), sections);
 }
 
+std::string settingIcon(const json &entry)
+{
+    std::string icon = text(entry, "icon");
+    if (icon.empty() || icon.rfind("res://", 0) == 0 || icon.rfind("https://", 0) == 0) return icon;
+    return manaAsset(icon);
+}
+
+struct ColorPreset {
+    const char *name;
+    uint32_t argb;
+};
+
+constexpr ColorPreset kColorPresets[] = {
+    {"Blurple", 0xFF5865F2}, {"Blue", 0xFF3B82F6},   {"Cyan", 0xFF06B6D4},   {"Teal", 0xFF14B8A6},  {"Green", 0xFF23A55A},
+    {"Lime", 0xFF84CC16},    {"Yellow", 0xFFF0B232}, {"Orange", 0xFFF97316}, {"Red", 0xFFF23F43},   {"Pink", 0xFFEC4899},
+    {"Purple", 0xFF8B5CF6},  {"Grey", 0xFF80848E},   {"White", 0xFFFFFFFF},  {"Black", 0xFF000000},
+};
+
+std::string colorDetail(const std::string &value)
+{
+    return value.empty() ? "Automatic" : value;
+}
+
+json colorRow(const json &entry)
+{
+    std::string value = text(entry, "value");
+    auto color = astral::settings::parseColor(value);
+    std::string icon = color ? astral::settings::swatchURI(*color) : "res://ic_mana_paint_palette";
+    return with(row("color." + text(entry, "key"), text(entry, "title"), icon, kAstralRowLink), {{"detail", colorDetail(value)}});
+}
+
+json textSettingFor(const json &plugin, const std::string &key)
+{
+    for (const auto &entry : plugin.value("textSettings", json::array()))
+        if (text(entry, "key") == key) return entry;
+    return nullptr;
+}
+
+json pluginColorPage(const std::string &target)
+{
+    size_t colon = target.rfind(':');
+    if (colon == std::string::npos) return pluginPage(target);
+    json plugin = pluginWithID(target.substr(0, colon));
+    json entry = plugin.is_null() ? json() : textSettingFor(plugin, target.substr(colon + 1));
+    if (entry.is_null()) return pluginPage(target.substr(0, colon));
+    std::string value = text(entry, "value");
+    json presets = json::array();
+    presets.push_back(
+        row("swatch.auto", "Automatic", "res://ic_mana_paint_palette", value.empty() ? kAstralRowSelected : kAstralRowChoice));
+    bool matched = value.empty();
+    for (const auto &preset : kColorPresets) {
+        std::string hex = astral::settings::colorText(preset.argb);
+        bool selected = astral::settings::parseColor(value) == preset.argb;
+        matched = matched || selected;
+        presets.push_back(row("swatch." + hex.substr(1), preset.name, astral::settings::swatchURI(preset.argb),
+                              selected ? kAstralRowSelected : kAstralRowChoice));
+    }
+    auto current = astral::settings::parseColor(value);
+    json custom = {
+        with(row("hex", "Hex code", current ? astral::settings::swatchURI(*current) : "res://ic_mana_paint_palette", kAstralRowLink),
+             {{"detail", matched ? std::string("Edit") : value}, {"subtitle", "#RRGGBB, or #AARRGGBB with transparency"}})};
+    return page(text(entry, "title"), {section("Colors", presets), section("Custom", custom)});
+}
+
+std::optional<std::string> pluginColorAction(const std::string &target, const std::string &key, const std::function<void()> &changed)
+{
+    size_t colon = target.rfind(':');
+    if (colon == std::string::npos) return std::nullopt;
+    std::string identifier = target.substr(0, colon), settingKey = target.substr(colon + 1);
+    json plugin = pluginWithID(identifier);
+    json entry = plugin.is_null() ? json() : textSettingFor(plugin, settingKey);
+    if (entry.is_null()) return std::string("..");
+    if (key == "swatch.auto") {
+        astral::luahost::setText(identifier, settingKey, "");
+    } else if (key.rfind("swatch.", 0) == 0) {
+        astral::luahost::setText(identifier, settingKey, "#" + key.substr(7));
+    } else if (key == "hex" && gPlatform.editText) {
+        gPlatform.editText(text(entry, "title"), text(entry, "value"), 9,
+                           [identifier, settingKey, changed](std::optional<std::string> edited) {
+                               if (edited && astral::settings::isColorText(*edited))
+                                   astral::luahost::setText(identifier, settingKey, *edited);
+                               if (changed) changed();
+                           });
+    }
+    return std::nullopt;
+}
+
 std::string numberText(double value)
 {
     char buffer[32];
@@ -367,58 +459,66 @@ json numberRow(const json &entry)
     double minimum = number(entry, "min"), step = number(entry, "step"), value = number(entry, "value");
     int steps = (int)std::llround((number(entry, "max") - minimum) / step);
     int position = (int)std::llround((value - minimum) / step);
-    return with(row("number." + text(entry, "key"), text(entry, "title"), "res://ic_mana_settings", kAstralRowNumber),
+    return with(row("number." + text(entry, "key"), text(entry, "title"), settingIcon(entry), kAstralRowNumber),
                 {{"detail", numberText(value)}, {"steps", steps}, {"position", position}});
+}
+
+json settingRow(const json &entry, bool textSetting)
+{
+    json result;
+    if (textSetting && flag(entry, "color"))
+        result = colorRow(entry);
+    else if (textSetting)
+        result = with(row("text." + text(entry, "key"), text(entry, "title"), settingIcon(entry), kAstralRowLink), {{"detail", "Edit"}});
+    else if (flag(entry, "number"))
+        result = numberRow(entry);
+    else
+        result = with(row("setting." + text(entry, "key"), text(entry, "title"), settingIcon(entry), kAstralRowSwitch),
+                      {{"on", flag(entry, "on")}});
+    if (!text(entry, "subtitle").empty()) result["subtitle"] = text(entry, "subtitle");
+    return result;
+}
+
+json choiceSettingRows(const json &entry)
+{
+    json rows = json::array();
+    for (const auto &option : entry.value("options", json::array())) {
+        bool selected = text(option, "value") == text(entry, "value");
+        json choiceRow = row("choice." + text(entry, "key") + "." + text(option, "value"), text(option, "title"), "",
+                             selected ? kAstralRowSelected : kAstralRowChoice);
+        if (!text(option, "subtitle").empty()) choiceRow["subtitle"] = text(option, "subtitle");
+        rows.push_back(choiceRow);
+    }
+    return rows;
 }
 
 json pluginSettingsPage(const std::string &identifier)
 {
     json plugin = pluginWithID(identifier);
     if (plugin.is_null()) return pluginPage(identifier);
+    std::vector<std::pair<const json *, bool>> entries;
+    for (const auto &entry : plugin["switches"]) entries.push_back({&entry, false});
+    for (const auto &entry : plugin["textSettings"]) entries.push_back({&entry, true});
+    std::stable_sort(entries.begin(), entries.end(),
+                     [](const auto &left, const auto &right) { return number(*left.first, "order") < number(*right.first, "order"); });
     std::vector<std::string> order;
     std::map<std::string, json> grouped;
     std::map<std::string, std::string> titles;
-    for (const auto &entry : plugin.value("switches", json::array())) {
-        json options = entry.value("options", json::array());
-        if (!options.empty()) {
-            std::string choice = "choice:" + text(entry, "key");
-            json rows = json::array();
-            for (const auto &option : options) {
-                bool selected = text(option, "value") == text(entry, "value");
-                json choiceRow = row("choice." + text(entry, "key") + "." + text(option, "value"), text(option, "title"),
-                                     "res://ic_mana_settings", selected ? kAstralRowSelected : kAstralRowChoice);
-                if (!text(option, "subtitle").empty()) choiceRow["subtitle"] = text(option, "subtitle");
-                rows.push_back(choiceRow);
-            }
-            grouped[choice] = rows;
+    for (const auto &[entry, textSetting] : entries) {
+        if (!textSetting && !entry->value("options", json::array()).empty()) {
+            std::string choice = "choice:" + text(*entry, "key");
+            grouped[choice] = choiceSettingRows(*entry);
             order.push_back(choice);
-            titles[choice] = text(entry, "title");
+            titles[choice] = text(*entry, "title");
             continue;
         }
-        std::string name = text(entry, "section", "Settings");
+        std::string name = text(*entry, "section", "Settings");
         if (name.empty()) name = "Settings";
         if (!grouped.count(name)) {
             grouped[name] = json::array();
             order.push_back(name);
         }
-        json settingRow = flag(entry, "number")
-                              ? numberRow(entry)
-                              : with(row("setting." + text(entry, "key"), text(entry, "title"), "res://ic_mana_settings", kAstralRowSwitch),
-                                     {{"on", flag(entry, "on")}});
-        if (!text(entry, "subtitle").empty()) settingRow["subtitle"] = text(entry, "subtitle");
-        grouped[name].push_back(settingRow);
-    }
-    for (const auto &entry : plugin.value("textSettings", json::array())) {
-        std::string name = text(entry, "section", "Settings");
-        if (name.empty()) name = "Settings";
-        if (!grouped.count(name)) {
-            grouped[name] = json::array();
-            order.push_back(name);
-        }
-        json settingRow =
-            with(row("text." + text(entry, "key"), text(entry, "title"), "res://ic_mana_settings", kAstralRowLink), {{"detail", "Edit"}});
-        if (!text(entry, "subtitle").empty()) settingRow["subtitle"] = text(entry, "subtitle");
-        grouped[name].push_back(std::move(settingRow));
+        grouped[name].push_back(settingRow(*entry, textSetting));
     }
     json sections = json::array();
     for (const auto &name : order) sections.push_back(section(titles.count(name) ? titles[name] : name, grouped[name]));
@@ -685,6 +785,8 @@ std::optional<std::string> pluginAction(const std::string &identifier, const std
             });
             break;
         }
+    } else if (key.rfind("color.", 0) == 0) {
+        return kPluginColorRoute + identifier + ":" + key.substr(6);
     } else if (key.rfind("choice.", 0) == 0) {
         std::string rest = key.substr(7);
         size_t dot = rest.find('.');
@@ -767,6 +869,7 @@ json model(const std::string &route)
     SettingsPageContext context = gPlatform.context ? gPlatform.context() : SettingsPageContext{};
     if (route == "general") return generalPage(context);
     if (route == "plugins" || route.empty()) return pluginsPage();
+    if (route.rfind(kPluginColorRoute, 0) == 0) return pluginColorPage(route.substr(kPluginColorRoute.size()));
     if (route.rfind(kPluginSettingsRoute, 0) == 0) return pluginSettingsPage(route.substr(kPluginSettingsRoute.size()));
     if (route.rfind(kPluginRoute, 0) == 0) return pluginPage(route.substr(kPluginRoute.size()));
     if (route == "design") return designPage();
@@ -777,6 +880,7 @@ json model(const std::string &route)
 
 std::optional<std::string> action(const std::string &route, const std::string &key, const std::function<void()> &changed)
 {
+    if (route.rfind(kPluginColorRoute, 0) == 0) return pluginColorAction(route.substr(kPluginColorRoute.size()), key, changed);
     if (route.rfind(kPluginSettingsRoute, 0) == 0) return pluginAction(route.substr(kPluginSettingsRoute.size()), key, changed);
     if (route.rfind(kPluginRoute, 0) == 0) return pluginAction(route.substr(kPluginRoute.size()), key, changed);
     if (key == "browse") return std::string("marketplace");
@@ -884,9 +988,11 @@ void withSpec(const json &model, const std::function<void(const AstralPageSpec *
         sectionRows[index] = objects(sections[index].value("rows", json::array()));
         for (const auto &entry : sectionRows[index]) {
             const char *key = optional(entry, "key"), *title = optional(entry, "title");
-            rows[index].push_back({key ? key : "", title ? title : "", optional(entry, "subtitle"), optional(entry, "detail"),
-                                   optional(entry, "icon"), (AstralRowKind)entry.value("kind", 0), entry.value("on", false) ? 1 : 0,
-                                   entry.value("steps", 0), entry.value("position", 0)});
+            auto icon = entry.find("icon");
+            const char *iconText = icon != entry.end() && icon->is_string() ? icon->get_ref<const std::string &>().c_str() : nullptr;
+            rows[index].push_back({key ? key : "", title ? title : "", optional(entry, "subtitle"), optional(entry, "detail"), iconText,
+                                   (AstralRowKind)entry.value("kind", 0), entry.value("on", false) ? 1 : 0, entry.value("steps", 0),
+                                   entry.value("position", 0)});
         }
         sectionTitles.push_back(text(sections[index], "title"));
     }

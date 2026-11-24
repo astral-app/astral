@@ -57,6 +57,8 @@ typedef struct {
     int32_t card;
     uint32_t cardColor;
     double cardRadius;
+    int32_t accent;
+    uint32_t accentColor;
     int32_t children[kBubbleChildren];
     uint32_t childCount;
 } BubbleBlock;
@@ -395,6 +397,11 @@ static void writeCardUpdate(Out *out, const BubbleBlock *block, int shown, uint3
     wirePropCount(out, 2);
     wirePropLong(out, P(background), shown ? (int64_t)color : (int64_t)block->cardColor);
     wirePropNumber(out, P(radius), shown ? radius : block->cardRadius);
+    if (!block->accent) return;
+    wirePut8(out, 2);
+    wirePut32(out, (uint32_t)block->accent);
+    wirePropCount(out, 1);
+    wirePropLong(out, P(background), shown ? 0 : (int64_t)block->accentColor);
 }
 
 static void writeBlockUpdate(Out *out, const BubbleBlock *block, int shown, uint32_t color, double radius)
@@ -530,6 +537,26 @@ static BubbleBlock *addBlock(BackgroundState *state, int32_t id, int media)
     return block;
 }
 
+static int isDarkOpaque(uint32_t color)
+{
+    uint32_t red = (color >> 16) & 0xFF, green = (color >> 8) & 0xFF, blue = color & 0xFF;
+    return (color >> 24) == 0xFF && red * 299 + green * 587 + blue * 114 < 64 * 1000;
+}
+
+static void rememberDefaultAccent(const uint8_t *bytes, const Span *spans, size_t count, BubbleBlock *block)
+{
+    block->accent = 0;
+    const Span *list = wireChildList(bytes, spans, count, block->card);
+    int32_t first = list && list->childCount ? wireChildAt(bytes, list, 0) : 0;
+    const Span *creation = wireCreation(spans, count, first);
+    double width = 0;
+    uint32_t color = 0;
+    if (!creation || !numberProperty(bytes, creation, P(width), &width) || width > 6) return;
+    if (!wireColorProperty(bytes, creation, P(background), &color) || !isDarkOpaque(color)) return;
+    block->accent = first;
+    block->accentColor = color;
+}
+
 static void rememberBlockChildren(const uint8_t *bytes, const Span *spans, size_t count, BubbleBlock *block)
 {
     const Span *list = wireChildList(bytes, spans, count, block->id);
@@ -544,6 +571,7 @@ static void rememberBlockChildren(const uint8_t *bytes, const Span *spans, size_
             block->cardColor = cardColor;
             block->cardRadius = 0;
             numberProperty(bytes, creation, P(radius), &block->cardRadius);
+            rememberDefaultAccent(bytes, spans, count, block);
             return;
         }
         if (block->media && !(creation && wireStringProperty(bytes, creation, P(width), "fill"))) continue;
