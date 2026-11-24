@@ -867,10 +867,11 @@ static int32_t buildCard(Out *out, const AstralCardSpec *card)
     wirePutChildren(out, actions, actionChildren, actionCount);
 
     int32_t top = newNode(out, "view");
-    wirePropCount(out, 3);
+    wirePropCount(out, 4);
     wirePropString(out, P(direction), "row");
     wirePropString(out, P(align), "start");
     wirePropNumber(out, P(gap), 12);
+    wirePropString(out, P(width), "fill");
     wirePutChildren(out, top, (int32_t[]){tile, heading, actions}, 3);
 
     int32_t bottomChildren[2];
