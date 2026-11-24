@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -18,6 +19,8 @@ import (
 const maximumAndroidDexSize = 128 << 20
 
 type androidCompatResult struct {
+	Channel              string          `json:"channel,omitempty"`
+	VersionCode          int             `json:"versionCode,omitempty"`
 	APKs                 []string        `json:"apks"`
 	Phoenix              bool            `json:"phoenix"`
 	Supported            bool            `json:"supported"`
@@ -443,6 +446,9 @@ func androidCompatReport(result androidCompatResult) string {
 	}
 	var report strings.Builder
 	fmt.Fprintf(&report, "## astral on Android Phoenix\n\nThis APK is %s.\n\n", status)
+	if result.Channel != "" {
+		fmt.Fprintf(&report, "Discord %s, version code %d, signed by Discord.\n\n", result.Channel, result.VersionCode)
+	}
 	fmt.Fprintf(&report, "Scanned APKs: `%s`.\n\n", strings.Join(result.APKs, "`, `"))
 	fmt.Fprintf(&report, "Scanned DEX files: `%s`.\n\n", strings.Join(result.DexFiles, "`, `"))
 	report.WriteString("| Check | Result |\n| --- | --- |\n")
@@ -464,13 +470,25 @@ func runAndroidCompat(args []string) error {
 	flags := newFlags("android-compat")
 	var apks androidAPKList
 	flags.Var(&apks, "apk", "Discord APK or split APK; repeat this flag for each file")
+	channel := flags.String("channel", "", "download and verify the latest Discord APKs of this channel (stable, beta or alpha) instead of passing --apk")
 	resultsPath := flags.String("results", "android-compat.json", "where to write the results")
 	reportPath := flags.String("report", "android-compat.md", "where to write a Markdown report")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	if len(apks) == 0 {
-		return errors.New("usage: astral android-compat --apk <Discord.apk> [--apk <split.apk> ...] [--results android-compat.json] [--report android-compat.md]")
+	if (len(apks) == 0) == (*channel == "") {
+		return errors.New("usage: astral android-compat (--channel <stable|beta|alpha> | --apk <Discord.apk> [--apk <split.apk> ...]) [--results android-compat.json] [--report android-compat.md]")
+	}
+	versionCode := 0
+	if *channel != "" {
+		work, cleanup, err := temporaryDirectory()
+		if err != nil {
+			return err
+		}
+		defer cleanup()
+		if versionCode, apks, err = downloadDiscordAPKs(*channel, work); err != nil {
+			return err
+		}
 	}
 	properties, err := androidProperties()
 	if err != nil {
@@ -479,6 +497,13 @@ func runAndroidCompat(args []string) error {
 	result, err := scanAndroidAPKs(apks, properties)
 	if err != nil {
 		return err
+	}
+	result.Channel = *channel
+	result.VersionCode = versionCode
+	if *channel != "" {
+		for index, apk := range result.APKs {
+			result.APKs[index] = filepath.Base(apk)
+		}
 	}
 	encoded, err := json.MarshalIndent(result, "", "\t")
 	if err != nil {

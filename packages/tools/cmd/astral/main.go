@@ -39,7 +39,7 @@ var commands = map[string]command{
 	"replay":         {"replay <plugin>... <capture>", runReplay},
 	"check":          {"check [--staged] [file ...]", runCheck},
 	"android-core":   {"android-core [--ndk <directory>] [--output <directory>]", runAndroidCore},
-	"android-compat": {"android-compat --apk <Discord.apk> [--apk <split.apk> ...] [--results android-compat.json] [--report android-compat.md]", runAndroidCompat},
+	"android-compat": {"android-compat (--channel <stable|beta|alpha> | --apk <Discord.apk> [--apk <split.apk> ...]) [--results android-compat.json] [--report android-compat.md]", runAndroidCompat},
 	"compat":         {"compat --ipa <decrypted Discord.ipa> [--channel stable] [--baseline compat.json] [--results compat.json] [--report report.md]", runCompat},
 }
 
