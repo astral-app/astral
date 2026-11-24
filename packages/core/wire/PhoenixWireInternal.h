@@ -111,6 +111,7 @@ const Span *wireChildList(const uint8_t *bytes, const Span *spans, size_t count,
 int32_t wireParentOf(const uint8_t *bytes, const Span *spans, size_t count, int32_t id);
 const Span *wireCreation(const Span *spans, size_t count, int32_t id);
 int wireStringProperty(const uint8_t *bytes, const Span *span, uint16_t wanted, const char *value);
+int wireStringPropertyPrefix(const uint8_t *bytes, const Span *span, uint16_t wanted, const char *prefix);
 void wirePut(Out *out, const void *bytes, size_t length);
 void wirePut8(Out *out, uint8_t value);
 void wirePut16(Out *out, uint16_t value);

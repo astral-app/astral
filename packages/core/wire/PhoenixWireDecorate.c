@@ -17,7 +17,10 @@ static int32_t gNextTagId = kFirstTagId;
 
 static Decorated gDecorated[kMaxDecorated];
 
-enum { kBackgroundLinkCapacity = 16384, kBackgroundRowCapacity = 512, kBackgroundRowMapCapacity = 1024 };
+enum { kBackgroundLinkCapacity = 16384, kBackgroundRowCapacity = 512, kBackgroundRowMapCapacity = 1024, kBubbleChildren = 4 };
+
+static const char kContentPrefix[] = "message.content:";
+static const float kBubblePadding[4] = {10, 6, 10, 6};
 
 typedef struct {
     int32_t id;
@@ -28,6 +31,7 @@ typedef struct {
     int32_t id;
     uint64_t message;
     uint64_t user;
+    int32_t content;
 } BackgroundRow;
 
 typedef struct {
@@ -41,6 +45,10 @@ typedef struct {
     double appliedRadius;
     int hasOriginal;
     int active;
+    int bubble;
+    int32_t content;
+    int32_t contentChildren[kBubbleChildren];
+    uint32_t contentChildCount;
 } BackgroundState;
 
 static BackgroundState gBackgroundStates[kMaxDecorated];
@@ -326,6 +334,39 @@ static int validBackgroundStyle(const AstralMessageBackgroundStyle *style)
     return isfinite(style->radius) && style->radius >= 0 && style->radius <= 32;
 }
 
+static void putUnsetWidth(Out *out, int32_t node, int fill)
+{
+    wirePut8(out, 2);
+    wirePut32(out, (uint32_t)node);
+    wirePropCount(out, 1);
+    if (fill) {
+        wirePropString(out, P(width), "fill");
+    } else {
+        wirePut16(out, P(width));
+        wirePut8(out, 0);
+    }
+}
+
+static void writeBubbleUpdate(Out *out, const BackgroundState *state, int shown, uint32_t color, double radius)
+{
+    wirePut8(out, 2);
+    wirePut32(out, (uint32_t)state->content);
+    wirePropCount(out, 4);
+    wirePropLong(out, P(background), shown ? (int64_t)color : 0);
+    wirePropNumber(out, P(radius), shown ? radius : 0);
+    if (shown)
+        wirePropQuad(out, P(padding), kBubblePadding[0], kBubblePadding[1], kBubblePadding[2], kBubblePadding[3]);
+    else
+        wirePropQuad(out, P(padding), 0, 0, 0, 0);
+    if (shown) {
+        wirePut16(out, P(width));
+        wirePut8(out, 0);
+    } else {
+        wirePropString(out, P(width), "fill");
+    }
+    for (uint32_t index = 0; index < state->contentChildCount; index++) putUnsetWidth(out, state->contentChildren[index], !shown);
+}
+
 static void writeBackgroundUpdate(Out *out, const BackgroundState *state, uint32_t color, double radius)
 {
     wirePut8(out, 2);
@@ -376,11 +417,23 @@ static void captureOriginalBackground(const uint8_t *bytes, const Span *creation
     state->hasOriginal = 1;
 }
 
+static void rememberContent(const uint8_t *bytes, const Span *spans, size_t count, BackgroundState *state, int32_t content)
+{
+    state->content = content;
+    const Span *list = wireChildList(bytes, spans, count, content);
+    if (!list) return;
+    state->contentChildCount = 0;
+    for (uint32_t position = 0; position < list->childCount && state->contentChildCount < kBubbleChildren; position++)
+        state->contentChildren[state->contentChildCount++] = wireChildAt(bytes, list, position);
+}
+
 static void wireMessageBackgrounds(const uint8_t *bytes, const Span *spans, size_t count, Out *out, int *changed, size_t length)
 {
     static BackgroundLink links[kBackgroundLinkCapacity];
     static int32_t rowMap[kBackgroundRowMapCapacity];
     static BackgroundRow rows[kBackgroundRowCapacity];
+    static int32_t contents[kBackgroundRowCapacity];
+    size_t contentCount = 0;
     memset(links, 0, sizeof(links));
     memset(rowMap, 0, sizeof(rowMap));
     memset(rows, 0, sizeof(rows));
@@ -393,6 +446,9 @@ static void wireMessageBackgrounds(const uint8_t *bytes, const Span *spans, size
                 backgroundPutLink(links, wireChildAt(bytes, span, position), span->id);
                 linkCount++;
             }
+        } else if (span->op == 1 && wireStringPropertyPrefix(bytes, span, P(accessibilityId), kContentPrefix) &&
+                   contentCount < kBackgroundRowCapacity) {
+            contents[contentCount++] = span->id;
         } else if (span->op == 1 && wireStringProperty(bytes, span, P(accessibilityId), "message-row") &&
                    rowCount < kBackgroundRowCapacity) {
             rows[rowCount].id = span->id;
@@ -406,7 +462,7 @@ static void wireMessageBackgrounds(const uint8_t *bytes, const Span *spans, size
         BackgroundState *state = backgroundState(span->id, 0);
         if (!state || !state->hasOriginal || backgroundWasRemoved(bytes, spans, count, span->id)) continue;
         if (backgroundRowIndex(rows, rowCount, span->id) < rowCount) continue;
-        rows[rowCount] = (BackgroundRow){state->id, state->message, state->user};
+        rows[rowCount] = (BackgroundRow){state->id, state->message, state->user, state->content};
         backgroundPutRow(rowMap, state->id);
         rowCount++;
     }
@@ -421,6 +477,11 @@ static void wireMessageBackgrounds(const uint8_t *bytes, const Span *spans, size
         if (rowIndex == rowCount || (rows[rowIndex].message && !wireCreation(spans, count, id))) continue;
         rows[rowIndex].message = tracked->value;
         rows[rowIndex].user = authorOf(tracked->value);
+    }
+    for (size_t index = 0; index < contentCount; index++) {
+        int32_t id = backgroundRowForNode(links, rowMap, contents[index]);
+        size_t rowIndex = backgroundRowIndex(rows, rowCount, id);
+        if (rowIndex < rowCount) rows[rowIndex].content = contents[index];
     }
     int wroteOriginal = 0;
     for (size_t index = 0; index < rowCount; index++) {
@@ -442,20 +503,29 @@ static void wireMessageBackgrounds(const uint8_t *bytes, const Span *spans, size
             state->channel = astral_wire_current_channel();
         }
         if (!state->hasOriginal) captureOriginalBackground(bytes, creation, state);
+        if (row->content) rememberContent(bytes, spans, count, state, row->content);
         AstralMessageBackgroundContext context = {state->message, state->user, state->channel};
         AstralMessageBackgroundStyle style = {0};
         int result = gMessageBackgroundDecorator ? gMessageBackgroundDecorator(&context, &style) : 0;
         if (result < 0) continue;
         int active = result > 0 && validBackgroundStyle(&style);
+        int bubble = active && style.bubble && state->content;
         uint32_t color = active ? style.color : state->originalColor;
         double radius = active ? style.radius : state->originalRadius;
-        if (active == state->active && (!active || (color == state->appliedColor && radius == state->appliedRadius))) continue;
+        if (active == state->active && bubble == state->bubble &&
+            (!active || (color == state->appliedColor && radius == state->appliedRadius)))
+            continue;
         if (!wroteOriginal && !*changed) {
             wirePut(out, bytes, length);
             wroteOriginal = 1;
         }
         *changed = 1;
-        writeBackgroundUpdate(out, state, color, radius);
+        if (bubble || state->bubble) writeBubbleUpdate(out, state, bubble, color, radius);
+        if (bubble)
+            writeBackgroundUpdate(out, state, state->originalColor, state->originalRadius);
+        else
+            writeBackgroundUpdate(out, state, color, radius);
+        state->bubble = bubble;
         if (active) {
             state->appliedColor = color;
             state->appliedRadius = radius;
