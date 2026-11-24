@@ -9,6 +9,7 @@ id = "astral.chat-bubbles"
 name = "Chat Bubbles"
 version = "0.0.1"
 description = "Adds rounded color cards behind Phoenix message rows."
+icon = "ChatDotsIcon"
 base = "plugins/astral.chat-bubbles/"
 
 [[plugins]]
@@ -16,6 +17,7 @@ id = "astral.clear-urls"
 name = "Clear URLs"
 version = "0.0.1"
 description = "Removes common tracking parameters from links before messages are sent or edited."
+icon = "LinkIcon"
 base = "plugins/astral.clear-urls/"
 
 [[plugins]]
@@ -23,6 +25,7 @@ id = "astral.text-replace"
 name = "Text Replace"
 version = "0.0.1"
 description = "Rewrites outgoing message text with literal or Lua pattern rules."
+icon = "TextIcon"
 base = "plugins/astral.text-replace/"
 
 [[plugins]]
@@ -30,6 +33,7 @@ id = "astral.mention-haptics"
 name = "Mention Haptics"
 version = "0.0.1"
 description = "Taps your phone when a new message mentions you or arrives in a direct message."
+icon = "BellIcon"
 base = "plugins/astral.mention-haptics/"
 
 [[plugins]]
@@ -37,6 +41,7 @@ id = "astral.enhanced-blocking"
 name = "Enhanced Blocking"
 version = "0.0.1"
 description = "Filters incoming messages by user, keyword or reply author before Phoenix handles them."
+icon = "EyeSlashIcon"
 base = "plugins/astral.enhanced-blocking/"
 
 [[plugins]]
@@ -44,6 +49,7 @@ id = "astral.highlight-replies"
 name = "Highlight Replies"
 version = "0.0.1"
 description = "Tints the text of messages that reply to your messages."
+icon = "ArrowAngleLeftUpIcon"
 base = "plugins/astral.highlight-replies/"
 
 [[plugins]]
@@ -51,6 +57,7 @@ id = "astral.translate"
 name = "Translate"
 version = "0.0.1"
 description = "Translates messages with Unbound Translate or Google and MyMemory, then copies the result and shows a toast."
+icon = "LanguageIcon"
 base = "plugins/astral.translate/"
 
 [[plugins]]
@@ -58,6 +65,7 @@ id = "astral.live-markdown"
 name = "Live Markdown"
 version = "0.0.1"
 description = "Styles Discord markdown as you type in the message composer."
+icon = "TextIcon"
 base = "plugins/astral.live-markdown/"
 
 [[plugins]]
@@ -79,6 +87,7 @@ id = "astral.settings-theme"
 name = "Settings Theme"
 version = "0.0.1"
 description = "Shows your theme behind User Settings and every page in it, which Discord leaves plain."
+icon = "PaintPaletteIcon"
 base = "plugins/astral.settings-theme/"
 
 [[plugins]]
@@ -86,6 +95,7 @@ id = "astral.mention-avatars"
 name = "Mention Avatars"
 version = "0.0.1"
 description = "Shows user avatars and role icons inside mentions."
+icon = "UserCircleIcon"
 base = "plugins/astral.mention-avatars/"
 
 [[plugins]]
@@ -93,6 +103,7 @@ id = "astral.role-color-everywhere"
 name = "Role Color Everywhere"
 version = "0.0.1"
 description = "Colors mentions, message text, role headers and names beside avatars with members' role colors."
+icon = "PaintPaletteIcon"
 base = "plugins/astral.role-color-everywhere/"
 
 [[plugins]]
@@ -100,6 +111,7 @@ id = "astral.typing-avatars"
 name = "Typing Avatars"
 version = "0.0.1"
 description = "Shows the avatar of each person typing in front of their name."
+icon = "UserCircleIcon"
 base = "plugins/astral.typing-avatars/"
 
 [[plugins]]
@@ -107,6 +119,7 @@ id = "astral.reaction-avatars"
 name = "Reaction Avatars"
 version = "0.0.1"
 description = "Shows the people who reacted beside each message reaction."
+icon = "ReactionIcon"
 base = "plugins/astral.reaction-avatars/"
 
 [[themes]]

@@ -2,7 +2,7 @@ id = "astral.chat-bubbles"
 name = "Chat Bubbles"
 description = "Adds rounded color cards behind Phoenix message rows."
 version = "0.0.1"
-icon = "ChatBubbleLeftRightIcon"
+icon = "ChatDotsIcon"
 main = "main.lua"
 permissions = ["ui.message_background"]
 
