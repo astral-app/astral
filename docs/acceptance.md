@@ -37,6 +37,15 @@ Results from running astral on real Phoenix builds. Each row names the device, t
 | Plugins page | Author avatars and plugin icons show. Chat Bubbles, Highlight Replies and Translate named icons Phoenix lacks; they now use `ChatDotsIcon`, `ArrowAngleLeftUpIcon` and `LanguageIcon` |
 | Marketplace | The catalog loads; rows show the plugin's icon (installed plugin first, then the catalog's new `icon` field). Open: some two-line subtitles are cut off because the row is sized for fewer lines than Phoenix draws |
 
+## Compatibility scans, 2026-11-24
+
+| Build | Result |
+| --- | --- |
+| Android stable 354012 | No Phoenix engine yet |
+| Android beta 356108 | No Phoenix engine yet |
+| Android alpha 356207 (the AVD) | Supported, 77 / 77 properties |
+| Android alpha 357200 | Supported, 77 / 77 properties, every hook found |
+
 ## Tooling added for acceptance
 
 - `astral vphone open` and `astral avd open` open Discord links (Android takes them as `https://discord.com/…`): `user <id>`, `channel <guild> <channel> [message]`, `dm [channel]`, `settings [section]` or any URL. Settings sections are Phoenix's `settings.row.<name>` ids, such as `account`.
