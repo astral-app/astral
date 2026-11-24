@@ -612,7 +612,6 @@ void installDecorators()
     astral_wire_set_relabeler(AstralLuaRelabel);
     astral_wire_set_mention_decorator(AstralLuaMention);
     astral_wire_set_message_text_colorizer(AstralLuaMessageTextColor);
-    astral_wire_set_author_colorizer(AstralLuaAuthorColor);
     astral_wire_set_name_colorizer(AstralLuaNameColor);
     astral_wire_set_typing_decorator(AstralLuaTyping);
     astral_wire_set_reaction_decorator(AstralLuaReaction);

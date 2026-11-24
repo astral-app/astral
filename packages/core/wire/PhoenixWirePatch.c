@@ -68,6 +68,40 @@ void astral_wire_set_patch_prefixes(const char *const *prefixes, size_t count)
     }
 }
 
+int wirePatchingActive(void)
+{
+    return gPatcher && gPrefixCount;
+}
+
+static size_t keyOffset(const char *identifier)
+{
+    for (size_t index = 0; index < gPrefixCount; index++) {
+        size_t length = strlen(gPrefixes[index]);
+        if (strncmp(identifier, gPrefixes[index], length) == 0) return length;
+    }
+    return 0;
+}
+
+static uint64_t messageOf(const char *identifier)
+{
+    if (strncmp(identifier, "message.", 8) != 0) return 0;
+    const char *colon = strchr(identifier, ':');
+    if (!colon) return 0;
+    uint64_t value = 0;
+    size_t digits = 0;
+    for (const char *cursor = colon + 1; *cursor >= '0' && *cursor <= '9'; cursor++, digits++)
+        value = value * 10 + (uint64_t)(*cursor - '0');
+    return digits >= 15 ? value : 0;
+}
+
+static int callPatcher(const char *identifier, const char *type, AstralNodePatch *patch)
+{
+    uint64_t message = messageOf(identifier);
+    AstralPatchTarget target = {
+        identifier, type, keyOffset(identifier), message, message ? wireMessageAuthor(message) : 0, astral_wire_current_channel()};
+    return gPatcher(&target, patch);
+}
+
 static int readIdentifier(const uint8_t *bytes, const Span *span, char *identifier, char *type)
 {
     Cursor cursor = {bytes, span->end, span->start + 1 + 4, 0};
@@ -239,7 +273,7 @@ static int writePatch(Out *out, Patched *patched, const AstralNodePatch *patch)
 static int evaluate(Out *out, Patched *patched)
 {
     AstralNodePatch patch = {0};
-    if (gPatcher(patched->identifier, patched->type, &patch) < 0) {
+    if (callPatcher(patched->identifier, patched->type, &patch) < 0) {
         wireMarkRefreshBusy();
         return 0;
     }
@@ -267,7 +301,7 @@ void wirePatchNodes(const uint8_t *bytes, const Span *spans, size_t count, Out *
         strcpy(patched->type, type);
         captureOriginals(bytes, span, patched);
         AstralNodePatch patch = {0};
-        if (gPatcher(identifier, type, &patch) <= 0) continue;
+        if (callPatcher(identifier, type, &patch) <= 0) continue;
         if (!*changed) wirePut(out, bytes, length);
         *changed = 1;
         writePatch(out, patched, &patch);

@@ -1,10 +1,10 @@
 id = "astral.irc-colors"
 name = "IRC Colors"
 description = "Gives everyone in chat their own username color, picked from their user id like in IRC clients."
-version = "0.0.1"
+version = "0.0.2"
 icon = "PaintPaletteIcon"
 main = "main.lua"
-permissions = ["discord.guilds", "discord.members"]
+permissions = ["discord.guilds", "discord.members", "ui.patch"]
 
 [[authors]]
 name = "Grzesiek11"
