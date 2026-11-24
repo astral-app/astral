@@ -8,7 +8,7 @@ local dim = astral.settings.number("dim", t("DIM"), {
 	min = 0,
 	max = 90,
 	step = 5,
-	default = 55,
+	default = 0,
 	subtitle = t("DIM_SUBTITLE"),
 })
 

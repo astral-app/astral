@@ -855,7 +855,7 @@ static int SettingsBackdrop(lua_State *state)
         plugin->settingsBackdrop.reset();
     } else {
         luaL_checktype(state, 1, LUA_TTABLE);
-        double dim = FieldNumber(state, 1, "dim", 55);
+        double dim = FieldNumber(state, 1, "dim", 0);
         if (!std::isfinite(dim) || dim < 0 || dim > 90)
             return luaL_error(state, "astral.ui.settings_backdrop: dim is a percentage from 0 to 90");
         plugin->settingsBackdrop = dim / 100;

@@ -11,7 +11,7 @@ static int32_t gAppGradientNode;
 static uint32_t gAppStops[kBackdropStops];
 static size_t gAppStopCount;
 static double gAppAngle = 180;
-static double gBackdropDim = 0.55;
+static double gBackdropDim = 0;
 
 void astral_wire_set_settings_backdrop(int enabled, double dim)
 {
