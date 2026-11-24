@@ -32,6 +32,7 @@ extern "C" {
     X(bgRadius, 98)                                                                                                                        \
     X(borderColor, 104)                                                                                                                    \
     X(borderWidth, 107)                                                                                                                    \
+    X(clip, 123)                                                                                                                           \
     X(changeText, 576)                                                                                                                     \
     X(color, 129)                                                                                                                          \
     X(direction, 147)                                                                                                                      \
@@ -54,6 +55,7 @@ extern "C" {
     X(margin, 287)                                                                                                                         \
     X(maxLines, 293)                                                                                                                       \
     X(maxTrackTint, 295)                                                                                                                   \
+    X(maxWidth, 296)                                                                                                                       \
     X(minTrackTint, 300)                                                                                                                   \
     X(minWidth, 301)                                                                                                                       \
     X(presentation, 373)                                                                                                                   \

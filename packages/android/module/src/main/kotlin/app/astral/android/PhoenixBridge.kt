@@ -10,6 +10,7 @@ import android.net.Uri
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
+import android.os.SystemClock
 import android.view.HapticFeedbackConstants
 import android.text.InputFilter
 import android.text.InputType
@@ -31,6 +32,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 object PhoenixBridge {
     private const val GUEST_HOST = "com.discord.nativeapp.bridge.GuestHost"
     private const val RETRY_INTERVAL_MS = 1000L
+    private const val TWEEN_FRAME_MS = 16L
+    private val tweening = java.util.concurrent.atomic.AtomicBoolean(false)
 
     private const val EVENT_FRAME = 1
     private const val NODE_OFFSET = 2
@@ -79,7 +82,9 @@ object PhoenixBridge {
                 val rewritten = Native.rewrite(ops, length)
                 NavigationBack.refresh()
                 if (rewritten != null) Capture.record(rewritten, rewritten.size)
-                if (rewritten == null) chain.proceed() else chain.proceed(arrayOf<Any>(rewritten, rewritten.size))
+                val result = if (rewritten == null) chain.proceed() else chain.proceed(arrayOf<Any>(rewritten, rewritten.size))
+                scheduleTween()
+                result
             }
         hookEvents(module, type, loader)
         installBackupActions(module, loader)
@@ -572,9 +577,25 @@ object PhoenixBridge {
         }
     }
 
+    private fun scheduleTween() {
+        if (!tweening.compareAndSet(false, true)) return
+        handler.postDelayed(::tweenFrame, TWEEN_FRAME_MS)
+    }
+
+    private fun tweenFrame() {
+        try {
+            val frame = Native.tweenFrame(SystemClock.uptimeMillis().toDouble())
+            if (guestHost != null) frame?.let(::apply)
+        } finally {
+            tweening.set(false)
+            if (runCatching { Native.tweensActive() }.getOrDefault(false)) scheduleTween()
+        }
+    }
+
     private fun retry() {
         try {
             if (guestHost != null) Native.pendingUpdates()?.let(::apply)
+            scheduleTween()
         } finally {
             handler.postDelayed(::retry, RETRY_INTERVAL_MS)
         }

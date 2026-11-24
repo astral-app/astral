@@ -19,6 +19,8 @@ object Native {
     @JvmStatic external fun eval(identifier: String, code: String): String
 
     @JvmStatic external fun pendingUpdates(): ByteArray?
+    @JvmStatic external fun tweensActive(): Boolean
+    @JvmStatic external fun tweenFrame(nowMs: Double): ByteArray?
 
     @JvmStatic external fun press(node: Int): Boolean
     @JvmStatic external fun pressMessageAction(node: Int): Boolean

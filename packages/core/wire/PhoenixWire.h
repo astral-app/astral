@@ -266,6 +266,8 @@ int astral_wire_unsupported_version(void);
 unsigned astral_wire_rewrite_failures(void);
 int astral_settings_rewrite(const uint8_t *bytes, size_t length, AstralWireBuffer *out);
 void astral_wire_buffer_free(AstralWireBuffer *buffer);
+int astral_wire_tweens_active(void);
+int astral_wire_tween_frame(AstralWireBuffer *buffer, double nowMs);
 int astral_page_push(const AstralPageSpec *page, AstralWireBuffer *buffer);
 int astral_page_refresh(const AstralPageSpec *page, AstralWireBuffer *buffer);
 int astral_page_pop(AstralWireBuffer *buffer);

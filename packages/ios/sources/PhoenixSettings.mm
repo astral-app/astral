@@ -217,9 +217,38 @@ static void DisableRewriting(void)
 
 static void Send(AstralWireBuffer *buffer);
 static std::atomic<bool> gRetryScheduled;
+static std::atomic<bool> gTweenScheduled;
+static const int64_t kTweenFrameNs = NSEC_PER_SEC / 60;
+
+static double MonotonicMs(void)
+{
+    struct timespec now;
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    return now.tv_sec * 1000.0 + now.tv_nsec / 1e6;
+}
+
+static void ScheduleTween(void)
+{
+    if (!gQueue || !astral_wire_tweens_active() || gTweenScheduled.exchange(true)) return;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, kTweenFrameNs), gQueue, ^{
+        pthread_mutex_lock(&gLock);
+        AstralWireBuffer buffer = {};
+        bool live = gHostOriginal && gHostContext && !astral_wire_unsupported_version() && !gRewriteDisabled.load();
+        if (astral_wire_tween_frame(&buffer, MonotonicMs())) {
+            if (live)
+                Send(&buffer);
+            else
+                astral_wire_buffer_free(&buffer);
+        }
+        pthread_mutex_unlock(&gLock);
+        gTweenScheduled = false;
+        ScheduleTween();
+    });
+}
 
 static void ScheduleRetry(void)
 {
+    ScheduleTween();
     if (!gQueue || !(astral_wire_pending_mentions() || astral_wire_pending_reactions()) || gRetryScheduled.exchange(true)) return;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC), gQueue, ^{
         pthread_mutex_lock(&gLock);

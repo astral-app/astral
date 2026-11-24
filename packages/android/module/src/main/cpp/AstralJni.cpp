@@ -1180,6 +1180,23 @@ ASTRAL_EXPORT JNIEXPORT jbyteArray JNICALL Java_app_astral_android_Native_pendin
     return bytesOf(env, pendingUpdates());
 }
 
+ASTRAL_EXPORT JNIEXPORT jboolean JNICALL Java_app_astral_android_Native_tweensActive(JNIEnv *, jclass)
+{
+    std::lock_guard<std::mutex> lock(gWireLock);
+    return astral_wire_tweens_active() ? JNI_TRUE : JNI_FALSE;
+}
+
+ASTRAL_EXPORT JNIEXPORT jbyteArray JNICALL Java_app_astral_android_Native_tweenFrame(JNIEnv *env, jclass, jdouble nowMs)
+{
+    std::vector<uint8_t> bytes;
+    {
+        std::lock_guard<std::mutex> lock(gWireLock);
+        AstralWireBuffer buffer;
+        if (astral_wire_tween_frame(&buffer, nowMs)) append(bytes, buffer);
+    }
+    return bytesOf(env, bytes);
+}
+
 ASTRAL_EXPORT JNIEXPORT jboolean JNICALL Java_app_astral_android_Native_slide(JNIEnv *env, jclass, jint node, jbyteArray payload)
 {
     if (!payload) return JNI_FALSE;
