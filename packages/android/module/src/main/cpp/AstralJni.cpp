@@ -21,6 +21,7 @@
 #include "AstralAndroidBackup.h"
 #include "AstralAndroidMarketplace.h"
 #include "AstralExitRecord.h"
+#include "AstralPluginTrace.h"
 #include "AstralLaunchGuard.h"
 #include "AstralDiscordCache.h"
 #include "AstralFiles.h"
@@ -187,7 +188,7 @@ nlohmann::json readReports()
 void saveReports(const nlohmann::json &reports)
 {
     astral::createDirectories(std::filesystem::path(gReportsPath).parent_path().string());
-    if (!astral::writeTextFileAtomically(gReportsPath, reports.dump()))
+    if (!astral::writeTextFileAtomically(gReportsPath, reports.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace)))
         __android_log_print(ANDROID_LOG_ERROR, "astral", "failed to persist plugin reports");
 }
 
@@ -260,13 +261,20 @@ void recordProcessExitReport(const std::string &kind, int64_t timestamp, int rea
     });
     if (exists) return;
     std::string title = kind == "hang" ? "Discord stopped responding" : "Discord process crashed";
-    reports.insert(reports.begin(), {{"schema", 2},
-                                     {"kind", kind},
-                                     {"title", title},
-                                     {"detail", detail},
-                                     {"reason", reason},
-                                     {"environment", reportEnvironment()},
-                                     {"time", timestamp}});
+    nlohmann::json report = {
+        {"schema", 2}, {"kind", kind}, {"detail", detail}, {"reason", reason}, {"environment", reportEnvironment()}, {"time", timestamp}};
+    auto session = astral::trace::previous();
+    if (session && session->started > 0 && timestamp >= session->started) {
+        nlohmann::json plugins = nlohmann::json::array();
+        for (const auto &plugin : session->running) plugins.push_back(astral::sanitizeDiagnosticText(plugin));
+        report["environment"]["plugins"] = std::move(plugins);
+        if (!session->active.empty()) {
+            report["plugin"] = astral::sanitizeDiagnosticText(session->active);
+            title += kind == "hang" ? " while " + session->active + " was running" : " in " + session->active;
+        }
+    }
+    report["title"] = title;
+    reports.insert(reports.begin(), std::move(report));
     if (reports.size() > 20) reports.erase(reports.begin() + 20, reports.end());
     saveReports(reports);
 }
@@ -1034,6 +1042,7 @@ ASTRAL_EXPORT JNIEXPORT jint JNICALL Java_app_astral_android_Native_initialize(J
     std::error_code error;
     std::filesystem::create_directories(state + "/plugins", error);
     auto previousExit = astral::ExitRecord(state).take(false);
+    astral::trace::open(state, static_cast<int64_t>(time(nullptr)));
     auto launch = astral::LaunchGuard(state).begin(previousExit);
     gRecovering = launch.enterRecovery;
     astral::discord::setDataDirectory(data + "/files");
@@ -1339,7 +1348,7 @@ ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_emitEvent(JN
 ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_recordExitReport(JNIEnv *env, jclass, jstring kind, jlong timestamp,
                                                                                      jint reason, jstring description, jstring trace)
 {
-    recordProcessExitReport(plain(env, kind), timestamp, reason, plain(env, description), plain(env, trace));
+    recordProcessExitReport(plain(env, kind), timestamp, reason, fromJava(env, description), fromJava(env, trace));
 }
 
 ASTRAL_EXPORT JNIEXPORT jstring JNICALL Java_app_astral_android_Native_exportBackup(JNIEnv *env, jclass)

@@ -161,6 +161,23 @@ void AstralRecordPluginFailure(NSString *pluginID, NSString *pluginName, NSStrin
     AddReport(report);
 }
 
+void AstralRecordUnexpectedExit(NSString *pluginID, NSArray<NSString *> *running)
+{
+    NSMutableDictionary *environment = [Environment() mutableCopy];
+    environment[@"plugins"] = running;
+    AddReport(@{
+        @"schema" : @2,
+        @"kind" : @"crash",
+        @"time" : @(NSDate.date.timeIntervalSince1970),
+        @"id" : pluginID,
+        @"plugin" : pluginID,
+        @"title" : [NSString stringWithFormat:@"Discord closed while %@ was running", pluginID],
+        @"detail" : @"Discord ended unexpectedly during a call into this plugin.",
+        @"fingerprint" : Fingerprint([@"exit:" stringByAppendingString:pluginID]),
+        @"environment" : environment,
+    });
+}
+
 static void RecordDiagnostics(NSData *json)
 {
     if (!json.length) return;

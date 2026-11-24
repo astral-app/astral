@@ -32,6 +32,7 @@ object NavigationBack {
             active = WeakReference(activity)
             refresh()
             if (activity.javaClass.name == MAIN_ACTIVITY) {
+                ExitDiagnostics.record(activity)
                 Native.markVisible()
                 main.removeCallbacks(markHealthy)
                 main.postDelayed(markHealthy, HEALTHY_LAUNCH_DELAY_MS)
