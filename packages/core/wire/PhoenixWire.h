@@ -147,10 +147,13 @@ typedef struct {
     uint64_t channel_id;
 } AstralMessageBackgroundContext;
 
+typedef enum { AstralReplyAbove = 0, AstralReplyBubble = 1, AstralReplyInside = 2 } AstralReplyStyle;
+
 typedef struct {
     uint32_t color;
     double radius;
     int bubble;
+    int reply;
 } AstralMessageBackgroundStyle;
 
 typedef int (*AstralMessageBackgroundDecorator)(const AstralMessageBackgroundContext *context, AstralMessageBackgroundStyle *style);

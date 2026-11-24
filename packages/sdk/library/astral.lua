@@ -408,6 +408,7 @@ function astral.ui.message_color(colorizer) end
 ---@field color astral.Color|integer|string
 ---@field radius? number
 ---@field bubble? boolean
+---@field reply? "above"|"bubble"|"inside"
 ---@param decorator fun(node: astral.Node): astral.MessageBackgroundStyle?
 function astral.ui.message_background(decorator) end
 ---@param colorizer fun(node: astral.Node): astral.Color|integer|string|nil

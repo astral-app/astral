@@ -551,6 +551,7 @@ function astral.ui.message_background(decorator)
 			color = astral.Color.from(style.color).value,
 			radius = style.radius or 0,
 			bubble = style.bubble == true,
+			reply = style.reply,
 		}
 	end)
 end
