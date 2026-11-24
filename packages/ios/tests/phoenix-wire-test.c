@@ -590,6 +590,34 @@ static void trackerOverflowTest(void)
     assert(astral_wire_colors_dropped() == 0);
 }
 
+static void listRowTest(void)
+{
+    AstralWireBuffer out;
+    Batch batch = {.length = 0};
+    b8(&batch, 1);
+    create(&batch, 1500, "list", 1);
+    b16(&batch, 194);
+    b8(&batch, 3);
+    b32(&batch, 2);
+    create(&batch, 1501, "view", 1);
+    b16(&batch, 9);
+    b8(&batch, 6);
+    bstr(&batch, "message-row");
+    create(&batch, 1502, "text", 1);
+    b16(&batch, 9);
+    b8(&batch, 6);
+    bstr(&batch, "message.content:100000000000000009");
+    create(&batch, 1503, "view", 0);
+    children(&batch, 1501, 1, (int[]){1502});
+    children(&batch, 1500, 2, (int[]){1503, 1501});
+    if (astral_settings_rewrite(batch.bytes, batch.length, &out)) astral_wire_buffer_free(&out);
+    assert(astral_wire_message_for_row(1500, 3) == 100000000000000009ull);
+    assert(astral_wire_message_for_row(1500, 2) == 0);
+    assert(astral_wire_message_for_row(1500, 1) == 0);
+    assert(astral_wire_message_for_row(1500, 4) == 0);
+    assert(astral_wire_message_for_node(1502) == 100000000000000009ull);
+}
+
 static void fadeOverlayTest(void)
 {
     AstralWireBuffer out;
@@ -686,6 +714,7 @@ int main(void)
     surfaceTintTest();
     liveThemeTest();
     trackerOverflowTest();
+    listRowTest();
     fadeOverlayTest();
     tintTest();
     Batch batch;

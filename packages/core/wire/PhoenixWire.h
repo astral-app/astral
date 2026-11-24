@@ -247,6 +247,7 @@ typedef int (*AstralMessageTextProvider)(uint64_t message_id, char *text, size_t
 void astral_wire_set_message_text_provider(AstralMessageTextProvider provider);
 int astral_wire_refresh_message_texts(AstralWireBuffer *buffer);
 uint64_t astral_wire_message_for_node(int32_t node);
+uint64_t astral_wire_message_for_row(int32_t list, int64_t index);
 void astral_wire_note_identifiers(const uint8_t *bytes, size_t length);
 int astral_wire_identifier(int32_t id, char *out, size_t capacity);
 int astral_wire_event_value(const uint8_t *bytes, size_t length, double *value);

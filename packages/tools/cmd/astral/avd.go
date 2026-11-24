@@ -29,7 +29,7 @@ const avdUsage = `usage: astral avd <command>
 
 const (
 	discordPackage    = "com.discord"
-	discordActivity   = "com.discord.nativeapp.MainActivity"
+	discordActivity   = "nativeapp.MainActivity"
 	vectorCLI         = "sh /data/adb/modules/zygisk_vector/cli"
 	astralModuleID    = "app.astral.android"
 	phoenixPreference = "/data/data/com.discord/shared_prefs/discord_fat_client.xml"
@@ -447,8 +447,15 @@ func avdLogs(args []string) error {
 	return nil
 }
 
+func androidLink(link string) string {
+	if strings.HasPrefix(link, "discord://-/") {
+		return "https://discord.com/" + strings.TrimPrefix(link, "discord://-/")
+	}
+	return link
+}
+
 func avdOpen(link string) error {
-	if err := avdShell("shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", link, discordPackage); err != nil {
+	if err := avdShell("shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", androidLink(link), discordPackage); err != nil {
 		return err
 	}
 	time.Sleep(3 * time.Second)

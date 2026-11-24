@@ -1109,11 +1109,34 @@ ASTRAL_EXPORT JNIEXPORT jboolean JNICALL Java_app_astral_android_Native_press(JN
         std::lock_guard<std::mutex> lock(gWireLock);
         if (!astral_wire_identifier(node, identifier, sizeof(identifier))) return JNI_FALSE;
     }
-    if (astral::navigator::handles(identifier)) {
-        astral::navigator::tap(identifier);
-        return JNI_TRUE;
+    if (!astral::navigator::handles(identifier)) return JNI_FALSE;
+    astral::navigator::tap(identifier);
+    return JNI_TRUE;
+}
+
+ASTRAL_EXPORT JNIEXPORT jboolean JNICALL Java_app_astral_android_Native_pressMessageAction(JNIEnv *, jclass, jint node)
+{
+    char identifier[128];
+    {
+        std::lock_guard<std::mutex> lock(gWireLock);
+        if (!astral_wire_identifier(node, identifier, sizeof(identifier))) {
+            return JNI_FALSE;
+        }
     }
-    return astral::luahost::pressMessageAction(identifier) ? JNI_TRUE : JNI_FALSE;
+    bool pressed = astral::luahost::pressMessageAction(identifier);
+    return pressed ? JNI_TRUE : JNI_FALSE;
+}
+
+ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_touchMessage(JNIEnv *, jclass, jint node, jlong row)
+{
+    uint64_t message = 0;
+    uint64_t channel = 0;
+    {
+        std::lock_guard<std::mutex> lock(gWireLock);
+        message = row >= 0 ? astral_wire_message_for_row(node, row) : astral_wire_message_for_node(node);
+        channel = astral_wire_current_channel();
+    }
+    if (message) astral::luahost::setMenuMessage(channel, message);
 }
 
 ASTRAL_EXPORT JNIEXPORT jbyteArray JNICALL Java_app_astral_android_Native_pendingUpdates(JNIEnv *env, jclass)

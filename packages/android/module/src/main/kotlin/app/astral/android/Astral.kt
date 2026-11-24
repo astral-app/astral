@@ -92,6 +92,8 @@ class Astral : XposedModule() {
         runCatching { ResourceImages.install(this, param.applicationInfo, resources) }.onFailure { Log.error("Failed to install astral's images", it) }
         PhoenixBridge.pressEvent = names?.indexOf("press") ?: -1
         PhoenixBridge.changeEvent = names?.indexOf("change") ?: -1
+        PhoenixBridge.rowPressDownEvent = names?.indexOf("rowPressDown") ?: -1
+        PhoenixBridge.indexProperty = names?.indexOf("index") ?: -1
         Capture.configure(param.applicationInfo.dataDir)
         PhoenixBridge.install(this, param.classLoader)
         runCatching { EmojiComposer.install(this, param.classLoader) }.onFailure { Log.error("Failed to install emoji composer support", it) }

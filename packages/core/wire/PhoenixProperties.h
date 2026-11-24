@@ -33,6 +33,7 @@ extern "C" {
     X(borderWidth, 107)                                                                                                                    \
     X(color, 129)                                                                                                                          \
     X(direction, 147)                                                                                                                      \
+    X(first, 194)                                                                                                                          \
     X(flex, 198)                                                                                                                           \
     X(focusBorderColor, 201)                                                                                                               \
     X(fontSize, 207)                                                                                                                       \

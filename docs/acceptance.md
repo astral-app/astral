@@ -23,8 +23,18 @@ Results from running astral on real Phoenix builds. Each row names the device, t
 | Chat Bubbles | The rewriter writes the row background and radius (seen in captured output), but iOS does not draw it; open |
 | Plugin settings writes | `astral.settings.set` now updates `astral.settings.values` and calls change listeners |
 
+## Android: AVD, Discord Phoenix, LSPosed module
+
+| Area | Result |
+| --- | --- |
+| Plugin host | All 15 bundled plugins start; Phoenix stays the client across relaunches |
+| Telemetry filter | `/api/v9/science` requests are blocked |
+| Display cutout | The logo was drawn over Android's padded cutout rectangle, larger than the hole; it now follows the cutout path, so it hides behind the camera and only shows in screenshots |
+| Plugin message actions | Long presses arrive on the message list as `rowPressDown` with a data index; astral tracks each list's rendered window (`first` plus children) to find the message. Rows look like Discord's; a tap closes the sheet through the activity's back handling |
+| Translate | Same as iOS: in place with a "(translated)" note, restored on a second tap |
+
 ## Tooling added for acceptance
 
-- `astral vphone open` and `astral avd open` open Discord links: `user <id>`, `channel <guild> <channel> [message]`, `dm [channel]`, `settings [section]` or any URL. Settings sections are Phoenix's `settings.row.<name>` ids, such as `account`.
+- `astral vphone open` and `astral avd open` open Discord links (Android takes them as `https://discord.com/…`): `user <id>`, `channel <guild> <channel> [message]`, `dm [channel]`, `settings [section]` or any URL. Settings sections are Phoenix's `settings.row.<name>` ids, such as `account`.
 - `astral vphone capture` also saves astral's rewritten batches as `NNNN.bin.out` beside each original.
 - `astral avd` boots, deploys, opens, taps by text or id, and reads logs on the Android emulator.

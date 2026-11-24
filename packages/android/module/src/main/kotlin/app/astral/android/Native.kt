@@ -21,6 +21,8 @@ object Native {
     @JvmStatic external fun pendingUpdates(): ByteArray?
 
     @JvmStatic external fun press(node: Int): Boolean
+    @JvmStatic external fun pressMessageAction(node: Int): Boolean
+    @JvmStatic external fun touchMessage(node: Int, row: Long)
     @JvmStatic external fun slide(node: Int, payload: ByteArray): Boolean
     @JvmStatic external fun back(): Boolean
     @JvmStatic external fun pageOpen(): Boolean

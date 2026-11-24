@@ -4,10 +4,13 @@ import android.app.Activity
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Rect
+import android.graphics.RectF
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.view.DisplayCutout
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
@@ -51,7 +54,8 @@ object CutoutOverlay {
     private fun show(activity: Activity) {
         if (active.get() !== activity || activity.isFinishing || Build.VERSION.SDK_INT < 28) return
         val decor = activity.window.decorView as? ViewGroup ?: return
-        val rect = decor.rootWindowInsets?.displayCutout?.boundingRects?.firstOrNull { it.width() > 0 && it.height() > 0 } ?: return
+        val cutout = decor.rootWindowInsets?.displayCutout ?: return
+        val rect = cutoutShape(cutout) ?: cutout.boundingRects.firstOrNull { it.width() > 0 && it.height() > 0 } ?: return
         val width = rect.width().toFloat()
         val height = rect.height().toFloat()
         val island = width > height && rect.top > 0
@@ -73,7 +77,8 @@ object CutoutOverlay {
             root.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
             root.background = GradientDrawable().apply {
                 setColor(Color.BLACK)
-                cornerRadii = floatArrayOf(0f, 0f, 0f, 0f, corner, corner, corner, corner)
+                val top = if (rect.top <= 0) 0f else corner
+                cornerRadii = floatArrayOf(top, top, top, top, corner, corner, corner, corner)
             }
             val bitmap = readLogo(logoWidth.toInt().coerceAtLeast(1), (logoWidth / LOGO_ASPECT).toInt().coerceAtLeast(1)) ?: return
             val image = ImageView(activity).apply {
@@ -103,6 +108,16 @@ object CutoutOverlay {
         current.bringToFront()
         current.animate().cancel()
         current.animate().alpha(1f).setDuration(REVEAL_MS).start()
+    }
+
+    private fun cutoutShape(cutout: DisplayCutout): Rect? {
+        if (Build.VERSION.SDK_INT < 31) return null
+        val path = cutout.cutoutPath ?: return null
+        val bounds = RectF()
+        path.computeBounds(bounds, true)
+        val shape = Rect()
+        bounds.roundOut(shape)
+        return shape.takeIf { it.width() > 0 && it.height() > 0 }
     }
 
     private fun readLogo(width: Int, height: Int): Bitmap? = runCatching {
