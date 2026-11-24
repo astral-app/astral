@@ -4,7 +4,15 @@
 #include <stdlib.h>
 #include <string.h>
 
-enum { kMessageNodeCapacity = 32768, kMaxMenuEntries = 12, kMaxSubtree = 256, kMaxGroupChildren = 64, kMaxLists = 16, kMaxListRows = 512 };
+enum {
+    kLabelDepth = 4,
+    kMessageNodeCapacity = 32768,
+    kMaxMenuEntries = 12,
+    kMaxSubtree = 256,
+    kMaxGroupChildren = 64,
+    kMaxLists = 16,
+    kMaxListRows = 512
+};
 
 static const int32_t kFirstMenuId = 0x7d000000;
 static const char kActionPrefix[] = "message.actions.";
@@ -233,7 +241,8 @@ static int32_t buildRow(Out *out, const uint8_t *bytes, const Span *spans, size_
     int32_t content = rowList && rowList->childCount ? wireChildAt(bytes, rowList, 0) : 0;
     const Span *contentList = content ? wireChildList(bytes, spans, count, content) : NULL;
     if (!contentList || contentList->childCount < 2) return 0;
-    int32_t icon = wireChildAt(bytes, contentList, 0), label = wireChildAt(bytes, contentList, 1);
+    int32_t icon = wireChildAt(bytes, contentList, 0);
+    int32_t label = wireFirstOfType(bytes, spans, count, wireChildAt(bytes, contentList, 1), "text", kLabelDepth);
     Change rowChanges[] = {{P(accessibilityId), kString, entry->action_id, 0},
                            {P(accessibilityLabel), kString, entry->label, 0},
                            first ? (Change){P(radiusTopLeft), kNumber, NULL, 12} : (Change){P(radiusTopLeft), kDrop, NULL, 0},
