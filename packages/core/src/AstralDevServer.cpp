@@ -8,7 +8,9 @@
 #include <fstream>
 #include <mutex>
 #include <netinet/in.h>
+#include <optional>
 #include <random>
+#include <set>
 #include <sys/socket.h>
 #include <cerrno>
 #include <thread>
@@ -23,6 +25,28 @@ namespace {
 
 constexpr uint16_t kPort = 9324;
 constexpr std::chrono::milliseconds kRelistenDelay{500};
+constexpr size_t kMaxAssetBytes = 384u << 10;
+const std::set<std::string> kAssetExtensions = {".mp3", ".m4a", ".wav", ".caf", ".aac"};
+
+std::optional<std::string> decodeBase64(const std::string &text)
+{
+    static const std::string alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    std::string bytes;
+    uint32_t buffer = 0;
+    int bits = 0;
+    for (char character : text) {
+        if (character == '=') break;
+        size_t value = alphabet.find(character);
+        if (value == std::string::npos) return std::nullopt;
+        buffer = (buffer << 6) | static_cast<uint32_t>(value);
+        bits += 6;
+        if (bits >= 8) {
+            bits -= 8;
+            bytes.push_back(static_cast<char>((buffer >> bits) & 0xFF));
+        }
+    }
+    return bytes;
+}
 constexpr size_t kMaxLog = 500;
 constexpr size_t kMaxRequest = 512u << 10;
 constexpr const char *kPairingAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -147,6 +171,16 @@ Response putPlugin(const Request &request)
             bool translation = path.rfind("i18n/", 0) == 0 && extension == ".toml";
             if (!module.value().is_string() || !(extension == ".lua" || translation) || !safeRelative(path)) continue;
             writeFile(directory / path, module.value().get<std::string>());
+        }
+    }
+    if (body.contains("assets") && body["assets"].is_object()) {
+        for (auto asset = body["assets"].begin(); asset != body["assets"].end(); ++asset) {
+            const std::string &path = asset.key();
+            std::string extension = std::filesystem::path(path).extension().string();
+            if (!asset.value().is_string() || !kAssetExtensions.count(extension) || !safeRelative(path)) continue;
+            auto bytes = decodeBase64(asset.value().get<std::string>());
+            if (!bytes || bytes->size() > kMaxAssetBytes) continue;
+            writeFile(directory / path, *bytes);
         }
     }
     std::error_code error;

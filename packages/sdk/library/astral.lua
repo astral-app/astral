@@ -339,6 +339,17 @@ astral.i18n.locale = ""
 ---@return string
 function astral.i18n.t(key) end
 
+astral.audio = {}
+---@param text string
+---@param options? { language: string?, rate: number? }
+---@return boolean
+function astral.audio.speak(text, options) end
+---@param file string
+---@param options? { volume: number? }
+---@return boolean
+function astral.audio.play(file, options) end
+function astral.audio.stop() end
+
 astral.time = {}
 function astral.time.now_ms() end
 ---@param delay_ms integer
