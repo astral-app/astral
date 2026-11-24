@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+enum { kTitleDepth = 4 };
+
 static const char kAnchor[] = "settings.row.account";
 
 enum { kMaxCategoryNodes = 128, kMaxCategoryRows = 8, kCategoryText = 96 };
@@ -169,11 +171,11 @@ static int32_t categoryRow(Out *out, const uint8_t *bytes, const Span *spans, si
                            first ? (Change){P(radiusTopLeft), kNumber, NULL, 12} : (Change){P(radiusTopLeft), kDrop, NULL, 0},
                            first ? (Change){P(radiusTopRight), kNumber, NULL, 12} : (Change){P(radiusTopRight), kDrop, NULL, 0}};
     Change iconChange = {P(uri), kString, gCategoryRows[index].icon, 0};
-    Change titleChange = {P(text), kString, gCategoryRows[index].title, 0};
+    Change titleChanges[] = {{P(text), kString, gCategoryRows[index].title, 0}, {P(flex), kNumber, NULL, 1}};
     int32_t row = categoryNode(out, bytes, spans, count, source[0], rowChanges, sizeof(rowChanges) / sizeof(*rowChanges));
     int32_t content = categoryNode(out, bytes, spans, count, source[1], NULL, 0);
     int32_t icon = categoryNode(out, bytes, spans, count, source[2], &iconChange, 1);
-    int32_t title = categoryNode(out, bytes, spans, count, source[3], &titleChange, 1);
+    int32_t title = categoryNode(out, bytes, spans, count, source[3], titleChanges, 2);
     int32_t trailing = categoryNode(out, bytes, spans, count, source[4], NULL, 0);
     int32_t chevron = categoryNode(out, bytes, spans, count, source[5], NULL, 0);
     wirePutChildren(out, row, (int32_t[]){content}, 1);
@@ -201,7 +203,7 @@ static int createCategory(Out *out, const uint8_t *bytes, const Span *spans, siz
     int32_t source[6] = {row->id,
                          content,
                          wireChild(bytes, contentChildren, 0),
-                         wireChild(bytes, contentChildren, 1),
+                         wireFirstOfType(bytes, spans, count, wireChild(bytes, contentChildren, 1), "text", kTitleDepth),
                          trailing,
                          wireChild(bytes, trailingChildren, 0)};
     int32_t separator = cardChildren->childCount > 1 ? wireChild(bytes, cardChildren, 1) : 0;
@@ -322,8 +324,6 @@ typedef struct {
 static Page gPages[kMaxPages];
 static uint32_t gDepth;
 static Page *gPage = &gPages[0];
-
-enum { kTitleDepth = 4 };
 
 static int32_t firstChild(const uint8_t *bytes, const Span *spans, size_t count, int32_t id, uint32_t position)
 {
