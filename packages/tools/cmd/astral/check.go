@@ -57,6 +57,9 @@ func checkRules() []checkRule {
 		}, func(files []string, _ string) error {
 			return run(repoPath(), "luacheck", append([]string{"--quiet"}, files...)...)
 		}},
+		{"lua casing", func(path string) bool {
+			return isLua(path) && under(path, "packages/addons/plugins/", "packages/core/lua/", "packages/sdk/")
+		}, func(files []string, _ string) error { return checkLuaCasing(files) }},
 		{"lua types", func(path string) bool { return isLua(path) || path == ".luarc.json" },
 			func(_ []string, _ string) error { return typecheckLua() }},
 		{"taplo", func(path string) bool { return filepath.Ext(path) == ".toml" }, func(files []string, _ string) error {
@@ -139,5 +142,5 @@ func affectedChecks(rules []checkRule, changed []string) []plannedCheck {
 }
 
 func fileScoped(name string) bool {
-	return name == "clang-format" || name == "gofmt" || name == "stylua" || name == "luacheck" || name == "taplo"
+	return name == "clang-format" || name == "gofmt" || name == "stylua" || name == "luacheck" || name == "lua casing" || name == "taplo"
 }

@@ -1,6 +1,6 @@
-signature = "Ea4pbDSq9RxzwPJgkB4SiK1ggY83RPRCOJHPW/yzVSP3ue7veegM6cxRaS6L8I8/OuGmbAarhS2JRyw1AOxHDg=="
+signature = "ll5sS4jwaPdCZaIBClGn7NUYfkqGLOLcd71KbQFDV6uFXN0Al3clZuoU5FSdMqf/NjsZWX4yBk423tMybKsaBA=="
 
 [files]
 "lib/languages.lua" = "a98ecc8fb7a597126a088c9d7f614d721bf3f50692a3f4611399df5a40a20e08"
-"main.lua" = "a4db9391cb83b2d0b170123401138f6032377afe76fbdd9cd727b76867dd0380"
+"main.lua" = "d882acdc880ea4b7335d144d63f89f6c297f7a8c17b2bde64d940a0baea423ae"
 "manifest.toml" = "cadcb67fb1f911f03b4364901345e46b5d211e4f3534121d58be5dfbc61b2a88"

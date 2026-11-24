@@ -14,8 +14,8 @@ astral.settings.switch("onlyInDms", t("ONLY_IN_DMS"), false, { subtitle = t("ONL
 
 local colors = {}
 
-local function hue(userId, seed)
-	return xxhash64.unsigned_modulo(xxhash64.hash(userId .. seed), 360)
+local function hue(user_id, seed)
+	return xxhash64.unsigned_modulo(xxhash64.hash(user_id .. seed), 360)
 end
 
 local function channel(lightness, saturation, offset, degrees)
@@ -25,16 +25,16 @@ local function channel(lightness, saturation, offset, degrees)
 	return math.floor(255 * (l - chroma * math.max(-1, math.min(k - 3, 9 - k, 1))) + 0.5)
 end
 
-local function userColor(userId)
+local function user_color(user_id)
 	local values = astral.settings.values
 	local seed = values.seed or ""
 	local lightness = values.lightness or 70
 	local saturation = values.saturation or 100
-	local key = table.concat({ userId, seed, lightness, saturation }, ":")
+	local key = table.concat({ user_id, seed, lightness, saturation }, ":")
 	if colors[key] then
 		return colors[key]
 	end
-	local degrees = hue(userId, seed)
+	local degrees = hue(user_id, seed)
 	local rgb = channel(lightness, saturation, 0, degrees) << 16
 		| channel(lightness, saturation, 8, degrees) << 8
 		| channel(lightness, saturation, 4, degrees)
@@ -42,9 +42,9 @@ local function userColor(userId)
 	return colors[key]
 end
 
-local function hasRoleColor(guildId, userId)
-	local guild = astral.discord.guild(guildId)
-	local member = astral.discord.member(guildId, userId)
+local function has_role_color(guild_id, user_id)
+	local guild = astral.discord.guild(guild_id)
+	local member = astral.discord.member(guild_id, user_id)
 	if not guild or not guild.roles or not member then
 		return false
 	end
@@ -65,8 +65,8 @@ astral.ui.author_color(function(node)
 	if node.guild_id and values.onlyInDms then
 		return nil
 	end
-	if node.guild_id and values.onlyWithoutColor and hasRoleColor(node.guild_id, node.author_id) then
+	if node.guild_id and values.onlyWithoutColor and has_role_color(node.guild_id, node.author_id) then
 		return nil
 	end
-	return userColor(node.author_id)
+	return user_color(node.author_id)
 end)

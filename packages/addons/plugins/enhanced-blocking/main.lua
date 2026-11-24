@@ -12,18 +12,18 @@ settings:text("keywords", "Hidden keywords", "", {
 })
 settings:switch("replies", "Hide replies", true, "Also hide replies to listed users.")
 
-local cachedUsers
-local cachedKeywords
-local hiddenUsers = {}
+local cached_users
+local cached_keywords
+local hidden_users = {}
 local keywords = {}
 
-local function lines(value, maximumCount, maximumLength)
+local function lines(value, maximum_count, maximum_length)
 	local result = {}
 	for line in (value .. "\n"):gmatch("(.-)\n") do
 		line = line:gsub("\r", ""):match("^%s*(.-)%s*$")
-		if line ~= "" and #line <= maximumLength then
+		if line ~= "" and #line <= maximum_length then
 			result[#result + 1] = line
-			if #result >= maximumCount then
+			if #result >= maximum_count then
 				break
 			end
 		end
@@ -31,29 +31,29 @@ local function lines(value, maximumCount, maximumLength)
 	return result
 end
 
-local function refreshRules()
+local function refresh_rules()
 	local users = astral.settings.values.users or ""
 	local words = astral.settings.values.keywords or ""
-	if users ~= cachedUsers then
-		cachedUsers = users
-		hiddenUsers = {}
+	if users ~= cached_users then
+		cached_users = users
+		hidden_users = {}
 		for _, id in ipairs(lines(users, 400, 20)) do
 			if #id >= 15 and #id <= 20 and id:match("^%d+$") then
-				hiddenUsers[id] = true
+				hidden_users[id] = true
 			end
 		end
 	end
-	if words ~= cachedKeywords then
-		cachedKeywords = words
+	if words ~= cached_keywords then
+		cached_keywords = words
 		keywords = lines(words, 64, 128)
 	end
 end
 
-local function hiddenUser(id)
-	return type(id) == "string" and hiddenUsers[id] == true
+local function hidden_user(id)
+	return type(id) == "string" and hidden_users[id] == true
 end
 
-local function hidesContent(content)
+local function hides_content(content)
 	local normalized = content:lower()
 	for _, keyword in ipairs(keywords) do
 		if normalized:find(keyword:lower(), 1, true) then
@@ -67,9 +67,9 @@ astral.events.on("message.filter", function(message)
 	if not message or message.from_me then
 		return false
 	end
-	refreshRules()
-	if hiddenUser(message.author_id) or hidesContent(message.content or "") then
+	refresh_rules()
+	if hidden_user(message.author_id) or hides_content(message.content or "") then
 		return true
 	end
-	return astral.settings.values.replies and hiddenUser(message.referenced_author_id) or false
+	return astral.settings.values.replies and hidden_user(message.referenced_author_id) or false
 end)

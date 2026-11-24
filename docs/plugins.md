@@ -14,6 +14,12 @@ A manifest's `iconSvg` carries the plugin's icon, as Unbound's catalog does; ast
 
 Cards show each author's avatar the way Unbound does: Discord's local user cache first, then a `GET /users/{id}` with the signed-in session, cached in `Documents/astral/authors.json` for a week, then Discord's default avatar by the author's position.
 
+## Naming
+
+Locals, parameters, functions and fields are `snake_case`, and constants are `UPPER_SNAKE`. `PascalCase` is only for classes and enums, and for their members (`astral.Color.Blurple`, `astral.MessageType.Reply`). `astral check` enforces this.
+
+Plugin settings take an optional `icon` (a Discord icon name such as `PaintPaletteIcon`, or a `res://` URI); rows without one show no icon. `astral.settings.color` stores `#RRGGBB` or `#AARRGGBB`, or an empty string for automatic, and opens a swatch page with a hex field.
+
 ## Package
 
 ```

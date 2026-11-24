@@ -23,30 +23,30 @@ astral.settings.switch("typingUsers", t("TYPING_NAMES"), true, { subtitle = t("T
 astral.settings.switch("pollResults", t("POLL_VOTERS"), true, { subtitle = t("POLL_VOTERS_SUBTITLE") })
 astral.settings.switch("avatarNames", t("AVATAR_NAMES"), true, { subtitle = t("AVATAR_NAMES_SUBTITLE") })
 
-local function roleColor(guild, roleIds)
+local function role_color(guild, role_ids)
 	if not guild or not guild.roles then
 		return nil
 	end
-	local best, bestPosition = nil, -1
-	for _, id in ipairs(roleIds or {}) do
+	local best, best_position = nil, -1
+	for _, id in ipairs(role_ids or {}) do
 		local role = guild.roles[id]
 		local color = role and math.tointeger(role.color) or 0
-		if color > 0 and (role.position or 0) > bestPosition then
-			best, bestPosition = color, role.position or 0
+		if color > 0 and (role.position or 0) > best_position then
+			best, best_position = color, role.position or 0
 		end
 	end
 	return best
 end
 
-local function memberColor(guildId, guild, userId)
-	if not guildId or not userId then
+local function member_color(guild_id, guild, user_id)
+	if not guild_id or not user_id then
 		return nil
 	end
-	local member = astral.discord.member(guildId, userId)
-	return member and roleColor(guild, member.roles)
+	local member = astral.discord.member(guild_id, user_id)
+	return member and role_color(guild, member.roles)
 end
 
-local function mentionedUser(message, name)
+local function mentioned_user(message, name)
 	for _, user in ipairs(message.mentions or {}) do
 		for _, field in ipairs({ "nick", "global_name", "username" }) do
 			if user[field] == name then
@@ -57,7 +57,7 @@ local function mentionedUser(message, name)
 	return nil
 end
 
-local function mentionedRole(guild, message, name)
+local function mentioned_role(guild, message, name)
 	for _, id in ipairs(message.mention_roles or {}) do
 		local role = guild and guild.roles and guild.roles[id]
 		if role and role.name == name then
@@ -67,18 +67,18 @@ local function mentionedRole(guild, message, name)
 	return nil
 end
 
-local function mentionColor(node)
+local function mention_color(node)
 	local message = node:message()
 	local guild = node:guild()
 	if not message or not guild then
 		return nil
 	end
 	local name = node.text:sub(2)
-	local user = mentionedUser(message, name)
+	local user = mentioned_user(message, name)
 	if user then
-		return memberColor(node.guild_id, guild, user.id)
+		return member_color(node.guild_id, guild, user.id)
 	end
-	local role = mentionedRole(guild, message, name)
+	local role = mentioned_role(guild, message, name)
 	local color = role and math.tointeger(role.color) or 0
 	return color > 0 and color or nil
 end
@@ -87,7 +87,7 @@ astral.ui.mention(function(node)
 	if not astral.settings.values.chatMentions then
 		return nil
 	end
-	local color = mentionColor(node)
+	local color = mention_color(node)
 	return color and { color = color } or nil
 end)
 
@@ -97,7 +97,7 @@ astral.ui.message_color(function(node)
 	end
 	local message = node:message()
 	local author = message and message.author
-	local color = author and memberColor(node.guild_id, node:guild(), author.id)
+	local color = author and member_color(node.guild_id, node:guild(), author.id)
 	if not color then
 		return nil
 	end
@@ -107,7 +107,7 @@ end)
 
 local COUNT_SEPARATOR = " \u{2014} "
 
-local function headerRole(guild, text)
+local function header_role(guild, text)
 	local name = text:match("^(.-)" .. COUNT_SEPARATOR .. "%d+$")
 	if not name or not guild or not guild.roles then
 		return nil
@@ -125,7 +125,7 @@ astral.ui.name_color(function(node)
 		if not astral.settings.values.memberList then
 			return nil
 		end
-		local role = headerRole(node:guild(), node.text)
+		local role = header_role(node:guild(), node.text)
 		local color = role and math.tointeger(role.color) or 0
 		return color > 0 and color or nil
 	end
@@ -133,5 +133,5 @@ astral.ui.name_color(function(node)
 	if not astral.settings.values[setting] then
 		return nil
 	end
-	return memberColor(node.guild_id, node:guild(), node.user_id)
+	return member_color(node.guild_id, node:guild(), node.user_id)
 end)

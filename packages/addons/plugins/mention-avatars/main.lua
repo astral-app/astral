@@ -6,19 +6,19 @@ local DEFAULT_AVATARS = 6
 local section = astral.settings.section(t("MENTIONS"))
 section:switch("showAtSymbol", t("SHOW_AT_SYMBOL"), true, t("SHOW_AT_SYMBOL_SUBTITLE"))
 
-local function defaultAvatar(id)
+local function default_avatar(id)
 	local number = math.tointeger(tonumber(id)) or 0
 	return string.format("%s/embed/avatars/%d.png", CDN, (number >> 22) % DEFAULT_AVATARS)
 end
 
-local function avatarUrl(user)
+local function avatar_url(user)
 	if type(user.avatar) == "string" and user.avatar ~= "" then
 		return string.format("%s/avatars/%s/%s.webp?size=64", CDN, user.id, user.avatar)
 	end
-	return defaultAvatar(user.id)
+	return default_avatar(user.id)
 end
 
-local function namesOf(user)
+local function names_of(user)
 	local names = {}
 	for _, field in ipairs({ "nick", "global_name", "username" }) do
 		if type(user[field]) == "string" then
@@ -28,9 +28,9 @@ local function namesOf(user)
 	return names
 end
 
-local function findUser(message, name)
+local function find_user(message, name)
 	for _, user in ipairs(message.mentions or {}) do
-		for _, candidate in ipairs(namesOf(user)) do
+		for _, candidate in ipairs(names_of(user)) do
 			if candidate == name then
 				return user
 			end
@@ -39,7 +39,7 @@ local function findUser(message, name)
 	return nil
 end
 
-local function mentionedRole(guild, message, name)
+local function mentioned_role(guild, message, name)
 	if not guild then
 		return nil
 	end
@@ -52,7 +52,7 @@ local function mentionedRole(guild, message, name)
 	return nil
 end
 
-local function roleImage(role)
+local function role_image(role)
 	if type(role.icon) == "string" and role.icon ~= "" then
 		return string.format("%s/role-icons/%s/%s.png?size=32&quality=lossless", CDN, role.id, role.icon), false
 	end
@@ -67,13 +67,13 @@ local function decorate(node)
 	if not message then
 		return nil
 	end
-	local user = findUser(message, name)
+	local user = find_user(message, name)
 	if user then
-		return { image = avatarUrl(user), round = true, hide_at = not astral.settings.values.showAtSymbol }
+		return { image = avatar_url(user), round = true, hide_at = not astral.settings.values.showAtSymbol }
 	end
-	local role = mentionedRole(node:guild(), message, name)
+	local role = mentioned_role(node:guild(), message, name)
 	if role then
-		local image, round = roleImage(role)
+		local image, round = role_image(role)
 		return { image = image, round = round, after = true }
 	end
 	return nil

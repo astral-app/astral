@@ -503,12 +503,12 @@ function Node:is_bot()
 	return message ~= nil and message.author ~= nil and message.author.bot == true
 end
 
-local function wrapNode(node)
+local function wrap_node(node)
 	rawset(node, "_cache", {})
 	return setmetatable(node, Node)
 end
 
-local function buildPills(result)
+local function build_pills(result)
 	if result == nil then
 		return nil
 	end
@@ -528,19 +528,19 @@ end
 
 function astral.ui.decorate(target, decorator)
 	return native.decorate(target, function(node)
-		return buildPills(decorator(wrapNode(node)))
+		return build_pills(decorator(wrap_node(node)))
 	end)
 end
 
 function astral.ui.mention(decorator)
 	return native.mention(function(node)
-		return decorator(wrapNode(node))
+		return decorator(wrap_node(node))
 	end)
 end
 
 function astral.ui.message_color(colorizer)
 	return native.message_color(function(node)
-		local color = colorizer(wrapNode(node))
+		local color = colorizer(wrap_node(node))
 		if color == nil then
 			return nil
 		end
@@ -550,7 +550,7 @@ end
 
 function astral.ui.author_color(colorizer)
 	return native.author_color(function(node)
-		local color = colorizer(wrapNode(node))
+		local color = colorizer(wrap_node(node))
 		if color == nil then
 			return nil
 		end
@@ -560,7 +560,7 @@ end
 
 function astral.ui.message_background(decorator)
 	return native.message_background(function(node)
-		local style = decorator(wrapNode(node))
+		local style = decorator(wrap_node(node))
 		if type(style) ~= "table" or style.color == nil then
 			return nil
 		end
@@ -575,7 +575,7 @@ end
 
 function astral.ui.message_action(label, callback, options)
 	return native.message_action(label, function(node)
-		return callback(wrapNode(node))
+		return callback(wrap_node(node))
 	end, options)
 end
 
@@ -597,7 +597,7 @@ end
 
 function astral.ui.name_color(colorizer)
 	return native.name_color(function(node)
-		local color = colorizer(wrapNode(node))
+		local color = colorizer(wrap_node(node))
 		if color == nil then
 			return nil
 		end
@@ -607,18 +607,18 @@ end
 
 function astral.ui.typing(decorator)
 	return native.typing(function(node)
-		return decorator(wrapNode(node))
+		return decorator(wrap_node(node))
 	end)
 end
 
 function astral.ui.reaction(decorator)
 	return native.reaction(function(node)
-		return decorator(wrapNode(node))
+		return decorator(wrap_node(node))
 	end)
 end
 
 function astral.ui.relabel(target, relabeler)
 	return native.relabel(target, function(node)
-		return relabeler(wrapNode(node))
+		return relabeler(wrap_node(node))
 	end)
 end

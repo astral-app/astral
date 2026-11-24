@@ -62,8 +62,8 @@ local function hash(text, seed)
 	return value ~ (value >> 32)
 end
 
-local function unsignedModulo(value, divisor)
+local function unsigned_modulo(value, divisor)
 	return ((value >> 1) % (divisor // 2) * 2 + (value & 1)) % divisor
 end
 
-return { hash = hash, unsigned_modulo = unsignedModulo }
+return { hash = hash, unsigned_modulo = unsigned_modulo }

@@ -35,7 +35,7 @@ local function copy(values)
 	return result
 end
 
-local function codeRuns(text, runs, covered)
+local function code_runs(text, runs, covered)
 	local cursor = 1
 	while cursor <= #text do
 		local start = text:find("`", cursor, true)
@@ -58,13 +58,13 @@ local function codeRuns(text, runs, covered)
 	end
 end
 
-local function coverEmoji(text, covered)
+local function cover_emoji(text, covered)
 	local cursor = 1
 	while cursor <= #text do
 		local start, stop = text:find("<a?:[%w_]+:%d+>", cursor)
-		local shortStart, shortStop = text:find(":[%w_~%+-]+:", cursor)
-		if shortStart and (not start or shortStart < start) then
-			start, stop = shortStart, shortStop
+		local short_start, short_stop = text:find(":[%w_~%+-]+:", cursor)
+		if short_start and (not start or short_start < start) then
+			start, stop = short_start, short_stop
 		end
 		if not start then
 			return
@@ -74,25 +74,25 @@ local function coverEmoji(text, covered)
 	end
 end
 
-local function blockRuns(text, runs, covered)
-	local lineStart = 1
-	while lineStart <= #text do
-		local lineEnd = text:find("\n", lineStart, true) or (#text + 1)
-		if not covered[lineStart] then
-			local line = text:sub(lineStart, lineEnd - 1)
+local function block_runs(text, runs, covered)
+	local line_start = 1
+	while line_start <= #text do
+		local line_end = text:find("\n", line_start, true) or (#text + 1)
+		if not covered[line_start] then
+			local line = text:sub(line_start, line_end - 1)
 			for _, block in ipairs(blocks) do
 				if line:sub(1, #block.prefix) == block.prefix and #line > #block.prefix then
-					add(runs, lineStart, #block.prefix, "marker")
-					add(runs, lineStart + #block.prefix, #line - #block.prefix, block.style)
+					add(runs, line_start, #block.prefix, "marker")
+					add(runs, line_start + #block.prefix, #line - #block.prefix, block.style)
 					break
 				end
 			end
 		end
-		lineStart = lineEnd + 1
+		line_start = line_end + 1
 	end
 end
 
-local function isWordCharacter(value)
+local function is_word_character(value)
 	if value == "" then
 		return false
 	end
@@ -100,7 +100,7 @@ local function isWordCharacter(value)
 	return byte >= 128 or value:match("[%w_]") ~= nil
 end
 
-local function hasCovered(covered, first, last)
+local function has_covered(covered, first, last)
 	for index = first, last do
 		if covered[index] then
 			return true
@@ -109,7 +109,7 @@ local function hasCovered(covered, first, last)
 	return false
 end
 
-local function inlineRuns(text, runs, covered)
+local function inline_runs(text, runs, covered)
 	local taken = copy(covered)
 	for _, delimiter in ipairs(inline) do
 		local cursor = 1
@@ -119,31 +119,31 @@ local function inlineRuns(text, runs, covered)
 				break
 			end
 			local close = text:find(delimiter.open, start + #delimiter.open + 1, true)
-			local innerStart = start + #delimiter.open
-			local innerEnd = close and close - 1 or 0
-			local afterClose = close and close + #delimiter.open or 0
-			local firstCharacter = text:sub(innerStart, innerStart)
-			local lastCharacter = close and text:sub(innerEnd, innerEnd) or ""
-			local newline = close and text:find("\n", innerStart, true)
-			local underscoreBoundary = delimiter.open:sub(1, 1) ~= "_"
-				or not isWordCharacter(text:sub(start - 1, start - 1))
-					and not isWordCharacter(text:sub(afterClose, afterClose))
+			local inner_start = start + #delimiter.open
+			local inner_end = close and close - 1 or 0
+			local after_close = close and close + #delimiter.open or 0
+			local first_character = text:sub(inner_start, inner_start)
+			local last_character = close and text:sub(inner_end, inner_end) or ""
+			local newline = close and text:find("\n", inner_start, true)
+			local underscore_boundary = delimiter.open:sub(1, 1) ~= "_"
+				or not is_word_character(text:sub(start - 1, start - 1))
+					and not is_word_character(text:sub(after_close, after_close))
 			local blocked = not close
-				or close - innerStart < 1
+				or close - inner_start < 1
 				or newline and newline < close
-				or hasCovered(taken, start, afterClose - 1)
-				or firstCharacter:match("%s") ~= nil
-				or lastCharacter:match("%s") ~= nil
-				or not underscoreBoundary
+				or has_covered(taken, start, after_close - 1)
+				or first_character:match("%s") ~= nil
+				or last_character:match("%s") ~= nil
+				or not underscore_boundary
 			if blocked then
 				cursor = start + #delimiter.open
 			else
 				add(runs, start, #delimiter.open, "marker")
-				add(runs, innerStart, close - innerStart, delimiter.style)
+				add(runs, inner_start, close - inner_start, delimiter.style)
 				add(runs, close, #delimiter.open, "marker")
 				mark(taken, start, start + #delimiter.open - 1)
 				mark(taken, close, close + #delimiter.open - 1)
-				cursor = afterClose
+				cursor = after_close
 			end
 		end
 	end
@@ -155,10 +155,10 @@ local function runs(text)
 	end
 	local result = {}
 	local covered = {}
-	codeRuns(text, result, covered)
-	blockRuns(text, result, covered)
-	coverEmoji(text, covered)
-	inlineRuns(text, result, covered)
+	code_runs(text, result, covered)
+	block_runs(text, result, covered)
+	cover_emoji(text, covered)
+	inline_runs(text, result, covered)
 	return result
 end
 

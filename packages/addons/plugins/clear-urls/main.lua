@@ -123,46 +123,46 @@ local rules = {
 }
 
 local function wildcard(pattern, value)
-	local patternIndex = 1
-	local valueIndex = 1
+	local pattern_index = 1
+	local value_index = 1
 	while true do
-		local star = pattern:find("*", patternIndex, true)
+		local star = pattern:find("*", pattern_index, true)
 		if not star then
-			local suffix = pattern:sub(patternIndex)
-			if value:sub(valueIndex, valueIndex + #suffix - 1) ~= suffix then
+			local suffix = pattern:sub(pattern_index)
+			if value:sub(value_index, value_index + #suffix - 1) ~= suffix then
 				return false
 			end
-			return valueIndex + #suffix - 1 == #value
+			return value_index + #suffix - 1 == #value
 		end
-		local literal = pattern:sub(patternIndex, star - 1)
-		if value:sub(valueIndex, valueIndex + #literal - 1) ~= literal then
+		local literal = pattern:sub(pattern_index, star - 1)
+		if value:sub(value_index, value_index + #literal - 1) ~= literal then
 			return false
 		end
-		valueIndex = valueIndex + #literal
-		local nextStar = pattern:find("*", star + 1, true)
-		local nextLiteral = pattern:sub(star + 1, nextStar and nextStar - 1 or #pattern)
-		if nextLiteral == "" then
-			return valueIndex <= #value
+		value_index = value_index + #literal
+		local next_star = pattern:find("*", star + 1, true)
+		local next_literal = pattern:sub(star + 1, next_star and next_star - 1 or #pattern)
+		if next_literal == "" then
+			return value_index <= #value
 		end
-		local found = value:find(nextLiteral, valueIndex, true)
+		local found = value:find(next_literal, value_index, true)
 		if not found then
 			return false
 		end
-		valueIndex = found + #nextLiteral
-		patternIndex = star + 1 + #nextLiteral
-		if not nextStar then
-			return value:sub(-#nextLiteral) == nextLiteral
+		value_index = found + #next_literal
+		pattern_index = star + 1 + #next_literal
+		if not next_star then
+			return value:sub(-#next_literal) == next_literal
 		end
 	end
 end
 
-local function decodeKey(value)
+local function decode_key(value)
 	return value:gsub("%+", " "):gsub("%%(%x%x)", function(hex)
 		return string.char(tonumber(hex, 16))
 	end)
 end
 
-local function ruleMatches(rule, key, host)
+local function rule_matches(rule, key, host)
 	local separator = rule:find("@", 1, true)
 	local parameter = separator and rule:sub(1, separator - 1) or rule
 	if not wildcard(parameter, key) then
@@ -172,10 +172,10 @@ local function ruleMatches(rule, key, host)
 		return true
 	end
 	local pattern = rule:sub(separator + 1):lower()
-	local normalizedHost = host:lower():gsub("^www%.", "")
+	local normalized_host = host:lower():gsub("^www%.", "")
 	if pattern:sub(1, 2) == "*." then
 		local suffix = pattern:sub(3)
-		local candidate = normalizedHost
+		local candidate = normalized_host
 		while true do
 			if wildcard(suffix, candidate) then
 				return true
@@ -187,10 +187,10 @@ local function ruleMatches(rule, key, host)
 			candidate = candidate:sub(dot + 1)
 		end
 	end
-	return wildcard(pattern, normalizedHost)
+	return wildcard(pattern, normalized_host)
 end
 
-local function cleanUrl(value)
+local function clean_url(value)
 	local scheme, authority, rest = value:match("^(https?://)([^/%?#]+)(.*)$")
 	if not authority then
 		return value
@@ -201,23 +201,23 @@ local function cleanUrl(value)
 	else
 		host = host:match("^[^:]+") or host
 	end
-	local beforeFragment, fragment = rest:match("^(.-)(#.*)$")
-	if not beforeFragment then
-		beforeFragment, fragment = rest, ""
+	local before_fragment, fragment = rest:match("^(.-)(#.*)$")
+	if not before_fragment then
+		before_fragment, fragment = rest, ""
 	end
-	local path, query = beforeFragment:match("^(.-)%?(.*)$")
+	local path, query = before_fragment:match("^(.-)%?(.*)$")
 	if not query then
 		return value
 	end
 	local kept = {}
 	local position = 1
 	while position <= #query do
-		local querySeparator = query:find("&", position, true)
-		local item = query:sub(position, querySeparator and querySeparator - 1 or #query)
-		local key = decodeKey(item:match("^([^=]*)") or "")
+		local query_separator = query:find("&", position, true)
+		local item = query:sub(position, query_separator and query_separator - 1 or #query)
+		local key = decode_key(item:match("^([^=]*)") or "")
 		local remove = false
 		for _, rule in ipairs(rules) do
-			if ruleMatches(rule, key, host) then
+			if rule_matches(rule, key, host) then
 				remove = true
 				break
 			end
@@ -225,16 +225,16 @@ local function cleanUrl(value)
 		if not remove then
 			kept[#kept + 1] = item
 		end
-		if not querySeparator then
+		if not query_separator then
 			break
 		end
-		position = querySeparator + 1
+		position = query_separator + 1
 	end
-	local queryText = table.concat(kept, "&")
-	return scheme .. authority .. (path or "") .. (queryText ~= "" and "?" .. queryText or "") .. fragment
+	local query_text = table.concat(kept, "&")
+	return scheme .. authority .. (path or "") .. (query_text ~= "" and "?" .. query_text or "") .. fragment
 end
 
-local function cleanUrls(content)
+local function clean_urls(content)
 	local output = {}
 	local position = 1
 	while true do
@@ -249,14 +249,14 @@ local function cleanUrls(content)
 		local link = content:sub(start, finish)
 		local trailing = link:match("([%.,:;\"')%]%}]+)$") or ""
 		local core = #trailing > 0 and link:sub(1, #link - #trailing) or link
-		output[#output + 1] = cleanUrl(core) .. trailing
+		output[#output + 1] = clean_url(core) .. trailing
 		position = finish + 1
 	end
 	return table.concat(output)
 end
 
 astral.messages.transform(function(content)
-	local cleaned = cleanUrls(content)
+	local cleaned = clean_urls(content)
 	if cleaned ~= content then
 		return cleaned
 	end

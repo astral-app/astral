@@ -9,19 +9,19 @@ section:text("rules", "Rules", "", {
 	max_length = MAXIMUM_RULESET_LENGTH,
 })
 
-local transferKey = "transfer"
-local transferOptions = {
+local transfer_key = "transfer"
+local transfer_options = {
 	astral.settings.option("idle", "Choose action"),
 	astral.settings.option("import", "Import rules from a text file"),
 	astral.settings.option("export", "Copy rules to the clipboard"),
 }
 
-astral.settings.choice(transferKey, "Import or export", transferOptions, "idle", {
+astral.settings.choice(transfer_key, "Import or export", transfer_options, "idle", {
 	section = "Rules",
 	subtitle = "Transfer the plain text ruleset between devices.",
 })
 
-local function parseRule(line)
+local function parse_rule(line)
 	local find, rest = line:match("^%s*(.-)%s*=>%s*(.-)%s*$")
 	if not find or find == "" then
 		return nil
@@ -51,14 +51,14 @@ local function parseRule(line)
 	return { find = find, replacement = replacement, context = context }
 end
 
-local function parseRules(value)
+local function parse_rules(value)
 	if type(value) ~= "string" or #value > MAXIMUM_RULESET_LENGTH then
 		return nil, "The ruleset is too large."
 	end
 	local rules = {}
 	for line in value:gmatch("[^\r\n]+") do
 		if line:match("%S") then
-			local rule = parseRule(line)
+			local rule = parse_rule(line)
 			if not rule then
 				return nil, "A rule is invalid. Check its separator, length, or Lua pattern syntax."
 			end
@@ -71,7 +71,7 @@ local function parseRules(value)
 	return rules
 end
 
-local function replaceLiteral(value, find, replacement)
+local function replace_literal(value, find, replacement)
 	local output = {}
 	local offset = 1
 	while offset <= #value do
@@ -87,7 +87,7 @@ local function replaceLiteral(value, find, replacement)
 	return table.concat(output)
 end
 
-local function applyRules(value, rules)
+local function apply_rules(value, rules)
 	for _, rule in ipairs(rules) do
 		if not rule.context or value:find(rule.context, 1, true) then
 			if rule.pattern then
@@ -96,7 +96,7 @@ local function applyRules(value, rules)
 					value = rewritten
 				end
 			else
-				value = replaceLiteral(value, rule.find, rule.replacement)
+				value = replace_literal(value, rule.find, rule.replacement)
 			end
 		end
 		if #value > 20000 then
@@ -106,8 +106,8 @@ local function applyRules(value, rules)
 	return value
 end
 
-local function currentRules()
-	local rules, failure = parseRules(astral.settings.get("rules", ""))
+local function current_rules()
+	local rules, failure = parse_rules(astral.settings.get("rules", ""))
 	if not rules then
 		astral.log("Text Replace skipped an invalid ruleset: " .. failure)
 		return {}
@@ -116,18 +116,18 @@ local function currentRules()
 end
 
 astral.messages.transform(function(content)
-	local rewritten = applyRules(content, currentRules())
+	local rewritten = apply_rules(content, current_rules())
 	if rewritten ~= content then
 		return rewritten
 	end
 	return nil
 end)
 
-local function finishTransfer()
-	astral.settings.set(transferKey, "idle")
+local function finish_transfer()
+	astral.settings.set(transfer_key, "idle")
 end
 
-local function importRules()
+local function import_rules()
 	astral.files.pick({ "txt" }, function(file, reason)
 		if not file then
 			if reason ~= "cancelled" then
@@ -135,7 +135,7 @@ local function importRules()
 			end
 			return
 		end
-		local rules, failure = parseRules(file.data)
+		local rules, failure = parse_rules(file.data)
 		if not rules then
 			astral.ui.alert("Import failed", failure)
 			return
@@ -145,9 +145,9 @@ local function importRules()
 	end)
 end
 
-astral.settings.on_change(transferKey, function(value)
+astral.settings.on_change(transfer_key, function(value)
 	if value == "import" then
-		importRules()
+		import_rules()
 	elseif value == "export" then
 		local copied = astral.ui.copy(astral.settings.get("rules", ""))
 		if copied then
@@ -156,5 +156,5 @@ astral.settings.on_change(transferKey, function(value)
 			astral.ui.alert("Export failed", "The clipboard is unavailable.")
 		end
 	end
-	finishTransfer()
+	finish_transfer()
 end)
