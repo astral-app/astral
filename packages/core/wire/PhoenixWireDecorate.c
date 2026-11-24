@@ -12,6 +12,7 @@ static Tracked gTracked[kTrackCapacity];
 static uint64_t gMessageAuthors[kTrackCapacity][2];
 static AstralDecorator gDecorator;
 static AstralMessageBackgroundDecorator gMessageBackgroundDecorator;
+static AstralAuthorColorizer gAuthorColorizer;
 static atomic_uint_fast64_t gCurrentChannel;
 static int32_t gNextTagId = kFirstTagId;
 
@@ -56,6 +57,11 @@ static BackgroundState gBackgroundStates[kMaxDecorated];
 void astral_wire_set_decorator(AstralDecorator decorator)
 {
     gDecorator = decorator;
+}
+
+void astral_wire_set_author_colorizer(AstralAuthorColorizer colorizer)
+{
+    gAuthorColorizer = colorizer;
 }
 
 void astral_wire_set_message_background_decorator(AstralMessageBackgroundDecorator decorator)
@@ -427,6 +433,25 @@ static void rememberContent(const uint8_t *bytes, const Span *spans, size_t coun
         state->contentChildren[state->contentChildCount++] = wireChildAt(bytes, list, position);
 }
 
+static void wireAuthorColors(const uint8_t *bytes, const Span *spans, size_t count, Out *out, int *changed, size_t length)
+{
+    if (!gAuthorColorizer) return;
+    for (size_t index = 0; index < count; index++) {
+        const Span *span = &spans[index];
+        if (span->op != 1) continue;
+        Tracked *tracked = wireTrackSlot(span->id, 0);
+        if (!tracked || tracked->kind != kTrackAuthor || !tracked->value) continue;
+        uint32_t color = 0;
+        if (gAuthorColorizer(tracked->value, authorOf(tracked->value), astral_wire_current_channel(), &color) != 1) continue;
+        if (!*changed) wirePut(out, bytes, length);
+        *changed = 1;
+        wirePut8(out, 2);
+        wirePut32(out, (uint32_t)span->id);
+        wirePropCount(out, 1);
+        wirePropLong(out, P(color), (int64_t)color);
+    }
+}
+
 static void wireMessageBackgrounds(const uint8_t *bytes, const Span *spans, size_t count, Out *out, int *changed, size_t length)
 {
     static BackgroundLink links[kBackgroundLinkCapacity];
@@ -589,9 +614,10 @@ int32_t wireBuildTag(Out *out, const AstralTag *tag, Decorated *slot)
 
 void wireDecorate(const uint8_t *bytes, const Span *spans, size_t count, Out *out, int *changed, size_t length)
 {
-    if (!gDecorator && !gMessageBackgroundDecorator) return;
+    if (!gDecorator && !gMessageBackgroundDecorator && !gAuthorColorizer) return;
     propagateAvatars(bytes, spans, count);
     wireMessageBackgrounds(bytes, spans, count, out, changed, length);
+    wireAuthorColors(bytes, spans, count, out, changed, length);
     if (!gDecorator) return;
     for (size_t index = 0; index < count; index++) {
         const Span *span = &spans[index];

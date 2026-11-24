@@ -14,6 +14,7 @@ local native = {
 	cancel_web_auth = astral.ui.cancel_web_auth,
 	mention = astral.ui.mention,
 	message_color = astral.ui.message_color,
+	author_color = astral.ui.author_color,
 	message_action = astral.ui.message_action,
 	name_color = astral.ui.name_color,
 	typing = astral.ui.typing,
@@ -517,6 +518,16 @@ end
 
 function astral.ui.message_color(colorizer)
 	return native.message_color(function(node)
+		local color = colorizer(wrapNode(node))
+		if color == nil then
+			return nil
+		end
+		return astral.Color.from(color).value
+	end)
+end
+
+function astral.ui.author_color(colorizer)
+	return native.author_color(function(node)
 		local color = colorizer(wrapNode(node))
 		if color == nil then
 			return nil
