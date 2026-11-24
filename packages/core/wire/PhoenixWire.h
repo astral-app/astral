@@ -262,6 +262,35 @@ void astral_wire_set_send_transform(AstralSendTransform transform);
 int astral_wire_composer_event(const uint8_t *event, size_t length, AstralWireBuffer *before);
 int astral_wire_refresh_message_texts(AstralWireBuffer *buffer);
 int astral_wire_refresh_message_backgrounds(AstralWireBuffer *buffer);
+
+typedef enum {
+    AstralPatchBackground = 1 << 0,
+    AstralPatchRadius = 1 << 1,
+    AstralPatchOpacity = 1 << 2,
+    AstralPatchPadding = 1 << 3,
+    AstralPatchMargin = 1 << 4,
+    AstralPatchBorder = 1 << 5,
+    AstralPatchTextColor = 1 << 6,
+    AstralPatchHidden = 1 << 7
+} AstralPatchField;
+
+typedef struct {
+    uint32_t fields;
+    uint32_t background;
+    double radius;
+    double opacity;
+    float padding[4];
+    float margin[4];
+    uint32_t borderColor;
+    double borderWidth;
+    uint32_t textColor;
+} AstralNodePatch;
+
+typedef int (*AstralNodePatcher)(const char *identifier, const char *type, AstralNodePatch *patch);
+void astral_wire_set_node_patcher(AstralNodePatcher patcher);
+void astral_wire_set_patch_prefixes(const char *const *prefixes, size_t count);
+int astral_wire_refresh_node_patches(AstralWireBuffer *buffer);
+int astral_wire_take_refresh_busy(void);
 uint64_t astral_wire_message_for_node(int32_t node);
 uint64_t astral_wire_message_for_row(int32_t list, int64_t index);
 void astral_wire_note_identifiers(const uint8_t *bytes, size_t length);

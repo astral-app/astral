@@ -879,7 +879,10 @@ static void applyBackgroundStyle(Out *out, BackgroundState *state, const uint8_t
     AstralMessageBackgroundContext context = {state->message, state->user, state->channel};
     AstralMessageBackgroundStyle style = {0};
     int result = gMessageBackgroundDecorator ? gMessageBackgroundDecorator(&context, &style) : 0;
-    if (result < 0) return;
+    if (result < 0) {
+        if (!bytes) wireMarkRefreshBusy();
+        return;
+    }
     int active = result > 0 && validBackgroundStyle(&style);
     int bubble = active && style.bubble && state->blockCount;
     int reply = bubble && state->reply ? style.reply : AstralReplyAbove;

@@ -20,6 +20,10 @@ Locals, parameters, functions and fields are `snake_case`, and constants are `UP
 
 Plugin settings take an optional `icon` (a Discord icon name such as `PaintPaletteIcon`, or a `res://` URI); rows without one show no icon. `astral.settings.color` stores `#RRGGBB` or `#AARRGGBB`, or an empty string for automatic, and opens a swatch page with a hex field.
 
+## Patching nodes
+
+`astral.ui.patch(selector, fn)` restyles any node whose `accessibilityId` starts with `selector.id` (and, when given, whose type is `selector.type`). `fn` gets `{ id, key, type }`, where `key` is the part after the prefix, and returns the props to set: `background`, `radius`, `opacity`, `padding`, `margin`, `border_color` with `border_width`, `text_color` and `hidden`. Returning nothing puts Discord's own values back, and so does turning the plugin off. Needs the `ui.patch` permission. A plugin installed while Discord is open patches nodes drawn after it loads.
+
 ## Package
 
 ```

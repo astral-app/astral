@@ -773,9 +773,64 @@ static void unsupportedVersionTest(void)
     assert(!astral_settings_rewrite(current.bytes, current.length, &out));
 }
 
+static int gPatchMode;
+
+static int patchNode(const char *identifier, const char *type, AstralNodePatch *patch)
+{
+    if (strcmp(identifier, "demo.card:42") != 0 || strcmp(type, "view") != 0) return 0;
+    if (gPatchMode == 1) {
+        patch->fields = AstralPatchBackground | AstralPatchRadius;
+        patch->background = 0xFF5865F2;
+        patch->radius = 6;
+    } else if (gPatchMode == 2) {
+        patch->fields = AstralPatchHidden;
+    }
+    return gPatchMode ? 1 : 0;
+}
+
+static void nodePatchTest(void)
+{
+    AstralWireBuffer out;
+    Batch batch = {.length = 0};
+    const char *prefixes[] = {"demo.card:"};
+    astral_wire_set_patch_prefixes(prefixes, 1);
+    astral_wire_set_node_patcher(patchNode);
+    gPatchMode = 1;
+    b8(&batch, 1);
+    create(&batch, 900, "view", 2);
+    b16(&batch, 9);
+    b8(&batch, 6);
+    bstr(&batch, "demo.card:42");
+    b16(&batch, 90);
+    b8(&batch, 4);
+    int64_t original = 0xFF101010;
+    memcpy(batch.bytes + batch.length, &original, sizeof(original));
+    batch.length += sizeof(original);
+    assert(astral_settings_rewrite(batch.bytes, batch.length, &out));
+    assert(astral_wire_summarise(out.bytes, out.length, sink, NULL) > 0);
+    assert(strstr(line, "[2,900,[[90,4,4283983346],[388,5,6]]]"));
+    astral_wire_buffer_free(&out);
+
+    gPatchMode = 2;
+    assert(astral_wire_refresh_node_patches(&out));
+    assert(astral_wire_summarise(out.bytes, out.length, sink, NULL) > 0);
+    assert(strstr(line, "[2,900,[[90,4,4279242768],[388,0,null],[322,5,0]"));
+    astral_wire_buffer_free(&out);
+
+    gPatchMode = 0;
+    assert(astral_wire_refresh_node_patches(&out));
+    assert(astral_wire_summarise(out.bytes, out.length, sink, NULL) > 0);
+    assert(strstr(line, "[2,900,[[322,0,null],[332,0,null],[287,0,null],[553,0,null],[235,0,null],[123,0,null]]]"));
+    astral_wire_buffer_free(&out);
+    assert(astral_wire_refresh_node_patches(&out) == 0);
+    astral_wire_set_node_patcher(NULL);
+    astral_wire_set_patch_prefixes(NULL, 0);
+}
+
 int main(void)
 {
     messageBackgroundTest();
+    nodePatchTest();
     decorationTest();
     gradientTagTest();
     relabelTest();

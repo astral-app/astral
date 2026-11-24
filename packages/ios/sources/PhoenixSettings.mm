@@ -489,8 +489,15 @@ void AstralPhoenixRefreshDecorations(void)
         if (live && astral_wire_refresh_message_texts(&texts)) Send(&texts);
         AstralWireBuffer backgrounds = {};
         if (live && astral_wire_refresh_message_backgrounds(&backgrounds)) Send(&backgrounds);
+        AstralWireBuffer patches = {};
+        if (live && astral_wire_refresh_node_patches(&patches)) Send(&patches);
+        bool busy = astral_wire_take_refresh_busy();
         pthread_mutex_unlock(&gLock);
         ScheduleRetry();
+        if (busy)
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC / 10), dispatch_get_main_queue(), ^{
+                AstralPhoenixRefreshDecorations();
+            });
     });
 }
 

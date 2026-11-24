@@ -9,6 +9,7 @@ local native = {
 	relabel = astral.ui.relabel,
 	composer = astral.ui.composer,
 	message_background = astral.ui.message_background,
+	patch = astral.ui.patch,
 	toast = astral.ui.toast,
 	web_auth = astral.ui.web_auth,
 	cancel_web_auth = astral.ui.cancel_web_auth,
@@ -614,6 +615,28 @@ end
 function astral.ui.reaction(decorator)
 	return native.reaction(function(node)
 		return decorator(wrap_node(node))
+	end)
+end
+
+function astral.ui.patch(selector, patcher)
+	local id, kind = selector, nil
+	if type(selector) == "table" then
+		id, kind = selector.id, selector.type
+	end
+	return native.patch(id, kind, function(node)
+		local result = patcher(node)
+		if type(result) ~= "table" then
+			return result
+		end
+		local patch = {}
+		for field, value in pairs(result) do
+			if field:find("color$") or field == "background" then
+				patch[field] = astral.Color.from(value).value
+			else
+				patch[field] = value
+			end
+		end
+		return patch
 	end)
 end
 

@@ -93,8 +93,22 @@ func valueName(name string) bool {
 	return snakeCase.MatchString(name) || upperSnakeCase.MatchString(name)
 }
 
+func annotatedType(lines []string, line int) bool {
+	for index := line - 2; index >= 0; index-- {
+		text := strings.TrimSpace(lines[index])
+		if strings.HasPrefix(text, "---@class") || strings.HasPrefix(text, "---@enum") {
+			return true
+		}
+		if !strings.HasPrefix(text, "---") {
+			return false
+		}
+	}
+	return false
+}
+
 func luaCasingFindings(source string) []casingFinding {
 	code := stripLuaText(source)
+	lines := strings.Split(source, "\n")
 	var findings []casingFinding
 	add := func(offset int, name, kind string) {
 		findings = append(findings, casingFinding{lineAt(code, offset), name, kind})
@@ -108,7 +122,7 @@ func luaCasingFindings(source string) []casingFinding {
 			typed = (match[10] >= 0 && typeFactories[value]) || (match[10] < 0 && pascalCase.MatchString(segments[len(segments)-1]))
 		}
 		for _, name := range names {
-			class := pascalCase.MatchString(name) && strings.Contains(code, name+".__index")
+			class := pascalCase.MatchString(name) && (strings.Contains(code, name+".__index") || annotatedType(lines, lineAt(code, match[0])))
 			if valueName(name) || class || (typed && pascalCase.MatchString(name)) {
 				continue
 			}
