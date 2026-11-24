@@ -245,6 +245,10 @@ void astral_wire_set_message_menu_provider(AstralMessageMenuProvider provider);
 typedef int (*AstralMessageTextProvider)(uint64_t message_id, char *text, size_t text_capacity, char *note, size_t note_capacity);
 
 void astral_wire_set_message_text_provider(AstralMessageTextProvider provider);
+
+typedef int (*AstralSendTransform)(uint64_t channel_id, const char *text, char *rewritten, size_t capacity);
+void astral_wire_set_send_transform(AstralSendTransform transform);
+int astral_wire_composer_event(const uint8_t *event, size_t length, AstralWireBuffer *before);
 int astral_wire_refresh_message_texts(AstralWireBuffer *buffer);
 uint64_t astral_wire_message_for_node(int32_t node);
 uint64_t astral_wire_message_for_row(int32_t list, int64_t index);

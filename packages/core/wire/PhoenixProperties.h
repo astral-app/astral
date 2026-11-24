@@ -31,6 +31,7 @@ extern "C" {
     X(bgRadius, 98)                                                                                                                        \
     X(borderColor, 104)                                                                                                                    \
     X(borderWidth, 107)                                                                                                                    \
+    X(changeText, 576)                                                                                                                     \
     X(color, 129)                                                                                                                          \
     X(direction, 147)                                                                                                                      \
     X(first, 194)                                                                                                                          \
@@ -55,6 +56,7 @@ extern "C" {
     X(placeholder, 354)                                                                                                                    \
     X(placeholderColor, 355)                                                                                                               \
     X(pool, 366)                                                                                                                           \
+    X(press, 614)                                                                                                                          \
     X(pressFeedback, 376)                                                                                                                  \
     X(radius, 388)                                                                                                                         \
     X(radiusBottomLeft, 389)                                                                                                               \

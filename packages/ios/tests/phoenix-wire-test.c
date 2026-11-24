@@ -618,6 +618,76 @@ static void listRowTest(void)
     assert(astral_wire_message_for_node(1502) == 100000000000000009ull);
 }
 
+static int cleanLinks(uint64_t channel, const char *text, char *rewritten, size_t capacity)
+{
+    (void)channel;
+    const char *tracking = strstr(text, "?utm=1");
+    if (!tracking) return 0;
+    snprintf(rewritten, capacity, "%.*s", (int)(tracking - text), text);
+    return 1;
+}
+
+static void composerBatch(Batch *batch, const char *value)
+{
+    batch->length = 0;
+    b8(batch, 1);
+    create(batch, 1600, "input", 2);
+    b16(batch, 9);
+    b8(batch, 6);
+    bstr(batch, "composer");
+    b16(batch, 543);
+    b8(batch, 6);
+    bstr(batch, value);
+    create(batch, 1601, "view", 1);
+    b16(batch, 9);
+    b8(batch, 6);
+    bstr(batch, "send");
+}
+
+static void composerEvent(Batch *event, int node, int kind, const char *text, int count)
+{
+    event->length = 0;
+    b8(event, 1);
+    b8(event, 1);
+    b32(event, node);
+    b16(event, kind);
+    b8(event, 8);
+    b32(event, text ? 2 : 0);
+    if (!text) return;
+    b16(event, 499);
+    b8(event, 6);
+    bstr(event, text);
+    b16(event, 811);
+    b8(event, 3);
+    b32(event, count);
+}
+
+static void composerSendTest(void)
+{
+    AstralWireBuffer out;
+    Batch batch, event;
+    astral_wire_set_send_transform(cleanLinks);
+    composerBatch(&batch, "see https://a.test/x?utm=1");
+    if (astral_settings_rewrite(batch.bytes, batch.length, &out)) astral_wire_buffer_free(&out);
+    composerEvent(&event, 1600, 576, "see https://a.test/x?utm=1", 4);
+    assert(!astral_wire_composer_event(event.bytes, event.length, &out));
+    composerEvent(&event, 1601, 614, NULL, 0);
+    assert(astral_wire_composer_event(event.bytes, event.length, &out));
+    assert(out.length > 8 && out.bytes[6] == (576 & 0xff));
+    assert(memmem(out.bytes, out.length, "see https://a.test/x", 20));
+    assert(!memmem(out.bytes, out.length, "utm", 3));
+    int32_t count;
+    memcpy(&count, out.bytes + out.length - 4, 4);
+    assert(count == 5);
+    astral_wire_buffer_free(&out);
+
+    composerBatch(&batch, "");
+    if (astral_settings_rewrite(batch.bytes, batch.length, &out)) astral_wire_buffer_free(&out);
+    composerEvent(&event, 1601, 614, NULL, 0);
+    assert(!astral_wire_composer_event(event.bytes, event.length, &out));
+    astral_wire_set_send_transform(NULL);
+}
+
 static void fadeOverlayTest(void)
 {
     AstralWireBuffer out;
@@ -715,6 +785,7 @@ int main(void)
     liveThemeTest();
     trackerOverflowTest();
     listRowTest();
+    composerSendTest();
     fadeOverlayTest();
     tintTest();
     Batch batch;

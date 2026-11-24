@@ -23,6 +23,7 @@ object Native {
     @JvmStatic external fun press(node: Int): Boolean
     @JvmStatic external fun pressMessageAction(node: Int): Boolean
     @JvmStatic external fun touchMessage(node: Int, row: Long)
+    @JvmStatic external fun composerEvent(event: ByteArray): ByteArray?
     @JvmStatic external fun slide(node: Int, payload: ByteArray): Boolean
     @JvmStatic external fun back(): Boolean
     @JvmStatic external fun pageOpen(): Boolean
@@ -57,11 +58,8 @@ object Native {
 
     @JvmStatic external fun isCurrentUser(host: String, path: String): Boolean
 
-    @JvmStatic external fun isOutgoingMessageRequest(host: String, path: String, method: String): Boolean
 
-    @JvmStatic external fun hasOutgoingMessageTransforms(): Boolean
 
-    @JvmStatic external fun transformOutgoingMessageBody(host: String, path: String, method: String, body: String): String?
 
     @JvmStatic external fun staffDevToolsEnabled(): Boolean
 

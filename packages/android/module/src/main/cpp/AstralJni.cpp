@@ -563,6 +563,7 @@ void installDecorators()
     astral_wire_set_message_background_decorator(AstralLuaMessageBackground);
     astral_wire_set_message_menu_provider(AstralLuaMessageMenu);
     astral_wire_set_message_text_provider(AstralLuaMessageText);
+    astral_wire_set_send_transform(AstralLuaSendTransform);
     astral_wire_set_relabeler(AstralLuaRelabel);
     astral_wire_set_mention_decorator(AstralLuaMention);
     astral_wire_set_message_text_colorizer(AstralLuaMessageTextColor);
@@ -1127,6 +1128,24 @@ ASTRAL_EXPORT JNIEXPORT jboolean JNICALL Java_app_astral_android_Native_pressMes
     return pressed ? JNI_TRUE : JNI_FALSE;
 }
 
+ASTRAL_EXPORT JNIEXPORT jbyteArray JNICALL Java_app_astral_android_Native_composerEvent(JNIEnv *env, jclass, jbyteArray event)
+{
+    if (!event) return nullptr;
+    jsize size = env->GetArrayLength(event);
+    if (size <= 0 || size > 65536) return nullptr;
+    std::vector<uint8_t> bytes(static_cast<size_t>(size));
+    env->GetByteArrayRegion(event, 0, size, reinterpret_cast<jbyte *>(bytes.data()));
+    AstralWireBuffer before;
+    {
+        std::lock_guard<std::mutex> lock(gWireLock);
+        if (!astral_wire_composer_event(bytes.data(), bytes.size(), &before)) return nullptr;
+    }
+    jbyteArray result = env->NewByteArray(static_cast<jsize>(before.length));
+    if (result) env->SetByteArrayRegion(result, 0, static_cast<jsize>(before.length), reinterpret_cast<const jbyte *>(before.bytes));
+    astral_wire_buffer_free(&before);
+    return result;
+}
+
 ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_touchMessage(JNIEnv *, jclass, jint node, jlong row)
 {
     uint64_t message = 0;
@@ -1354,30 +1373,6 @@ ASTRAL_EXPORT JNIEXPORT jboolean JNICALL Java_app_astral_android_Native_isTeleme
 ASTRAL_EXPORT JNIEXPORT jboolean JNICALL Java_app_astral_android_Native_isCurrentUser(JNIEnv *env, jclass, jstring host, jstring path)
 {
     return astral::isCurrentUserRequest(plain(env, host), plain(env, path));
-}
-
-ASTRAL_EXPORT JNIEXPORT jboolean JNICALL Java_app_astral_android_Native_isOutgoingMessageRequest(JNIEnv *env, jclass, jstring host,
-                                                                                                 jstring path, jstring method)
-{
-    return astral::outgoingMessageTarget(plain(env, host), plain(env, path), plain(env, method)).has_value();
-}
-
-ASTRAL_EXPORT JNIEXPORT jboolean JNICALL Java_app_astral_android_Native_hasOutgoingMessageTransforms(JNIEnv *, jclass)
-{
-    return astral::luahost::hasOutgoingMessageTransforms();
-}
-
-ASTRAL_EXPORT JNIEXPORT jstring JNICALL Java_app_astral_android_Native_transformOutgoingMessageBody(JNIEnv *env, jclass, jstring host,
-                                                                                                    jstring path, jstring method,
-                                                                                                    jstring body)
-{
-    auto transformed = astral::transformOutgoingMessageBody(
-        fromJava(env, host), fromJava(env, path), fromJava(env, method), fromJava(env, body),
-        [](const astral::OutgoingMessageTarget &target, std::string_view content) {
-            return astral::luahost::transformOutgoingMessage(target.channel, target.operation, std::string(content));
-        });
-    if (!transformed) return nullptr;
-    return toJava(env, *transformed);
 }
 
 ASTRAL_EXPORT JNIEXPORT jboolean JNICALL Java_app_astral_android_Native_staffDevToolsEnabled(JNIEnv *, jclass)
