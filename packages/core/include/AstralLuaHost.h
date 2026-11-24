@@ -36,6 +36,9 @@ struct LuaHostPlatform {
     std::function<bool(const std::string &value)> writeClipboard;
     std::function<std::optional<std::string>()> readClipboard;
     std::function<bool(const std::string &url)> openURL;
+    std::function<bool(const std::string &text, const std::string &language, double rate)> speak;
+    std::function<bool(const std::string &path, double volume)> playSound;
+    std::function<void()> stopAudio;
     std::function<bool(const std::string &identifier, const std::string &title, const std::string &body, double delay)> notify;
     std::function<bool(uint64_t request, const std::vector<std::string> &extensions)> pickFile;
     std::function<void(uint64_t request)> cancelFilePick;

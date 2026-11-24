@@ -619,6 +619,86 @@ static int Notify(lua_State *state)
     return 1;
 }
 
+static const std::set<std::string> kSoundExtensions = {".mp3", ".m4a", ".wav", ".caf", ".aac"};
+
+static std::optional<std::string> PluginSoundPath(const LuaPlugin *plugin, const std::string &relative)
+{
+    std::filesystem::path requested(relative);
+    if (relative.empty() || requested.is_absolute()) return std::nullopt;
+    for (const auto &part : requested)
+        if (part == "..") return std::nullopt;
+    std::string extension = requested.extension().string();
+    std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char c) { return std::tolower(c); });
+    if (!kSoundExtensions.count(extension)) return std::nullopt;
+    std::error_code error;
+    std::filesystem::path full = std::filesystem::path(plugin->directory) / requested;
+    if (!std::filesystem::is_regular_file(full, error)) return std::nullopt;
+    return full.string();
+}
+
+static int Speak(lua_State *state)
+{
+    RequirePermission(state, "audio");
+    std::string text = luaL_checkstring(state, 1);
+    if (text.empty() || text.size() > 4096) return luaL_error(state, "astral.audio.speak: text is 1 to 4096 bytes");
+    std::string language;
+    double rate = 0.5;
+    if (lua_istable(state, 2)) {
+        lua_getfield(state, 2, "language");
+        if (lua_isstring(state, -1)) language = lua_tostring(state, -1);
+        lua_pop(state, 1);
+        lua_getfield(state, 2, "rate");
+        if (lua_isnumber(state, -1)) rate = lua_tonumber(state, -1);
+        lua_pop(state, 1);
+    }
+    if (!std::isfinite(rate) || rate < 0 || rate > 1) return luaL_error(state, "astral.audio.speak: rate is 0 to 1");
+    if (language.size() > 35) return luaL_error(state, "astral.audio.speak: language is a BCP 47 tag");
+    if (!gPlatform.speak) return luaL_error(state, "astral.audio.speak: speech is unavailable on this build");
+    bool spoken = false;
+    try {
+        spoken = gPlatform.speak(text, language, rate);
+    } catch (...) {
+    }
+    lua_pushboolean(state, spoken);
+    return 1;
+}
+
+static int PlaySound(lua_State *state)
+{
+    LuaPlugin *plugin = Self(state);
+    RequirePermission(state, "audio");
+    std::string file = luaL_checkstring(state, 1);
+    double volume = 1;
+    if (lua_istable(state, 2)) {
+        lua_getfield(state, 2, "volume");
+        if (lua_isnumber(state, -1)) volume = lua_tonumber(state, -1);
+        lua_pop(state, 1);
+    }
+    if (!std::isfinite(volume) || volume < 0 || volume > 1) return luaL_error(state, "astral.audio.play: volume is 0 to 1");
+    auto path = PluginSoundPath(plugin, file);
+    if (!path) return luaL_error(state, "astral.audio.play: %s is not an mp3, m4a, wav, caf or aac file in the plugin", file.c_str());
+    if (!gPlatform.playSound) return luaL_error(state, "astral.audio.play: sound is unavailable on this build");
+    bool played = false;
+    try {
+        played = gPlatform.playSound(*path, volume);
+    } catch (...) {
+    }
+    lua_pushboolean(state, played);
+    return 1;
+}
+
+static int StopAudio(lua_State *state)
+{
+    RequirePermission(state, "audio");
+    if (gPlatform.stopAudio) {
+        try {
+            gPlatform.stopAudio();
+        } catch (...) {
+        }
+    }
+    return 0;
+}
+
 static int Haptic(lua_State *state)
 {
     RequirePermission(state, "ui.haptics");
@@ -1456,6 +1536,12 @@ static void InstallAPI(LuaPlugin *plugin)
     lua_pushstring(state, plugin->locale.c_str());
     lua_setfield(state, -2, "locale");
     lua_setfield(state, -2, "i18n");
+
+    lua_newtable(state);
+    Function(state, plugin, "speak", Speak);
+    Function(state, plugin, "play", PlaySound);
+    Function(state, plugin, "stop", StopAudio);
+    lua_setfield(state, -2, "audio");
 
     lua_newtable(state);
     Function(state, plugin, "now_ms", TimeNowMilliseconds);

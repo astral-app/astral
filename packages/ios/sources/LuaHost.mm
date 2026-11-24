@@ -1,5 +1,6 @@
 #import "LuaHost.h"
 
+#import <AVFoundation/AVFoundation.h>
 #import <UserNotifications/UserNotifications.h>
 #import "LuaComposer.h"
 
@@ -45,6 +46,23 @@ static std::vector<std::string> PreferredLanguages(void)
     std::vector<std::string> languages;
     for (NSString *language in NSLocale.preferredLanguages) languages.push_back(Plain(language));
     return languages;
+}
+
+static AVSpeechSynthesizer *AstralSpeech(void)
+{
+    static AVSpeechSynthesizer *synthesizer;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        synthesizer = [AVSpeechSynthesizer new];
+    });
+    return synthesizer;
+}
+
+static void AstralKeepPlayer(AVAudioPlayer *player)
+{
+    static AVAudioPlayer *current;
+    [current stop];
+    current = player;
 }
 
 static astral::LuaHostPlatform Platform(void)
@@ -143,6 +161,38 @@ static astral::LuaHostPlatform Platform(void)
                          [NSString stringWithFormat:@"Failed to post notification %@: %@", request.identifier, error.localizedDescription]);
              }];
         return true;
+    };
+    platform.speak = [](const std::string &text, const std::string &language, double rate) {
+        AVSpeechUtterance *utterance = [AVSpeechUtterance speechUtteranceWithString:Native(text)];
+        utterance.rate =
+            AVSpeechUtteranceMinimumSpeechRate + (AVSpeechUtteranceMaximumSpeechRate - AVSpeechUtteranceMinimumSpeechRate) * rate;
+        if (!language.empty()) utterance.voice = [AVSpeechSynthesisVoice voiceWithLanguage:Native(language)];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [AstralSpeech() speakUtterance:utterance];
+        });
+        return true;
+    };
+    platform.playSound = [](const std::string &path, double volume) {
+        NSURL *file = [NSURL fileURLWithPath:Native(path)];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            NSError *error = nil;
+            AVAudioPlayer *player = [[AVAudioPlayer alloc] initWithContentsOfURL:file error:&error];
+            if (!player) {
+                AstralDevAppendLog(
+                    [NSString stringWithFormat:@"Failed to play %@: %@", file.lastPathComponent, error.localizedDescription]);
+                return;
+            }
+            player.volume = volume;
+            AstralKeepPlayer(player);
+            [player play];
+        });
+        return true;
+    };
+    platform.stopAudio = [] {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [AstralSpeech() stopSpeakingAtBoundary:AVSpeechBoundaryImmediate];
+            AstralKeepPlayer(nil);
+        });
     };
     platform.openURL = [](const std::string &url) {
         NSURL *link = [NSURL URLWithString:Native(url)];

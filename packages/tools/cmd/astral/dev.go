@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -277,12 +278,38 @@ func (d devClient) push(folder string) error {
 		}
 		modules["i18n/"+filepath.Base(file)] = string(text)
 	}
-	reply, err := d.request(http.MethodPut, "/plugin", map[string]any{"manifest": string(manifestText), "main": string(main), "modules": modules})
+	assets, err := pluginSounds(folder)
+	if err != nil {
+		return err
+	}
+	reply, err := d.request(http.MethodPut, "/plugin", map[string]any{"manifest": string(manifestText), "main": string(main), "modules": modules, "assets": assets})
 	if err != nil {
 		return err
 	}
 	fmt.Println(string(reply))
 	return nil
+}
+
+var soundExtensions = map[string]bool{".mp3": true, ".m4a": true, ".wav": true, ".caf": true, ".aac": true}
+
+func pluginSounds(folder string) (map[string]string, error) {
+	assets := map[string]string{}
+	err := filepath.WalkDir(folder, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil || entry.IsDir() || !soundExtensions[strings.ToLower(filepath.Ext(path))] {
+			return err
+		}
+		relative, err := filepath.Rel(folder, path)
+		if err != nil {
+			return err
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		assets[filepath.ToSlash(relative)] = base64.StdEncoding.EncodeToString(data)
+		return nil
+	})
+	return assets, err
 }
 
 func latestChange(folder string) (time.Time, error) {

@@ -232,6 +232,7 @@ std::pair<std::string, std::string> permissionDescription(const std::string &per
         {"ui.haptics", {"Triggers haptic feedback", "res://ic_mana_bell"}},
         {"ui.toasts", {"Shows brief notifications", "res://ic_mana_bell"}},
         {"ui.notifications", {"Posts system notifications", "res://ic_mana_bell"}},
+        {"audio", {"Plays sounds and reads text aloud", "res://ic_mana_bell"}},
         {"ui.message_actions", {"Adds actions to the message menu", "res://ic_mana_chat"}},
         {"ui.web_auth", {"Opens a secure sign-in window", "res://ic_mana_link"}},
         {"discord.users", {"Reads user profiles", "res://ic_mana_user"}},

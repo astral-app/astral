@@ -10,6 +10,9 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Intent
 import android.net.Uri
+import java.util.Locale
+import android.speech.tts.TextToSpeech
+import android.media.MediaPlayer
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
@@ -37,6 +40,11 @@ object PhoenixBridge {
     private const val RETRY_INTERVAL_MS = 1000L
     private const val TWEEN_FRAME_MS = 16L
     private const val NOTIFICATION_CHANNEL = "astral"
+    private var speech: TextToSpeech? = null
+    private var speechReady = false
+    private val speechQueue = mutableListOf<(TextToSpeech) -> Unit>()
+    private val speechIds = java.util.concurrent.atomic.AtomicInteger(0)
+    private var player: MediaPlayer? = null
     private val notificationIds = java.util.concurrent.atomic.AtomicInteger(0x7a57)
     private val tweening = java.util.concurrent.atomic.AtomicBoolean(false)
 
@@ -575,6 +583,64 @@ object PhoenixBridge {
                 .onFailure { Log.warning("Failed to post notification $title: ${it.javaClass.simpleName}") }
         }
         if (delayMs > 0) mainHandler.postDelayed(post, delayMs) else mainHandler.post(post)
+    }
+
+    @JvmStatic
+    fun speak(rateMillis: Long, text: String, language: String) {
+        mainHandler.post {
+            val context = activeActivity()?.applicationContext ?: return@post
+            val pending: (TextToSpeech) -> Unit = { engine ->
+                if (language.isNotEmpty()) engine.language = Locale.forLanguageTag(language)
+                engine.setSpeechRate(0.5f + rateMillis / 1000f * 1.5f)
+                engine.speak(text, TextToSpeech.QUEUE_ADD, null, "astral.${speechIds.incrementAndGet()}")
+            }
+            val ready = speech
+            if (ready != null && speechReady) {
+                pending(ready)
+                return@post
+            }
+            speechQueue.add(pending)
+            if (ready == null) {
+                speech = TextToSpeech(context) { status ->
+                    mainHandler.post {
+                        speechReady = status == TextToSpeech.SUCCESS
+                        val engine = speech
+                        if (!speechReady || engine == null) {
+                            Log.warning("Failed to start text to speech: status $status")
+                            speechQueue.clear()
+                            return@post
+                        }
+                        speechQueue.forEach { it(engine) }
+                        speechQueue.clear()
+                    }
+                }
+            }
+        }
+    }
+
+    @JvmStatic
+    fun playSound(volumeMillis: Long, path: String, unused: String) {
+        mainHandler.post {
+            player?.release()
+            player = runCatching {
+                MediaPlayer().apply {
+                    setDataSource(path)
+                    setVolume(volumeMillis / 1000f, volumeMillis / 1000f)
+                    setOnCompletionListener { it.release(); if (player === it) player = null }
+                    prepare()
+                    start()
+                }
+            }.onFailure { Log.warning("Failed to play $path: ${it.javaClass.simpleName}: ${it.message}") }.getOrNull()
+        }
+    }
+
+    @JvmStatic
+    fun stopAudio() {
+        mainHandler.post {
+            speech?.stop()
+            player?.release()
+            player = null
+        }
     }
 
     @JvmStatic

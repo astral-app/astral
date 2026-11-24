@@ -84,6 +84,9 @@ jmethodID gRestartGatewaySession = nullptr;
 jmethodID gPasteText = nullptr;
 jmethodID gOpenURL = nullptr;
 jmethodID gNotify = nullptr;
+jmethodID gSpeak = nullptr;
+jmethodID gPlaySound = nullptr;
+jmethodID gStopAudio = nullptr;
 std::mutex gTextEditLock;
 std::map<uint64_t, std::function<void(std::optional<std::string>)>> gTextEditCallbacks;
 std::atomic<uint64_t> gNextTextEditRequest{1};
@@ -425,6 +428,17 @@ astral::LuaHostPlatform platform(const std::string &state, const std::string &re
     platform.notify = [](const std::string &, const std::string &title, const std::string &body, double delay) {
         if (!gNotify) return false;
         return callBridge(gNotify, static_cast<jlong>(delay * 1000), title, body);
+    };
+    platform.speak = [](const std::string &text, const std::string &language, double rate) {
+        if (!gSpeak) return false;
+        return callBridge(gSpeak, static_cast<jlong>(rate * 1000), text, language);
+    };
+    platform.playSound = [](const std::string &path, double volume) {
+        if (!gPlaySound) return false;
+        return callBridge(gPlaySound, static_cast<jlong>(volume * 1000), path, std::string());
+    };
+    platform.stopAudio = [] {
+        if (gStopAudio) callBridge(gStopAudio);
     };
     platform.openURL = [](const std::string &url) {
         if (!gOpenURL) return false;
@@ -1283,10 +1297,14 @@ ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_attachBridge
     jmethodID pasteTextMethod = env->GetStaticMethodID(reference, "pasteText", "()Ljava/lang/String;");
     jmethodID openURLMethod = env->GetStaticMethodID(reference, "openURL", "(Ljava/lang/String;)V");
     jmethodID notifyMethod = env->GetStaticMethodID(reference, "notify", "(JLjava/lang/String;Ljava/lang/String;)V");
+    jmethodID speakMethod = env->GetStaticMethodID(reference, "speak", "(JLjava/lang/String;Ljava/lang/String;)V");
+    jmethodID playSoundMethod = env->GetStaticMethodID(reference, "playSound", "(JLjava/lang/String;Ljava/lang/String;)V");
+    jmethodID stopAudioMethod = env->GetStaticMethodID(reference, "stopAudio", "()V");
     if (env->ExceptionCheck() || !deliverMethod || !fetchMethod || !requestMethod || !cancelMethod || !exportBackupMethod ||
         !importBackupMethod || !openReportMethod || !refreshEmojiMethod || !showAlertMethod || !triggerHapticMethod || !copyTextMethod ||
         !pickFileMethod || !cancelFilePickMethod || !showToastMethod || !openWebAuthMethod || !cancelWebAuthMethod || !editTextMethod ||
-        !restartGatewaySessionMethod || !pasteTextMethod || !openURLMethod || !notifyMethod) {
+        !restartGatewaySessionMethod || !pasteTextMethod || !openURLMethod || !notifyMethod || !speakMethod || !playSoundMethod ||
+        !stopAudioMethod) {
         env->ExceptionClear();
         env->DeleteGlobalRef(reference);
         return;
@@ -1316,6 +1334,9 @@ ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_attachBridge
         gPasteText = pasteTextMethod;
         gOpenURL = openURLMethod;
         gNotify = notifyMethod;
+        gSpeak = speakMethod;
+        gPlaySound = playSoundMethod;
+        gStopAudio = stopAudioMethod;
     }
     astral::reactors::setFetcher(fetch);
 }
