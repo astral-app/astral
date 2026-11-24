@@ -4,7 +4,7 @@
 
 <!-- Generated from each manifest.toml by `astral readme`. Do not edit by hand. -->
 
-- <img src="../../assets/readme-icons/chat-dots-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Chat Bubbles](chat-bubbles/): Adds rounded color cards behind Phoenix message rows.
+- <img src="../../assets/readme-icons/chat-dots-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Chat Bubbles](chat-bubbles/): Draws a rounded bubble behind each message, sized to its content.
 - <img src="../../assets/readme-icons/link-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Clear URLs](clear-urls/): Removes common tracking parameters from links before messages are sent or edited.
 - <img src="../../assets/readme-icons/eye-slash-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Enhanced Blocking](enhanced-blocking/): Filters incoming messages by user, keyword or reply author before Phoenix handles them.
 - <img src="../../assets/readme-icons/arrow-angle-left-up-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Highlight Replies](highlight-replies/): Tints the text of messages that reply to your messages.

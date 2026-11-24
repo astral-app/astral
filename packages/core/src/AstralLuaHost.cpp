@@ -2625,9 +2625,13 @@ int AstralLuaMessageBackground(const AstralMessageBackgroundContext *context, As
                 lua_getfield(state, -1, "radius");
                 double radius = lua_isnumber(state, -1) ? lua_tonumber(state, -1) : -1;
                 lua_pop(state, 1);
+                lua_getfield(state, -1, "bubble");
+                bool bubble = lua_toboolean(state, -1);
+                lua_pop(state, 1);
                 if (validColor && std::isfinite(radius) && radius >= 0 && radius <= 32) {
                     style->color = color;
                     style->radius = radius;
+                    style->bubble = bubble;
                     found = true;
                 }
             }

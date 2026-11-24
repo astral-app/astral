@@ -147,6 +147,7 @@ typedef struct {
 typedef struct {
     uint32_t color;
     double radius;
+    int bubble;
 } AstralMessageBackgroundStyle;
 
 typedef int (*AstralMessageBackgroundDecorator)(const AstralMessageBackgroundContext *context, AstralMessageBackgroundStyle *style);

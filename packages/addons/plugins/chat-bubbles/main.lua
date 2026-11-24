@@ -8,12 +8,12 @@ settings:choice("color", "Card color", {
 settings:number("radius", "Corner radius", { min = 0, max = 32, step = 1, default = 12 })
 
 local colors = {
-	neutral = 0x1A000000,
-	blue = 0x265865F2,
-	violet = 0x268B5CF6,
+	neutral = 0x24FFFFFF,
+	blue = 0x665865F2,
+	violet = 0x668B5CF6,
 }
 
 astral.ui.message_background(function()
 	local selected = colors[astral.settings.values.color] or colors.neutral
-	return { color = selected, radius = astral.settings.values.radius or 12 }
+	return { color = selected, radius = astral.settings.values.radius or 12, bubble = true }
 end)

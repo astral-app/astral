@@ -183,7 +183,7 @@ const Span *wireCreation(const Span *spans, size_t count, int32_t id)
     return NULL;
 }
 
-int wireStringProperty(const uint8_t *bytes, const Span *span, uint16_t wanted, const char *value)
+static int matchStringProperty(const uint8_t *bytes, const Span *span, uint16_t wanted, const char *value, int prefix)
 {
     Cursor cursor = {bytes, span->end, span->start + 1 + 4, 0};
     wireSkip(&cursor, wireRead16(&cursor));
@@ -195,11 +195,22 @@ int wireStringProperty(const uint8_t *bytes, const Span *span, uint16_t wanted, 
         if (property == wanted && tag == 6) {
             uint32_t length = wireRead32(&cursor);
             if (!wireNeed(&cursor, length)) return 0;
-            return length == valueLength && memcmp(cursor.bytes + cursor.offset, value, length) == 0;
+            int fits = prefix ? length >= valueLength : length == valueLength;
+            return fits && memcmp(cursor.bytes + cursor.offset, value, valueLength) == 0;
         }
         wireSkipValue(&cursor, tag, 0);
     }
     return 0;
+}
+
+int wireStringPropertyPrefix(const uint8_t *bytes, const Span *span, uint16_t wanted, const char *prefix)
+{
+    return matchStringProperty(bytes, span, wanted, prefix, 1);
+}
+
+int wireStringProperty(const uint8_t *bytes, const Span *span, uint16_t wanted, const char *value)
+{
+    return matchStringProperty(bytes, span, wanted, value, 0);
 }
 
 static void reserve(Out *out, size_t more)

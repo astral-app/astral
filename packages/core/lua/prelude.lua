@@ -531,7 +531,11 @@ function astral.ui.message_background(decorator)
 		if type(style) ~= "table" or style.color == nil then
 			return nil
 		end
-		return { color = astral.Color.from(style.color).value, radius = style.radius or 0 }
+		return {
+			color = astral.Color.from(style.color).value,
+			radius = style.radius or 0,
+			bubble = style.bubble == true,
+		}
 	end)
 end
 
