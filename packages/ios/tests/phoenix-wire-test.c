@@ -775,9 +775,10 @@ static void unsupportedVersionTest(void)
 
 static int gPatchMode;
 
-static int patchNode(const char *identifier, const char *type, AstralNodePatch *patch)
+static int patchNode(const AstralPatchTarget *target, AstralNodePatch *patch)
 {
-    if (strcmp(identifier, "demo.card:42") != 0 || strcmp(type, "view") != 0) return 0;
+    if (strcmp(target->identifier, "demo.card:42") != 0 || strcmp(target->type, "view") != 0) return 0;
+    assert(target->key == strlen("demo.card:") && target->message_id == 0);
     if (gPatchMode == 1) {
         patch->fields = AstralPatchBackground | AstralPatchRadius;
         patch->background = 0xFF5865F2;

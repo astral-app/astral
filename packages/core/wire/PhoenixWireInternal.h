@@ -144,6 +144,8 @@ uint64_t wireAvatarUser(const uint8_t *text, size_t length);
 int wirePrefixed(const uint8_t *text, size_t length, const char *prefix, uint64_t *suffix);
 int32_t wireBuildTag(Out *out, const AstralTag *tag, Decorated *slot);
 void wireMarkRefreshBusy(void);
+int wirePatchingActive(void);
+uint64_t wireMessageAuthor(uint64_t message);
 void wirePatchNodes(const uint8_t *bytes, const Span *spans, size_t count, Out *out, int *changed, size_t length);
 void wireDecorate(const uint8_t *bytes, const Span *spans, size_t count, Out *out, int *changed, size_t length);
 void wireObserveRemovals(const uint8_t *bytes, const Span *spans, size_t count, Out *out, int *changed, size_t length);

@@ -127,7 +127,6 @@ struct LuaPlugin : astral::PluginPackage, astral::PluginHealth {
     std::vector<int> composerDecorators;
     std::vector<int> messageBackgroundDecorators;
     std::vector<LuaNodePatch> nodePatches;
-    std::vector<int> authorColorizers;
     std::vector<LuaMessageAction> messageActions;
     std::map<uint64_t, int> networkRequests;
     std::map<uint64_t, LuaTimer> timers;
@@ -1029,15 +1028,6 @@ static int Mention(lua_State *state)
     return 0;
 }
 
-static int AuthorColor(lua_State *state)
-{
-    LuaPlugin *plugin = Self(state);
-    luaL_checktype(state, 1, LUA_TFUNCTION);
-    lua_pushvalue(state, 1);
-    plugin->authorColorizers.push_back(luaL_ref(state, LUA_REGISTRYINDEX));
-    return 0;
-}
-
 static int MessageColor(lua_State *state)
 {
     LuaPlugin *plugin = Self(state);
@@ -1645,7 +1635,6 @@ static void InstallAPI(LuaPlugin *plugin)
     Function(state, plugin, "settings_backdrop", SettingsBackdrop);
     Function(state, plugin, "mention", Mention);
     Function(state, plugin, "message_color", MessageColor);
-    Function(state, plugin, "author_color", AuthorColor);
     Function(state, plugin, "message_action", MessageAction);
     Function(state, plugin, "name_color", NameColor);
     Function(state, plugin, "typing", TypingDecorator);
@@ -1795,7 +1784,6 @@ static void Stop(LuaPlugin *plugin)
     plugin->messageBackgroundDecorators.clear();
     plugin->nodePatches.clear();
     SyncPatchPrefixes();
-    plugin->authorColorizers.clear();
     ApplySettingsBackdrop();
     TraceRunningPlugins();
 }
@@ -2907,50 +2895,6 @@ int AstralLuaMention(const AstralMentionContext *context, AstralMentionDecoratio
     return decorated;
 }
 
-int AstralLuaAuthorColor(uint64_t messageID, uint64_t userID, uint64_t channelID, uint32_t *color)
-{
-    std::unique_lock<std::recursive_mutex> lock(gMutex, std::try_to_lock);
-    if (!lock.owns_lock() || !color) return 0;
-    bool wanted = false;
-    for (auto *plugin : gPlugins) wanted = wanted || (plugin->state && !plugin->failed && !plugin->authorColorizers.empty());
-    if (!wanted) return 0;
-    std::string message = Snowflake(messageID);
-    std::string user = Snowflake(userID);
-    std::string channel = ResolveChannel(channelID, message);
-    auto guild = !channel.empty() && gPlatform.channelGuild ? gPlatform.channelGuild(channel) : std::nullopt;
-    for (auto *plugin : gPlugins) {
-        if (!plugin->state || plugin->failed) continue;
-        for (int colorizer : plugin->authorColorizers) {
-            lua_State *state = plugin->state;
-            lua_rawgeti(state, LUA_REGISTRYINDEX, colorizer);
-            lua_createtable(state, 0, 4);
-            lua_pushstring(state, message.c_str());
-            lua_setfield(state, -2, "message_id");
-            if (!user.empty()) {
-                lua_pushstring(state, user.c_str());
-                lua_setfield(state, -2, "author_id");
-            }
-            if (!channel.empty()) {
-                lua_pushstring(state, channel.c_str());
-                lua_setfield(state, -2, "channel_id");
-            }
-            if (guild) {
-                lua_pushstring(state, guild->c_str());
-                lua_setfield(state, -2, "guild_id");
-            }
-            if (Call(plugin, 1, 1, "author_color")) {
-                bool found = lua_isinteger(state, -1);
-                if (found) *color = (uint32_t)lua_tointeger(state, -1);
-                lua_pop(state, 1);
-                if (found) return 1;
-            }
-            if (plugin->failed) break;
-        }
-        if (plugin->failed) Stop(plugin);
-    }
-    return 0;
-}
-
 int AstralLuaMessageTextColor(uint64_t messageID, uint64_t channelID, uint32_t *color)
 {
     std::unique_lock<std::recursive_mutex> lock(gMutex, std::try_to_lock);
@@ -3073,9 +3017,18 @@ static void ReadNodePatch(lua_State *state, AstralNodePatch *patch)
     lua_pop(state, 1);
 }
 
-int AstralLuaPatchNode(const char *identifier, const char *type, AstralNodePatch *patch)
+static void PushSnowflakeField(lua_State *state, const char *field, uint64_t value)
 {
-    if (!identifier || !type || !patch) return 0;
+    if (!value) return;
+    lua_pushstring(state, std::to_string(value).c_str());
+    lua_setfield(state, -2, field);
+}
+
+int AstralLuaPatchNode(const AstralPatchTarget *target, AstralNodePatch *patch)
+{
+    if (!target || !target->identifier || !target->type || !patch) return 0;
+    const char *identifier = target->identifier;
+    const char *type = target->type;
     std::unique_lock<std::recursive_mutex> lock(gMutex, std::try_to_lock);
     if (!lock.owns_lock()) return -1;
     std::string_view id(identifier);
@@ -3086,13 +3039,16 @@ int AstralLuaPatchNode(const char *identifier, const char *type, AstralNodePatch
             lua_State *state = plugin->state;
             int top = lua_gettop(state);
             lua_rawgeti(state, LUA_REGISTRYINDEX, entry.reference);
-            lua_createtable(state, 0, 3);
+            lua_createtable(state, 0, 6);
             lua_pushstring(state, identifier);
             lua_setfield(state, -2, "id");
             lua_pushstring(state, identifier + entry.prefix.size());
             lua_setfield(state, -2, "key");
             lua_pushstring(state, type);
             lua_setfield(state, -2, "type");
+            PushSnowflakeField(state, "message_id", target->message_id);
+            PushSnowflakeField(state, "author_id", target->author_id);
+            PushSnowflakeField(state, "channel_id", target->channel_id);
             if (!Call(plugin, 1, 1, "node patch")) {
                 lua_settop(state, top);
                 MarkFailed(plugin);

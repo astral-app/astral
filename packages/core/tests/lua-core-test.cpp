@@ -733,6 +733,7 @@ static void testNodePatch(const std::string &work)
                                         "permissions = ['ui.patch']\n");
     writeText(plugin / "main.lua", "astral.ui.patch({ id = 'demo.card:', type = 'view' }, function(node)\n"
                                    "  if node.key == 'hide' then return { hidden = true } end\n"
+                                   "  if node.author_id == '100000000000000001' then return { text_color = 0xFF00FF00 } end\n"
                                    "  return { background = '#5865F2', radius = 6, padding = 4 }\n"
                                    "end)\n");
     astral::SettingsStore settings((root / "settings.json").string());
@@ -740,15 +741,25 @@ static void testNodePatch(const std::string &work)
     astral::LuaHostPlatform platform;
     platform.storagePath = (root / "storage.sqlite").string();
     astral::luahost::start({(root / "plugins").string()}, &settings, true, std::move(platform));
+    auto target = [](const char *identifier, const char *type, uint64_t author) {
+        return AstralPatchTarget{identifier, type, strlen("demo.card:"), 0, author, 0};
+    };
     AstralNodePatch patch = {};
-    assert(AstralLuaPatchNode("demo.card:42", "view", &patch) == 1);
+    auto card = target("demo.card:42", "view", 0);
+    assert(AstralLuaPatchNode(&card, &patch) == 1);
     assert(patch.background == 0xFF5865F2 && patch.radius == 6 && patch.padding[3] == 4);
     assert(patch.fields == (AstralPatchBackground | AstralPatchRadius | AstralPatchPadding));
     AstralNodePatch hidden = {};
-    assert(AstralLuaPatchNode("demo.card:hide", "view", &hidden) == 1 && hidden.fields == AstralPatchHidden);
+    auto hide = target("demo.card:hide", "view", 0);
+    assert(AstralLuaPatchNode(&hide, &hidden) == 1 && hidden.fields == AstralPatchHidden);
+    AstralNodePatch authored = {};
+    auto byAuthor = target("demo.card:7", "view", 100000000000000001ULL);
+    assert(AstralLuaPatchNode(&byAuthor, &authored) == 1 && authored.textColor == 0xFF00FF00);
     AstralNodePatch other = {};
-    assert(AstralLuaPatchNode("demo.card:42", "text", &other) == 0);
-    assert(AstralLuaPatchNode("other:42", "view", &other) == 0);
+    auto text = target("demo.card:42", "text", 0);
+    auto unrelated = target("other:42", "view", 0);
+    assert(AstralLuaPatchNode(&text, &other) == 0);
+    assert(AstralLuaPatchNode(&unrelated, &other) == 0);
     astral::luahost::stop();
 }
 

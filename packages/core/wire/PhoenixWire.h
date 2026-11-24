@@ -160,9 +160,6 @@ typedef int (*AstralMessageBackgroundDecorator)(const AstralMessageBackgroundCon
 
 void astral_wire_set_message_background_decorator(AstralMessageBackgroundDecorator decorator);
 
-typedef int (*AstralAuthorColorizer)(uint64_t message_id, uint64_t user_id, uint64_t channel_id, uint32_t *color);
-
-void astral_wire_set_author_colorizer(AstralAuthorColorizer colorizer);
 void astral_wire_set_relabeler(AstralRelabeler relabeler);
 void astral_wire_set_palette(const uint32_t *from, const uint32_t *to, size_t count);
 void astral_wire_set_scales(double radius, double font);
@@ -286,7 +283,16 @@ typedef struct {
     uint32_t textColor;
 } AstralNodePatch;
 
-typedef int (*AstralNodePatcher)(const char *identifier, const char *type, AstralNodePatch *patch);
+typedef struct {
+    const char *identifier;
+    const char *type;
+    size_t key;
+    uint64_t message_id;
+    uint64_t author_id;
+    uint64_t channel_id;
+} AstralPatchTarget;
+
+typedef int (*AstralNodePatcher)(const AstralPatchTarget *target, AstralNodePatch *patch);
 void astral_wire_set_node_patcher(AstralNodePatcher patcher);
 void astral_wire_set_patch_prefixes(const char *const *prefixes, size_t count);
 int astral_wire_refresh_node_patches(AstralWireBuffer *buffer);
