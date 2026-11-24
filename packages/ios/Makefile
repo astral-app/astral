@@ -11,7 +11,8 @@ MONOCYPHER := $(ROOT)/vendor/monocypher/src
 CORE := $(abspath ../core)
 LUA := $(ROOT)/vendor/lua
 LUA_SOURCES := lapi lcode lctype ldebug ldo ldump lfunc lgc llex lmem lobject lopcodes lparser lstate lstring ltable ltm lundump lvm lzio lauxlib lbaselib lstrlib ltablib lmathlib lutf8lib lcorolib
-CORE_SOURCES := AstralSignatures AstralThemes AstralPacks AstralTOML AstralCutout AstralLuaHost AstralSettingsPages AstralDiscordCache AstralDevServer AstralReactors AstralSession AstralRequestSink AstralMetricKitCrash AstralNetworkPolicy AstralPrivacy AstralSettings AstralSettingsCache AstralSettingsFile AstralFiles AstralJSON AstralJSONMembers AstralDiskFull AstralLog AstralExitRecord AstralPluginTrace AstralLaunchGuard AstralStrings AstralSettingsRecovery LuaSandbox LuaJSON LuaLocale PluginPackage PluginStorage
+ANDROID_ONLY_SOURCES := AstralSettingsNavigator
+CORE_SOURCES := $(filter-out $(ANDROID_ONLY_SOURCES),$(basename $(notdir $(wildcard $(CORE)/src/*.cpp))))
 
 GENERATED := $(abspath .theos/generated)
 PRELUDE := $(CORE)/lua/prelude.lua
