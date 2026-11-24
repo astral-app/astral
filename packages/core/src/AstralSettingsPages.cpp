@@ -151,9 +151,9 @@ json generalPage(const astral::SettingsPageContext &context)
                   with(row("force-phoenix", "Force Phoenix", "res://ic_mana_settings_arrow_up", kAstralRowInfo),
                        {{"detail", "On"}, {"subtitle", "The React Native fallback stays off"}})}),
          section("Backup", {with(row("export-backup", "Export settings", "res://ic_mana_download", kAstralRowLink),
-                                 {{"subtitle", "Save astral, plugin and theme settings to a TOML file"}}),
+                                 {{"subtitle", "Save astral and addon settings to a TOML file"}}),
                             with(row("import-backup", "Import settings", "res://ic_mana_refresh", kAstralRowLink),
-                                 {{"subtitle", "Restore a backup and reinstall its marketplace items"}})}),
+                                 {{"subtitle", "Restore a backup and reinstall its marketplace addons"}})}),
          reportsSection(),
          section("Diagnostics",
                  {with(row("recovery", "Recovery", "res://ic_mana_refresh", kAstralRowInfo),
@@ -617,11 +617,10 @@ json updatesPage(const astral::SettingsPageContext &context)
     sections.push_back(section("Discord", {with(row("discord-build", "Build", "res://ic_mana_mobile_phone_settings", kAstralRowInfo),
                                                 {{"detail", context.compatibility == "ready" ? "Supported" : "Unsupported"},
                                                  {"subtitle", context.discordVersion}})}));
-    sections.push_back(section("Plugins and themes", addonRows));
-    sections.push_back(
-        section("Check", {row("refresh", "Check for updates", "res://ic_mana_refresh", kAstralRowLink),
-                          with(row("auto-update", "Update automatically", "res://ic_mana_download", kAstralRowSwitch),
-                               {{"on", autoUpdates()}, {"subtitle", "Install plugin and theme updates when Discord opens"}})}));
+    sections.push_back(section("Addons", addonRows));
+    sections.push_back(section("Check", {row("refresh", "Check for updates", "res://ic_mana_refresh", kAstralRowLink),
+                                         with(row("auto-update", "Update automatically", "res://ic_mana_download", kAstralRowSwitch),
+                                              {{"on", autoUpdates()}, {"subtitle", "Install addon updates when Discord opens"}})}));
     return page("Updates", sections);
 }
 

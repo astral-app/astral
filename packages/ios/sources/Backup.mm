@@ -202,7 +202,6 @@ void AstralImportBackup(void (^changed)(void))
 {
     AstralPickFile(@[ @"toml" ], ^(NSData *data, NSString *name) {
         NSString *failure = data ? AstralApplyBackup(data, changed) : @"could not read the file";
-        AstralShowAlert(failure ? @"Import failed" : @"Settings imported",
-                        failure ?: @"Missing marketplace plugins and themes are being installed.");
+        AstralShowAlert(failure ? @"Import failed" : @"Settings imported", failure ?: @"Missing marketplace addons are being installed.");
     });
 }

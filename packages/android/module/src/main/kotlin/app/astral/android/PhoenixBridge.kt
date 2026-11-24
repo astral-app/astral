@@ -531,7 +531,7 @@ object PhoenixBridge {
             val activity = activeActivity() ?: return@post
             val clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return@post
             clipboard.setPrimaryClip(ClipData.newPlainText("astral report", report))
-            Toast.makeText(activity, "Plugin report copied", Toast.LENGTH_LONG).show()
+            Toast.makeText(activity, "Report copied", Toast.LENGTH_LONG).show()
         }
     }
 

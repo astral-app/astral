@@ -123,7 +123,7 @@ The ViewWire rewriter tracks `message.author`, `message.avatar`, `message.timest
 
 ## Backup
 
-Export settings writes `astral-backup.toml` (format 1) through the share sheet: astral's settings, each installed plugin's enabled state and settings, and the marketplace plugins and themes installed. Import settings reads one back from Files, applies it and reinstalls missing marketplace items from the catalog. `astral dev backup export|import` does the same over the development API.
+Export settings writes `astral-backup.toml` (format 1) through the share sheet: astral's settings, each installed plugin's enabled state and settings, and the marketplace addons installed. Import settings reads one back from Files, applies it and reinstalls missing marketplace items from the catalog. `astral dev backup export|import` does the same over the development API.
 
 ## Reports
 
