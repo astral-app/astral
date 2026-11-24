@@ -515,7 +515,7 @@ static int32_t buildSwitch(Out *out, const char *key, int on)
     char identifier[128];
     snprintf(identifier, sizeof(identifier), "astral.switch.%s", key);
     int32_t track = newNode(out, "view");
-    wirePropCount(out, P(accessibilityTapLabel));
+    wirePropCount(out, 14);
     wirePropBool(out, P(accessibilityHidden), 1);
     wirePropString(out, P(accessibilityId), identifier);
     wirePropString(out, P(align), "stretch");
@@ -534,7 +534,7 @@ static int32_t buildSwitch(Out *out, const char *key, int on)
     wirePropNumber(out, P(width), 56);
     wirePropBool(out, P(exactHitArea), 1);
     int32_t thumb = newNode(out, "view");
-    wirePropCount(out, P(accessibilityHint));
+    wirePropCount(out, 8);
     wirePropString(out, P(align), "center");
     wirePropLong(out, P(background), kThumb);
     wirePropString(out, P(direction), "row");
@@ -599,7 +599,7 @@ static int32_t buildSpecRow(Out *out, const AstralRowSpec *row, int first, int l
     int32_t title = cloneRole(out, kRowTitle, &titleChange, 1);
     if (row->subtitle && row->subtitle[0]) {
         int32_t column = newNode(out, "view");
-        wirePropCount(out, P(accessibilityChecked));
+        wirePropCount(out, 3);
         wirePropString(out, P(direction), "column");
         wirePropNumber(out, P(flex), 1);
         wirePropNumber(out, P(gap), 2);
@@ -634,7 +634,7 @@ static int32_t buildSpecRow(Out *out, const AstralRowSpec *row, int first, int l
         children[childCount++] = trailing;
     } else if (row->kind == kAstralRowSwitch || row->kind == kAstralRowSwitchLink) {
         int32_t trailing = newNode(out, "view");
-        wirePropCount(out, P(accessibilityBusy));
+        wirePropCount(out, 2);
         wirePropString(out, P(align), "stretch");
         wirePropQuad(out, P(margin), 18, 0, 0, 0);
         wirePutChildren(out, trailing, (int32_t[]){buildSwitch(out, row->key, row->on)}, 1);
@@ -709,7 +709,7 @@ static int32_t buildRoundButton(Out *out, const char *key, const char *icon, dou
     char identifier[128];
     snprintf(identifier, sizeof(identifier), "astral.row.%s", key);
     int32_t button = newNode(out, "view");
-    wirePropCount(out, P(accessibilityKeepsChildren));
+    wirePropCount(out, 10);
     wirePropString(out, P(accessibilityId), identifier);
     wirePropString(out, P(align), "center");
     wirePropString(out, P(justify), "center");
@@ -729,7 +729,7 @@ static int32_t buildChip(Out *out, const AstralChipSpec *chip)
     char identifier[128];
     snprintf(identifier, sizeof(identifier), "astral.row.%s", chip->key);
     int32_t node = newNode(out, "view");
-    wirePropCount(out, P(accessibilityId));
+    wirePropCount(out, 9);
     wirePropString(out, P(accessibilityId), identifier);
     wirePropString(out, P(align), "center");
     wirePropString(out, P(direction), "row");
@@ -752,12 +752,12 @@ static int32_t buildToolbar(Out *out, const AstralToolbarSpec *toolbar)
     uint32_t count = 0;
     for (size_t index = 0; index < toolbar->chipCount && count < 8; index++) children[count++] = buildChip(out, &toolbar->chips[index]);
     int32_t spacer = newNode(out, "view");
-    wirePropCount(out, P(accessibilityActions));
+    wirePropCount(out, 1);
     wirePropNumber(out, P(flex), 1);
     children[count++] = spacer;
     if (toolbar->buttonKey) children[count++] = buildRoundButton(out, toolbar->buttonKey, toolbar->buttonIcon, 36);
     int32_t row = newNode(out, "view");
-    wirePropCount(out, P(accessibilityExpanded));
+    wirePropCount(out, 5);
     wirePropString(out, P(direction), "row");
     wirePropString(out, P(align), "center");
     wirePropNumber(out, P(gap), 8);
@@ -770,7 +770,7 @@ static int32_t buildToolbar(Out *out, const AstralToolbarSpec *toolbar)
 static int32_t buildVersionTag(Out *out, const char *text)
 {
     int32_t tag = newNode(out, "view");
-    wirePropCount(out, P(accessibilityDisabled));
+    wirePropCount(out, 4);
     wirePropLong(out, P(background), kTranslucentFill);
     wirePropQuad(out, P(padding), 6, 2, 6, 2);
     wirePropNumber(out, P(radius), 6);
@@ -782,7 +782,7 @@ static int32_t buildVersionTag(Out *out, const char *text)
 static int32_t buildAvatar(Out *out, const char *source, int first)
 {
     int32_t avatar = newNode(out, "image");
-    wirePropCount(out, P(accessibilityHidden));
+    wirePropCount(out, 7);
     wirePropString(out, P(uri), source);
     wirePropNumber(out, P(width), 24);
     wirePropNumber(out, P(height), 24);
@@ -802,7 +802,7 @@ static int32_t buildAuthors(Out *out, const AstralCardSpec *card)
         size_t avatarCount = card->avatarCount > 3 ? 3 : card->avatarCount;
         for (size_t index = 0; index < avatarCount; index++) avatars[index] = buildAvatar(out, card->avatars[index], index == 0);
         int32_t pile = newNode(out, "view");
-        wirePropCount(out, P(accessibilityChecked));
+        wirePropCount(out, 3);
         wirePropString(out, P(direction), "row");
         wirePropString(out, P(align), "center");
         wirePropNumber(out, P(shrink), 0);
@@ -812,7 +812,7 @@ static int32_t buildAuthors(Out *out, const AstralCardSpec *card)
     int32_t names = buildText(out, card->authors, 12, 500, 0.62, 1, 0);
     children[count++] = names;
     int32_t row = newNode(out, "view");
-    wirePropCount(out, P(accessibilityChecked));
+    wirePropCount(out, 3);
     wirePropString(out, P(direction), "row");
     wirePropString(out, P(align), "center");
     wirePropNumber(out, P(gap), 6);
@@ -826,7 +826,7 @@ static int32_t buildCard(Out *out, const AstralCardSpec *card)
     snprintf(settingsKey, sizeof(settingsKey), "settings.%s", card->key);
     snprintf(overflowKey, sizeof(overflowKey), "more.%s", card->key);
     int32_t tile = newNode(out, "view");
-    wirePropCount(out, P(accessibilityHidden));
+    wirePropCount(out, 7);
     wirePropString(out, P(align), "center");
     wirePropString(out, P(justify), "center");
     wirePropLong(out, P(background), kTranslucentFill);
@@ -841,7 +841,7 @@ static int32_t buildCard(Out *out, const AstralCardSpec *card)
     headingChildren[headingCount++] = buildText(out, card->title, 16, 600, 1, 1, 0);
     if (card->authors && card->authors[0]) headingChildren[headingCount++] = buildAuthors(out, card);
     int32_t heading = newNode(out, "view");
-    wirePropCount(out, P(accessibilityDisabled));
+    wirePropCount(out, 4);
     wirePropString(out, P(direction), "column");
     wirePropNumber(out, P(flex), 1);
     wirePropNumber(out, P(gap), 2);
@@ -854,7 +854,7 @@ static int32_t buildCard(Out *out, const AstralCardSpec *card)
     actionChildren[actionCount++] = buildRoundButton(out, overflowKey, "res://ic_mana_more_horizontal", 32);
     actionChildren[actionCount++] = buildSwitch(out, card->key, card->on);
     int32_t actions = newNode(out, "view");
-    wirePropCount(out, P(accessibilityDisabled));
+    wirePropCount(out, 4);
     wirePropString(out, P(direction), "row");
     wirePropString(out, P(align), "center");
     wirePropNumber(out, P(gap), 8);
@@ -862,7 +862,7 @@ static int32_t buildCard(Out *out, const AstralCardSpec *card)
     wirePutChildren(out, actions, actionChildren, actionCount);
 
     int32_t top = newNode(out, "view");
-    wirePropCount(out, P(accessibilityChecked));
+    wirePropCount(out, 3);
     wirePropString(out, P(direction), "row");
     wirePropString(out, P(align), "start");
     wirePropNumber(out, P(gap), 12);
@@ -874,13 +874,13 @@ static int32_t buildCard(Out *out, const AstralCardSpec *card)
         bottomChildren[bottomCount++] = buildText(out, card->description, 14, 400, 1, 0, 1);
     } else {
         int32_t spacer = newNode(out, "view");
-        wirePropCount(out, P(accessibilityActions));
+        wirePropCount(out, 1);
         wirePropNumber(out, P(flex), 1);
         bottomChildren[bottomCount++] = spacer;
     }
     if (card->version && card->version[0]) bottomChildren[bottomCount++] = buildVersionTag(out, card->version);
     int32_t bottom = newNode(out, "view");
-    wirePropCount(out, P(accessibilityChecked));
+    wirePropCount(out, 3);
     wirePropString(out, P(direction), "row");
     wirePropString(out, P(align), "end");
     wirePropNumber(out, P(gap), 12);
@@ -892,7 +892,7 @@ static int32_t buildCard(Out *out, const AstralCardSpec *card)
         cardChildren[cardCount++] = buildColoredText(out, card->error, 12, 500, 1, 3, 0, kCriticalText);
     }
     int32_t node = newNode(out, "view");
-    wirePropCount(out, P(accessibilityId));
+    wirePropCount(out, 9);
     wirePropString(out, P(direction), "column");
     wirePropNumber(out, P(gap), 6);
     wirePropQuad(out, P(padding), 16, 16, 16, 16);
@@ -913,7 +913,7 @@ static int32_t buildCardList(Out *out, const AstralPageSpec *page)
     if (page->toolbar) children[count++] = buildToolbar(out, page->toolbar);
     for (size_t index = 0; index < page->cardCount && count < 65; index++) children[count++] = buildCard(out, &page->cards[index]);
     int32_t list = newNode(out, "view");
-    wirePropCount(out, P(accessibilityDisabled));
+    wirePropCount(out, 4);
     wirePropString(out, P(direction), "column");
     wirePropNumber(out, P(gap), 12);
     wirePropString(out, P(width), "fill");

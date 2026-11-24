@@ -479,13 +479,21 @@ std::optional<std::string> installStatus(const std::string &identifier)
     return gPlatform.installStatus ? gPlatform.installStatus(identifier) : std::nullopt;
 }
 
+std::string packageIcon(const json &package, const std::string &identifier)
+{
+    json plugin = pluginWithID(identifier);
+    if (!plugin.is_null()) return pluginIcon(plugin);
+    if (!text(package, "icon").empty()) return manaAsset(text(package, "icon"));
+    return "res://ic_mana_puzzle_piece_plus";
+}
+
 json packageRow(const json &package, const std::string &kind)
 {
     std::string identifier = text(package, "id");
     auto installed = installedVersion(identifier, kind);
     auto status = installStatus(identifier);
     if (!status) status = !installed ? "Get" : astral::pages::versionIsNewer(text(package, "version"), *installed) ? "Update" : "Installed";
-    std::string icon = kind == "theme" ? "res://ic_mana_paint_palette" : "res://ic_mana_puzzle_piece_plus";
+    std::string icon = kind == "theme" ? "res://ic_mana_paint_palette" : packageIcon(package, identifier);
     std::string subtitle = text(package, "description");
     if (package.contains("version") && package["version"].is_string()) subtitle = "v" + text(package, "version") + " · " + subtitle;
     return with(row(kind + "." + identifier, text(package, "name"), icon, kAstralRowLink), {{"detail", *status}, {"subtitle", subtitle}});
