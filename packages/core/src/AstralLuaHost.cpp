@@ -2597,6 +2597,22 @@ static std::string Snowflake(uint64_t value)
     return value ? std::to_string(value) : std::string();
 }
 
+static std::optional<std::string> PluginIconURI(const LuaPlugin *plugin, const std::string &icon)
+{
+    if (icon.size() >= 500) return std::nullopt;
+    if (icon.rfind("res://", 0) == 0 || icon.rfind("https://", 0) == 0) return icon;
+    std::filesystem::path requested(icon);
+    if (icon.empty() || requested.is_absolute()) return std::nullopt;
+    for (const auto &part : requested)
+        if (part == "..") return std::nullopt;
+    std::string extension = requested.extension().string();
+    if (extension != ".png" && extension != ".webp") return std::nullopt;
+    std::error_code error;
+    std::filesystem::path full = std::filesystem::path(plugin->directory) / requested;
+    if (!std::filesystem::is_regular_file(full, error)) return std::nullopt;
+    return "file://" + full.string();
+}
+
 static void CollectTags(LuaPlugin *plugin, AstralTag *tags, size_t capacity, size_t *count)
 {
     lua_State *state = plugin->state;
@@ -2608,6 +2624,22 @@ static void CollectTags(LuaPlugin *plugin, AstralTag *tags, size_t capacity, siz
     for (lua_Integer index = 1; index <= length && *count < capacity; index++) {
         lua_rawgeti(state, -1, index);
         if (lua_istable(state, -1)) {
+            lua_getfield(state, -1, "icon");
+            auto icon = lua_isstring(state, -1) ? PluginIconURI(plugin, lua_tostring(state, -1)) : std::nullopt;
+            lua_pop(state, 1);
+            if (icon) {
+                AstralTag *tag = &tags[(*count)++];
+                memset(tag, 0, sizeof(*tag));
+                tag->shape = kAstralTagIcon;
+                snprintf(tag->icon, sizeof(tag->icon), "%s", icon->c_str());
+                lua_getfield(state, -1, "tint");
+                if (lua_isinteger(state, -1)) tag->tint = (uint32_t)lua_tointeger(state, -1);
+                lua_pop(state, 1);
+                lua_getfield(state, -1, "text");
+                if (lua_isstring(state, -1)) snprintf(tag->text, sizeof(tag->text), "%s", lua_tostring(state, -1));
+                lua_pop(state, 2);
+                continue;
+            }
             lua_getfield(state, -1, "text");
             lua_getfield(state, -2, "color");
             lua_getfield(state, -3, "text_color");

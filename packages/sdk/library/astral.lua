@@ -20,6 +20,8 @@
 ---@class astral.Member
 ---@field roles astral.Snowflake[]
 ---@field nick? string
+---@field joined_at? string
+---@field flags? integer
 
 ---@class astral.User
 ---@field id astral.Snowflake
@@ -173,6 +175,8 @@ function Color:luminance() end
 ---@field colors? astral.ColorLike[]
 ---@field text_color? astral.ColorLike
 ---@field shape? astral.Shape
+---@field icon? string
+---@field tint? astral.ColorLike
 
 ---@class astral.BuiltPill
 ---@field text string
@@ -180,6 +184,8 @@ function Color:luminance() end
 ---@field text_color astral.Argb
 ---@field colors? astral.Argb[]
 ---@field shape astral.Shape
+---@field icon? string
+---@field tint? astral.Argb
 
 ---@class astral.Pill
 ---@field text string

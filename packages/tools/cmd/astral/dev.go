@@ -278,7 +278,7 @@ func (d devClient) push(folder string) error {
 		}
 		modules["i18n/"+filepath.Base(file)] = string(text)
 	}
-	assets, err := pluginSounds(folder)
+	assets, err := pluginAssets(folder)
 	if err != nil {
 		return err
 	}
@@ -290,12 +290,12 @@ func (d devClient) push(folder string) error {
 	return nil
 }
 
-var soundExtensions = map[string]bool{".mp3": true, ".m4a": true, ".wav": true, ".caf": true, ".aac": true}
+var assetExtensions = map[string]bool{".mp3": true, ".m4a": true, ".wav": true, ".caf": true, ".aac": true, ".png": true, ".webp": true}
 
-func pluginSounds(folder string) (map[string]string, error) {
+func pluginAssets(folder string) (map[string]string, error) {
 	assets := map[string]string{}
 	err := filepath.WalkDir(folder, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil || entry.IsDir() || !soundExtensions[strings.ToLower(filepath.Ext(path))] {
+		if err != nil || entry.IsDir() || !assetExtensions[strings.ToLower(filepath.Ext(path))] {
 			return err
 		}
 		relative, err := filepath.Rel(folder, path)

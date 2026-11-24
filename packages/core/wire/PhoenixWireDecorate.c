@@ -20,6 +20,7 @@ static Decorated gDecorated[kMaxDecorated];
 
 enum { kBackgroundLinkCapacity = 16384, kBackgroundRowCapacity = 512, kBackgroundRowMapCapacity = 1024, kBubbleChildren = 4 };
 
+static const double kIconTagSize = 16;
 static const char kContentPrefix[] = "message.content:";
 static const float kBubblePadding[4] = {10, 6, 10, 6};
 
@@ -566,8 +567,96 @@ static int32_t tagId(void)
     return id;
 }
 
+enum { kIconCacheSize = 8, kMaxIconFileBytes = 64 * 1024 };
+
+typedef struct {
+    char path[512];
+    char *uri;
+} IconData;
+
+static IconData gIconData[kIconCacheSize];
+static size_t gNextIconData;
+
+static char *encodedIcon(const char *path)
+{
+    FILE *file = fopen(path, "rb");
+    if (!file) return NULL;
+    unsigned char *bytes = malloc(kMaxIconFileBytes);
+    size_t size = bytes ? fread(bytes, 1, kMaxIconFileBytes, file) : 0;
+    int truncated = bytes && fgetc(file) != EOF;
+    fclose(file);
+    if (!size || truncated) {
+        free(bytes);
+        return NULL;
+    }
+    static const char alphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    const char *prefix = strstr(path, ".webp") ? "data:image/webp;base64," : "data:image/png;base64,";
+    size_t prefixLength = strlen(prefix);
+    char *uri = malloc(prefixLength + (size + 2) / 3 * 4 + 1);
+    if (!uri) {
+        free(bytes);
+        return NULL;
+    }
+    memcpy(uri, prefix, prefixLength);
+    char *cursor = uri + prefixLength;
+    for (size_t index = 0; index < size; index += 3) {
+        uint32_t chunk = (uint32_t)bytes[index] << 16;
+        if (index + 1 < size) chunk |= (uint32_t)bytes[index + 1] << 8;
+        if (index + 2 < size) chunk |= bytes[index + 2];
+        *cursor++ = alphabet[(chunk >> 18) & 63];
+        *cursor++ = alphabet[(chunk >> 12) & 63];
+        *cursor++ = index + 1 < size ? alphabet[(chunk >> 6) & 63] : '=';
+        *cursor++ = index + 2 < size ? alphabet[chunk & 63] : '=';
+    }
+    *cursor = 0;
+    free(bytes);
+    return uri;
+}
+
+static const char *iconURI(const char *icon)
+{
+    static const char kFilePrefix[] = "file://";
+    if (strncmp(icon, kFilePrefix, sizeof(kFilePrefix) - 1) != 0) return icon;
+    const char *path = icon + sizeof(kFilePrefix) - 1;
+    for (size_t index = 0; index < kIconCacheSize; index++) {
+        if (gIconData[index].uri && strcmp(gIconData[index].path, path) == 0) return gIconData[index].uri;
+    }
+    char *uri = encodedIcon(path);
+    if (!uri) return NULL;
+    IconData *slot = &gIconData[gNextIconData++ % kIconCacheSize];
+    free(slot->uri);
+    snprintf(slot->path, sizeof(slot->path), "%s", path);
+    slot->uri = uri;
+    return uri;
+}
+
+static int32_t buildIconTag(Out *out, const AstralTag *tag, Decorated *slot)
+{
+    const char *uri = iconURI(tag->icon);
+    if (!uri) return 0;
+    int32_t icon = tagId();
+    wirePut8(out, 1);
+    wirePut32(out, (uint32_t)icon);
+    wirePut16(out, 5);
+    wirePut(out, "image", 5);
+    wirePropCount(out, tag->tint ? 7 : 6);
+    wirePropString(out, P(uri), uri);
+    wirePropNumber(out, P(width), kIconTagSize);
+    wirePropNumber(out, P(height), kIconTagSize);
+    wirePropString(out, P(scale), "fit");
+    wirePropNumber(out, P(shrink), 0);
+    if (tag->action_id[0])
+        wirePropString(out, P(accessibilityLabel), tag->text);
+    else
+        wirePropBool(out, P(accessibilityHidden), 1);
+    if (tag->tint) wirePropLong(out, P(tint), (int64_t)tag->tint);
+    slot->tags[slot->count++] = icon;
+    return icon;
+}
+
 int32_t wireBuildTag(Out *out, const AstralTag *tag, Decorated *slot)
 {
+    if (tag->shape == kAstralTagIcon) return buildIconTag(out, tag, slot);
     int originalPoster = tag->shape == kAstralTagOriginalPoster;
     int gradient = tag->gradientCount >= 2;
     int32_t pill = tagId();
@@ -661,7 +750,8 @@ void wireDecorate(const uint8_t *bytes, const Span *spans, size_t count, Out *ou
         }
         for (uint32_t position = 0; position <= span->childCount && used < 68; position++) {
             if (position == insertAt) {
-                for (size_t tag = 0; tag < tagCount && tag < kMaxTags; tag++) children[used++] = created[tag];
+                for (size_t tag = 0; tag < tagCount && tag < kMaxTags; tag++)
+                    if (created[tag]) children[used++] = created[tag];
             }
             if (position < span->childCount) children[used++] = wireChildAt(bytes, span, position);
         }

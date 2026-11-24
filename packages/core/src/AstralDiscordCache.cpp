@@ -282,7 +282,11 @@ std::optional<nlohmann::json> member(const std::string &guildID, const std::stri
     nlohmann::json roles = nlohmann::json::array();
     for (const auto &role : record->value("roles", nlohmann::json::array()))
         if (role.is_string()) roles.push_back(role);
-    return remember(cacheKey, nlohmann::json{{"user_id", userID}, {"roles", roles}, {"nick", stringField(*record, "nick")}});
+    nlohmann::json result{{"user_id", userID}, {"roles", roles}, {"nick", stringField(*record, "nick")}};
+    copyStrings(*record, result, {"joined_at"});
+    auto flags = record->find("flags");
+    if (flags != record->end() && flags->is_number_integer()) result["flags"] = *flags;
+    return remember(cacheKey, result);
 }
 
 std::optional<std::string> memberNamed(const std::string &guildID, const std::string &name)
