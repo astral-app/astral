@@ -1907,6 +1907,7 @@ void start(const std::vector<std::string> &directories, SettingsStore *store, bo
     gStartEnabled = startEnabled;
     gPlatform = std::move(platform);
     Scan();
+    RefreshDecorations();
 }
 
 void rescan()
@@ -2576,6 +2577,7 @@ static void NotifySetting(LuaPlugin *plugin, const std::string &key, const std::
     } else {
         lua_pop(plugin->state, 1);
     }
+    RefreshDecorations();
 }
 
 namespace astral::luahost {
