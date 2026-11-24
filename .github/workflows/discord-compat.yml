@@ -134,6 +134,10 @@ jobs:
           [ -f report.md ] && cat report.md >> "$GITHUB_STEP_SUMMARY"
           phoenix=$(jq -r '.phoenix // false' android-compat.json 2>/dev/null || echo false)
           version=$(jq -r '.versionCode // "unknown"' android-compat.json 2>/dev/null || echo unknown)
+          missing=$(jq -r '(.missingHookClasses // []) | join(", ")' android-compat.json 2>/dev/null || true)
+          if [ -n "$missing" ]; then
+            echo "::warning title=Phoenix classes moved::Discord Android $CHANNEL no longer has $missing; update PhoenixClasses.kt"
+          fi
           if [ "$status" -eq 0 ]; then
             echo "outcome=supported" >> "$GITHUB_OUTPUT"
           elif [ ! -f android-compat.json ]; then

@@ -32,6 +32,7 @@ type androidCompatResult struct {
 	MissingProperties    []string        `json:"missingProperties"`
 	Events               map[string]bool `json:"events"`
 	OptionalNetworkHooks map[string]bool `json:"optionalNetworkHooks"`
+	MissingHookClasses   []string        `json:"missingHookClasses"`
 }
 
 type androidAPKList []string
@@ -297,6 +298,26 @@ func dexEntries(archive *zip.ReadCloser) ([]string, error) {
 	return names, nil
 }
 
+func androidPhoenixClasses() ([]string, error) {
+	data, err := os.ReadFile(repoPath("packages", "android", "module", "src", "main", "kotlin", "app", "astral", "android", "PhoenixClasses.kt"))
+	if err != nil {
+		return nil, err
+	}
+	pattern := regexp.MustCompile(`const val [A-Z_]+ = "([a-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_$]+)+)"`)
+	var classes []string
+	for _, match := range pattern.FindAllSubmatch(data, -1) {
+		classes = append(classes, string(match[1]))
+	}
+	if len(classes) == 0 {
+		return nil, errors.New("could not read PhoenixClasses.kt")
+	}
+	return classes, nil
+}
+
+func dexDescriptor(class string) string {
+	return "L" + strings.ReplaceAll(class, ".", "/") + ";"
+}
+
 func androidProperties() ([]string, error) {
 	data, err := os.ReadFile(repoPath("packages", "core", "wire", "PhoenixProperties.h"))
 	if err != nil {
@@ -433,7 +454,16 @@ func scanAndroidAPKs(apks []string, properties []string) (androidCompatResult, e
 	result.Events["press"] = combined.strings["press"]
 	result.Events["change"] = combined.strings["change"]
 	result.OptionalNetworkHooks["Cronet"] = combined.classes["Lorg/chromium/net/CronetEngine$Builder;"]
-	result.OptionalNetworkHooks["Phoenix shaded OkHttp"] = combined.classes["Lg90/h0;"] && combined.classes["Lg90/i0;"]
+	hookClasses, err := androidPhoenixClasses()
+	if err != nil {
+		return result, err
+	}
+	for _, class := range hookClasses {
+		if !combined.classes[dexDescriptor(class)] {
+			result.MissingHookClasses = append(result.MissingHookClasses, class)
+		}
+	}
+	result.OptionalNetworkHooks["Phoenix shaded OkHttp"] = len(result.MissingHookClasses) == 0
 	result.Supported = result.Phoenix && result.Methods["GuestHost.applyOps([B, int)"] && result.Methods["GuestHost event callback"] &&
 		result.PropertiesExpected == result.PropertiesFound && result.Events["press"] && result.Events["change"]
 	return result, nil
@@ -460,6 +490,9 @@ func androidCompatReport(result androidCompatResult) string {
 	fmt.Fprintf(&report, "| Phoenix property names | %d / %d |\n", result.PropertiesFound, result.PropertiesExpected)
 	fmt.Fprintf(&report, "| Event identifiers | press %t, change %t |\n", result.Events["press"], result.Events["change"])
 	fmt.Fprintf(&report, "| Optional network hooks | Cronet %t, Phoenix shaded OkHttp %t |\n", result.OptionalNetworkHooks["Cronet"], result.OptionalNetworkHooks["Phoenix shaded OkHttp"])
+	if len(result.MissingHookClasses) > 0 {
+		fmt.Fprintf(&report, "\nMissing classes from PhoenixClasses.kt: `%s`.\n", strings.Join(result.MissingHookClasses, "`, `"))
+	}
 	if len(result.MissingProperties) > 0 {
 		fmt.Fprintf(&report, "\nMissing Phoenix properties: `%s`.\n", strings.Join(result.MissingProperties, "`, `"))
 	}
