@@ -22,6 +22,7 @@ object PhoenixOkHttp {
         get() = blockedRequests.get()
 
     fun install(module: XposedModule, loader: ClassLoader) {
+        verifyShape(loader)
         val builderType = loader.loadClass(PhoenixClasses.OKHTTP_CLIENT_BUILDER)
         val clientType = loader.loadClass(PhoenixClasses.OKHTTP_CLIENT)
         val interceptorType = loader.loadClass(PhoenixClasses.OKHTTP_INTERCEPTOR)
@@ -75,10 +76,16 @@ object PhoenixOkHttp {
             val staffTools = runCatching { Native.staffDevToolsEnabled() }.getOrDefault(false)
             val method = typedField(requestType, String::class.java).get(request) as? String
             var outgoing = request
-            if (staffTools && isGateway(host)) outgoing = removeGatewayCompression(outgoing, requestUrl, loader)
+            if (staffTools && isGateway(host)) {
+                outgoing = runCatching { removeGatewayCompression(outgoing, requestUrl) }
+                    .onFailure { Log.error("Failed to remove gateway compression for Staff DevTools", it) }
+                    .getOrDefault(outgoing)
+            }
             val response = proceed(chain, outgoing, requestType) ?: return null
             if (!staffTools || method != "GET" || !Native.isCurrentUser(host, path)) return response
-            return markCurrentUser(response, loader)
+            return runCatching { markCurrentUser(response, loader) }
+                .onFailure { Log.error("Failed to mark the current user as staff", it) }
+                .getOrDefault(response)
         } catch (error: InvocationTargetException) {
             throw error.targetException
         }
@@ -96,34 +103,46 @@ object PhoenixOkHttp {
 
     private fun isGateway(host: String): Boolean = host.startsWith("gateway") && host.endsWith(".discord.gg")
 
-    private fun removeGatewayCompression(request: Any, requestUrl: Any, loader: ClassLoader): Any {
+    private fun removeGatewayCompression(request: Any, requestUrl: Any): Any {
         val address = requestUrl.toString()
         val uri = runCatching { URI(address) }.getOrNull() ?: return request
         val query = uri.rawQuery ?: return request
-        val remaining = query.split('&').filterNot { parameter ->
-            val name = parameter.substringBefore('=')
-            runCatching { URLDecoder.decode(name, StandardCharsets.UTF_8.name()) }
-                .getOrDefault(name)
-                .equals("compress", ignoreCase = true)
-        }
+        val remaining = query.split('&').filterNot { parameter -> isCompression(parameter.substringBefore('=')) }
         if (remaining.size == query.split('&').size) return request
+        val fields = instanceFields(requestUrl.javaClass)
+        val addressField = fields.filter { it.type == String::class.java && it.get(requestUrl) == address }.singleOrNull()
+            ?: throw NoSuchFieldException("${requestUrl.javaClass.name} has no single field holding its address")
+        val queryField = fields.filter { field ->
+            List::class.java.isAssignableFrom(field.type) && (field.get(requestUrl) as? List<*>)?.let(::hasCompression) == true
+        }.singleOrNull() ?: throw NoSuchFieldException("${requestUrl.javaClass.name} has no single query list")
+        val pairs = (queryField.get(requestUrl) as List<*>).chunked(2).filterNot { pair -> isCompression(pair[0] as? String ?: "") }
+        queryField.set(requestUrl, ArrayList(pairs.flatten()))
+        addressField.set(requestUrl, changedAddress(address, remaining))
+        return request
+    }
+
+    private fun hasCompression(values: List<*>): Boolean = values.chunked(2).any { pair -> isCompression(pair[0] as? String ?: "") }
+
+    private fun isCompression(name: String): Boolean =
+        runCatching { URLDecoder.decode(name, StandardCharsets.UTF_8.name()) }.getOrDefault(name).equals("compress", ignoreCase = true)
+
+    private fun changedAddress(address: String, remaining: List<String>): String {
         val withoutFragment = address.substringBefore('#')
         val fragment = address.substringAfter('#', "").takeIf { address.contains('#') }
-        val base = withoutFragment.substringBefore('?')
-        val changedAddress = buildString {
-            append(base)
+        return buildString {
+            append(withoutFragment.substringBefore('?'))
             if (remaining.isNotEmpty()) append('?').append(remaining.joinToString("&"))
             if (fragment != null) append('#').append(fragment)
         }
-        val urlType = loader.loadClass(PhoenixClasses.OKHTTP_URL)
-        val parser = loader.loadClass(PhoenixClasses.OKHTTP_URL_BUILDER).getConstructor(Int::class.javaPrimitiveType).newInstance(3)
-        val parse = parser.javaClass.getMethod("i", urlType, String::class.java)
-        parse.invoke(parser, requestUrl, changedAddress)
-        val changedUrl = parser.javaClass.getMethod("b").invoke(parser) ?: return request
-        val requestBuilder = loader.loadClass(PhoenixClasses.OKHTTP_REQUEST).getMethod("a").invoke(request) ?: return request
-        typedField(requestBuilder.javaClass, urlType).set(requestBuilder, changedUrl)
-        return requestBuilder.javaClass.getMethod("c").invoke(requestBuilder) ?: request
     }
+
+    private fun instanceFields(type: Class<*>): List<Field> =
+        generateSequence(type) { it.superclass }
+            .takeWhile { it != Any::class.java }
+            .flatMap { it.declaredFields.asSequence() }
+            .filter { !Modifier.isStatic(it.modifiers) }
+            .onEach { it.isAccessible = true }
+            .toList()
 
     private fun noContent(request: Any, loader: ClassLoader): Any {
         val responseBuilderType = loader.loadClass(PhoenixClasses.OKHTTP_RESPONSE_BUILDER)
@@ -136,12 +155,12 @@ object PhoenixOkHttp {
         typedField(responseBuilderType, protocolType).set(builder, protocol)
         typedField(responseBuilderType, Int::class.javaPrimitiveType!!).setInt(builder, 204)
         typedField(responseBuilderType, String::class.java).set(builder, "No Content")
-        typedField(responseBuilderType, loader.loadClass(PhoenixClasses.OKHTTP_RESPONSE_BODY)).set(builder, responseBody(loader, null, ""))
+        typedField(responseBuilderType, responseBodyBase(loader)).set(builder, responseBody(loader, null, ""))
         return responseBuilderType.getMethod("a").invoke(builder) ?: throw IllegalStateException("Phoenix returned no response")
     }
 
     private fun markCurrentUser(response: Any, loader: ClassLoader): Any {
-        val bodyType = loader.loadClass(PhoenixClasses.OKHTTP_RESPONSE_BODY)
+        val bodyType = responseBodyBase(loader)
         val body = typedField(response.javaClass, bodyType).get(response) ?: return response
         val content = body.javaClass.getMethod("n").invoke(body) as? String ?: return response
         val updated = Native.withStaffUser(content) ?: return response
@@ -175,13 +194,32 @@ object PhoenixOkHttp {
         return constructor.newInstance(contentType, bytes.size.toLong(), buffered, 1)
     }
 
+    private fun responseBodyBase(loader: ClassLoader): Class<*> =
+        loader.loadClass(PhoenixClasses.OKHTTP_RESPONSE_BODY).superclass ?: throw NoSuchFieldException("Phoenix's response body has no base class")
+
+    private fun verifyShape(loader: ClassLoader) {
+        val requestType = loader.loadClass(PhoenixClasses.OKHTTP_REQUEST)
+        val chainType = loader.loadClass(PhoenixClasses.OKHTTP_CHAIN)
+        val responseBuilderType = loader.loadClass(PhoenixClasses.OKHTTP_RESPONSE_BUILDER)
+        typedField(chainType, requestType)
+        typedField(requestType, loader.loadClass(PhoenixClasses.OKHTTP_URL))
+        typedField(requestType, String::class.java)
+        chainType.getMethod("b", requestType)
+        typedField(responseBuilderType, requestType)
+        typedField(responseBuilderType, loader.loadClass(PhoenixClasses.OKHTTP_PROTOCOL))
+        typedField(responseBuilderType, Int::class.javaPrimitiveType!!)
+        typedField(responseBuilderType, String::class.java)
+        typedField(responseBuilderType, responseBodyBase(loader))
+        responseBuilderType.getMethod("a")
+        responseBody(loader, null, "")
+    }
+
     private fun typedField(type: Class<*>, fieldType: Class<*>): Field {
-        val matches = generateSequence(type) { it.superclass }
-            .flatMap { it.declaredFields.asSequence() }
-            .filter { !Modifier.isStatic(it.modifiers) && it.type == fieldType }
-            .toList()
+        val matches = instanceFields(type).filter { it.type == fieldType }
         val match = matches.singleOrNull()
-            ?: throw NoSuchFieldException("${type.name} has ${matches.size} fields of type ${fieldType.name}; expected one")
+            ?: throw NoSuchFieldException(
+                "${type.name} has ${matches.size} fields of type ${fieldType.name} (${matches.joinToString { it.declaringClass.name + "." + it.name }}); expected one",
+            )
         return match.apply { isAccessible = true }
     }
 

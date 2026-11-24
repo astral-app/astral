@@ -323,6 +323,8 @@ static Page gPages[kMaxPages];
 static uint32_t gDepth;
 static Page *gPage = &gPages[0];
 
+enum { kTitleDepth = 4 };
+
 static int32_t firstChild(const uint8_t *bytes, const Span *spans, size_t count, int32_t id, uint32_t position)
 {
     const Span *list = wireChildList(bytes, spans, count, id);
@@ -397,7 +399,7 @@ static void captureTemplates(const uint8_t *bytes, const Span *spans, size_t cou
     ids[kSeparatorLine] = firstChild(bytes, spans, count, ids[kSeparator], 0);
     ids[kRowContent] = firstChild(bytes, spans, count, row, 0);
     ids[kRowIcon] = firstChild(bytes, spans, count, ids[kRowContent], 0);
-    ids[kRowTitle] = firstChild(bytes, spans, count, ids[kRowContent], 1);
+    ids[kRowTitle] = wireFirstOfType(bytes, spans, count, firstChild(bytes, spans, count, ids[kRowContent], 1), "text", kTitleDepth);
     ids[kRowTrailing] = firstChild(bytes, spans, count, ids[kRowContent], 2);
     ids[kRowChevron] = firstChild(bytes, spans, count, ids[kRowTrailing], 0);
     int32_t navigator = wireParentOf(bytes, spans, count, ids[kRoot]);
@@ -596,8 +598,9 @@ static int32_t buildSpecRow(Out *out, const AstralRowSpec *row, int first, int l
     Change iconChange = {P(uri), kString, row->icon ? row->icon : "res://ic_mana_sparkles", 0};
     int32_t icon = cloneRole(out, kRowIcon, &iconChange, 1);
     int hasSubtitle = row->subtitle && row->subtitle[0];
-    Change titleChanges[] = {{P(text), kString, row->title, 0}, {P(flex), kDrop, NULL, 0}};
-    int32_t title = cloneRole(out, kRowTitle, titleChanges, hasSubtitle ? 2 : 1);
+    Change titleChanges[] = {{P(text), kString, row->title, 0},
+                             hasSubtitle ? (Change){P(flex), kDrop, NULL, 0} : (Change){P(flex), kNumber, NULL, 1}};
+    int32_t title = cloneRole(out, kRowTitle, titleChanges, 2);
     if (hasSubtitle) {
         int32_t column = newNode(out, "view");
         wirePropCount(out, 4);

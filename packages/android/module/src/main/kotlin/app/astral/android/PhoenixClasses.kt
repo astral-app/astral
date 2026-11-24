@@ -12,5 +12,4 @@ object PhoenixClasses {
     const val OKHTTP_PROTOCOL = "g90.j0"
     const val OKIO_BUFFER = "w90.b"
     const val OKIO_SOURCE = "w90.j"
-    const val OKHTTP_URL_BUILDER = "com.discord.nativeapp.modules.s1"
 }

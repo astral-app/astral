@@ -47,6 +47,9 @@ Results from running astral on real Phoenix builds. Each row names the device, t
 | Emoji packs in the composer | Broke silently: the composer class `ej` became an unrelated class. Phoenix inputs are now recognised by package instead of a class name |
 | Shaded OkHttp | Discord's existing-client field moved; that patch was redundant (every client is built after the constructor hook) and is gone. Request, URL, method and response fields are found by type, each with exactly one match or an error |
 | Compatibility scan | `android-compat` now checks every obfuscated class astral still names, from `PhoenixClasses.kt` |
+| Settings and menu text | Blank: 357 wraps each row label in a column view, and astral took the row content's second child as the label. Labels are now the first `text` node under that slot, however deeply Discord wraps it |
+| Shaded OkHttp crash | Matching the response code field by type found ART's hidden `Object.shadow$_monitor_` too; the lookup threw inside Discord's network thread. Field matching now stops at `Object`, the telemetry path is resolved and checked once at install, and Staff DevTools rewrites log and pass the original through on failure |
+| Staff DevTools | Broke in 357 (the URL builder class moved); gateway compression is now removed by editing the URL's own address and query fields, found by value |
 
 ## Compatibility scans, 2026-11-24
 

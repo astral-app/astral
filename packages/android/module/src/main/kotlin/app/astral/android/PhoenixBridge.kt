@@ -69,7 +69,10 @@ object PhoenixBridge {
             .setExceptionMode(ExceptionMode.PROTECTIVE)
             .intercept { chain ->
                 guestHost = chain.thisObject
-                if (delivering.get() == true) return@intercept chain.proceed()
+                if (delivering.get() == true) {
+                    Capture.record(chain.getArg(0) as ByteArray, chain.getArg(1) as Int)
+                    return@intercept chain.proceed()
+                }
                 val ops = chain.getArg(0) as ByteArray
                 val length = chain.getArg(1) as Int
                 Capture.record(ops, length)

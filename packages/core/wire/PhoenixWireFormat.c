@@ -350,3 +350,16 @@ int wireColorProperty(const uint8_t *bytes, const Span *span, uint16_t wanted, u
     }
     return 0;
 }
+
+int32_t wireFirstOfType(const uint8_t *bytes, const Span *spans, size_t count, int32_t node, const char *type, int depth)
+{
+    const Span *creation = node ? wireCreation(spans, count, node) : NULL;
+    if (!creation) return 0;
+    if (wireTypeIs(bytes, creation, type)) return node;
+    const Span *list = depth > 0 ? wireChildList(bytes, spans, count, node) : NULL;
+    for (uint32_t position = 0; list && position < list->childCount; position++) {
+        int32_t found = wireFirstOfType(bytes, spans, count, wireChildAt(bytes, list, position), type, depth - 1);
+        if (found) return found;
+    }
+    return 0;
+}

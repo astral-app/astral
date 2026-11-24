@@ -42,9 +42,11 @@ extern "C" {
     X(gap, 220)                                                                                                                            \
     X(height, 235)                                                                                                                         \
     X(image, 249)                                                                                                                          \
+    X(includeFontPadding, 251)                                                                                                             \
     X(index, 252)                                                                                                                          \
     X(justify, 260)                                                                                                                        \
     X(lineHeight, 278)                                                                                                                     \
+    X(lineHeightExact, 279)                                                                                                                \
     X(margin, 287)                                                                                                                         \
     X(maxLines, 293)                                                                                                                       \
     X(maxTrackTint, 295)                                                                                                                   \
