@@ -1,4 +1,6 @@
 #import "LuaHost.h"
+
+#import <UserNotifications/UserNotifications.h>
 #import "LuaComposer.h"
 
 #include "AstralSettings.h"
@@ -124,6 +126,23 @@ static astral::LuaHostPlatform Platform(void)
         }
         if (!value) return std::nullopt;
         return std::string(value.UTF8String ?: "");
+    };
+    platform.notify = [](const std::string &identifier, const std::string &title, const std::string &body, double delay) {
+        UNMutableNotificationContent *content = [UNMutableNotificationContent new];
+        content.title = Native(title);
+        content.body = Native(body);
+        content.sound = UNNotificationSound.defaultSound;
+        UNTimeIntervalNotificationTrigger *trigger =
+            delay >= 1 ? [UNTimeIntervalNotificationTrigger triggerWithTimeInterval:delay repeats:NO] : nil;
+        UNNotificationRequest *request = [UNNotificationRequest requestWithIdentifier:Native(identifier) content:content trigger:trigger];
+        [UNUserNotificationCenter.currentNotificationCenter
+            addNotificationRequest:request
+             withCompletionHandler:^(NSError *error) {
+                 if (error)
+                     AstralDevAppendLog(
+                         [NSString stringWithFormat:@"Failed to post notification %@: %@", request.identifier, error.localizedDescription]);
+             }];
+        return true;
     };
     platform.openURL = [](const std::string &url) {
         NSURL *link = [NSURL URLWithString:Native(url)];
