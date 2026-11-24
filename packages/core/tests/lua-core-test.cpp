@@ -676,6 +676,43 @@ static void testComposerStyles(const std::string &work)
     astral::luahost::stop();
 }
 
+static void testMessageBackground(const std::string &work)
+{
+    auto root = std::filesystem::path(work) / "message-background-host";
+    auto plugin = root / "plugins" / "decorator";
+    auto restricted = root / "plugins" / "restricted";
+    std::filesystem::create_directories(plugin);
+    std::filesystem::create_directories(restricted);
+    writeText(plugin / "manifest.toml",
+              "id = 'astral.message-background-test'\nname = 'Message background test'\nversion = '1.0'\nmain = 'main.lua'\n"
+              "permissions = ['ui.message_background']\n");
+    writeText(plugin / "main.lua", "astral.ui.message_background(function(message)\n"
+                                   "  if message.author_id == '100000000000000001' then return {color = 0x80445566, radius = 9.5} end\n"
+                                   "  return {color = '#123456', radius = 33}\n"
+                                   "end)\n");
+    writeText(restricted / "manifest.toml",
+              "id = 'astral.message-background-restricted'\nname = 'Restricted'\nversion = '1.0'\nmain = 'main.lua'\n"
+              "permissions = ['storage']\n");
+    writeText(restricted / "main.lua", "local ok = pcall(function() astral.ui.message_background(function() return {} end) end)\n"
+                                       "astral.storage.set('allowed', ok)\n");
+    astral::SettingsStore settings((root / "settings.json").string());
+    settings.set("astral", "developer-mode", true);
+    astral::LuaHostPlatform platform;
+    platform.storagePath = (root / "storage.sqlite").string();
+    astral::luahost::start({(root / "plugins").string()}, &settings, true, std::move(platform));
+    AstralMessageBackgroundContext context = {200000000000000011ULL, 100000000000000001ULL, 200000000000000007ULL};
+    AstralMessageBackgroundStyle style = {};
+    assert(AstralLuaMessageBackground(&context, &style) == 1);
+    assert(style.color == 0x80445566 && style.radius == 9.5);
+    context.user_id = 100000000000000002ULL;
+    assert(AstralLuaMessageBackground(&context, &style) == 0);
+    assert(astral::luahost::eval("astral.message-background-restricted", "return astral.storage.get('allowed')") == "false");
+    astral::luahost::setEnabled("astral.message-background-test", false);
+    context.user_id = 100000000000000001ULL;
+    assert(AstralLuaMessageBackground(&context, &style) == 0);
+    astral::luahost::stop();
+}
+
 static void testFilePickerAndDialogs(const std::string &work)
 {
     auto root = std::filesystem::path(work) / "native-ui-host";
@@ -950,6 +987,7 @@ int main(int argc, char **argv)
     testNetworkRequests(argv[1]);
     testOutgoingMessageTransforms(argv[1]);
     testComposerStyles(argv[1]);
+    testMessageBackground(argv[1]);
     testFilePickerAndDialogs(argv[1]);
     testGatewayMessageEventsAndHaptics(argv[1]);
     testSliderSettingsAndNavigation(argv[1]);

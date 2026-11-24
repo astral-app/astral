@@ -202,6 +202,7 @@ static void StartPlugins(void)
     AstralLuaHostStart(@[ LocalPlugins(), [AstralResourceDirectory() stringByAppendingPathComponent:@"plugins"] ], settings.get(),
                        !recovering && !safeMode);
     astral_wire_set_decorator(AstralLuaDecorate);
+    astral_wire_set_message_background_decorator(AstralLuaMessageBackground);
     astral_wire_set_relabeler(AstralLuaRelabel);
     astral_wire_set_mention_decorator(AstralLuaMention);
     astral_wire_set_message_text_colorizer(AstralLuaMessageTextColor);

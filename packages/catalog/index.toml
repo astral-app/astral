@@ -5,6 +5,13 @@ version = "0.0.3"
 passive = []
 
 [[plugins]]
+id = "astral.chat-bubbles"
+name = "Chat Bubbles"
+version = "0.0.1"
+description = "Adds rounded color cards behind Phoenix message rows."
+base = "plugins/astral.chat-bubbles/"
+
+[[plugins]]
 id = "astral.clear-urls"
 name = "Clear URLs"
 version = "0.0.1"
