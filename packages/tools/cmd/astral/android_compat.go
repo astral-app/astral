@@ -486,7 +486,7 @@ func runAndroidCompat(args []string) error {
 			return err
 		}
 		defer cleanup()
-		if versionCode, apks, err = downloadDiscordAPKs(*channel, work); err != nil {
+		if versionCode, apks, err = downloadDiscordAPKs(*channel, discordScanSplits, work); err != nil {
 			return err
 		}
 	}
