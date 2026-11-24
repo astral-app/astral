@@ -1,17 +1,17 @@
 local languages = require("lib.languages")
-local languageCodes = {}
-local languageOptions = {}
-local sourceOptions = { astral.settings.option("auto", "Auto-detect") }
-local apiBaseURL = "https://translate.unbound.rip"
-local callbackURL = apiBaseURL .. "/auth/callback"
-local authorizationURL = apiBaseURL .. "/auth/login"
+local language_codes = {}
+local language_options = {}
+local source_options = { astral.settings.option("auto", "Auto-detect") }
+local api_base_url = "https://translate.unbound.rip"
+local callback_url = api_base_url .. "/auth/callback"
+local authorization_url = api_base_url .. "/auth/login"
 
 for _, language in ipairs(languages) do
-	local code, name, nativeName = language[1], language[2], language[3]
-	languageCodes[code] = true
-	local title = nativeName ~= name and name .. " (" .. nativeName .. ")" or name
-	languageOptions[#languageOptions + 1] = astral.settings.option(code, title)
-	sourceOptions[#sourceOptions + 1] = astral.settings.option(code, title)
+	local code, name, native_name = language[1], language[2], language[3]
+	language_codes[code] = true
+	local title = native_name ~= name and name .. " (" .. native_name .. ")" or name
+	language_options[#language_options + 1] = astral.settings.option(code, title)
+	source_options[#source_options + 1] = astral.settings.option(code, title)
 end
 
 local settings = astral.settings.section("Translation")
@@ -21,8 +21,8 @@ settings:choice("service", "Translation service", {
 	astral.settings.option("google", "Google Translate"),
 	astral.settings.option("mymemory", "MyMemory"),
 }, "auto")
-settings:choice("source", "Source language", sourceOptions, "auto")
-settings:choice("target", "Target language", languageOptions, "en")
+settings:choice("source", "Source language", source_options, "auto")
+settings:choice("target", "Target language", language_options, "en")
 settings:choice("account_action", "Translate API account", {
 	astral.settings.option("connect", "Connect or reconnect"),
 	astral.settings.option("disconnect", "Disconnect"),
@@ -33,7 +33,7 @@ local function stored(key)
 	return type(value) == "string" and value or ""
 end
 
-local function saveSession(payload)
+local function save_session(payload)
 	if
 		type(payload) ~= "table"
 		or type(payload.accessToken) ~= "string"
@@ -54,22 +54,22 @@ local function saveSession(payload)
 	return true
 end
 
-local function clearSession()
+local function clear_session()
 	astral.storage.set("access_token", "")
 	astral.storage.set("refresh_token", "")
 	astral.storage.set("expires_in", 0)
 	astral.storage.set("expires_at_ms", 0)
 end
 
-local function showToast(title, message)
+local function show_toast(title, message)
 	pcall(astral.ui.toast, title, message)
 end
 
-local function showError(message)
-	showToast("Translate Error", message)
+local function show_error(message)
+	show_toast("Translate Error", message)
 end
 
-local function jsonString(value)
+local function json_string(value)
 	local parts = { '"' }
 	for index = 1, #value do
 		local byte = value:byte(index)
@@ -97,24 +97,24 @@ local function jsonString(value)
 	return table.concat(parts)
 end
 
-local function jsonObject(fields)
+local function json_object(fields)
 	local parts = {}
 	for key, value in pairs(fields) do
-		parts[#parts + 1] = jsonString(key) .. ":" .. jsonString(value)
+		parts[#parts + 1] = json_string(key) .. ":" .. json_string(value)
 	end
 	return "{" .. table.concat(parts, ",") .. "}"
 end
 
 local function request(options, callback)
-	local ok, requestID = pcall(astral.net.request, options, callback)
+	local ok, request_id = pcall(astral.net.request, options, callback)
 	if ok then
-		return requestID
+		return request_id
 	end
 	callback({ ok = false, error = "network request could not start" })
 	return nil
 end
 
-local function requestJSON(url, method, body, headers, callback)
+local function request_json(url, method, body, headers, callback)
 	headers = headers or {}
 	headers.Accept = "application/json"
 	if body then
@@ -123,7 +123,7 @@ local function requestJSON(url, method, body, headers, callback)
 	request({ url = url, method = method, headers = headers, body = body, timeout_ms = 15000 }, callback)
 end
 
-local function responseError(response, fallback)
+local function response_error(response, fallback)
 	if
 		response
 		and type(response.json) == "table"
@@ -138,51 +138,51 @@ local function responseError(response, fallback)
 	return fallback
 end
 
-local authGeneration = 0
-local activeAuthRequest
+local auth_generation = 0
+local active_auth_request
 
-local function invalidateAuth()
-	authGeneration = authGeneration + 1
-	local pendingRequest = activeAuthRequest
-	activeAuthRequest = nil
-	if pendingRequest then
-		pcall(astral.ui.cancel_web_auth, pendingRequest)
+local function invalidate_auth()
+	auth_generation = auth_generation + 1
+	local pending_request = active_auth_request
+	active_auth_request = nil
+	if pending_request then
+		pcall(astral.ui.cancel_web_auth, pending_request)
 	end
-	return authGeneration
+	return auth_generation
 end
 
-local function completeLogin(response, generation)
-	if generation ~= authGeneration then
+local function complete_login(response, generation)
+	if generation ~= auth_generation then
 		return
 	end
 	if not response or not response.ok or type(response.json) ~= "table" then
-		showError(responseError(response, "Discord login failed"))
+		show_error(response_error(response, "Discord login failed"))
 		return
 	end
-	if not saveSession(response.json) then
-		showError("Translate API returned an invalid login response")
+	if not save_session(response.json) then
+		show_error("Translate API returned an invalid login response")
 		return
 	end
-	showToast("Translate", "Discord login completed")
+	show_toast("Translate", "Discord login completed")
 end
 
-local function connectAccount()
-	local generation = invalidateAuth()
-	local callbackCompleted = false
-	local ok, requestID = pcall(astral.ui.web_auth, authorizationURL, callbackURL, function(url, cookies, error)
-		callbackCompleted = true
-		if generation ~= authGeneration then
+local function connect_account()
+	local generation = invalidate_auth()
+	local callback_completed = false
+	local ok, request_id = pcall(astral.ui.web_auth, authorization_url, callback_url, function(url, cookies, error)
+		callback_completed = true
+		if generation ~= auth_generation then
 			return
 		end
-		activeAuthRequest = nil
+		active_auth_request = nil
 		if error then
 			if error ~= "cancelled" then
-				showError("Could not finish Discord sign-in")
+				show_error("Could not finish Discord sign-in")
 			end
 			return
 		end
 		if type(url) ~= "string" or url == "" then
-			showError("Discord sign-in did not return a callback")
+			show_error("Discord sign-in did not return a callback")
 			return
 		end
 		if url:find("[?&]error=access_denied") then
@@ -192,50 +192,50 @@ local function connectAccount()
 		if type(cookies) == "string" and cookies ~= "" then
 			headers.Cookie = cookies
 		end
-		requestJSON(url, "GET", nil, headers, function(response)
-			completeLogin(response, generation)
+		request_json(url, "GET", nil, headers, function(response)
+			complete_login(response, generation)
 		end)
 	end)
-	if not ok or type(requestID) ~= "number" then
-		showError("Could not open Discord sign-in")
+	if not ok or type(request_id) ~= "number" then
+		show_error("Could not open Discord sign-in")
 		return
 	end
-	if not callbackCompleted and generation == authGeneration then
-		activeAuthRequest = requestID
+	if not callback_completed and generation == auth_generation then
+		active_auth_request = request_id
 	end
 end
 
 astral.settings.on_change("account_action", function(action)
 	if action == "connect" then
-		connectAccount()
+		connect_account()
 	elseif action == "disconnect" then
-		invalidateAuth()
-		clearSession()
-		showToast("Translate", "Discord account disconnected")
+		invalidate_auth()
+		clear_session()
+		show_toast("Translate", "Discord account disconnected")
 	end
 end)
 
-local function urlEncode(value)
+local function url_encode(value)
 	return value:gsub("([^A-Za-z0-9%-._~])", function(character)
 		return string.format("%%%02X", string.byte(character))
 	end)
 end
 
-local function anonymousURL(service, content, source, target)
-	local query = urlEncode(content)
+local function anonymous_url(service, content, source, target)
+	local query = url_encode(content)
 	if service == "google" then
 		return "https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl="
-			.. urlEncode(source)
+			.. url_encode(source)
 			.. "&tl="
-			.. urlEncode(target)
+			.. url_encode(target)
 			.. "&q="
 			.. query
 	end
 	local from = source == "auto" and "autodetect" or source
-	return "https://api.mymemory.translated.net/get?langpair=" .. urlEncode(from .. "|" .. target) .. "&q=" .. query
+	return "https://api.mymemory.translated.net/get?langpair=" .. url_encode(from .. "|" .. target) .. "&q=" .. query
 end
 
-local function readGoogle(payload)
+local function read_google(payload)
 	if type(payload) ~= "table" then
 		return nil
 	end
@@ -258,7 +258,7 @@ local function readGoogle(payload)
 	return #parts > 0 and { text = table.concat(parts), detected = payload[3] } or nil
 end
 
-local function readMyMemory(payload)
+local function read_my_memory(payload)
 	if type(payload) ~= "table" or tonumber(payload.responseStatus) ~= 200 then
 		return nil
 	end
@@ -269,7 +269,7 @@ local function readMyMemory(payload)
 	return { text = data.translatedText, detected = data.detectedLanguage }
 end
 
-local function readUnbound(payload)
+local function read_unbound(payload)
 	if type(payload) ~= "table" then
 		return nil
 	end
@@ -288,141 +288,141 @@ local function readUnbound(payload)
 	return { text = text, detected = detected }
 end
 
-local function saveTranslation(translation, destination)
+local function save_translation(translation, destination)
 	if type(translation.text) ~= "string" or translation.text == "" then
-		showError("Translation service returned an empty result")
+		show_error("Translation service returned an empty result")
 		return
 	end
 	astral.messages.set_text(destination.channel_id, destination.message_id, translation.text, { note = "translated" })
 end
 
-local function translateAnonymous(serviceList, index, content, source, target, destination)
-	local service = serviceList[index]
+local function translate_anonymous(service_list, index, content, source, target, destination)
+	local service = service_list[index]
 	if not service then
-		showError("No translation provider returned a usable result")
+		show_error("No translation provider returned a usable result")
 		return
 	end
 	local callback = function(response)
 		local translation
 		if response and response.ok and type(response.json) == "table" then
-			translation = service == "google" and readGoogle(response.json) or readMyMemory(response.json)
+			translation = service == "google" and read_google(response.json) or read_my_memory(response.json)
 		end
 		if translation then
 			if source == "auto" and type(translation.detected) == "string" then
 				translation.source = translation.detected
 			end
-			saveTranslation(translation, destination)
+			save_translation(translation, destination)
 			return
 		end
-		translateAnonymous(serviceList, index + 1, content, source, target, destination)
+		translate_anonymous(service_list, index + 1, content, source, target, destination)
 	end
-	request({ url = anonymousURL(service, content, source, target), timeout_ms = 15000 }, callback)
+	request({ url = anonymous_url(service, content, source, target), timeout_ms = 15000 }, callback)
 end
 
-local refreshCallbacks
-local refreshInFlightToken
+local refresh_callbacks
+local refresh_in_flight_token
 
-local function completeRefresh(accessToken, failure)
-	local callbacks = refreshCallbacks
-	refreshCallbacks = nil
-	refreshInFlightToken = nil
+local function complete_refresh(access_token, failure)
+	local callbacks = refresh_callbacks
+	refresh_callbacks = nil
+	refresh_in_flight_token = nil
 	for _, callback in ipairs(callbacks or {}) do
-		callback(accessToken, failure)
+		callback(access_token, failure)
 	end
 end
 
-local function refreshSession(callback)
-	local refreshToken = stored("refresh_token")
-	if refreshToken == "" then
+local function refresh_session(callback)
+	local refresh_token = stored("refresh_token")
+	if refresh_token == "" then
 		callback(nil, "Connect a Discord account in Translate settings")
 		return
 	end
-	if refreshCallbacks then
-		refreshCallbacks[#refreshCallbacks + 1] = callback
+	if refresh_callbacks then
+		refresh_callbacks[#refresh_callbacks + 1] = callback
 		return
 	end
-	refreshCallbacks = { callback }
-	refreshInFlightToken = refreshToken
-	requestJSON(
-		apiBaseURL .. "/auth/refresh",
+	refresh_callbacks = { callback }
+	refresh_in_flight_token = refresh_token
+	request_json(
+		api_base_url .. "/auth/refresh",
 		"POST",
-		jsonObject({ refreshToken = refreshToken }),
+		json_object({ refreshToken = refresh_token }),
 		nil,
 		function(response)
-			if refreshInFlightToken ~= refreshToken then
+			if refresh_in_flight_token ~= refresh_token then
 				return
 			end
-			if stored("refresh_token") ~= refreshToken then
-				local currentAccessToken = stored("access_token")
-				completeRefresh(
-					currentAccessToken ~= "" and currentAccessToken or nil,
-					currentAccessToken ~= "" and nil or "Discord account changed while refreshing Translate"
+			if stored("refresh_token") ~= refresh_token then
+				local current_access_token = stored("access_token")
+				complete_refresh(
+					current_access_token ~= "" and current_access_token or nil,
+					current_access_token ~= "" and nil or "Discord account changed while refreshing Translate"
 				)
 				return
 			end
-			if response and response.ok and type(response.json) == "table" and saveSession(response.json) then
-				completeRefresh(stored("access_token"))
+			if response and response.ok and type(response.json) == "table" and save_session(response.json) then
+				complete_refresh(stored("access_token"))
 				return
 			end
 			if response and tonumber(response.status) == 401 then
-				clearSession()
+				clear_session()
 			end
-			completeRefresh(nil, responseError(response, "Translate API token refresh failed"))
+			complete_refresh(nil, response_error(response, "Translate API token refresh failed"))
 		end
 	)
 end
 
-local function sendUnbound(content, source, target, accessToken, retried, destination)
-	requestJSON(
-		apiBaseURL .. "/translate",
+local function send_unbound(content, source, target, access_token, retried, destination)
+	request_json(
+		api_base_url .. "/translate",
 		"POST",
-		jsonObject({ q = content, source = source, target = target }),
-		{ Authorization = "Bearer " .. accessToken },
+		json_object({ q = content, source = source, target = target }),
+		{ Authorization = "Bearer " .. access_token },
 		function(response)
 			if response and tonumber(response.status) == 401 and not retried then
-				refreshSession(function(retryToken, refreshFailure)
-					if not retryToken then
-						showError(refreshFailure or "Translate API authentication failed")
+				refresh_session(function(retry_token, refresh_failure)
+					if not retry_token then
+						show_error(refresh_failure or "Translate API authentication failed")
 						return
 					end
-					sendUnbound(content, source, target, retryToken, true, destination)
+					send_unbound(content, source, target, retry_token, true, destination)
 				end)
 				return
 			end
 			if not response or not response.ok or type(response.json) ~= "table" then
-				showError(responseError(response, "Translate API request failed"))
+				show_error(response_error(response, "Translate API request failed"))
 				return
 			end
-			local translation = readUnbound(response.json)
+			local translation = read_unbound(response.json)
 			if not translation then
-				showError("Translate API returned an invalid translation")
+				show_error("Translate API returned an invalid translation")
 				return
 			end
 			if source == "auto" and type(translation.detected) == "string" then
 				translation.source = translation.detected
 			end
-			saveTranslation(translation, destination)
+			save_translation(translation, destination)
 		end
 	)
 end
 
-local function translateUnbound(content, source, target, destination)
-	local accessToken = stored("access_token")
-	local expiresAt = astral.storage.get("expires_at_ms", 0)
-	if accessToken ~= "" and type(expiresAt) == "number" and expiresAt - 15000 > astral.time.now_ms() then
-		sendUnbound(content, source, target, accessToken, false, destination)
+local function translate_unbound(content, source, target, destination)
+	local access_token = stored("access_token")
+	local expires_at = astral.storage.get("expires_at_ms", 0)
+	if access_token ~= "" and type(expires_at) == "number" and expires_at - 15000 > astral.time.now_ms() then
+		send_unbound(content, source, target, access_token, false, destination)
 		return
 	end
-	refreshSession(function(refreshedAccessToken, failure)
-		if not refreshedAccessToken then
-			showError(failure or "Translate API authentication failed")
+	refresh_session(function(refreshed_access_token, failure)
+		if not refreshed_access_token then
+			show_error(failure or "Translate API authentication failed")
 			return
 		end
-		sendUnbound(content, source, target, refreshedAccessToken, false, destination)
+		send_unbound(content, source, target, refreshed_access_token, false, destination)
 	end)
 end
 
-local function translateMessage(node)
+local function translate_message(node)
 	if astral.messages.get_text(node.message_id) then
 		astral.messages.set_text(node.channel_id, node.message_id, nil)
 		return
@@ -431,36 +431,36 @@ local function translateMessage(node)
 	local message = node:message()
 	local content = message and message.content
 	if type(content) ~= "string" or content == "" then
-		showToast("Translate", "This message has no cached text to translate")
+		show_toast("Translate", "This message has no cached text to translate")
 		return
 	end
 	local service = astral.settings.get("service", "auto")
-	local hasAccount = stored("refresh_token") ~= ""
-	local useUnbound = service == "unbound" or service == "auto" and hasAccount
-	local maximumBytes = useUnbound and 16000 or 400
-	if #content > maximumBytes then
-		showToast("Translate", "This message is too long for the selected translation service")
+	local has_account = stored("refresh_token") ~= ""
+	local use_unbound = service == "unbound" or service == "auto" and has_account
+	local maximum_bytes = use_unbound and 16000 or 400
+	if #content > maximum_bytes then
+		show_toast("Translate", "This message is too long for the selected translation service")
 		return
 	end
 	local source = astral.settings.get("source", "auto")
 	local target = astral.settings.get("target", "en")
-	if source ~= "auto" and not languageCodes[source] then
+	if source ~= "auto" and not language_codes[source] then
 		source = "auto"
 	end
-	if not languageCodes[target] then
+	if not language_codes[target] then
 		target = "en"
 	end
-	if useUnbound then
-		translateUnbound(content, source, target, destination)
+	if use_unbound then
+		translate_unbound(content, source, target, destination)
 		return
 	end
 	if service == "google" then
-		translateAnonymous({ "google" }, 1, content, source, target, destination)
+		translate_anonymous({ "google" }, 1, content, source, target, destination)
 	elseif service == "mymemory" then
-		translateAnonymous({ "mymemory" }, 1, content, source, target, destination)
+		translate_anonymous({ "mymemory" }, 1, content, source, target, destination)
 	else
-		translateAnonymous({ "google", "mymemory" }, 1, content, source, target, destination)
+		translate_anonymous({ "google", "mymemory" }, 1, content, source, target, destination)
 	end
 end
 
-astral.ui.message_action("Translate", translateMessage, { icon = "res://ic_mana_chat" })
+astral.ui.message_action("Translate", translate_message, { icon = "res://ic_mana_chat" })

@@ -13,7 +13,7 @@ preferences:switch("friendNicknames", t("FRIEND_NICKNAMES"), true, t("FRIEND_NIC
 preferences:switch("displayNames", t("DISPLAY_NAMES"), false, t("DISPLAY_NAMES_SUBTITLE"))
 preferences:switch("inReplies", t("IN_REPLIES"), false, t("IN_REPLIES_SUBTITLE"))
 
-local function formatName(displayed, username, nickname, mode)
+local function format_name(displayed, username, nickname, mode)
 	local prefix = displayed:sub(1, 1) == "@" and "@" or ""
 	local nick = nickname or displayed:sub(#prefix + 1)
 	local tag = "@" .. username
@@ -30,22 +30,22 @@ local function formatName(displayed, username, nickname, mode)
 	return prefix .. nick .. " (" .. tag .. ")"
 end
 
-local function isAutomod(message)
+local function is_automod(message)
 	return message ~= nil and message.type == MessageType.AutoModerationAction
 end
 
-local function authorOf(node, message)
+local function author_of(node, message)
 	if node.kind ~= NodeKind.Reply then
-		if isAutomod(message) then
+		if is_automod(message) then
 			return nil
 		end
 		return message.author
 	end
-	if not settings.inReplies or isAutomod(message) or not message.reference then
+	if not settings.inReplies or is_automod(message) or not message.reference then
 		return nil
 	end
 	local replied = astral.discord.message(message.reference.channel_id, message.reference.message_id)
-	if not replied or isAutomod(replied) then
+	if not replied or is_automod(replied) then
 		return nil
 	end
 	return replied.author
@@ -56,7 +56,7 @@ astral.ui.relabel(astral.Target.MessageAuthor, function(node)
 	if not message then
 		return nil
 	end
-	local author = authorOf(node, message)
+	local author = author_of(node, message)
 	if not author or not author.id then
 		return nil
 	end
@@ -65,7 +65,7 @@ astral.ui.relabel(astral.Target.MessageAuthor, function(node)
 		return nil
 	end
 	local nickname = settings.friendNicknames and astral.discord.nickname(author.id) or nil
-	return formatName(node.text, username, nickname, settings.mode)
+	return format_name(node.text, username, nickname, settings.mode)
 end)
 
 astral.log("ready")

@@ -1,7 +1,7 @@
 local CDN = "https://cdn.discordapp.com"
 local DEFAULT_AVATARS = 6
 
-local function avatarUrl(user)
+local function avatar_url(user)
 	if type(user.avatar) == "string" and user.avatar ~= "" then
 		return string.format("%s/avatars/%s/%s.webp?size=48", CDN, user.id, user.avatar)
 	end
@@ -16,7 +16,7 @@ astral.ui.reaction(function(node)
 	end
 	local images = {}
 	for _, user in ipairs(users) do
-		images[#images + 1] = avatarUrl(user)
+		images[#images + 1] = avatar_url(user)
 	end
 	return { images = images, total = node.count }
 end)

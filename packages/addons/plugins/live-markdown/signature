@@ -1,6 +1,6 @@
-signature = "iP8LF8Ih5D68W8OD7OWoUm9wxEStBK6CZGRPKAFIW0FpsANFUuaINcjWcc/XzZNp5P1VsFX9Gt8+dESM+wSRAA=="
+signature = "i+VhgZlzV9NLXwA7tFZZoE5U7nNTYXsROoAw5HEVnj4/GhX4hvR+tN37NLLpdXhMijVJmOjNR4u8hk0t8HNcAw=="
 
 [files]
-"lib/markdown.lua" = "e42122d13b3ff68441c7f404ba8e81c46d75701af4c66338759227d8940b518f"
+"lib/markdown.lua" = "2463d4ba645b386f29a56651660d0118ac5c26caec69059dff018920dabad87a"
 "main.lua" = "f972fc1d1ef31e8eacfd3456553d488fec1d2112c95c464eefd90d6c28f1b499"
 "manifest.toml" = "c79efebbd890645f9f0cb809deeb7db47fd74ac6b9dfe5d2401ff267016d2d36"

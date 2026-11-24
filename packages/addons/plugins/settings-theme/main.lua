@@ -1,6 +1,6 @@
 local t = astral.i18n.t
 
-local function showBackdrop(dim)
+local function show_backdrop(dim)
 	astral.ui.settings_backdrop({ dim = dim })
 end
 
@@ -12,8 +12,8 @@ local dim = astral.settings.number("dim", t("DIM"), {
 	subtitle = t("DIM_SUBTITLE"),
 })
 
-showBackdrop(dim)
+show_backdrop(dim)
 
 astral.settings.on_change("dim", function(value)
-	showBackdrop(value)
+	show_backdrop(value)
 end)

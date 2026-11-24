@@ -11,15 +11,15 @@ settings:switch("openChannel", "Current channel", false, "Tap when the message i
 local seen = {}
 local recent = {}
 
-local function remember(messageID)
-	if not messageID then
+local function remember(message_id)
+	if not message_id then
 		return true
 	end
-	if seen[messageID] then
+	if seen[message_id] then
 		return false
 	end
-	seen[messageID] = true
-	recent[#recent + 1] = messageID
+	seen[message_id] = true
+	recent[#recent + 1] = message_id
 	if #recent > 256 then
 		seen[table.remove(recent, 1)] = nil
 	end
