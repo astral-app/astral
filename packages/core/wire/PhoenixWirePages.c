@@ -595,20 +595,20 @@ static int32_t buildSpecRow(Out *out, const AstralRowSpec *row, int first, int l
     int32_t content = cloneRole(out, kRowContent, NULL, 0);
     Change iconChange = {P(uri), kString, row->icon ? row->icon : "res://ic_mana_sparkles", 0};
     int32_t icon = cloneRole(out, kRowIcon, &iconChange, 1);
-    Change titleChange = {P(text), kString, row->title, 0};
-    int32_t title = cloneRole(out, kRowTitle, &titleChange, 1);
-    if (row->subtitle && row->subtitle[0]) {
+    int hasSubtitle = row->subtitle && row->subtitle[0];
+    Change titleChanges[] = {{P(text), kString, row->title, 0}, {P(flex), kDrop, NULL, 0}};
+    int32_t title = cloneRole(out, kRowTitle, titleChanges, hasSubtitle ? 2 : 1);
+    if (hasSubtitle) {
         int32_t column = newNode(out, "view");
-        wirePropCount(out, 3);
+        wirePropCount(out, 4);
         wirePropString(out, P(direction), "column");
         wirePropNumber(out, P(flex), 1);
         wirePropNumber(out, P(gap), 2);
-        Change subtitleChanges[] = {{P(text), kString, row->subtitle, 0},
-                                    {P(fontSize), kNumber, NULL, 13},
-                                    {P(lineHeight), kNumber, NULL, 17},
-                                    {P(opacity), kNumber, NULL, 0.62},
-                                    {P(maxLines), kInteger, NULL, 3}};
-        int32_t subtitle = cloneRole(out, kRowTitle, subtitleChanges, 5);
+        wirePropQuad(out, P(margin), 0, 0, 8, 0);
+        Change subtitleChanges[] = {{P(text), kString, row->subtitle, 0}, {P(fontSize), kNumber, NULL, 12},
+                                    {P(lineHeight), kNumber, NULL, 16},   {P(opacity), kNumber, NULL, 0.62},
+                                    {P(maxLines), kInteger, NULL, 3},     {P(flex), kDrop, NULL, 0}};
+        int32_t subtitle = cloneRole(out, kRowTitle, subtitleChanges, 6);
         wirePutChildren(out, column, (int32_t[]){title, subtitle}, 2);
         title = column;
     }
