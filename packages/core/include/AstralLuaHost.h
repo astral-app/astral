@@ -69,6 +69,7 @@ void completeFilePick(uint64_t request, const std::optional<std::string> &name, 
 void emitEvent(const std::string &event);
 std::optional<std::string> processGatewayMessage(std::string_view message);
 bool pressMessageAction(std::string_view identifier);
+void setMenuMessage(uint64_t channelID, uint64_t messageID);
 bool hasOutgoingMessageTransforms();
 std::optional<std::string> transformOutgoingMessage(const std::string &channel, const std::string &operation, const std::string &content);
 nlohmann::json composerStyles(std::string_view text);
@@ -86,6 +87,8 @@ int AstralLuaTyping(const AstralNameContext *context, AstralMentionDecoration *d
 int AstralLuaNameColor(const AstralNameContext *context, uint32_t *color);
 int AstralLuaMessageTextColor(uint64_t messageID, uint64_t channelID, uint32_t *color);
 int AstralLuaMention(const AstralMentionContext *context, AstralMentionDecoration *decoration);
+int AstralLuaMessageText(uint64_t messageID, char *text, size_t textCapacity, char *note, size_t noteCapacity);
+size_t AstralLuaMessageMenu(AstralMenuEntry *entries, size_t capacity);
 size_t AstralLuaDecorate(const AstralDecorationContext *context, AstralTag *tags, size_t capacity);
 int AstralLuaMessageBackground(const AstralMessageBackgroundContext *context, AstralMessageBackgroundStyle *style);
 int AstralLuaRelabel(const AstralLabelContext *context, const char *text, size_t length, char *out, size_t capacity);

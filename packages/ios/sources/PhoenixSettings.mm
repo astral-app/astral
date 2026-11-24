@@ -1,4 +1,5 @@
 #import "PhoenixSettings.h"
+#import "MessageMenu.h"
 
 #import <UIKit/UIKit.h>
 #import <dlfcn.h>
@@ -453,6 +454,8 @@ void AstralPhoenixRefreshDecorations(void)
         AstralWireBuffer buffer = {};
         bool live = gHostOriginal && gHostContext && !astral_wire_unsupported_version() && !gRewriteDisabled.load();
         if (live && astral_wire_refresh_reactions(&buffer)) Send(&buffer);
+        AstralWireBuffer texts = {};
+        if (live && astral_wire_refresh_message_texts(&texts)) Send(&texts);
         pthread_mutex_unlock(&gLock);
         ScheduleRetry();
     });
@@ -497,7 +500,11 @@ static void Pop(void)
     } else if ([identifier isEqualToString:kBack]) {
         Pop();
     } else if ([identifier hasPrefix:kActionPrefix]) {
-        astral::luahost::pressMessageAction(identifier.UTF8String ?: "");
+        std::string action = identifier.UTF8String ?: "";
+        AstralDismissMessageMenu();
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+            astral::luahost::pressMessageAction(action);
+        });
     } else {
         BOOL isSwitch = [identifier hasPrefix:kSwitchPrefix];
         NSString *prefix = isSwitch ? kSwitchPrefix : kRowPrefix;

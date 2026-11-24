@@ -25,6 +25,7 @@
 #import "AppExtensions.h"
 #import "BrowserLogin.h"
 #import "LuaHost.h"
+#import "MessageMenu.h"
 #import "Marketplace.h"
 #import "PhoenixImage.h"
 #import "PhoenixSettings.h"
@@ -203,6 +204,8 @@ static void StartPlugins(void)
                        !recovering && !safeMode);
     astral_wire_set_decorator(AstralLuaDecorate);
     astral_wire_set_message_background_decorator(AstralLuaMessageBackground);
+    AstralInstallMessageMenu();
+    astral_wire_set_message_text_provider(AstralLuaMessageText);
     astral_wire_set_relabeler(AstralLuaRelabel);
     astral_wire_set_mention_decorator(AstralLuaMention);
     astral_wire_set_message_text_colorizer(AstralLuaMessageTextColor);

@@ -46,11 +46,18 @@ func testWire(work string) error {
 	return run(ios, binary)
 }
 
-var wireSourceFiles = []string{"PhoenixWire.c", "PhoenixWireFormat.c", "PhoenixWirePages.c", "PhoenixWireDecorate.c", "PhoenixWireTheme.c", "PhoenixWireLabels.c", "PhoenixWireBackdrop.c", "PhoenixWireMentions.c", "PhoenixWireImages.c", "PhoenixWireNames.c", "PhoenixWireEmoji.c", "PhoenixWireReactions.c", "PhoenixWireIdentifiers.c", "PhoenixWireEvents.c", "PhoenixProperties.c"}
+func wireSourceFiles() []string {
+	paths, _ := filepath.Glob(repoPath("packages", "core", "wire", "*.c"))
+	files := make([]string, len(paths))
+	for index, path := range paths {
+		files[index] = filepath.Base(path)
+	}
+	return files
+}
 
 func wireSources() []string {
 	paths := []string{"-I" + repoPath("packages", "core", "wire")}
-	for _, file := range wireSourceFiles {
+	for _, file := range wireSourceFiles() {
 		paths = append(paths, repoPath("packages", "core", "wire", file))
 	}
 	return paths
@@ -68,7 +75,7 @@ func testCore(work string) error {
 	var wireObjects []string
 	monocypher := repoPath("vendor", "monocypher", "src")
 	var nativeSources []string
-	for _, name := range wireSourceFiles {
+	for _, name := range wireSourceFiles() {
 		nativeSources = append(nativeSources, repoPath("packages", "core", "wire", name))
 	}
 	nativeSources = append(nativeSources, filepath.Join(monocypher, "monocypher.c"), filepath.Join(monocypher, "optional", "monocypher-ed25519.c"))

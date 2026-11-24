@@ -371,7 +371,12 @@ function astral.ui.message_color(colorizer) end
 ---@field radius? number
 ---@param decorator fun(node: astral.Node): astral.MessageBackgroundStyle?
 function astral.ui.message_background(decorator) end
-function astral.ui.message_action(label, callback) end
+---@class astral.MessageActionOptions
+---@field icon? string
+---@param label string
+---@param callback fun(node: astral.Node)
+---@param options? astral.MessageActionOptions
+function astral.ui.message_action(label, callback, options) end
 ---@param colorizer fun(node: astral.Node): astral.Color|integer|string|nil
 function astral.ui.name_color(colorizer) end
 ---@param decorator fun(node: astral.Node): { image: string, round?: boolean }?
@@ -394,6 +399,14 @@ function astral.events.off(subscription) end
 
 astral.messages = {}
 function astral.messages.transform(callback) end
+---@param channel astral.Snowflake
+---@param message astral.Snowflake
+---@param text string?
+---@param options? { note?: string }
+function astral.messages.set_text(channel, message, text, options) end
+---@param message astral.Snowflake
+---@return string?
+function astral.messages.get_text(message) end
 
 astral.discord = {}
 ---@param id astral.Snowflake

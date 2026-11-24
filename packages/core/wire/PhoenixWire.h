@@ -231,6 +231,22 @@ void astral_wire_set_reaction_decorator(AstralReactionDecorator decorator);
 int astral_wire_pending_reactions(void);
 int astral_wire_retry_reactions(AstralWireBuffer *buffer);
 int astral_wire_refresh_reactions(AstralWireBuffer *buffer);
+
+typedef struct {
+    char action_id[64];
+    char label[64];
+    char icon[160];
+} AstralMenuEntry;
+
+typedef size_t (*AstralMessageMenuProvider)(AstralMenuEntry *entries, size_t capacity);
+
+void astral_wire_set_message_menu_provider(AstralMessageMenuProvider provider);
+
+typedef int (*AstralMessageTextProvider)(uint64_t message_id, char *text, size_t text_capacity, char *note, size_t note_capacity);
+
+void astral_wire_set_message_text_provider(AstralMessageTextProvider provider);
+int astral_wire_refresh_message_texts(AstralWireBuffer *buffer);
+uint64_t astral_wire_message_for_node(int32_t node);
 void astral_wire_note_identifiers(const uint8_t *bytes, size_t length);
 int astral_wire_identifier(int32_t id, char *out, size_t capacity);
 int astral_wire_event_value(const uint8_t *bytes, size_t length, double *value);

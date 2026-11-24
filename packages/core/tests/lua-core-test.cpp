@@ -949,10 +949,14 @@ static void testGatewayMessageEventsAndHaptics(const std::string &work)
     assert(AstralLuaMessageTextColor(200000000000000012ULL, 200000000000000007ULL, &color) == 0);
     AstralDecorationContext actionContext = {"message.author:", 200000000000000011ULL, 200000000000000003ULL, 200000000000000007ULL};
     AstralTag actionTags[4] = {};
-    assert(AstralLuaDecorate(&actionContext, actionTags, 4) == 1);
-    assert(std::string(actionTags[0].text) == "Inspect");
-    assert(std::string(actionTags[0].action_id).rfind("astral.action.", 0) == 0);
-    assert(astral::luahost::pressMessageAction(actionTags[0].action_id));
+    assert(AstralLuaDecorate(&actionContext, actionTags, 4) == 0);
+    AstralMenuEntry entries[4] = {};
+    assert(AstralLuaMessageMenu(entries, 4) == 1);
+    assert(std::string(entries[0].label) == "Inspect");
+    assert(std::string(entries[0].action_id).rfind("astral.action.", 0) == 0);
+    assert(!astral::luahost::pressMessageAction(entries[0].action_id));
+    astral::luahost::setMenuMessage(200000000000000007ULL, 200000000000000011ULL);
+    assert(astral::luahost::pressMessageAction(entries[0].action_id));
     assert(astral::luahost::eval("astral.gateway-events-test", "return astral.storage.get('action')") ==
            "200000000000000011:200000000000000007");
     astral::luahost::stop();

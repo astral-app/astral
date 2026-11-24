@@ -59,13 +59,16 @@ int astral_settings_rewrite(const uint8_t *bytes, size_t length, AstralWireBuffe
     }
     if (changed) wirePut(&out, bytes, length);
     wireObserve(bytes, spans, count);
+    wireTrackMessageNodes(bytes, spans, count);
     wireSetTemplateSource(raw);
     wireRewritePages(bytes, spans, count, &out, &changed, length);
     wireSetTemplateSource(NULL);
     wireDecorate(bytes, spans, count, &out, &changed, length);
     wireDecorateMentions(bytes, spans, count, &out, &changed, length);
+    wireMessageMenu(bytes, spans, count, &out, &changed, length);
     wireColorNames(bytes, spans, count, &out, &changed, length);
     wireReactionEmoji(bytes, spans, count, &out, &changed, length);
+    wireMessageTexts(bytes, spans, count, &out, &changed, length);
     wireReactionAvatars(bytes, spans, count, &out, &changed, length);
     wireSettingsBackdrop(bytes, spans, count, &out, &changed, length);
     wireObserveRemovals(bytes, spans, count, &out, &changed, length);
