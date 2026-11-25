@@ -1,0 +1,15 @@
+id = "astral.tone-indicators"
+name = "Tone Indicators"
+description = "Turns tone tags such as /j and /srs into pills that spell out what they mean."
+version = "0.0.1"
+icon = "TextIcon"
+main = "main.lua"
+permissions = ["ui.text"]
+
+[[authors]]
+name = "justjxke"
+id = "852558183087472640"
+
+[[authors]]
+name = "adrian"
+id = "224617799434108928"

@@ -5,6 +5,62 @@ version = "0.0.1"
 passive = []
 
 [[plugins]]
+id = "astral.new-member-sprout"
+name = "New Member Sprout"
+version = "0.0.1"
+description = "Shows desktop's new member sprout beside people who joined the server in the last week."
+icon = "UserPlusIcon"
+base = "plugins/astral.new-member-sprout/"
+
+[[plugins]]
+id = "astral.force-owner-crown"
+name = "Force Owner Crown"
+version = "0.0.1"
+description = "Always show the owner crown on the server owner's messages."
+icon = "CrownIcon"
+base = "plugins/astral.force-owner-crown/"
+
+[[plugins]]
+id = "astral.new-user-sprout"
+name = "New User Sprout"
+version = "0.0.1"
+description = "Shows a sprout beside people whose Discord account is less than the chosen number of days old."
+icon = "UserPlusIcon"
+base = "plugins/astral.new-user-sprout/"
+
+[[plugins]]
+id = "astral.view-raw"
+name = "View Raw"
+version = "0.0.1"
+description = "Shows a message's raw data and content in a reply only you can see, ready to copy."
+icon = "TextIcon"
+base = "plugins/astral.view-raw/"
+
+[[plugins]]
+id = "astral.no-reply-mention"
+name = "No Reply Mention"
+version = "0.0.1"
+description = "Turns off the reply ping by default, or only pings the people you list."
+icon = "ArrowAngleLeftUpIcon"
+base = "plugins/astral.no-reply-mention/"
+
+[[plugins]]
+id = "astral.tone-indicators"
+name = "Tone Indicators"
+version = "0.0.1"
+description = "Turns tone tags such as /j and /srs into pills that spell out what they mean."
+icon = "TextIcon"
+base = "plugins/astral.tone-indicators/"
+
+[[plugins]]
+id = "astral.message-text-size"
+name = "Message Text Size"
+version = "0.0.1"
+description = "Makes the text of chat messages bigger or smaller, leaving the rest of Discord as it is."
+icon = "TextIcon"
+base = "plugins/astral.message-text-size/"
+
+[[plugins]]
 id = "astral.debug"
 name = "Debug"
 version = "0.0.1"

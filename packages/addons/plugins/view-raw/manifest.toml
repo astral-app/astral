@@ -1,0 +1,27 @@
+id = "astral.view-raw"
+name = "View Raw"
+description = "Shows a message's raw data and content in a reply only you can see, ready to copy."
+version = "0.0.1"
+icon = "TextIcon"
+main = "main.lua"
+permissions = ["discord.messages", "discord.messages.content", "messages.local", "ui.message_actions", "ui.clipboard"]
+
+[[authors]]
+name = "King Fish"
+id = "499400512559382538"
+
+[[authors]]
+name = "V"
+id = "343383572805058560"
+
+[[authors]]
+name = "rad"
+id = "610945092504780823"
+
+[[authors]]
+name = "lillith <3"
+id = "799319081723232267"
+
+[[authors]]
+name = "adrian"
+id = "224617799434108928"
