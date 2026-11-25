@@ -65,3 +65,18 @@ pub fn epoch_ms() -> i64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |elapsed| elapsed.as_millis() as i64)
 }
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn astral_rust_string_from(data: *const c_char, length: usize) -> AstralRustString {
+    AstralRustString::new(bytes(data, length).to_vec())
+}
+
+pub fn optional(found: Option<Vec<u8>>) -> AstralRustString {
+    found.map_or(
+        AstralRustString {
+            bytes: core::ptr::null_mut(),
+            length: 0,
+        },
+        AstralRustString::new,
+    )
+}

@@ -4,7 +4,6 @@ project(astral C CXX)
 set(CORE ${ASTRAL_ROOT}/packages/core)
 set(VENDOR ${ASTRAL_ROOT}/vendor)
 file(STRINGS ${ASTRAL_ROOT}/keys/plugin-signing.pub SIGNING_KEY LIMIT_COUNT 1)
-set(MONOCYPHER ${VENDOR}/monocypher/src)
 set(LUA_SOURCES lapi lcode lctype ldebug ldo ldump lfunc lgc llex lmem lobject lopcodes lparser lstate lstring ltable ltm lundump lvm lzio lauxlib lbaselib lstrlib ltablib lmathlib lutf8lib lcorolib)
 
 set(ASTRAL_GENERATED ${CMAKE_CURRENT_BINARY_DIR}/generated)
@@ -38,14 +37,12 @@ add_custom_command(OUTPUT ${RUST_LIBRARY}
                    WORKING_DIRECTORY ${RUST_CRATE})
 add_custom_target(astral-core-rust DEPENDS ${RUST_LIBRARY})
 
-add_library(astral-vendor STATIC ${LUA_SOURCES} ${VENDOR}/sqlite/sqlite3.c ${MONOCYPHER}/monocypher.c ${MONOCYPHER}/optional/monocypher-ed25519.c)
-target_include_directories(astral-vendor PRIVATE ${MONOCYPHER} ${MONOCYPHER}/optional)
+add_library(astral-vendor STATIC ${LUA_SOURCES} ${VENDOR}/sqlite/sqlite3.c)
 target_compile_definitions(astral-vendor PRIVATE LUA_USE_POSIX SQLITE_THREADSAFE=2 SQLITE_OMIT_LOAD_EXTENSION)
 target_compile_options(astral-vendor PRIVATE -O2 -w -fvisibility=hidden)
 
 add_library(astral SHARED AstralJni.cpp AstralAndroidBackup.cpp AstralAndroidMarketplace.cpp ${CORE_SOURCES})
 target_include_directories(astral PRIVATE ${CORE}/include ${CORE}/wire ${ASTRAL_GENERATED} ${VENDOR}/lua ${VENDOR}/sqlite)
-target_include_directories(astral PRIVATE ${MONOCYPHER} ${MONOCYPHER}/optional)
 target_include_directories(astral SYSTEM PRIVATE ${VENDOR}/json/single_include ${VENDOR}/tomlplusplus/include)
 target_compile_definitions(astral PRIVATE ASTRAL_VERSION="${ASTRAL_VERSION}" ASTRAL_COMMIT="${ASTRAL_COMMIT}")
 target_compile_definitions(astral PRIVATE ASTRAL_SIGNING_KEY="${SIGNING_KEY}")
