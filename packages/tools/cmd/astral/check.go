@@ -24,6 +24,10 @@ func under(path string, prefixes ...string) bool {
 	return false
 }
 
+func isRust(path string) bool {
+	return under(path, "packages/core/") && (filepath.Ext(path) == ".rs" || strings.HasSuffix(path, "/Cargo.toml") || strings.HasSuffix(path, "/Cargo.lock"))
+}
+
 func isLua(path string) bool {
 	return filepath.Ext(path) == ".lua" && under(path, "packages/")
 }
@@ -49,7 +53,7 @@ func checkRules() []checkRule {
 				}
 				return testTools(work)
 			}},
-		{"rust", func(path string) bool { return under(path, "packages/core/rust/") }, func(_ []string, work string) error {
+		{"rust", func(path string) bool { return isRust(path) }, func(_ []string, work string) error {
 			if err := lintRust(); err != nil {
 				return err
 			}

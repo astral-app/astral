@@ -36,7 +36,7 @@ fn generated(properties: &[(String, u16)]) -> String {
 }
 
 fn main() {
-    let header = PathBuf::from("../wire/PhoenixProperties.h");
+    let header = PathBuf::from("wire/PhoenixProperties.h");
     println!("cargo:rerun-if-changed={}", header.display());
     let text = fs::read_to_string(&header).expect("PhoenixProperties.h");
     let properties = properties(&text);

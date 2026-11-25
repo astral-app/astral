@@ -227,6 +227,40 @@ fn properties<'a>(bytes: &'a [u8], span: &Span) -> (Cursor<'a>, u16) {
     (cursor, count)
 }
 
+pub fn property_cursor<'a>(bytes: &'a [u8], span: &Span) -> (Cursor<'a>, u16) {
+    if span.op == 1 {
+        return properties(bytes, span);
+    }
+    let mut cursor = Cursor::new(bytes, span.start + SPAN_HEADER);
+    let count = cursor.read16();
+    (cursor, count)
+}
+
+pub fn find_string<'a>(bytes: &'a [u8], span: &Span, wanted: u16) -> Option<&'a [u8]> {
+    let (mut cursor, count) = property_cursor(bytes, span);
+    for _ in 0..count {
+        if cursor.failed() {
+            break;
+        }
+        let property = cursor.read16();
+        let tag = cursor.read8();
+        if property == wanted && tag == 6 {
+            let length = cursor.read32() as usize;
+            return cursor.take(length);
+        }
+        cursor.skip_value(tag, 0);
+    }
+    None
+}
+
+pub fn batch_of<'a>(bytes: *const u8, span: &Span) -> &'a [u8] {
+    span_bytes(bytes, span)
+}
+
+pub fn spans_of<'a>(pointer: *const Span, count: usize) -> &'a [Span] {
+    spans(pointer, count)
+}
+
 fn string_property<'a>(bytes: &'a [u8], span: &Span, wanted: u16) -> Option<&'a [u8]> {
     let (mut cursor, count) = properties(bytes, span);
     for _ in 0..count {
