@@ -911,6 +911,13 @@ static void testFilePickerAndDialogs(const std::string &work)
         return true;
     };
     platform.cancelWebAuth = [&](uint64_t request) { cancelledAuthRequests.push_back(request); };
+    uint64_t confirmRequest = 0;
+    nlohmann::json confirmSpec;
+    platform.confirm = [&](uint64_t request, const nlohmann::json &spec) {
+        confirmRequest = request;
+        confirmSpec = spec;
+        return true;
+    };
     platform.writeClipboard = [&](const std::string &value) {
         clipboard = value;
         return true;
@@ -923,6 +930,17 @@ static void testFilePickerAndDialogs(const std::string &work)
     platform.cancelFilePick = [&](uint64_t request) { cancelled.push_back(request); };
     astral::luahost::start({(root / "plugins").string()}, &settings, true, std::move(platform));
     assert(shownTitle == "Ready" && shownMessage == "Choose a file");
+    assert(astral::luahost::eval(
+               "astral.native-ui-test",
+               "return tostring(astral.ui.confirm({ title = 'Send?', image = 'https://cdn.example/s.png', confirm = 'Send' }, "
+               "function(ok) astral.storage.set('confirmed', ok) end) > 0)") == "true");
+    assert(confirmSpec["title"] == "Send?" && confirmSpec["confirm"] == "Send" && confirmSpec["cancel"] == "Cancel" &&
+           confirmSpec["image"] == "https://cdn.example/s.png");
+    astral::luahost::completeConfirm(confirmRequest, true);
+    assert(astral::luahost::eval("astral.native-ui-test", "return tostring(astral.storage.get('confirmed'))") == "true");
+    assert(astral::luahost::eval("astral.native-ui-test",
+                                 "return tostring(pcall(astral.ui.confirm, { title = 'x', image = 'http://a' }, function() end))") ==
+           "false");
     assert(toastTitle == "Status" && toastMessage == "Ready");
     assert(clipboard == "exported rules");
     assert(authorized > 0 && authorizationURL == "https://example.com/auth" && authorizationCallback == "https://example.com/callback");

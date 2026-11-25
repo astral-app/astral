@@ -79,12 +79,13 @@ Each plugin gets its own `lua_State` with `base`, `table`, `string`, `math`, `ut
 | `astral.ui.reaction(fn)` | `fn(node)` gets each reaction pill under a message (`node.emoji`, `node.burst`, `node.count`, `node.message_id`) and returns `{ images, total }` to draw up to five overlapping faces after the count, with a `+N` badge when `total` is larger; return `nil` until the faces are known and astral asks again |
 | `astral.ui.settings_backdrop({ dim })` | Lays the Nitro or astral theme gradient, darkened by `dim` percent (0 by default), behind Discord's and astral's settings screens; `nil` removes it |
 | `astral.ui.alert(title, message)` | Shows a native alert after the plugin declares `ui.dialogs` |
+| `astral.ui.confirm({ title, message?, image?, confirm?, cancel?, destructive? }, fn)` | Asks a yes/no question in a native sheet, with an optional `https` image above the title, and calls `fn(accepted)`; needs `ui.dialogs` |
 | `astral.ui.toast(title, message)` | Shows a brief native notification after the plugin declares `ui.toasts` |
 | `astral.ui.web_auth(url, callback_url, callback)` | Opens one in-app HTTPS sign-in flow at a time and calls back with its matching URL, cookies changed during that flow and error after the plugin declares `ui.web_auth`; the callback must use the authorization URL's host or start its `redirect_uri` |
 | `astral.ui.cancel_web_auth(request)` | Cancels a pending in-app sign-in flow after the plugin declares `ui.web_auth` |
 | `astral.ui.copy(value)` | Copies up to 16 KiB of text to the system clipboard after the plugin declares `ui.clipboard` |
 | `astral.ui.paste()` | Returns up to 16 KiB of text from the system clipboard, or `nil`, after the plugin declares `ui.clipboard`; iOS may ask the user to allow the paste |
-| `astral.ui.notify(title, body, { delay })` | Posts a system notification now or after `delay` seconds (up to a week) under `ui.notifications`. iOS schedules it with the system; Android posts it after the delay while Discord is running |
+| `astral.ui.notify(title, body, { delay, channel_id, message_id })` | Posts a system notification now or after `delay` seconds (up to a week) under `ui.notifications`; with `channel_id` (and `message_id`) a tap opens that channel or message. iOS schedules it with the system; Android posts it after the delay while Discord is running |
 | `astral.ui.open(url)` | Opens an `https://` or `discord://` link, which Discord handles itself when it can |
 | `astral.ui.open_channel(channel_id, message_id?)` | Opens a channel inside Discord, at a message when one is given; needs `ui.navigate` |
 | `astral.ui.scroll_to(message_id, {animated, align}?)` | Scrolls the open chat to a loaded message with Discord's own list scroll; returns `false` when the message isn't loaded; needs `ui.navigate` |

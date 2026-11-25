@@ -158,6 +158,7 @@ struct LuaPlugin : astral::PluginPackage, astral::PluginHealth {
     std::map<uint64_t, int> networkRequests;
     std::map<uint64_t, LuaTimer> timers;
     std::map<uint64_t, int> webAuthRequests;
+    std::map<uint64_t, int> confirmRequests;
     std::map<uint64_t, int> filePicks;
     std::map<uint64_t, LuaEventCallback> eventCallbacks;
     std::vector<LuaHttpHook> httpHooks;
@@ -862,6 +863,53 @@ static int ShowAlert(lua_State *state)
     return 0;
 }
 
+static std::string ConfirmText(lua_State *state, const char *field, size_t limit, const std::string &fallback)
+{
+    lua_getfield(state, 1, field);
+    std::string value = fallback;
+    if (lua_isstring(state, -1)) value = lua_tostring(state, -1);
+    lua_pop(state, 1);
+    if (value.size() > limit) luaL_error(state, "astral.ui.confirm: %s exceeds %d bytes", field, static_cast<int>(limit));
+    return value;
+}
+
+static int Confirm(lua_State *state)
+{
+    LuaPlugin *plugin = Self(state);
+    RequirePermission(state, "ui.dialogs");
+    luaL_checktype(state, 1, LUA_TTABLE);
+    luaL_checktype(state, 2, LUA_TFUNCTION);
+    nlohmann::json spec = {{"title", ConfirmText(state, "title", 120, "")},
+                           {"message", ConfirmText(state, "message", 2048, "")},
+                           {"image", ConfirmText(state, "image", 2048, "")},
+                           {"confirm", ConfirmText(state, "confirm", 40, "OK")},
+                           {"cancel", ConfirmText(state, "cancel", 40, "Cancel")}};
+    lua_getfield(state, 1, "destructive");
+    spec["destructive"] = static_cast<bool>(lua_toboolean(state, -1));
+    lua_pop(state, 1);
+    const std::string image = spec["image"];
+    if (spec["title"].get<std::string>().empty()) return luaL_error(state, "astral.ui.confirm: give a title");
+    if (!image.empty() && image.rfind("https://", 0) != 0) return luaL_error(state, "astral.ui.confirm: image must be an https URL");
+    if (plugin->confirmRequests.size() >= 4) return luaL_error(state, "astral.ui.confirm: at most 4 open dialogs per plugin");
+    if (!gPlatform.confirm) return luaL_error(state, "astral.ui.confirm: dialogs are unavailable on this build");
+    uint64_t request = gNextRequest.fetch_add(1);
+    if (!request) request = gNextRequest.fetch_add(1);
+    lua_pushvalue(state, 2);
+    plugin->confirmRequests[request] = luaL_ref(state, LUA_REGISTRYINDEX);
+    bool shown = false;
+    try {
+        shown = gPlatform.confirm(request, spec);
+    } catch (...) {
+    }
+    if (!shown) {
+        luaL_unref(state, LUA_REGISTRYINDEX, plugin->confirmRequests[request]);
+        plugin->confirmRequests.erase(request);
+        return luaL_error(state, "astral.ui.confirm: could not show the dialog");
+    }
+    lua_pushinteger(state, static_cast<lua_Integer>(request));
+    return 1;
+}
+
 static int ShowToast(lua_State *state)
 {
     RequirePermission(state, "ui.toasts");
@@ -1185,10 +1233,25 @@ static int Notify(lua_State *state)
     std::string body = luaL_checkstring(state, 2);
     if (title.size() > 120 || body.size() > 2048) return luaL_error(state, "astral.ui.notify: text exceeds its limit");
     double delay = 0;
+    std::string channel, message;
     if (lua_istable(state, 3)) {
         lua_getfield(state, 3, "delay");
         delay = lua_isnumber(state, -1) ? lua_tonumber(state, -1) : 0;
         lua_pop(state, 1);
+        lua_getfield(state, 3, "channel_id");
+        if (lua_isstring(state, -1)) channel = lua_tostring(state, -1);
+        lua_pop(state, 1);
+        lua_getfield(state, 3, "message_id");
+        if (lua_isstring(state, -1)) message = lua_tostring(state, -1);
+        lua_pop(state, 1);
+    }
+    if ((!channel.empty() && !SnowflakeText(channel)) || (!message.empty() && (channel.empty() || !SnowflakeText(message))))
+        return luaL_error(state, "astral.ui.notify: channel_id and message_id must be Discord ids");
+    std::string link;
+    if (!channel.empty()) {
+        auto guild = gPlatform.channelGuild ? gPlatform.channelGuild(channel) : std::nullopt;
+        link = "https://discord.com/channels/" + (guild && SnowflakeText(*guild) ? *guild : std::string("@me")) + "/" + channel;
+        if (!message.empty()) link += "/" + message;
     }
     if (!std::isfinite(delay) || delay < 0 || delay > 7 * 24 * 60 * 60)
         return luaL_error(state, "astral.ui.notify: delay is 0 to 604800 seconds");
@@ -1196,7 +1259,7 @@ static int Notify(lua_State *state)
     std::string identifier = "astral." + plugin->identifier + "." + std::to_string(gNextRequest++);
     bool scheduled = false;
     try {
-        scheduled = gPlatform.notify(identifier, title, body, delay);
+        scheduled = gPlatform.notify(identifier, title, body, delay, link);
     } catch (...) {
     }
     lua_pushboolean(state, scheduled);
@@ -2370,6 +2433,7 @@ static void InstallAPI(LuaPlugin *plugin)
     Function(state, plugin, "decorate", Decorate);
     Function(state, plugin, "relabel", Relabel);
     Function(state, plugin, "alert", ShowAlert);
+    Function(state, plugin, "confirm", Confirm);
     Function(state, plugin, "toast", ShowToast);
     Function(state, plugin, "copy", CopyText);
     Function(state, plugin, "paste", PasteText);
@@ -2523,6 +2587,10 @@ static void Stop(LuaPlugin *plugin)
         }
         if (plugin->state) luaL_unref(plugin->state, LUA_REGISTRYINDEX, reference);
     }
+    auto confirmRequests = std::move(plugin->confirmRequests);
+    plugin->confirmRequests.clear();
+    for (const auto &[request, reference] : confirmRequests)
+        if (plugin->state) luaL_unref(plugin->state, LUA_REGISTRYINDEX, reference);
     auto webAuthRequests = std::move(plugin->webAuthRequests);
     plugin->webAuthRequests.clear();
     for (const auto &[request, reference] : webAuthRequests) {
@@ -2919,6 +2987,27 @@ void completeNetworkRequest(uint64_t request, const nlohmann::json &result)
         luaL_unref(state, LUA_REGISTRYINDEX, reference);
         astral::lua::pushJSON(state, response);
         if (!Call(plugin, 1, 0, "network callback")) {
+            MarkFailed(plugin);
+            Stop(plugin);
+        }
+        return;
+    }
+}
+
+void completeConfirm(uint64_t request, bool accepted)
+{
+    std::lock_guard<std::recursive_mutex> lock(gMutex);
+    for (auto *plugin : gPlugins) {
+        auto found = plugin->confirmRequests.find(request);
+        if (found == plugin->confirmRequests.end()) continue;
+        int reference = found->second;
+        plugin->confirmRequests.erase(found);
+        if (!plugin->state || plugin->failed) return;
+        lua_State *state = plugin->state;
+        lua_rawgeti(state, LUA_REGISTRYINDEX, reference);
+        luaL_unref(state, LUA_REGISTRYINDEX, reference);
+        lua_pushboolean(state, accepted);
+        if (!Call(plugin, 1, 0, "confirm")) {
             MarkFailed(plugin);
             Stop(plugin);
         }

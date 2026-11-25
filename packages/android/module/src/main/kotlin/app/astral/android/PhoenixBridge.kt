@@ -20,7 +20,10 @@ import android.os.SystemClock
 import android.view.HapticFeedbackConstants
 import android.text.InputFilter
 import android.text.InputType
+import android.graphics.BitmapFactory
 import android.widget.EditText
+import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.Toast
 import android.provider.OpenableColumns
 import android.webkit.MimeTypeMap
@@ -386,6 +389,53 @@ object PhoenixBridge {
     }
 
     @JvmStatic
+    fun showConfirm(request: Long, spec: String) {
+        val options = runCatching { org.json.JSONObject(spec) }.getOrNull()
+        mainHandler.post {
+            val activity = activeActivity()
+            if (options == null || activity == null || activity.isFinishing || activity.isDestroyed) {
+                Native.completeConfirm(request, false)
+                return@post
+            }
+            var answered = false
+            fun answer(accepted: Boolean) {
+                if (answered) return
+                answered = true
+                Native.completeConfirm(request, accepted)
+            }
+            val builder = AlertDialog.Builder(activity)
+                .setTitle(options.optString("title"))
+                .setPositiveButton(options.optString("confirm", "OK")) { _, _ -> answer(true) }
+                .setNegativeButton(options.optString("cancel", "Cancel")) { _, _ -> answer(false) }
+                .setOnDismissListener { answer(false) }
+            val message = options.optString("message")
+            if (message.isNotEmpty()) builder.setMessage(message)
+            val image = options.optString("image")
+            if (image.isNotEmpty()) builder.setView(confirmImage(activity, image))
+            builder.show()
+        }
+    }
+
+    private fun confirmImage(activity: Activity, address: String): LinearLayout {
+        val side = (160 * activity.resources.displayMetrics.density).toInt()
+        val view = ImageView(activity).apply {
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            layoutParams = LinearLayout.LayoutParams(side, side)
+        }
+        Thread {
+            val bitmap = runCatching {
+                java.net.URL(address).openStream().use { BitmapFactory.decodeStream(it) }
+            }.getOrNull() ?: return@Thread
+            mainHandler.post { view.setImageBitmap(bitmap) }
+        }.start()
+        return LinearLayout(activity).apply {
+            gravity = android.view.Gravity.CENTER
+            setPadding(0, side / 8, 0, 0)
+            addView(view)
+        }
+    }
+
+    @JvmStatic
     fun showToast(title: String, message: String) {
         mainHandler.post {
             val activity = activeActivity() ?: return@post
@@ -608,19 +658,28 @@ object PhoenixBridge {
     }
 
     @JvmStatic
-    fun notify(delayMs: Long, title: String, body: String) {
+    fun notify(delayMs: Long, title: String, payload: String) {
+        val options = runCatching { org.json.JSONObject(payload) }.getOrNull() ?: return
+        val body = options.optString("body")
+        val link = options.optString("link")
         val post = Runnable {
             val context = activeActivity()?.applicationContext ?: return@Runnable
             val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return@Runnable
             manager.createNotificationChannel(NotificationChannel(NOTIFICATION_CHANNEL, "astral", NotificationManager.IMPORTANCE_DEFAULT))
-            val notification = Notification.Builder(context, NOTIFICATION_CHANNEL)
+            val id = notificationIds.incrementAndGet()
+            val builder = Notification.Builder(context, NOTIFICATION_CHANNEL)
                 .setSmallIcon(context.applicationInfo.icon)
                 .setContentTitle(title)
                 .setContentText(body)
                 .setStyle(Notification.BigTextStyle().bigText(body))
                 .setAutoCancel(true)
-                .build()
-            runCatching { manager.notify(notificationIds.incrementAndGet(), notification) }
+            if (link.isNotEmpty()) {
+                val open = Intent(Intent.ACTION_VIEW, Uri.parse(link)).setPackage(context.packageName)
+                val flags = android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT
+                builder.setContentIntent(android.app.PendingIntent.getActivity(context, id, open, flags))
+            }
+            val notification = builder.build()
+            runCatching { manager.notify(id, notification) }
                 .onFailure { Log.warning("Failed to post notification $title: ${it.javaClass.simpleName}") }
         }
         if (delayMs > 0) mainHandler.postDelayed(post, delayMs) else mainHandler.post(post)
