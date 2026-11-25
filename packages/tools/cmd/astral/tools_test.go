@@ -268,7 +268,7 @@ func plannedNames(changed ...string) string {
 
 func TestCheckPicksAffectedSteps(t *testing.T) {
 	cases := map[string]string{
-		"packages/core/wire/PhoenixWire.c":   "clang-format,wire tests",
+		"packages/core/wire/PhoenixWire.h":   "clang-format,wire tests",
 		"packages/core/src/LuaSandbox.cpp":   "clang-format,core tests",
 		"packages/tools/cmd/astral/check.go": "gofmt,go vet and tests",
 		"packages/ios/sources/Themes.mm":     "clang-format",
