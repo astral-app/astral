@@ -32,6 +32,7 @@ struct LuaHostPlatform {
     std::function<bool(uint64_t request, const std::string &url, const std::string &callbackURL)> webAuth;
     std::function<void(uint64_t request)> cancelWebAuth;
     std::function<void(const std::string &title, const std::string &message)> showAlert;
+    std::function<bool(uint64_t request, const nlohmann::json &spec)> confirm;
     std::function<void(const std::string &title, const std::string &message)> showToast;
     std::function<bool(const std::string &strength)> triggerHaptic;
     std::function<bool(const std::string &value)> writeClipboard;
@@ -48,7 +49,9 @@ struct LuaHostPlatform {
     std::function<bool(const std::string &text, const std::string &language, double rate)> speak;
     std::function<bool(const std::string &path, double volume)> playSound;
     std::function<void()> stopAudio;
-    std::function<bool(const std::string &identifier, const std::string &title, const std::string &body, double delay)> notify;
+    std::function<bool(const std::string &identifier, const std::string &title, const std::string &body, double delay,
+                       const std::string &link)>
+        notify;
     std::function<bool(uint64_t request, const std::vector<std::string> &extensions)> pickFile;
     std::function<void(uint64_t request)> cancelFilePick;
     std::function<std::optional<nlohmann::json>(const std::string &channel, const std::string &message, const std::string &emoji,
@@ -96,6 +99,7 @@ void setNumber(const std::string &identifier, const std::string &key, double val
 void setText(const std::string &identifier, const std::string &key, const std::string &value);
 void resetSettings(const std::string &identifier);
 void completeNetworkRequest(uint64_t request, const nlohmann::json &response);
+void completeConfirm(uint64_t request, bool accepted);
 void completeWebAuth(uint64_t request, const std::optional<std::string> &url, const std::optional<std::string> &cookies,
                      const std::optional<std::string> &error);
 void completeFilePick(uint64_t request, const std::optional<std::string> &name, const std::optional<std::string> &data,

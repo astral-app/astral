@@ -420,6 +420,18 @@ function astral.time.cancel(timer) end
 
 astral.ui = {}
 function astral.ui.alert(title, message) end
+---@class astral.ConfirmSpec
+---@field title string
+---@field message? string
+---@field image? string https URL shown above the title
+---@field confirm? string
+---@field cancel? string
+---@field destructive? boolean
+---Asks a yes/no question in a native sheet and calls `callback(accepted)`.
+---@param spec astral.ConfirmSpec
+---@param callback fun(accepted: boolean)
+---@return integer request
+function astral.ui.confirm(spec, callback) end
 function astral.ui.toast(title, message) end
 function astral.ui.web_auth(url, callback_url, callback) end
 function astral.ui.cancel_web_auth(request) end
@@ -481,7 +493,7 @@ function astral.ui.insert_text(text, options) end
 function astral.ui.focus_composer(focus) end
 ---@param title string
 ---@param body string
----@param options? { delay: number }
+---@param options? { delay: number?, channel_id: string?, message_id: string? }
 ---@return boolean
 function astral.ui.notify(title, body, options) end
 function astral.ui.haptic(strength) end

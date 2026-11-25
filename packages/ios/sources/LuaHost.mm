@@ -8,6 +8,8 @@
 #include "AstralLuaHost.h"
 #import "AstralState.h"
 #import "BrowserAuth.h"
+#import "ConfirmSheet.h"
+#import "NotificationTaps.h"
 #import "CrashReports.h"
 #import "DevServer.h"
 #import "DiscordCache.h"
@@ -297,6 +299,21 @@ static astral::LuaHostPlatform Platform(void)
     };
     platform.cancelWebAuth = [](uint64_t request) { AstralCancelPluginWebAuth(request); };
     platform.showAlert = [](const std::string &title, const std::string &message) { AstralShowAlert(Native(title), Native(message)); };
+    platform.confirm = [](uint64_t request, const nlohmann::json &spec) {
+        NSDictionary *options = @{
+            @"title" : Native(spec.value("title", std::string())),
+            @"message" : Native(spec.value("message", std::string())),
+            @"image" : Native(spec.value("image", std::string())),
+            @"confirm" : Native(spec.value("confirm", std::string("OK"))),
+            @"cancel" : Native(spec.value("cancel", std::string("Cancel"))),
+            @"destructive" : @(spec.value("destructive", false)),
+        };
+        return static_cast<bool>(AstralShowConfirm(options, ^(BOOL accepted) {
+            dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+                astral::luahost::completeConfirm(request, accepted);
+            });
+        }));
+    };
     platform.showToast = [](const std::string &title, const std::string &message) { AstralShowToast(Native(title), Native(message)); };
     platform.triggerHaptic = [](const std::string &strength) {
         UIImpactFeedbackStyle style;
@@ -337,11 +354,16 @@ static astral::LuaHostPlatform Platform(void)
         if (!value) return std::nullopt;
         return std::string(value.UTF8String ?: "");
     };
-    platform.notify = [](const std::string &identifier, const std::string &title, const std::string &body, double delay) {
+    platform.notify = [](const std::string &identifier, const std::string &title, const std::string &body, double delay,
+                         const std::string &link) {
         UNMutableNotificationContent *content = [UNMutableNotificationContent new];
         content.title = Native(title);
         content.body = Native(body);
         content.sound = UNNotificationSound.defaultSound;
+        if (!link.empty()) {
+            content.userInfo = @{AstralNotificationLinkKey : Native(AppLink(link))};
+            AstralRouteNotificationTaps();
+        }
         UNTimeIntervalNotificationTrigger *trigger =
             delay >= 1 ? [UNTimeIntervalNotificationTrigger triggerWithTimeInterval:delay repeats:NO] : nil;
         UNNotificationRequest *request = [UNNotificationRequest requestWithIdentifier:Native(identifier) content:content trigger:trigger];

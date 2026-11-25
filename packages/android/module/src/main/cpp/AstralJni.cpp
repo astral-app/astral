@@ -79,6 +79,7 @@ jmethodID gCopyText = nullptr;
 jmethodID gPickFile = nullptr;
 jmethodID gCancelFilePick = nullptr;
 jmethodID gOpenWebAuth = nullptr;
+jmethodID gShowConfirm = nullptr;
 jmethodID gCancelWebAuth = nullptr;
 jmethodID gEditText = nullptr;
 jmethodID gRestartGatewaySession = nullptr;
@@ -418,6 +419,10 @@ astral::LuaHostPlatform platform(const std::string &state, const std::string &re
         if (!gOpenWebAuth) return false;
         return callBridge(gOpenWebAuth, static_cast<jlong>(request), url, callbackURL);
     };
+    platform.confirm = [](uint64_t request, const nlohmann::json &spec) {
+        if (!gShowConfirm) return false;
+        return callBridge(gShowConfirm, static_cast<jlong>(request), spec.dump());
+    };
     platform.cancelWebAuth = [](uint64_t request) {
         if (gCancelWebAuth) callBridge(gCancelWebAuth, static_cast<jlong>(request));
     };
@@ -432,9 +437,10 @@ astral::LuaHostPlatform platform(const std::string &state, const std::string &re
         return true;
     };
     platform.readClipboard = []() -> std::optional<std::string> { return pasteFromBridge(); };
-    platform.notify = [](const std::string &, const std::string &title, const std::string &body, double delay) {
+    platform.notify = [](const std::string &, const std::string &title, const std::string &body, double delay, const std::string &link) {
         if (!gNotify) return false;
-        return callBridge(gNotify, static_cast<jlong>(delay * 1000), title, body);
+        nlohmann::json payload = {{"body", body}, {"link", link}};
+        return callBridge(gNotify, static_cast<jlong>(delay * 1000), title, payload.dump());
     };
     platform.speak = [](const std::string &text, const std::string &language, double rate) {
         if (!gSpeak) return false;
@@ -1437,6 +1443,8 @@ ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_attachBridge
         if (env->ExceptionCheck()) env->ExceptionClear();
         gInsertComposerText = env->GetStaticMethodID(reference, "insertComposerText", "(Ljava/lang/String;Z)Z");
         if (env->ExceptionCheck()) env->ExceptionClear();
+        gShowConfirm = env->GetStaticMethodID(reference, "showConfirm", "(JLjava/lang/String;)V");
+        if (env->ExceptionCheck()) env->ExceptionClear();
         gNotify = notifyMethod;
         gSpeak = speakMethod;
         gPlaySound = playSoundMethod;
@@ -1464,6 +1472,12 @@ ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_completeRequ
     }
     if (error) response["error"] = fromJava(env, error);
     astral::luahost::completeNetworkRequest(static_cast<uint64_t>(request), response);
+}
+
+ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_completeConfirm(JNIEnv *, jclass, jlong request, jboolean accepted)
+{
+    if (request <= 0) return;
+    astral::luahost::completeConfirm(static_cast<uint64_t>(request), accepted == JNI_TRUE);
 }
 
 ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_completeWebAuth(JNIEnv *env, jclass, jlong request, jstring url,
