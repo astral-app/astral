@@ -56,6 +56,9 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq lua-check clang libclang-rt-dev libsqlite3-dev libssl-dev
 
+      - name: Install Rust lint tools
+        run: rustup component add clippy rustfmt
+
       - run: go run ./packages/tools/cmd/astral lint
 
       - run: go run ./packages/tools/cmd/astral test
@@ -90,6 +93,9 @@ jobs:
         with:
           go-version-file: packages/tools/go.mod
           cache-dependency-path: packages/tools/go.sum
+
+      - name: Install the Rust Android targets
+        run: rustup target add aarch64-linux-android x86_64-linux-android
 
       - run: go run ./packages/tools/cmd/astral android-core --ndk "$ANDROID_NDK_LATEST_HOME"
 
@@ -127,6 +133,9 @@ jobs:
             ln -s android-37.0 "$ANDROID_HOME/platforms/android-37"
           fi
 
+      - name: Install the Rust Android targets
+        run: rustup target add aarch64-linux-android x86_64-linux-android
+
       - run: go run ./packages/tools/cmd/astral android build
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
@@ -154,6 +163,9 @@ jobs:
           path: ${{ github.workspace }}/theos
           key: theos-${{ runner.os }}-${{ github.run_id }}
           restore-keys: theos-${{ runner.os }}-
+
+      - name: Install the Rust iOS target
+        run: rustup target add aarch64-apple-ios
 
       - name: Prepare Theos
         run: |

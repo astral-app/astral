@@ -58,8 +58,12 @@ func buildReplay(work string) (string, error) {
 	for _, source := range []string{"LuaSandbox", "LuaJSON", "LuaLocale", "PluginPackage"} {
 		arguments = append(arguments, repoPath("packages", "core", "src", source+".cpp"))
 	}
+	library, err := rustHostLibrary()
+	if err != nil {
+		return "", err
+	}
 	arguments = append(arguments, objects...)
-	arguments = append(arguments, "-lm", "-o", binary)
+	arguments = append(arguments, library, "-lm", "-o", binary)
 	return binary, run(repoPath(), "clang++", arguments...)
 }
 

@@ -49,6 +49,12 @@ func checkRules() []checkRule {
 				}
 				return testTools(work)
 			}},
+		{"rust", func(path string) bool { return under(path, "packages/core/rust/") }, func(_ []string, work string) error {
+			if err := lintRust(); err != nil {
+				return err
+			}
+			return testRust(work)
+		}},
 		{"stylua", isLua, func(files []string, _ string) error {
 			return run(repoPath(), "stylua", append([]string{"--check"}, files...)...)
 		}},

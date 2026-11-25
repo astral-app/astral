@@ -47,6 +47,9 @@ jobs:
           key: theos-${{ runner.os }}-${{ github.run_id }}
           restore-keys: theos-${{ runner.os }}-
 
+      - name: Install the Rust iOS target
+        run: rustup target add aarch64-apple-ios
+
       - name: Prepare Theos
         run: |
           echo "THEOS=${{ github.workspace }}/theos" >> "$GITHUB_ENV"

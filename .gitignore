@@ -13,3 +13,4 @@ packages/android/module/build/
 packages/android/module/.cxx/
 packages/android/build/
 packages/ios/extensions/OpenInAstral/build/
+packages/core/rust/target/

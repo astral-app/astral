@@ -22,6 +22,23 @@ list(FILTER CORE_SOURCES EXCLUDE REGEX "AstralMetricKitCrash\\.cpp$")
 list(TRANSFORM LUA_SOURCES PREPEND ${VENDOR}/lua/)
 list(TRANSFORM LUA_SOURCES APPEND .c)
 
+if(ANDROID_ABI STREQUAL "arm64-v8a")
+    set(RUST_TARGET aarch64-linux-android)
+elseif(ANDROID_ABI STREQUAL "x86_64")
+    set(RUST_TARGET x86_64-linux-android)
+else()
+    message(FATAL_ERROR "astral core has no Rust target for ${ANDROID_ABI}")
+endif()
+find_program(CARGO cargo HINTS $ENV{HOME}/.cargo/bin REQUIRED)
+set(RUST_CRATE ${CORE}/rust)
+set(RUST_LIBRARY ${RUST_CRATE}/target/${RUST_TARGET}/release/libastral_core.a)
+file(GLOB_RECURSE RUST_SOURCES CONFIGURE_DEPENDS ${RUST_CRATE}/src/*.rs)
+add_custom_command(OUTPUT ${RUST_LIBRARY}
+                   COMMAND ${CARGO} build --release --quiet --target ${RUST_TARGET} --manifest-path ${RUST_CRATE}/Cargo.toml
+                   DEPENDS ${RUST_SOURCES} ${RUST_CRATE}/Cargo.toml
+                   WORKING_DIRECTORY ${RUST_CRATE})
+add_custom_target(astral-core-rust DEPENDS ${RUST_LIBRARY})
+
 add_library(astral-vendor STATIC ${LUA_SOURCES} ${VENDOR}/sqlite/sqlite3.c ${MONOCYPHER}/monocypher.c ${MONOCYPHER}/optional/monocypher-ed25519.c)
 target_include_directories(astral-vendor PRIVATE ${MONOCYPHER} ${MONOCYPHER}/optional)
 target_compile_definitions(astral-vendor PRIVATE LUA_USE_POSIX SQLITE_THREADSAFE=2 SQLITE_OMIT_LOAD_EXTENSION)
@@ -34,5 +51,6 @@ target_include_directories(astral SYSTEM PRIVATE ${VENDOR}/json/single_include $
 target_compile_definitions(astral PRIVATE ASTRAL_VERSION="${ASTRAL_VERSION}" ASTRAL_COMMIT="${ASTRAL_COMMIT}")
 target_compile_definitions(astral PRIVATE ASTRAL_SIGNING_KEY="${SIGNING_KEY}")
 target_compile_options(astral PRIVATE -O2 -Wall -fvisibility=hidden)
-target_link_libraries(astral astral-vendor log m)
+add_dependencies(astral astral-core-rust)
+target_link_libraries(astral ${RUST_LIBRARY} astral-vendor log m)
 target_link_options(astral PRIVATE -Wl,-z,max-page-size=16384 -Wl,--exclude-libs,ALL)
