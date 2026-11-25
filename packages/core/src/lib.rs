@@ -1,5 +1,6 @@
 #![allow(non_snake_case, clippy::missing_safety_doc)]
 
+pub mod backup;
 pub mod bridge;
 pub mod crypto;
 pub mod cutout;

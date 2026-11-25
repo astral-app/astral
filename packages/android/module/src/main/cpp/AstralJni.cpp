@@ -19,7 +19,7 @@
 #include <vector>
 
 #include "AstralDevServer.h"
-#include "AstralAndroidBackup.h"
+#include "AstralBackup.h"
 #include "AstralMarketplace.h"
 #include "AstralExitRecord.h"
 #include "AstralPluginTrace.h"
@@ -1691,15 +1691,19 @@ ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_recordExitRe
 ASTRAL_EXPORT JNIEXPORT jstring JNICALL Java_app_astral_android_Native_exportBackup(JNIEnv *env, jclass)
 {
     if (!gSettings || !gThemes) return text(env, "");
-    return text(env, astral::android::exportBackup(*gSettings, ASTRAL_VERSION, astral::luahost::plugins(), gThemes->list()));
+    return text(env, astral::backup::exportTOML(*gSettings, ASTRAL_VERSION, astral::luahost::plugins(), gThemes->list()));
 }
 
 ASTRAL_EXPORT JNIEXPORT jstring JNICALL Java_app_astral_android_Native_applyBackup(JNIEnv *env, jclass, jstring contents)
 {
     if (!gSettings || !gThemes) return text(env, "astral is not ready");
-    auto failure =
-        astral::android::importBackup(plain(env, contents), *gSettings, *gThemes, applyTheme, [] { astral::navigator::refresh(); });
+    nlohmann::json plugins = astral::luahost::plugins();
+    auto failure = astral::backup::import(plain(env, contents), *gSettings, plugins, gThemes->list(), [] { astral::navigator::refresh(); });
     if (failure) return text(env, *failure);
+    for (const auto &plugin : plugins) {
+        std::string id = plugin.value("id", "");
+        if (!id.empty()) astral::luahost::setEnabled(id, gSettings->getBoolean("plugins", id + ".enabled", plugin.value("enabled", false)));
+    }
     gPacks->invalidate();
     refreshImages();
     applyTheme(gThemes->active());
