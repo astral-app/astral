@@ -198,7 +198,7 @@ func testLocator(work string, phoenix string) error {
 	if err != nil {
 		return err
 	}
-	if err := run(sources, "clang", "-Wall", "-Wextra", "-Werror", "-O1", "tests/locate-test.c", "sources/PhoenixLocate.c", "-I"+repoPath("packages", "core", "wire"), library, "-o", binary); err != nil {
+	if err := run(sources, "clang", "-Wall", "-Wextra", "-Werror", "-O1", "tests/locate-test.c", "-I"+repoPath("packages", "core", "wire"), library, "-o", binary); err != nil {
 		return err
 	}
 	return run(sources, binary, phoenix)

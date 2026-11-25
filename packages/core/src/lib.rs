@@ -8,6 +8,7 @@ pub mod exit_record;
 pub mod files;
 pub mod launch_guard;
 pub mod leftover_mods;
+pub mod locate;
 pub mod log;
 pub mod macho;
 pub mod network_policy;

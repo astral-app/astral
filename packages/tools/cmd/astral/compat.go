@@ -90,7 +90,7 @@ func buildProbe(work string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return binary, run(sources, "cc", "-O1", "-Wall", "-Werror", "-o", binary, "tests/support/compat-probe.c", "sources/PhoenixLocate.c", "-I"+repoPath("packages", "core", "wire"), library)
+	return binary, run(sources, "cc", "-O1", "-Wall", "-Werror", "-o", binary, "tests/support/compat-probe.c", "-I"+repoPath("packages", "core", "wire"), library)
 }
 
 func runProbe(probe string, phoenix string) (probeResult, error) {
