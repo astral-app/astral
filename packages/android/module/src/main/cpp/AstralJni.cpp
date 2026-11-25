@@ -461,6 +461,16 @@ astral::LuaHostPlatform platform(const std::string &state, const std::string &re
     platform.developerLog = developerLog;
     platform.recordFailure = recordPluginFailure;
     platform.reactors = astral::reactors::lookup;
+    platform.scrollToMessage = [](uint64_t message, bool animated, const std::string &align) {
+        if (!astral_wire_scroll_to_message(message, animated, align.c_str())) return false;
+        if (gRefreshEmoji) callBridge(gRefreshEmoji);
+        return true;
+    };
+    platform.focusComposer = [](bool focus) {
+        if (!astral_wire_focus_composer(focus)) return false;
+        if (gRefreshEmoji) callBridge(gRefreshEmoji);
+        return true;
+    };
     platform.refreshDecorations = [] {
         gRefreshDecorations = true;
         if (gRefreshEmoji) callBridge(gRefreshEmoji);
@@ -637,6 +647,7 @@ std::vector<uint8_t> pendingUpdates()
     std::lock_guard<std::mutex> lock(gWireLock);
     std::vector<uint8_t> merged;
     AstralWireBuffer buffer;
+    if (astral_wire_take_commands(&buffer)) append(merged, buffer);
     if (astral_wire_retry_mentions(&buffer)) append(merged, buffer);
     if (astral_wire_retry_reactions(&buffer)) append(merged, buffer);
     if (gRefreshDecorations.exchange(false) || astral_wire_take_refresh_busy()) {

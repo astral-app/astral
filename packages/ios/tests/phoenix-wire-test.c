@@ -631,6 +631,17 @@ static void listRowTest(void)
     if (astral_settings_rewrite(scrolled.bytes, scrolled.length, &out)) astral_wire_buffer_free(&out);
     assert(astral_wire_message_for_row(1500, 5) == 100000000000000009ull);
     assert(astral_wire_message_for_row(1500, 9) == 0);
+
+    assert(astral_wire_scroll_to_message(100000000000000009ull, 1, "visible"));
+    assert(!astral_wire_scroll_to_message(100000000000000008ull, 1, "visible"));
+    AstralWireBuffer commands;
+    assert(astral_wire_take_commands(&commands));
+    int32_t list = 0, index = 0;
+    memcpy(&list, commands.bytes + 2, 4);
+    memcpy(&index, commands.bytes + 2 + 4 + 1 + 4 + 2 + 1, 4);
+    assert(commands.bytes[0] == 1 && commands.bytes[1] == 7 && commands.bytes[6] == 8 && list == 1500 && index == 5);
+    astral_wire_buffer_free(&commands);
+    assert(!astral_wire_take_commands(&commands));
 }
 
 static int cleanLinks(uint64_t channel, const char *text, char *rewritten, size_t capacity)
@@ -895,8 +906,52 @@ static void nodeInsertTest(void)
     astral_wire_set_insert_prefixes(NULL, 0);
 }
 
+static void childEdit(Batch *batch, int parent, int keep, int drop, int added, const int *ids)
+{
+    b8(batch, 10);
+    b32(batch, parent);
+    b32(batch, 1);
+    b32(batch, keep);
+    b32(batch, drop);
+    b32(batch, added);
+    for (int index = 0; index < added; index++) b32(batch, ids[index]);
+}
+
+static void childEditsTest(void)
+{
+    AstralWireBuffer out;
+    Batch batch = {.length = 0};
+    b8(&batch, 1);
+    children(&batch, 2000, 3, (int[]){2001, 2002, 2003});
+    if (astral_settings_rewrite(batch.bytes, batch.length, &out)) astral_wire_buffer_free(&out);
+
+    Batch edit = {.length = 0};
+    b8(&edit, 1);
+    childEdit(&edit, 2000, 1, 1, 1, (int[]){2009});
+    assert(astral_settings_rewrite(edit.bytes, edit.length, &out));
+    astral_wire_summarise(out.bytes, out.length, sink, NULL);
+    assert(strstr(line, "[3,2000,[2001,2009,2003]]"));
+    astral_wire_buffer_free(&out);
+
+    Batch append = {.length = 0};
+    b8(&append, 1);
+    childEdit(&append, 2000, 3, 0, 1, (int[]){2004});
+    assert(astral_settings_rewrite(append.bytes, append.length, &out));
+    astral_wire_summarise(out.bytes, out.length, sink, NULL);
+    assert(strstr(line, "[3,2000,[2001,2009,2003,2004]]"));
+    astral_wire_buffer_free(&out);
+
+    Batch overflow = {.length = 0};
+    b8(&overflow, 1);
+    childEdit(&overflow, 2000, 9, 0, 0, NULL);
+    assert(!astral_settings_rewrite(overflow.bytes, overflow.length, &out));
+    const int32_t *known = NULL;
+    assert(wireDiscordChildren(2000, &known) == 0);
+}
+
 int main(void)
 {
+    childEditsTest();
     messageBackgroundTest();
     nodePatchTest();
     decorationTest();

@@ -498,6 +498,8 @@ void AstralPhoenixRefreshDecorations(void)
         if (live && astral_wire_refresh_node_patches(&patches)) Send(&patches);
         AstralWireBuffer inserts = {};
         if (live && astral_wire_refresh_node_inserts(&inserts)) Send(&inserts);
+        AstralWireBuffer commands = {};
+        if (live && astral_wire_take_commands(&commands)) Send(&commands);
         bool busy = astral_wire_take_refresh_busy();
         pthread_mutex_unlock(&gLock);
         ScheduleRetry();

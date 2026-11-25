@@ -396,6 +396,23 @@ function astral.ui.paste() end
 ---@param url string
 ---@return boolean
 function astral.ui.open(url) end
+---Opens a channel inside Discord, optionally at a message.
+---@param channel_id string
+---@param message_id? string
+---@return boolean opened
+function astral.ui.open_channel(channel_id, message_id) end
+---@class astral.ScrollOptions
+---@field animated? boolean defaults to true
+---@field align? "start"|"end"|"visible" defaults to "visible", the least scrolling that shows it
+---Scrolls the open chat to a message that is loaded in it.
+---@param message_id string
+---@param options? astral.ScrollOptions
+---@return boolean scrolled false when the message is not loaded
+function astral.ui.scroll_to(message_id, options) end
+---Focuses the chat input, or hides the keyboard when `focus` is false.
+---@param focus? boolean defaults to true
+---@return boolean
+function astral.ui.focus_composer(focus) end
 ---@param title string
 ---@param body string
 ---@param options? { delay: number }

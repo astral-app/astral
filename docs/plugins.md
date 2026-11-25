@@ -84,6 +84,9 @@ Each plugin gets its own `lua_State` with `base`, `table`, `string`, `math`, `ut
 | `astral.ui.paste()` | Returns up to 16 KiB of text from the system clipboard, or `nil`, after the plugin declares `ui.clipboard`; iOS may ask the user to allow the paste |
 | `astral.ui.notify(title, body, { delay })` | Posts a system notification now or after `delay` seconds (up to a week) under `ui.notifications`. iOS schedules it with the system; Android posts it after the delay while Discord is running |
 | `astral.ui.open(url)` | Opens an `https://` or `discord://` link, which Discord handles itself when it can |
+| `astral.ui.open_channel(channel_id, message_id?)` | Opens a channel inside Discord, at a message when one is given; needs `ui.navigate` |
+| `astral.ui.scroll_to(message_id, {animated, align}?)` | Scrolls the open chat to a loaded message with Discord's own list scroll; returns `false` when the message isn't loaded; needs `ui.navigate` |
+| `astral.ui.focus_composer(focus?)` | Focuses the chat input, or hides the keyboard with `false`; needs `ui.navigate` |
 | `astral.ui.composer(fn)` | Passes unsent composer text to `fn(text)`, which returns up to 128 one-based UTF-8 byte ranges per plugin using `bold`, `italic`, `underline`, `strike`, `code`, `spoiler`, `marker`, `heading1` to `heading3`, `subtext` or `quote`; input is limited to 8 KiB and requires `ui.composer` |
 | `astral.ui.haptic(strength)` | Triggers `light`, `medium` or `heavy` native haptic feedback after the plugin declares `ui.haptics` |
 | `astral.files.pick(extensions, callback)`, `astral.files.cancel(request)` | Opens the system document picker after the plugin declares `files.read`; the callback receives `{ name, data }` or `nil, reason`, and file contents are limited to 1 MiB |

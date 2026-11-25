@@ -29,6 +29,13 @@ int astral_settings_rewrite(const uint8_t *bytes, size_t length, AstralWireBuffe
 
     Out out = {0};
     int changed = 0;
+    size_t expandedLength = 0;
+    uint8_t *expanded = wireExpandChildEdits(bytes, length, spans, &count, &expandedLength);
+    if (expanded) {
+        bytes = expanded;
+        length = expandedLength;
+        changed = 1;
+    }
     size_t relabelledLength = 0;
     uint8_t *relabelled = wireRelabel(bytes, length, spans, count, &relabelledLength);
     if (relabelled) {
@@ -78,6 +85,7 @@ int astral_settings_rewrite(const uint8_t *bytes, size_t length, AstralWireBuffe
     free(themed);
     free(emoji);
     free(relabelled);
+    free(expanded);
     if (!changed || out.failed) {
         free(out.bytes);
         return 0;

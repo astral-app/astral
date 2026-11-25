@@ -610,6 +610,56 @@ static int CopyText(lua_State *state)
     return 1;
 }
 
+static uint64_t MessageArgument(lua_State *state, int index);
+
+static int ScrollToMessage(lua_State *state)
+{
+    RequirePermission(state, "ui.navigate");
+    uint64_t message = MessageArgument(state, 1);
+    bool animated = true;
+    std::string align = "visible";
+    if (lua_istable(state, 2)) {
+        lua_getfield(state, 2, "animated");
+        if (!lua_isnil(state, -1)) animated = lua_toboolean(state, -1);
+        lua_getfield(state, 2, "align");
+        if (lua_isstring(state, -1)) align = lua_tostring(state, -1);
+        lua_pop(state, 2);
+    }
+    bool queued = gPlatform.scrollToMessage && gPlatform.scrollToMessage(message, animated, align);
+    lua_pushboolean(state, queued);
+    return 1;
+}
+
+static int FocusComposer(lua_State *state)
+{
+    RequirePermission(state, "ui.navigate");
+    bool focus = lua_isnoneornil(state, 1) || lua_toboolean(state, 1);
+    bool queued = gPlatform.focusComposer && gPlatform.focusComposer(focus);
+    lua_pushboolean(state, queued);
+    return 1;
+}
+
+static bool SnowflakeText(const std::string &value)
+{
+    return !value.empty() && value.size() <= 20 && value.find_first_not_of("0123456789") == std::string::npos;
+}
+
+static int OpenChannel(lua_State *state)
+{
+    RequirePermission(state, "ui.navigate");
+    std::string channel = luaL_checkstring(state, 1);
+    std::string message = luaL_optstring(state, 2, "");
+    if (!SnowflakeText(channel)) return luaL_error(state, "astral.ui.open_channel: '%s' is not a channel id", channel.c_str());
+    if (!message.empty() && !SnowflakeText(message))
+        return luaL_error(state, "astral.ui.open_channel: '%s' is not a message id", message.c_str());
+    auto guild = gPlatform.channelGuild ? gPlatform.channelGuild(channel) : std::nullopt;
+    std::string link = "https://discord.com/channels/" + (guild && SnowflakeText(*guild) ? *guild : std::string("@me")) + "/" + channel;
+    if (!message.empty()) link += "/" + message;
+    bool opened = gPlatform.openURL && gPlatform.openURL(link);
+    lua_pushboolean(state, opened);
+    return 1;
+}
+
 static int PasteText(lua_State *state)
 {
     RequirePermission(state, "ui.clipboard");
@@ -1696,6 +1746,9 @@ static void InstallAPI(LuaPlugin *plugin)
     Function(state, plugin, "copy", CopyText);
     Function(state, plugin, "paste", PasteText);
     Function(state, plugin, "open", OpenURL);
+    Function(state, plugin, "open_channel", OpenChannel);
+    Function(state, plugin, "scroll_to", ScrollToMessage);
+    Function(state, plugin, "focus_composer", FocusComposer);
     Function(state, plugin, "notify", Notify);
     Function(state, plugin, "composer", RegisterComposerDecorator);
     Function(state, plugin, "message_background", RegisterMessageBackground);
