@@ -1,5 +1,3 @@
-local CODE_HEIGHT = 220
-
 local function t(key, variables)
 	local text = astral.i18n.t(key)
 	for name, value in pairs(variables or {}) do
@@ -28,7 +26,7 @@ local function sheet_for(message)
 		items[#items + 1] = { type = "code", text = content }
 		items[#items + 1] = { type = "heading", text = t("MESSAGE_DATA") }
 	end
-	items[#items + 1] = { type = "code", text = data, height = CODE_HEIGHT }
+	items[#items + 1] = { type = "code", text = data, fill = true }
 	local buttons = { { label = t("COPY_DATA"), action = "copy_data", style = "primary" } }
 	if content ~= "" then
 		buttons[#buttons + 1] = { label = t("COPY_CONTENT"), action = "copy_content" }

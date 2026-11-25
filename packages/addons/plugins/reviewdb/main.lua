@@ -1,4 +1,5 @@
 local API_URL = "https://manti.vendicated.dev/api/reviewdb"
+local LINK_COLOR = 0xFF00A8FC
 local AUTH_REDIRECT_URI = API_URL .. "/auth"
 local CLIENT_ID = "915703782174752809"
 local WEBSITE_URL = "https://reviewdb.mantikafasi.dev"
@@ -694,8 +695,9 @@ astral.ui.insert({ id = "Note^>" }, function(node)
 	end
 	return {
 		type = "view",
+		margin = { 0, 0, 0, 16 },
 		children = {
-			{ type = "text", text = t("REVIEWS_TITLE"), size = 16 },
+			{ type = "text", text = t("REVIEWS_TITLE"), size = 16, weight = 500 },
 			{
 				type = "view",
 				row = true,
@@ -703,7 +705,7 @@ astral.ui.insert({ id = "Note^>" }, function(node)
 				action = "open_" .. node.author_id,
 				children = {
 					{ type = "image", icon = "res://ic_mana_star", width = 16, height = 16, margin = { 0, 0, 8, 0 } },
-					{ type = "text", text = t("VIEW_REVIEWS"), size = 16 },
+					{ type = "text", text = t("VIEW_REVIEWS"), size = 16, color = LINK_COLOR },
 				},
 			},
 		},

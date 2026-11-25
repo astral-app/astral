@@ -31,6 +31,7 @@ import java.util.concurrent.ConcurrentHashMap
 object PluginSheet {
     private const val INSET_DP = 16
     private const val CORNER_DP = 8
+    private const val FILL_MINIMUM_DP = 140
     private const val MAXIMUM_INPUT = 4000
     private val sheets = ConcurrentHashMap<Long, Rendered>()
     private val images = LruCache<String, android.graphics.Bitmap>(64)
@@ -87,7 +88,10 @@ object PluginSheet {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(activity, INSET_DP), 0, dp(activity, INSET_DP), dp(activity, INSET_DP))
         }
-        val scroll = ScrollView(activity).apply { addView(content) }
+        val scroll = ScrollView(activity).apply {
+            isFillViewport = true
+            addView(content)
+        }
         root.addView(grabber)
         root.addView(title)
         root.addView(subtitle)
@@ -133,7 +137,9 @@ object PluginSheet {
         rendered.content.removeAllViews()
         items(spec.optJSONArray("items")).forEach { item ->
             val view = viewFor(rendered, item) ?: return@forEach
-            rendered.content.addView(view, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            val fills = item.optBoolean("fill")
+            val height = if (fills) 0 else ViewGroup.LayoutParams.WRAP_CONTENT
+            rendered.content.addView(view, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, height, if (fills) 1f else 0f).apply {
                 topMargin = dp(activity, 12)
             })
         }
@@ -209,7 +215,11 @@ object PluginSheet {
             setPadding(dp(activity, 10), dp(activity, 10), dp(activity, 10), dp(activity, 10))
         }
         val height = item.optInt("height", 0)
-        val container = if (height > 0) ScrollView(activity).apply {
+        val fills = item.optBoolean("fill")
+        val container = if (fills) ScrollView(activity).apply {
+            addView(HorizontalScrollView(activity).apply { addView(text) })
+            minimumHeight = dp(activity, if (height > 0) height else FILL_MINIMUM_DP)
+        } else if (height > 0) ScrollView(activity).apply {
             addView(HorizontalScrollView(activity).apply { addView(text) })
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(activity, height))
         } else text

@@ -5219,6 +5219,11 @@ static void ReadInsertStyle(lua_State *state, AstralInsertNode *node)
     lua_getfield(state, -1, "bold");
     if (lua_toboolean(state, -1)) node->fields |= AstralInsertBold;
     lua_pop(state, 1);
+    double weight = 0;
+    if (PatchNumber(state, "weight", 100, 900, &weight)) {
+        node->fontWeight = std::round(weight / 100) * 100;
+        node->fields |= AstralInsertBold;
+    }
 }
 
 static void ReadInsertNode(lua_State *state, const LuaPlugin *plugin, const LuaNodeInsert &entry, const char *key, AstralInsertNode *nodes,

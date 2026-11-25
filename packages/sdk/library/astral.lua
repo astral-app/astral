@@ -450,6 +450,8 @@ function astral.ui.confirm(spec, callback) end
 ---@field items? astral.SheetItem[] children of `row` and `column`
 ---@field buttons? { label: string, action: string, style: "primary"|"secondary"|"danger"? }[]
 ---@field action? string sent to the handler when the item is tapped or the input is submitted
+---@field height? number fixed height of a scrolling `code` block, or its minimum with `fill`
+---@field fill? boolean a `code` block grows into the sheet's free space and scrolls inside it
 ---@class astral.Sheet
 ---@field title string
 ---@field items astral.SheetItem[]
@@ -588,6 +590,7 @@ function astral.ui.patch(selector, patcher) end
 ---@field justify? "start"|"center"|"end" where children sit along the main axis
 ---@field fill? boolean take the full width of the parent
 ---@field bold? boolean
+---@field weight? integer font weight from 100 to 900; bold is 600
 ---@field action? string passed to on_press when the node is tapped
 ---@field position? "start"|"end" where the nodes go among the target's children
 ---@field children? astral.InsertNode[]
