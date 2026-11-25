@@ -21,5 +21,6 @@ pub mod settings;
 pub mod signatures;
 pub mod strings;
 pub mod swatch;
+pub mod themes;
 pub mod toml_json;
 pub mod wire;
