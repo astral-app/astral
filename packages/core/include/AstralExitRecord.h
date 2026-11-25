@@ -3,22 +3,29 @@
 #include <string>
 
 #include "AstralLaunchGuard.h"
+#include "AstralRust.h"
+
+extern "C" {
+int astral_exit_record_mark_ended(const char *directory, size_t length);
+int astral_exit_record_clear(const char *directory, size_t length);
+int astral_exit_record_take(const char *directory, size_t length, int nativeCrash);
+}
 
 namespace astral {
 class ExitRecord
 {
   public:
-    static constexpr const char *kFile = "exit-record";
+    explicit ExitRecord(std::string directory) : directory_(std::move(directory)) {}
 
-    explicit ExitRecord(std::string directory);
-
-    bool markEnded() const;
-    bool clear() const;
-    PreviousExit take(bool nativeCrashRecorded) const;
+    bool markEnded() const { return astral_exit_record_mark_ended(directory_.data(), directory_.size()); }
+    bool clear() const { return astral_exit_record_clear(directory_.data(), directory_.size()); }
+    PreviousExit take(bool nativeCrashRecorded) const
+    {
+        int previous = astral_exit_record_take(directory_.data(), directory_.size(), nativeCrashRecorded);
+        return previous == 1 ? PreviousExit::Crashed : previous == 2 ? PreviousExit::Ended : PreviousExit::Unknown;
+    }
 
   private:
-    std::string path() const;
-
     std::string directory_;
 };
 } // namespace astral
