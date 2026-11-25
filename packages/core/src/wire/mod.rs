@@ -23,5 +23,6 @@ pub mod names;
 pub mod out;
 pub mod patch;
 pub mod properties;
+pub mod reactions;
 pub mod rewriter;
 pub mod tween;
