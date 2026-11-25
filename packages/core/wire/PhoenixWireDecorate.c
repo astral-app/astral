@@ -91,6 +91,8 @@ typedef struct {
     int32_t timeParentChildren[kBubbleChildren * 2];
     uint32_t timeParentChildCount;
     float timeMargin[4];
+    double timeFont;
+    int hasTimeFont;
     int32_t timeBox;
     int32_t columnChildren[kBubbleChildren * 2];
     uint32_t columnChildCount;
@@ -709,11 +711,19 @@ static uint32_t leadingChildren(const BackgroundState *state, int32_t *children)
     return count;
 }
 
-static uint32_t trailingChildren(const BackgroundState *state, int32_t *children)
+static void writeLineShrink(Out *out, const BubbleBlock *text, int inLine)
 {
-    if (!state->nameShown || !state->timeBox) return 0;
-    children[0] = state->timeBox;
-    return 1;
+    for (uint32_t index = 0; index < text->childCount; index++) {
+        wirePut8(out, 2);
+        wirePut32(out, (uint32_t)text->children[index]);
+        wirePropCount(out, 1);
+        if (inLine) {
+            wirePropNumber(out, P(shrink), 1);
+        } else {
+            wirePut16(out, P(shrink));
+            wirePut8(out, 0);
+        }
+    }
 }
 
 static void writeHostLayout(Out *out, const BackgroundState *state, const BubbleBlock *text)
@@ -724,14 +734,24 @@ static void writeHostLayout(Out *out, const BackgroundState *state, const Bubble
     uint32_t insertedCount = wireInsertedChildren(text->id, inserted, kAstralInsertCapacity, &insertedAtStart);
     uint32_t leading = leadingChildren(state, children);
     uint32_t childCount = leading;
+    int inLine = state->nameShown && state->timeBox;
     if (insertedAtStart)
         for (uint32_t index = 0; index < insertedCount; index++) children[childCount++] = inserted[index];
-    for (uint32_t index = 0; index < text->childCount; index++) children[childCount++] = text->children[index];
+    if (inLine) {
+        int32_t line[kBubbleChildren + 1];
+        uint32_t lineCount = 0;
+        for (uint32_t index = 0; index < text->childCount; index++) line[lineCount++] = text->children[index];
+        line[lineCount++] = state->timestamp;
+        wirePutChildren(out, state->timeBox, line, lineCount);
+        children[childCount++] = state->timeBox;
+    } else {
+        for (uint32_t index = 0; index < text->childCount; index++) children[childCount++] = text->children[index];
+    }
     if (!insertedAtStart)
         for (uint32_t index = 0; index < insertedCount; index++) children[childCount++] = inserted[index];
-    childCount += trailingChildren(state, children + childCount);
     wirePutChildren(out, text->id, children, childCount);
-    writeTextDirection(out, text->id, leading > 0);
+    writeTextDirection(out, text->id, leading > 0 || inLine);
+    writeLineShrink(out, text, inLine);
 }
 
 static void writeColumnLayout(Out *out, const BackgroundState *state)
@@ -768,10 +788,9 @@ static int32_t createTimeBox(Out *out)
     wirePut32(out, (uint32_t)box);
     wirePut16(out, 4);
     wirePut(out, "view", 4);
-    wirePropCount(out, 3);
+    wirePropCount(out, 2);
     wirePropString(out, P(direction), "row");
-    wirePropString(out, P(justify), "end");
-    wirePropQuad(out, P(margin), 0, 2, 0, 0);
+    wirePropString(out, P(align), "end");
     return box;
 }
 
@@ -786,34 +805,55 @@ static void writeTimeParentLayout(Out *out, const BackgroundState *state)
     wirePutChildren(out, state->timeParent, children, count);
 }
 
-static void writeTimeMove(Out *out, BackgroundState *state, int inside)
+static void writeTimestampStyle(Out *out, const BackgroundState *state, int inside)
 {
-    if (!state->timestamp || !state->timeParent || !state->timeParentChildCount) return;
-    if (inside && !state->timeBox) state->timeBox = createTimeBox(out);
-    int32_t box = state->timeBox;
-    if (!inside) state->timeBox = 0;
-    writeTimeParentLayout(out, state);
-    if (inside) wirePutChildren(out, box, &state->timestamp, 1);
     wirePut8(out, 2);
     wirePut32(out, (uint32_t)state->timestamp);
-    wirePropCount(out, 1);
+    wirePropCount(out, 2);
     if (inside)
-        wirePropQuad(out, P(margin), 0, 0, 0, 0);
+        wirePropQuad(out, P(margin), 8, 0, 0, 1);
     else
         wirePropQuad(out, P(margin), state->timeMargin[0], state->timeMargin[1], state->timeMargin[2], state->timeMargin[3]);
-    if (inside || !box) return;
-    wirePutChildren(out, box, NULL, 0);
-    wirePut8(out, 4);
-    wirePut32(out, 1);
-    wirePut32(out, (uint32_t)box);
+    if (inside) {
+        wirePropNumber(out, P(fontSize), 11);
+    } else if (state->hasTimeFont) {
+        wirePropNumber(out, P(fontSize), state->timeFont);
+    } else {
+        wirePut16(out, P(fontSize));
+        wirePut8(out, 0);
+    }
+}
+
+static int canMoveTime(const BackgroundState *state)
+{
+    return state->timestamp && state->timeParent && state->timeParentChildCount;
 }
 
 static void writeNameMove(Out *out, BackgroundState *state, const BubbleBlock *text, int inside)
 {
-    state->nameShown = inside;
+    if (inside) {
+        state->nameShown = 1;
+        if (canMoveTime(state) && !state->timeBox) state->timeBox = createTimeBox(out);
+        writeColumnLayout(out, state);
+        if (state->timeBox) {
+            writeTimeParentLayout(out, state);
+            writeTimestampStyle(out, state, 1);
+        }
+        writeHostLayout(out, state, text);
+        return;
+    }
+    int32_t box = state->timeBox;
+    state->nameShown = 0;
+    state->timeBox = 0;
     writeColumnLayout(out, state);
-    writeTimeMove(out, state, inside);
     writeHostLayout(out, state, text);
+    if (!box) return;
+    writeTimeParentLayout(out, state);
+    writeTimestampStyle(out, state, 0);
+    wirePutChildren(out, box, NULL, 0);
+    wirePut8(out, 4);
+    wirePut32(out, 1);
+    wirePut32(out, (uint32_t)box);
 }
 
 static uint64_t contentMessage(const uint8_t *bytes, const Span *spans, size_t count, int32_t content)
@@ -841,16 +881,13 @@ static BackgroundState *hostState(int32_t parent)
     return NULL;
 }
 
-uint32_t wireLeadingChildren(int32_t parent, int32_t *children)
+int wireWriteHostLayout(Out *out, int32_t parent)
 {
     BackgroundState *state = hostState(parent);
-    return state ? leadingChildren(state, children) : 0;
-}
-
-uint32_t wireTrailingChildren(int32_t parent, int32_t *children)
-{
-    BackgroundState *state = hostState(parent);
-    return state ? trailingChildren(state, children) : 0;
+    const BubbleBlock *text = state ? findBlock(state, parent) : NULL;
+    if (!text) return 0;
+    writeHostLayout(out, state, text);
+    return 1;
 }
 
 static void trackInside(int32_t row, int inside)
@@ -916,6 +953,7 @@ static void rememberTimestamp(const uint8_t *bytes, const Span *spans, size_t co
         state->timeParent = parent;
         memset(state->timeMargin, 0, sizeof(state->timeMargin));
         quadProperty(bytes, span, P(margin), state->timeMargin);
+        state->hasTimeFont = numberProperty(bytes, span, P(fontSize), &state->timeFont);
         rememberTimeParentChildren(bytes, list, state);
         return;
     }
