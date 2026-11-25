@@ -67,16 +67,6 @@ func testCore(work string) error {
 	if err := runEmbedPrelude([]string{repoPath("packages", "core", "lua", "prelude.lua"), filepath.Join(work, "AstralPrelude.h")}); err != nil {
 		return err
 	}
-	var wireObjects []string
-	monocypher := repoPath("vendor", "monocypher", "src")
-	nativeSources := []string{filepath.Join(monocypher, "monocypher.c"), filepath.Join(monocypher, "optional", "monocypher-ed25519.c")}
-	for _, source := range nativeSources {
-		target := filepath.Join(work, filepath.Base(source)+".o")
-		if err := run(repoPath(), "clang", "-std=c11", "-g", "-fsanitize=address,undefined", "-I"+monocypher, "-I"+filepath.Join(monocypher, "optional"), "-I"+repoPath("packages", "core", "wire"), "-c", source, "-o", target); err != nil {
-			return err
-		}
-		wireObjects = append(wireObjects, target)
-	}
 	binary := filepath.Join(work, "lua-core-test")
 	arguments := []string{"-std=c++20", "-Wall", "-Wextra", "-Werror", "-g", "-fsanitize=address,undefined",
 		"-I" + repoPath("packages", "core", "include"), "-I" + repoPath("vendor", "lua"), "-I" + work, "-I" + repoPath("packages", "core", "wire"),
@@ -87,8 +77,6 @@ func testCore(work string) error {
 		return err
 	}
 	arguments = append(arguments, sources...)
-	arguments = append(arguments, wireObjects...)
-	arguments = append(arguments, "-I"+monocypher, "-I"+filepath.Join(monocypher, "optional"))
 	if runtime.GOOS != "darwin" {
 		arguments = append(arguments, "-lcrypto")
 	}

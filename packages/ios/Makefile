@@ -7,7 +7,6 @@ ROOT := $(abspath ../..)
 ASTRAL_VERSION := $(shell cat $(ROOT)/version.txt)
 PACKAGE_VERSION := $(ASTRAL_VERSION)
 SIGNING_KEY := $(shell cat $(ROOT)/keys/plugin-signing.pub)
-MONOCYPHER := $(ROOT)/vendor/monocypher/src
 CORE := $(abspath ../core)
 LUA := $(ROOT)/vendor/lua
 LUA_SOURCES := lapi lcode lctype ldebug ldo ldump lfunc lgc llex lmem lobject lopcodes lparser lstate lstring ltable ltm lundump lvm lzio lauxlib lbaselib lstrlib ltablib lmathlib lutf8lib lcorolib
@@ -22,9 +21,9 @@ PRELUDE := $(CORE)/lua/prelude.lua
 include $(THEOS)/makefiles/common.mk
 
 TWEAK_NAME := astral
-astral_FILES := $(wildcard sources/*.mm sources/*.m sources/*.c sources/*.S sources/*.cpp) $(addprefix $(CORE)/src/,$(addsuffix .cpp,$(CORE_SOURCES))) $(addprefix $(LUA)/,$(addsuffix .c,$(LUA_SOURCES))) $(MONOCYPHER)/monocypher.c $(MONOCYPHER)/optional/monocypher-ed25519.c
+astral_FILES := $(wildcard sources/*.mm sources/*.m sources/*.c sources/*.S sources/*.cpp) $(addprefix $(CORE)/src/,$(addsuffix .cpp,$(CORE_SOURCES))) $(addprefix $(LUA)/,$(addsuffix .c,$(LUA_SOURCES)))
 ASTRAL_COMMIT ?= $(shell git -C $(ROOT) rev-parse --short=9 HEAD 2>/dev/null || echo unknown)
-astral_CFLAGS := -fobjc-arc -flto=thin -Isources -I$(CORE)/wire -I$(GENERATED) -I$(CORE)/include -isystem $(ROOT)/vendor/json/single_include -I$(LUA) -DLUA_USE_POSIX -DASTRAL_VERSION=\"$(ASTRAL_VERSION)\" -DASTRAL_COMMIT=\"$(ASTRAL_COMMIT)\" -DASTRAL_SIGNING_KEY=\"$(SIGNING_KEY)\" -I$(MONOCYPHER) -I$(MONOCYPHER)/optional -isystem $(ROOT)/vendor/tomlplusplus/include
+astral_CFLAGS := -fobjc-arc -flto=thin -Isources -I$(CORE)/wire -I$(GENERATED) -I$(CORE)/include -isystem $(ROOT)/vendor/json/single_include -I$(LUA) -DLUA_USE_POSIX -DASTRAL_VERSION=\"$(ASTRAL_VERSION)\" -DASTRAL_COMMIT=\"$(ASTRAL_COMMIT)\" -DASTRAL_SIGNING_KEY=\"$(SIGNING_KEY)\" -isystem $(ROOT)/vendor/tomlplusplus/include
 astral_CCFLAGS := -std=c++20 -fno-cxx-modules
 astral_LDFLAGS := -flto=thin $(RUST_LIBRARY)
 astral_FRAMEWORKS := Foundation UIKit Photos UserNotifications AVFoundation Security MetricKit UniformTypeIdentifiers ImageIO AuthenticationServices SafariServices WebKit

@@ -104,10 +104,10 @@ func buildAndroidCore(toolchain string, triple string, sources []string, directo
 		return "", err
 	}
 	includes := []string{"-I" + repoPath("packages", "core", "include"), "-I" + repoPath("packages", "core", "wire"), "-I" + generated,
-		"-I" + repoPath("vendor", "lua"), "-I" + repoPath("vendor", "sqlite"), "-I" + repoPath("vendor", "monocypher", "src"), "-I" + repoPath("vendor", "monocypher", "src", "optional"),
+		"-I" + repoPath("vendor", "lua"), "-I" + repoPath("vendor", "sqlite"),
 		"-isystem", repoPath("vendor", "json", "single_include"), "-isystem", repoPath("vendor", "tomlplusplus", "include")}
 	var built []string
-	for _, source := range []string{repoPath("vendor", "sqlite", "sqlite3.c"), repoPath("vendor", "monocypher", "src", "monocypher.c"), repoPath("vendor", "monocypher", "src", "optional", "monocypher-ed25519.c")} {
+	for _, source := range []string{repoPath("vendor", "sqlite", "sqlite3.c")} {
 		object := filepath.Join(objects, "c-"+strings.TrimSuffix(filepath.Base(source), ".c")+".o")
 		if err := run(repoPath(), compiler, append([]string{"-O2", "-fPIC", "-w", "-c", source, "-o", object}, includes...)...); err != nil {
 			return "", err

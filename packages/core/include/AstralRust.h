@@ -13,6 +13,7 @@ typedef struct {
 } AstralRustString;
 
 void astral_rust_string_free(AstralRustString string);
+AstralRustString astral_rust_string_from(const char *bytes, size_t length);
 }
 
 namespace astral::rust {
@@ -33,6 +34,12 @@ inline std::vector<std::string> takeList(AstralRustString string)
         start = end + 1;
     }
     return entries;
+}
+
+inline std::optional<std::string> takeIfPresent(AstralRustString string)
+{
+    if (!string.bytes) return std::nullopt;
+    return take(string);
 }
 
 template <typename Call> std::optional<std::string> takeOptional(Call call)
