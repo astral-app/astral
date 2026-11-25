@@ -45,7 +45,6 @@ void setRunningBundle(const std::string &revision, const std::string &channel);
 void recordLaunchTiming(int64_t bundleMs, int64_t firstRenderMs);
 void setBundleSource(const std::string &source, int pullRequest);
 void recordUpdateCheck(int64_t at, const std::string &outcome, const std::string &detail = "");
-void recordSettingsRecovery(const std::string &recovery);
 
 std::string bundleSourceOf(const std::string &updateURL, bool development);
 bool isLikelyPointerAuthFailure(uint64_t address);

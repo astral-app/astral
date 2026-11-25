@@ -17,7 +17,7 @@ pub mod plugin_trace;
 pub mod privacy;
 pub mod request_sink;
 pub mod session;
-pub mod settings_cache;
+pub mod settings;
 pub mod signatures;
 pub mod strings;
 pub mod swatch;
