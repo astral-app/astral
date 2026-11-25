@@ -84,6 +84,7 @@ jmethodID gRestartGatewaySession = nullptr;
 jmethodID gPasteText = nullptr;
 jmethodID gOpenURL = nullptr;
 jmethodID gDispatchGateway = nullptr;
+jmethodID gPressNode = nullptr;
 jmethodID gNotify = nullptr;
 jmethodID gSpeak = nullptr;
 jmethodID gPlaySound = nullptr;
@@ -462,6 +463,20 @@ astral::LuaHostPlatform platform(const std::string &state, const std::string &re
     platform.developerLog = developerLog;
     platform.recordFailure = recordPluginFailure;
     platform.reactors = astral::reactors::lookup;
+    platform.pressNode = [](const std::string &identifier, bool prefix) {
+        bool attached = false;
+        JNIEnv *env = currentEnvironment(attached);
+        if (!env || !gBridge || !gPressNode) return false;
+        jstring value = toJava(env, identifier);
+        bool pressed = env->CallStaticBooleanMethod(gBridge, gPressNode, value, prefix ? JNI_TRUE : JNI_FALSE);
+        if (env->ExceptionCheck()) {
+            env->ExceptionClear();
+            pressed = false;
+        }
+        env->DeleteLocalRef(value);
+        if (attached) gVM->DetachCurrentThread();
+        return pressed;
+    };
     platform.dispatchGateway = [](const std::string &message) {
         if (!gDispatchGateway) return false;
         callBridge(gDispatchGateway, message);
@@ -623,6 +638,9 @@ void installDecorators()
     astral_wire_set_decorator(AstralLuaDecorate);
     astral_wire_set_message_background_decorator(AstralLuaMessageBackground);
     astral_wire_set_node_patcher(AstralLuaPatchNode);
+    astral_wire_set_image_rewriter(AstralLuaImageRewrite);
+    astral_host_calls_set_image_rewriter(AstralLuaImageRewrite);
+    astral_wire_set_span_transformer(AstralLuaSpanTransform);
     astral_wire_set_node_inserter(AstralLuaInsertNodes);
     astral_wire_set_message_menu_provider(AstralLuaMessageMenu);
     astral_wire_set_message_text_provider(AstralLuaMessageText);
@@ -1372,6 +1390,8 @@ ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_attachBridge
         gOpenURL = openURLMethod;
         gDispatchGateway = env->GetStaticMethodID(reference, "dispatchGateway", "(Ljava/lang/String;)V");
         if (env->ExceptionCheck()) env->ExceptionClear();
+        gPressNode = env->GetStaticMethodID(reference, "pressNode", "(Ljava/lang/String;Z)Z");
+        if (env->ExceptionCheck()) env->ExceptionClear();
         gNotify = notifyMethod;
         gSpeak = speakMethod;
         gPlaySound = playSoundMethod;
@@ -1626,6 +1646,16 @@ ASTRAL_EXPORT JNIEXPORT jboolean JNICALL Java_app_astral_android_Native_intercep
     if (!astral::luahost::interceptHttpResponse(request, response)) return JNI_FALSE;
     storeExchange(env, responseExchange, request.method, request.url, response.headers, response.body, response.status, true);
     return JNI_TRUE;
+}
+
+ASTRAL_EXPORT JNIEXPORT jbyteArray JNICALL Java_app_astral_android_Native_rewriteHostCall(JNIEnv *env, jclass, jbyteArray frame)
+{
+    std::string bytes = bytesFromJava(env, frame);
+    AstralWireBuffer buffer;
+    if (!astral_host_call_rewrite(reinterpret_cast<const uint8_t *>(bytes.data()), bytes.size(), &buffer)) return nullptr;
+    jbyteArray result = bytesToJava(env, std::string(reinterpret_cast<const char *>(buffer.bytes), buffer.length));
+    astral_wire_buffer_free(&buffer);
+    return result;
 }
 
 ASTRAL_EXPORT JNIEXPORT jboolean JNICALL Java_app_astral_android_Native_needsGatewayEvents(JNIEnv *, jclass)

@@ -270,6 +270,14 @@ static void ScheduleRetry(void)
 
 static bool InterceptHostCall(void *context, const uint8_t *frame, size_t length, void *result)
 {
+    if (length >= 16 && frame[0] == 1 && !gRewriteDisabled.load()) {
+        AstralWireBuffer call;
+        if (astral_host_call_rewrite(frame, length, &call)) {
+            bool answered = gHostOriginal(context, call.bytes, call.length, result);
+            astral_wire_buffer_free(&call);
+            return answered;
+        }
+    }
     if (length < 4 || frame[0] || frame[1] || frame[2] || frame[3] || gRewriteDisabled.load())
         return gHostOriginal(context, frame, length, result);
     pthread_mutex_lock(&gLock);

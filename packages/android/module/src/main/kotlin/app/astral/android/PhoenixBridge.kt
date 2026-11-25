@@ -99,10 +99,24 @@ object PhoenixBridge {
                 scheduleTween()
                 result
             }
+        hookHostCalls(module, type)
         hookEvents(module, type, loader)
         installBackupActions(module, loader)
         handler.postDelayed(::retry, RETRY_INTERVAL_MS)
         Log.info("Hooked GuestHost.applyOps")
+    }
+
+    private fun hookHostCalls(module: XposedModule, type: Class<*>) {
+        val invoke = runCatching { type.getDeclaredMethod("invoke", ByteArray::class.java) }.getOrNull()
+            ?: return Log.warning("GuestHost has no invoke method; host calls are not rewritten")
+        module.hook(invoke)
+            .setExceptionMode(ExceptionMode.PROTECTIVE)
+            .intercept { chain ->
+                val frame = chain.getArg(0) as? ByteArray
+                val rewritten = frame?.takeIf { it.size >= 16 && it[0].toInt() == 1 }?.let(Native::rewriteHostCall)
+                if (rewritten == null) chain.proceed() else chain.proceed(arrayOf<Any>(rewritten))
+            }
+        Log.info("Hooked GuestHost.invoke for host calls")
     }
 
     private fun hookEvents(module: XposedModule, type: Class<*>, loader: ClassLoader) {
@@ -659,6 +673,28 @@ object PhoenixBridge {
     }
 
     private fun isDiscordLink(url: String) = url.startsWith("https://discord.com/channels/")
+
+    @JvmStatic
+    fun pressNode(identifier: String, prefix: Boolean): Boolean {
+        val pressed = java.util.concurrent.CompletableFuture<Boolean>()
+        mainHandler.post {
+            pressed.complete(runCatching {
+                val root = activeActivity()?.window?.decorView ?: return@runCatching false
+                val view = identifiedView(root, identifier, prefix) ?: return@runCatching false
+                view.performAccessibilityAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK, null) || view.performClick()
+            }.getOrDefault(false))
+        }
+        return runCatching { pressed.get(2, java.util.concurrent.TimeUnit.SECONDS) }.getOrDefault(false)
+    }
+
+    private fun identifiedView(view: android.view.View, identifier: String, prefix: Boolean): android.view.View? {
+        if (!view.isShown) return null
+        val own = runCatching { view.createAccessibilityNodeInfo().viewIdResourceName }.getOrNull()
+        if (own != null && (if (prefix) own.startsWith(identifier) else own == identifier)) return view
+        val group = view as? android.view.ViewGroup ?: return null
+        for (index in group.childCount - 1 downTo 0) identifiedView(group.getChildAt(index), identifier, prefix)?.let { return it }
+        return null
+    }
 
     @JvmStatic
     fun dispatchGateway(message: String) {

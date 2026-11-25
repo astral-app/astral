@@ -6,6 +6,7 @@
 
 #import "AstralLuaHost.h"
 #import "AstralNetworkPolicy.h"
+#include "PhoenixWire.h"
 #import "DevServer.h"
 
 static NSString *const kHandledKey = @"app.astral.network-filter";
@@ -92,6 +93,17 @@ static void TransformOutgoingMessage(NSMutableURLRequest *request)
     [request setValue:nil forHTTPHeaderField:@"Transfer-Encoding"];
 }
 
+static NSURL *RewrittenImage(NSURLRequest *request)
+{
+    NSURL *url = request.URL;
+    if (!url || ![request.HTTPMethod ?: @"GET" isEqualToString:@"GET"] || !astral::isDiscordHost(Text(url.host.lowercaseString)))
+        return nil;
+    char rewritten[1024];
+    if (!AstralLuaImageRewrite(url.absoluteString.UTF8String, rewritten, sizeof rewritten)) return nil;
+    NSURL *next = [NSURL URLWithString:[NSString stringWithUTF8String:rewritten] ?: @""];
+    return next && ![next isEqual:url] ? next : nil;
+}
+
 static BOOL WantsHttp(NSURLRequest *request)
 {
     NSURL *url = request.URL;
@@ -153,7 +165,8 @@ static NSHTTPURLResponse *HttpResponseOf(NSURL *url, const astral::luahost::Http
         gDiscordRequests++;
         if ([request.HTTPMethod isEqualToString:@"POST"] && [request.URL.path hasSuffix:@"/messages"]) gMessageRequests++;
     }
-    return IsTelemetry(request.URL) || (StaffDevTools() && IsCurrentUser(request)) || IsOutgoingMessage(request) || WantsHttp(request);
+    return IsTelemetry(request.URL) || (StaffDevTools() && IsCurrentUser(request)) || IsOutgoingMessage(request) || WantsHttp(request) ||
+           RewrittenImage(request);
 }
 
 + (BOOL)canInitWithTask:(NSURLSessionTask *)task
@@ -202,6 +215,8 @@ static NSHTTPURLResponse *HttpResponseOf(NSURL *url, const astral::luahost::Http
 - (void)forwardRequest
 {
     NSMutableURLRequest *request = [self.request mutableCopy];
+    NSURL *image = RewrittenImage(request);
+    if (image) request.URL = image;
     TransformOutgoingMessage(request);
     BOOL intercepted = WantsHttp(request);
     astral::luahost::HttpRequest plain;
@@ -528,6 +543,7 @@ NSDictionary *AstralNetworkFilterStats(void)
         @"staffUsers" : @(gStaffUsers.load()),
         @"staffReadies" : @(gStaffReadies.load()),
         @"compressedFrames" : @(gCompressedFrames.load()),
+        @"hostCallsRewritten" : @(astral_host_calls_rewritten()),
         @"discordRequests" : @(gDiscordRequests.load()),
         @"messageRequests" : @(gMessageRequests.load()),
     };

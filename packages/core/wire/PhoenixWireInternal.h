@@ -166,6 +166,7 @@ void wireTrackColors(const uint8_t *bytes, const Span *spans, size_t count);
 int wireThemeActive(void);
 int wireRowOfMessage(uint64_t message, int32_t *list, int64_t *index);
 int32_t wireComposerNode(void);
+uint8_t *wireRewriteImages(const uint8_t *bytes, size_t length, Span *spans, size_t *count, size_t *newLength);
 uint8_t *wireExpandChildEdits(const uint8_t *bytes, size_t length, Span *spans, size_t *count, size_t *newLength);
 uint32_t wireDiscordChildren(int32_t parent, const int32_t **children);
 void wireResetChildLists(void);

@@ -24,6 +24,7 @@
 
 #include "AstralLog.h"
 #include "AstralNetworkPolicy.h"
+#include "PhoenixProperties.h"
 #include "AstralJSON.h"
 #include "AstralSettings.h"
 #include "LuaJSON.h"
@@ -153,6 +154,8 @@ struct LuaPlugin : astral::PluginPackage, astral::PluginHealth {
     std::map<uint64_t, int> filePicks;
     std::map<uint64_t, LuaEventCallback> eventCallbacks;
     std::vector<LuaHttpHook> httpHooks;
+    std::vector<std::pair<std::string, int>> imageRewriters;
+    std::vector<int> textTransforms;
 };
 
 static int Translate(lua_State *state);
@@ -930,6 +933,45 @@ static int OpenChannel(lua_State *state)
     bool opened = gPlatform.openURL && gPlatform.openURL(link);
     lua_pushboolean(state, opened);
     return 1;
+}
+
+static int PressNode(lua_State *state)
+{
+    RequirePermission(state, "ui.press");
+    size_t length = 0;
+    const char *identifier = luaL_checklstring(state, 1, &length);
+    if (length == 0 || length > 128) return luaL_error(state, "astral.ui.press: identifiers are 1 to 128 characters");
+    std::string wanted(identifier, length);
+    bool prefix = !wanted.empty() && wanted.back() == '*';
+    if (prefix) wanted.pop_back();
+    if (ContainsControl(wanted)) return luaL_error(state, "astral.ui.press: identifier has control characters");
+    lua_pushboolean(state, gPlatform.pressNode && gPlatform.pressNode(wanted, prefix));
+    return 1;
+}
+
+static int RegisterImageRewrite(lua_State *state)
+{
+    LuaPlugin *plugin = Self(state);
+    RequirePermission(state, "ui.images");
+    std::string prefix = luaL_checkstring(state, 1);
+    luaL_checktype(state, 2, LUA_TFUNCTION);
+    if (prefix.rfind("http", 0) != 0) return luaL_error(state, "astral.ui.image_rewrite: the prefix must start with http");
+    if (plugin->imageRewriters.size() >= 16) return luaL_error(state, "astral.ui.image_rewrite: at most 16 rewriters per plugin");
+    lua_pushvalue(state, 2);
+    plugin->imageRewriters.emplace_back(prefix, luaL_ref(state, LUA_REGISTRYINDEX));
+    return 0;
+}
+
+static int RegisterTextTransform(lua_State *state)
+{
+    LuaPlugin *plugin = Self(state);
+    RequirePermission(state, "ui.text");
+    luaL_checktype(state, 1, LUA_TFUNCTION);
+    if (plugin->textTransforms.size() >= 8) return luaL_error(state, "astral.ui.text_transform: at most 8 transforms per plugin");
+    lua_pushvalue(state, 1);
+    plugin->textTransforms.push_back(luaL_ref(state, LUA_REGISTRYINDEX));
+    if (gPlatform.refreshDecorations) gPlatform.refreshDecorations();
+    return 0;
 }
 
 static int PasteText(lua_State *state)
@@ -2115,6 +2157,9 @@ static void InstallAPI(LuaPlugin *plugin)
     Function(state, plugin, "open_channel", OpenChannel);
     Function(state, plugin, "scroll_to", ScrollToMessage);
     Function(state, plugin, "focus_composer", FocusComposer);
+    Function(state, plugin, "press", PressNode);
+    Function(state, plugin, "image_rewrite", RegisterImageRewrite);
+    Function(state, plugin, "text_transform", RegisterTextTransform);
     Function(state, plugin, "notify", Notify);
     Function(state, plugin, "composer", RegisterComposerDecorator);
     Function(state, plugin, "message_background", RegisterMessageBackground);
@@ -2262,6 +2307,12 @@ static void Stop(LuaPlugin *plugin)
         if (plugin->state) luaL_unref(plugin->state, LUA_REGISTRYINDEX, reference);
     }
     ReleaseHttpHooks(plugin);
+    for (const auto &[prefix, reference] : plugin->imageRewriters)
+        if (plugin->state) luaL_unref(plugin->state, LUA_REGISTRYINDEX, reference);
+    plugin->imageRewriters.clear();
+    for (int reference : plugin->textTransforms)
+        if (plugin->state) luaL_unref(plugin->state, LUA_REGISTRYINDEX, reference);
+    plugin->textTransforms.clear();
     auto eventCallbacks = std::move(plugin->eventCallbacks);
     plugin->eventCallbacks.clear();
     for (const auto &[subscription, callback] : eventCallbacks) {
@@ -3773,6 +3824,7 @@ static void ReadNodePatch(lua_State *state, AstralNodePatch *patch)
     if (PatchColor(state, "border_color", &patch->borderColor) && PatchNumber(state, "border_width", 0, 8, &patch->borderWidth))
         patch->fields |= AstralPatchBorder;
     if (PatchColor(state, "text_color", &patch->textColor)) patch->fields |= AstralPatchTextColor;
+    if (PatchNumber(state, "text_scale", 0.5, 3, &patch->textScale)) patch->fields |= AstralPatchTextScale;
     lua_getfield(state, -1, "hidden");
     if (lua_toboolean(state, -1)) patch->fields |= AstralPatchHidden;
     lua_pop(state, 1);
@@ -3796,6 +3848,353 @@ static void PushTargetChannel(lua_State *state, const AstralPatchTarget *target)
     if (!channel || channel->empty()) return;
     lua_pushstring(state, channel->c_str());
     lua_setfield(state, -2, "channel_id");
+}
+
+namespace {
+
+struct SpanReader {
+    const uint8_t *bytes;
+    size_t length;
+    size_t offset = 0;
+    bool failed = false;
+
+    bool need(size_t count)
+    {
+        if (failed || length - offset < count) failed = true;
+        return !failed;
+    }
+    uint8_t u8() { return need(1) ? bytes[offset++] : 0; }
+    uint16_t u16()
+    {
+        uint16_t value = 0;
+        if (need(2)) memcpy(&value, bytes + offset, 2), offset += 2;
+        return value;
+    }
+    uint32_t u32()
+    {
+        uint32_t value = 0;
+        if (need(4)) memcpy(&value, bytes + offset, 4), offset += 4;
+        return value;
+    }
+    void skip(uint8_t tag, int depth = 0)
+    {
+        if (depth > 8) {
+            failed = true;
+            return;
+        }
+        switch (tag) {
+        case 0:
+        case 1:
+        case 2:
+            return;
+        case 3:
+            if (need(4)) offset += 4;
+            return;
+        case 4:
+        case 5:
+            if (need(8)) offset += 8;
+            return;
+        case 6: {
+            uint32_t size = u32();
+            if (need(size)) offset += size;
+            return;
+        }
+        case 7: {
+            uint32_t count = u32();
+            for (uint32_t index = 0; index < count && !failed; index++) skip(u8(), depth + 1);
+            return;
+        }
+        case 8: {
+            uint32_t count = u32();
+            for (uint32_t index = 0; index < count && !failed; index++) {
+                u16();
+                skip(u8(), depth + 1);
+            }
+            return;
+        }
+        case 9:
+            if (need(16)) offset += 16;
+            return;
+        case 11: {
+            uint32_t count = u32();
+            if (need((size_t)count * 4)) offset += (size_t)count * 4;
+            return;
+        }
+        default:
+            failed = true;
+        }
+    }
+};
+
+struct SpanWriter {
+    std::vector<uint8_t> bytes;
+    void u8(uint8_t value) { bytes.push_back(value); }
+    void u16(uint16_t value) { bytes.insert(bytes.end(), reinterpret_cast<uint8_t *>(&value), reinterpret_cast<uint8_t *>(&value) + 2); }
+    void u32(uint32_t value) { bytes.insert(bytes.end(), reinterpret_cast<uint8_t *>(&value), reinterpret_cast<uint8_t *>(&value) + 4); }
+    void raw(const void *data, size_t size)
+    {
+        bytes.insert(bytes.end(), static_cast<const uint8_t *>(data), static_cast<const uint8_t *>(data) + size);
+    }
+    void string(uint16_t key, const std::string &value)
+    {
+        u16(key);
+        u8(6);
+        u32(static_cast<uint32_t>(value.size()));
+        raw(value.data(), value.size());
+    }
+    void number(uint16_t key, double value)
+    {
+        u16(key);
+        u8(5);
+        raw(&value, 8);
+    }
+    void integer(uint16_t key, int32_t value)
+    {
+        u16(key);
+        u8(3);
+        raw(&value, 4);
+    }
+    void color(uint16_t key, uint32_t value)
+    {
+        int64_t wide = value;
+        u16(key);
+        u8(4);
+        raw(&wide, 8);
+    }
+    void boolean(uint16_t key, bool value)
+    {
+        u16(key);
+        u8(value ? 2 : 1);
+    }
+};
+
+enum SpanKind { kSpanString, kSpanColor, kSpanInteger, kSpanNumber, kSpanBool };
+
+struct SpanField {
+    const char *name;
+    uint16_t key;
+    SpanKind kind;
+};
+
+std::vector<SpanField> SpanFields()
+{
+    return {{"text", P(text), kSpanString},          {"link", P(link), kSpanString},
+            {"font", P(font), kSpanString},          {"color", P(color), kSpanColor},
+            {"weight", P(weight), kSpanInteger},     {"bg", P(bg), kSpanInteger},
+            {"bg_radius", P(bgRadius), kSpanNumber}, {"scale", P(scale), kSpanNumber},
+            {"advance", P(advance), kSpanNumber},    {"bold", P(bold), kSpanBool},
+            {"strike", P(strike), kSpanBool},        {"underline", P(underline), kSpanBool}};
+}
+
+bool PushSpans(lua_State *state, const uint8_t *bytes, size_t length)
+{
+    SpanReader reader{bytes, length};
+    if (reader.u8() != 7) return false;
+    uint32_t count = reader.u32();
+    if (count > 512) return false;
+    auto fields = SpanFields();
+    lua_createtable(state, static_cast<int>(count), 0);
+    for (uint32_t index = 0; index < count && !reader.failed; index++) {
+        if (reader.u8() != 8) return false;
+        uint32_t entries = reader.u32();
+        lua_createtable(state, 0, 4);
+        std::string extra;
+        uint32_t extraCount = 0;
+        for (uint32_t entry = 0; entry < entries && !reader.failed; entry++) {
+            size_t start = reader.offset;
+            uint16_t key = reader.u16();
+            uint8_t tag = reader.u8();
+            const SpanField *field = nullptr;
+            for (const auto &candidate : fields)
+                if (candidate.key == key) field = &candidate;
+            size_t value = reader.offset;
+            reader.skip(tag);
+            if (reader.failed) return false;
+            if (field && tag == 6 && field->kind == kSpanString) {
+                lua_pushlstring(state, reinterpret_cast<const char *>(bytes + value + 4), reader.offset - value - 4);
+            } else if (field && tag == 4 && field->kind == kSpanColor) {
+                int64_t wide = 0;
+                memcpy(&wide, bytes + value, 8);
+                lua_pushinteger(state, static_cast<lua_Integer>(static_cast<uint32_t>(wide)));
+            } else if (field && tag == 3 && field->kind == kSpanInteger) {
+                int32_t integer = 0;
+                memcpy(&integer, bytes + value, 4);
+                lua_pushinteger(state, field->key == P(bg) ? static_cast<lua_Integer>(static_cast<uint32_t>(integer)) : integer);
+            } else if (field && tag == 5 && field->kind == kSpanNumber) {
+                double number = 0;
+                memcpy(&number, bytes + value, 8);
+                lua_pushnumber(state, number);
+            } else if (field && (tag == 1 || tag == 2) && field->kind == kSpanBool) {
+                lua_pushboolean(state, tag == 2);
+            } else {
+                extra.append(reinterpret_cast<const char *>(bytes + start), reader.offset - start);
+                extraCount++;
+                continue;
+            }
+            lua_setfield(state, -2, field->name);
+        }
+        if (extraCount) {
+            lua_pushlstring(state, extra.data(), extra.size());
+            lua_setfield(state, -2, "_raw");
+            lua_pushinteger(state, extraCount);
+            lua_setfield(state, -2, "_raw_count");
+        }
+        lua_rawseti(state, -2, static_cast<lua_Integer>(index) + 1);
+    }
+    return !reader.failed;
+}
+
+bool EncodeSpans(lua_State *state, int index, std::vector<uint8_t> &out)
+{
+    index = lua_absindex(state, index);
+    if (!lua_istable(state, index)) return false;
+    lua_Integer count = luaL_len(state, index);
+    if (count < 0 || count > 512) return false;
+    auto fields = SpanFields();
+    SpanWriter writer;
+    writer.u8(7);
+    writer.u32(static_cast<uint32_t>(count));
+    for (lua_Integer position = 1; position <= count; position++) {
+        lua_rawgeti(state, index, position);
+        if (!lua_istable(state, -1)) {
+            lua_pop(state, 1);
+            return false;
+        }
+        SpanWriter entries;
+        uint32_t entryCount = 0;
+        for (const auto &field : fields) {
+            lua_getfield(state, -1, field.name);
+            if (!lua_isnil(state, -1)) {
+                switch (field.kind) {
+                case kSpanString:
+                    if (lua_type(state, -1) == LUA_TSTRING) {
+                        size_t length = 0;
+                        const char *text = lua_tolstring(state, -1, &length);
+                        if (length <= 8192) entries.string(field.key, std::string(text, length)), entryCount++;
+                    }
+                    break;
+                case kSpanColor:
+                    lua_pop(state, 1);
+                    {
+                        uint32_t color = 0;
+                        if (PatchColor(state, field.name, &color)) entries.color(field.key, color), entryCount++;
+                    }
+                    lua_pushnil(state);
+                    break;
+                case kSpanInteger:
+                    if (lua_isinteger(state, -1)) entries.integer(field.key, static_cast<int32_t>(lua_tointeger(state, -1))), entryCount++;
+                    break;
+                case kSpanNumber:
+                    if (lua_isnumber(state, -1) && std::isfinite(lua_tonumber(state, -1)))
+                        entries.number(field.key, lua_tonumber(state, -1)), entryCount++;
+                    break;
+                case kSpanBool:
+                    entries.boolean(field.key, lua_toboolean(state, -1)), entryCount++;
+                    break;
+                }
+            }
+            lua_pop(state, 1);
+        }
+        lua_getfield(state, -1, "_raw");
+        lua_getfield(state, -2, "_raw_count");
+        if (lua_type(state, -2) == LUA_TSTRING && lua_isinteger(state, -1)) {
+            size_t length = 0;
+            const char *raw = lua_tolstring(state, -2, &length);
+            entries.raw(raw, length);
+            entryCount += static_cast<uint32_t>(lua_tointeger(state, -1));
+        }
+        lua_pop(state, 3);
+        writer.u8(8);
+        writer.u32(entryCount);
+        writer.raw(entries.bytes.data(), entries.bytes.size());
+    }
+    out = std::move(writer.bytes);
+    return true;
+}
+
+} // namespace
+
+int AstralLuaSpanTransform(uint64_t messageID, const uint8_t *spans, size_t length, uint8_t **transformed, size_t *transformedLength)
+{
+    if (!spans || !transformed || !transformedLength) return 0;
+    std::unique_lock<std::recursive_mutex> lock(gMutex, std::try_to_lock);
+    if (!lock.owns_lock()) return -1;
+    std::vector<uint8_t> current(spans, spans + length);
+    bool changed = false;
+    std::string message = std::to_string(messageID);
+    std::string author;
+    if (uint64_t authorID = astral_wire_message_author(messageID)) author = std::to_string(authorID);
+    for (auto *plugin : gPlugins) {
+        if (!plugin->state || plugin->failed) continue;
+        for (size_t index = 0; index < plugin->textTransforms.size(); index++) {
+            lua_State *state = plugin->state;
+            int top = lua_gettop(state);
+            lua_rawgeti(state, LUA_REGISTRYINDEX, plugin->textTransforms[index]);
+            if (!PushSpans(state, current.data(), current.size())) {
+                lua_settop(state, top);
+                return changed ? 1 : 0;
+            }
+            lua_createtable(state, 0, 2);
+            lua_pushlstring(state, message.data(), message.size());
+            lua_setfield(state, -2, "message_id");
+            if (!author.empty()) {
+                lua_pushlstring(state, author.data(), author.size());
+                lua_setfield(state, -2, "author_id");
+            }
+            if (!Call(plugin, 2, 1, "text transform")) {
+                lua_settop(state, top);
+                MarkFailed(plugin);
+                Stop(plugin);
+                break;
+            }
+            std::vector<uint8_t> next;
+            if (lua_istable(state, -1) && EncodeSpans(state, -1, next) && next != current) {
+                current = std::move(next);
+                changed = true;
+            }
+            lua_settop(state, top);
+        }
+    }
+    if (!changed) return 0;
+    *transformed = static_cast<uint8_t *>(malloc(current.size()));
+    if (!*transformed) return 0;
+    memcpy(*transformed, current.data(), current.size());
+    *transformedLength = current.size();
+    return 1;
+}
+
+int AstralLuaImageRewrite(const char *uri, char *rewritten, size_t capacity)
+{
+    if (!uri || !rewritten || capacity == 0) return 0;
+    std::unique_lock<std::recursive_mutex> lock(gMutex, std::try_to_lock);
+    if (!lock.owns_lock()) return 0;
+    std::string current(uri);
+    bool changed = false;
+    for (auto *plugin : gPlugins) {
+        if (!plugin->state || plugin->failed) continue;
+        for (size_t index = 0; index < plugin->imageRewriters.size(); index++) {
+            const auto [prefix, reference] = plugin->imageRewriters[index];
+            if (current.rfind(prefix, 0) != 0) continue;
+            lua_State *state = plugin->state;
+            lua_rawgeti(state, LUA_REGISTRYINDEX, reference);
+            lua_pushlstring(state, current.data(), current.size());
+            if (!Call(plugin, 1, 1, "image rewrite")) {
+                MarkFailed(plugin);
+                Stop(plugin);
+                break;
+            }
+            size_t length = 0;
+            const char *next = lua_isstring(state, -1) ? lua_tolstring(state, -1, &length) : nullptr;
+            if (next && length > 0 && length < capacity && strncmp(next, "http", 4) == 0 && !ContainsControl(std::string(next, length))) {
+                current.assign(next, length);
+                changed = true;
+            }
+            lua_pop(state, 1);
+        }
+    }
+    if (!changed) return 0;
+    memcpy(rewritten, current.c_str(), current.size() + 1);
+    return 1;
 }
 
 int AstralLuaPatchNode(const AstralPatchTarget *target, AstralNodePatch *patch)
