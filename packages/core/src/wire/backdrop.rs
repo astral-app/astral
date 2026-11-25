@@ -6,10 +6,7 @@ use super::format::{Span, batch_of, child, property_cursor, spans_of, type_is, w
 use super::out::{Out, wirePropGradient};
 use super::properties;
 
-unsafe extern "C" {
-    fn wireThemeActive() -> c_int;
-    fn wireBackgroundStops(colors: *mut u32, capacity: usize) -> usize;
-}
+use super::theme::{wireBackgroundStops, wireThemeActive};
 
 const DEPTH: u32 = 4;
 const STOPS: usize = 8;
@@ -221,7 +218,7 @@ pub unsafe extern "C" fn wireSettingsBackdrop(
     let spans = spans_of(pointer, count);
     let Ok(mut backdrop) = BACKDROP.lock() else { return };
     observe_app_gradient(&mut backdrop, bytes, spans);
-    if !backdrop.enabled || (backdrop.stops.is_empty() && unsafe { wireThemeActive() } == 0) {
+    if !backdrop.enabled || (backdrop.stops.is_empty() && wireThemeActive() == 0) {
         return;
     }
     let mut stops = dimmed_stops(&backdrop);
