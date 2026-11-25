@@ -337,6 +337,7 @@ typedef struct {
     uint32_t background;
     double radius;
     double fontSize;
+    double fontWeight;
     double width;
     double height;
     float padding[4];

@@ -5,6 +5,7 @@
 #import "PhoenixImage.h"
 
 static const CGFloat kInset = 16;
+static const CGFloat kFillMinimumHeight = 140;
 static const CGFloat kCornerRadius = 8;
 static const NSUInteger kMaximumInput = 4000;
 
@@ -121,6 +122,7 @@ static NSArray<NSDictionary *> *ItemList(id value)
 @property (nonatomic) NSMutableDictionary<NSValue *, NSString *> *actions;
 @property (nonatomic) NSMutableDictionary<NSValue *, UITextView *> *inputs;
 @property (nonatomic) BOOL finished;
+@property (nonatomic) NSLayoutConstraint *fillHeight;
 @end
 
 @implementation AstralPluginSheet
@@ -169,6 +171,7 @@ static NSArray<NSDictionary *> *ItemList(id value)
         [self.stack.leadingAnchor constraintEqualToAnchor:scroll.frameLayoutGuide.leadingAnchor constant:kInset],
         [self.stack.trailingAnchor constraintEqualToAnchor:scroll.frameLayoutGuide.trailingAnchor constant:-kInset],
     ]];
+    self.fillHeight = [self.stack.heightAnchor constraintGreaterThanOrEqualToAnchor:scroll.frameLayoutGuide.heightAnchor constant:-kInset];
     [self render];
 }
 
@@ -180,10 +183,13 @@ static NSArray<NSDictionary *> *ItemList(id value)
     self.titleLabel.text = TextValue(self.spec, @"title");
     self.subtitleLabel.text = TextValue(self.spec, @"subtitle");
     for (UIView *view in self.stack.arrangedSubviews) [view removeFromSuperview];
+    BOOL fills = NO;
     for (NSDictionary *item in ItemList(self.spec[@"items"])) {
         UIView *view = [self viewForItem:item];
         if (view) [self.stack addArrangedSubview:view];
+        fills = fills || [item[@"fill"] boolValue];
     }
+    self.fillHeight.active = fills;
 }
 
 - (void)send:(NSString *)action value:(NSString *)value
@@ -320,7 +326,11 @@ static NSArray<NSDictionary *> *ItemList(id value)
     text.layer.cornerRadius = kCornerRadius;
     text.textContainerInset = UIEdgeInsetsMake(10, 8, 10, 8);
     CGFloat height = NumberValue(item, @"height", 0);
-    if (height > 0) {
+    if ([item[@"fill"] boolValue]) {
+        [text.heightAnchor constraintGreaterThanOrEqualToConstant:height > 0 ? height : kFillMinimumHeight].active = YES;
+        [text setContentHuggingPriority:1 forAxis:UILayoutConstraintAxisVertical];
+        [text setContentCompressionResistancePriority:UILayoutPriorityDefaultLow forAxis:UILayoutConstraintAxisVertical];
+    } else if (height > 0) {
         [text.heightAnchor constraintEqualToConstant:height].active = YES;
     } else {
         text.scrollEnabled = NO;
