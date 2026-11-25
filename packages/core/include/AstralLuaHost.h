@@ -119,6 +119,15 @@ bool interceptHttpResponse(const HttpRequest &request, HttpResponse &response);
 bool pressMessageAction(std::string_view identifier);
 bool pressInsertedNode(std::string_view identifier);
 void setMenuMessage(uint64_t channelID, uint64_t messageID);
+struct MediaSave {
+    std::string url;
+    std::string kind;
+    std::string channelID;
+    std::string messageID;
+};
+bool hasMediaSaveHandlers();
+uint64_t resolveMediaSave(const MediaSave &save, std::function<void(std::optional<std::string>)> done);
+void cancelMediaSave(uint64_t id);
 bool hasOutgoingMessageTransforms();
 std::optional<std::string> transformOutgoingMessage(const std::string &channel, const std::string &operation, const std::string &content);
 nlohmann::json composerStyles(std::string_view text);

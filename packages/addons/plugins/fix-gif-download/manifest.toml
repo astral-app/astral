@@ -1,0 +1,11 @@
+id = "astral.fix-gif-download"
+name = "Fix GIF Downloads"
+description = "Save Discord GIFs as GIF files instead of videos."
+version = "0.0.1"
+icon = "GifIcon"
+main = "main.lua"
+permissions = ["media.save", "network", "discord.messages", "discord.messages.content"]
+
+[[authors]]
+name = "adrian"
+id = "224617799434108928"

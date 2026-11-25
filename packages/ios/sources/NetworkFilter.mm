@@ -1,4 +1,5 @@
 #import "NetworkFilter.h"
+#import "MediaSave.h"
 
 #import <objc/runtime.h>
 #import <atomic>
@@ -161,6 +162,7 @@ static NSHTTPURLResponse *HttpResponseOf(NSURL *url, const astral::luahost::Http
 + (BOOL)canInitWithRequest:(NSURLRequest *)request
 {
     if ([NSURLProtocol propertyForKey:kHandledKey inRequest:request]) return NO;
+    AstralRememberMediaRequest(request.URL);
     if (request.URL && astral::isDiscordHost(Text(request.URL.host))) {
         gDiscordRequests++;
         if ([request.HTTPMethod isEqualToString:@"POST"] && [request.URL.path hasSuffix:@"/messages"]) gMessageRequests++;

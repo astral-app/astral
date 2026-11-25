@@ -162,6 +162,7 @@ struct LuaPlugin : astral::PluginPackage, astral::PluginHealth {
     std::vector<int> typingDecorators;
     std::vector<int> reactionDecorators;
     std::vector<int> outgoingMessageTransforms;
+    std::vector<int> mediaSaveHandlers;
     std::vector<int> composerDecorators;
     std::vector<int> messageBackgroundDecorators;
     std::vector<LuaNodePatch> nodePatches;
@@ -1838,6 +1839,17 @@ static int RegisterOutgoingMessageTransform(lua_State *state)
     return 0;
 }
 
+static int RegisterMediaSaveHandler(lua_State *state)
+{
+    LuaPlugin *plugin = Self(state);
+    RequirePermission(state, "media.save");
+    luaL_checktype(state, 1, LUA_TFUNCTION);
+    if (plugin->mediaSaveHandlers.size() >= 4) return luaL_error(state, "astral.media.on_save: at most 4 handlers per plugin");
+    lua_pushvalue(state, 1);
+    plugin->mediaSaveHandlers.push_back(luaL_ref(state, LUA_REGISTRYINDEX));
+    return 0;
+}
+
 static int RegisterComposerDecorator(lua_State *state)
 {
     LuaPlugin *plugin = Self(state);
@@ -2651,6 +2663,10 @@ static void InstallAPI(LuaPlugin *plugin)
     lua_setfield(state, -2, "messages");
 
     lua_newtable(state);
+    Function(state, plugin, "on_save", RegisterMediaSaveHandler);
+    lua_setfield(state, -2, "media");
+
+    lua_newtable(state);
     Function(state, plugin, "request", NetworkRequest);
     Function(state, plugin, "intercept", RegisterHttpIntercept);
     Function(state, plugin, "release", ReleaseHeldRequest);
@@ -2791,6 +2807,11 @@ static void Stop(LuaPlugin *plugin)
     auto outgoingMessageTransforms = std::move(plugin->outgoingMessageTransforms);
     plugin->outgoingMessageTransforms.clear();
     for (int reference : outgoingMessageTransforms) {
+        if (plugin->state) luaL_unref(plugin->state, LUA_REGISTRYINDEX, reference);
+    }
+    auto mediaSaveHandlers = std::move(plugin->mediaSaveHandlers);
+    plugin->mediaSaveHandlers.clear();
+    for (int reference : mediaSaveHandlers) {
         if (plugin->state) luaL_unref(plugin->state, LUA_REGISTRYINDEX, reference);
     }
     plugin->sandbox.reset();
@@ -3923,6 +3944,126 @@ static std::optional<std::string> processKnownGatewayEvents(nlohmann::json &enve
     }
     EmitMessageCreate(messageID, channelID, senderID, guildID, fromMe, mentions, direct, open);
     return std::nullopt;
+}
+
+struct PendingMediaSave {
+    MediaSave save;
+    std::vector<std::pair<std::string, size_t>> handlers;
+    size_t next = 0;
+    std::function<void(std::optional<std::string>)> done;
+};
+
+static std::map<uint64_t, PendingMediaSave> gMediaSaves;
+static uint64_t gNextMediaSave = 1;
+
+static void AdvanceMediaSave(uint64_t id);
+
+static void FinishMediaSave(uint64_t id, std::optional<std::string> url)
+{
+    auto node = gMediaSaves.extract(id);
+    if (node.empty()) return;
+    node.mapped().done(std::move(url));
+}
+
+static bool IsSaveURL(const std::string &url)
+{
+    return url.size() <= 4096 && url.rfind("https://", 0) == 0;
+}
+
+static int ReplyMediaSave(lua_State *state)
+{
+    auto id = static_cast<uint64_t>(lua_tointeger(state, lua_upvalueindex(1)));
+    auto step = static_cast<size_t>(lua_tointeger(state, lua_upvalueindex(2)));
+    std::lock_guard<std::recursive_mutex> lock(gMutex);
+    auto pending = gMediaSaves.find(id);
+    if (pending == gMediaSaves.end() || pending->second.next != step) return 0;
+    if (lua_type(state, 1) == LUA_TSTRING) {
+        std::string url = lua_tostring(state, 1);
+        if (IsSaveURL(url)) {
+            FinishMediaSave(id, url);
+            return 0;
+        }
+    }
+    AdvanceMediaSave(id);
+    return 0;
+}
+
+static void PushMediaSave(lua_State *state, const MediaSave &save)
+{
+    lua_createtable(state, 0, 4);
+    lua_pushlstring(state, save.url.data(), save.url.size());
+    lua_setfield(state, -2, "url");
+    lua_pushlstring(state, save.kind.data(), save.kind.size());
+    lua_setfield(state, -2, "kind");
+    if (!save.channelID.empty()) {
+        lua_pushlstring(state, save.channelID.data(), save.channelID.size());
+        lua_setfield(state, -2, "channel_id");
+    }
+    if (!save.messageID.empty()) {
+        lua_pushlstring(state, save.messageID.data(), save.messageID.size());
+        lua_setfield(state, -2, "message_id");
+    }
+}
+
+static void AdvanceMediaSave(uint64_t id)
+{
+    while (true) {
+        auto pending = gMediaSaves.find(id);
+        if (pending == gMediaSaves.end()) return;
+        if (pending->second.next >= pending->second.handlers.size()) {
+            FinishMediaSave(id, std::nullopt);
+            return;
+        }
+        auto [pluginID, index] = pending->second.handlers[pending->second.next++];
+        size_t step = pending->second.next;
+        LuaPlugin *plugin = Find(pluginID);
+        if (!plugin || !plugin->state || plugin->failed || index >= plugin->mediaSaveHandlers.size()) continue;
+        lua_State *state = plugin->state;
+        int top = lua_gettop(state);
+        lua_rawgeti(state, LUA_REGISTRYINDEX, plugin->mediaSaveHandlers[index]);
+        PushMediaSave(state, pending->second.save);
+        lua_pushinteger(state, static_cast<lua_Integer>(id));
+        lua_pushinteger(state, static_cast<lua_Integer>(step));
+        lua_pushcclosure(state, ReplyMediaSave, 2);
+        if (!Call(plugin, 2, 0, "media save")) {
+            lua_settop(state, top);
+            MarkFailed(plugin);
+            Stop(plugin);
+            auto again = gMediaSaves.find(id);
+            if (again != gMediaSaves.end() && again->second.next == step) continue;
+            return;
+        }
+        lua_settop(state, top);
+        return;
+    }
+}
+
+bool hasMediaSaveHandlers()
+{
+    std::lock_guard<std::recursive_mutex> lock(gMutex);
+    for (auto *plugin : gPlugins)
+        if (plugin->state && !plugin->failed && !plugin->mediaSaveHandlers.empty()) return true;
+    return false;
+}
+
+uint64_t resolveMediaSave(const MediaSave &save, std::function<void(std::optional<std::string>)> done)
+{
+    std::lock_guard<std::recursive_mutex> lock(gMutex);
+    PendingMediaSave pending{save, {}, 0, std::move(done)};
+    for (auto *plugin : gPlugins) {
+        if (!plugin->state || plugin->failed) continue;
+        for (size_t index = 0; index < plugin->mediaSaveHandlers.size(); index++) pending.handlers.emplace_back(plugin->identifier, index);
+    }
+    uint64_t id = gNextMediaSave++;
+    gMediaSaves.emplace(id, std::move(pending));
+    AdvanceMediaSave(id);
+    return id;
+}
+
+void cancelMediaSave(uint64_t id)
+{
+    std::lock_guard<std::recursive_mutex> lock(gMutex);
+    gMediaSaves.erase(id);
 }
 
 bool hasOutgoingMessageTransforms()

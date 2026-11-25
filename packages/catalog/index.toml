@@ -5,6 +5,14 @@ version = "0.0.1"
 passive = []
 
 [[plugins]]
+id = "astral.fix-gif-download"
+name = "Fix GIF Downloads"
+version = "0.0.1"
+description = "Save Discord GIFs as GIF files instead of videos."
+icon = "GifIcon"
+base = "plugins/astral.fix-gif-download/"
+
+[[plugins]]
 id = "astral.sticker-preview"
 name = "Sticker Preview"
 version = "0.0.1"
