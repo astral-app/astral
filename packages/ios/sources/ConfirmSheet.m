@@ -4,6 +4,12 @@
 
 #import "PhoenixImage.h"
 
+static UIFont *DiscordFont(CGFloat size, UIFontWeight weight)
+{
+    NSString *name = weight >= UIFontWeightBold ? @"ggsans-Bold" : weight >= UIFontWeightSemibold ? @"ggsans-Semibold" : @"ggsans-Normal";
+    return [UIFont fontWithName:name size:size] ?: [UIFont systemFontOfSize:size weight:weight];
+}
+
 static const CGFloat kImageSide = 160;
 static const CGFloat kSpacing = 16;
 
@@ -76,11 +82,11 @@ static const CGFloat kSpacing = 16;
     stack.translatesAutoresizingMaskIntoConstraints = NO;
     if (((NSString *)self.spec[@"image"]).length) [stack addArrangedSubview:[self imageViewLoading:((NSString *)self.spec[@"image"])]];
     [stack addArrangedSubview:[self labelWithText:((NSString *)self.spec[@"title"])
-                                             font:[UIFont systemFontOfSize:20 weight:UIFontWeightBold]
+                                             font:DiscordFont(20, UIFontWeightBold)
                                             color:UIColor.labelColor]];
     if (((NSString *)self.spec[@"message"]).length)
         [stack addArrangedSubview:[self labelWithText:((NSString *)self.spec[@"message"])
-                                                 font:[UIFont systemFontOfSize:15]
+                                                 font:DiscordFont(15, UIFontWeightRegular)
                                                 color:UIColor.secondaryLabelColor]];
     UIStackView *buttons = [[UIStackView alloc] initWithArrangedSubviews:@[
         [self buttonWithTitle:((NSString *)self.spec[@"cancel"]) filled:NO action:@selector(cancelPressed)],

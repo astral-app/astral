@@ -165,6 +165,16 @@ int wireRowOfMessage(uint64_t message, int32_t *list, int64_t *index)
     return 0;
 }
 
+uint64_t astral_wire_message_at_row(int64_t index)
+{
+    for (size_t slot = 0; slot < kMaxLists; slot++) {
+        if (!gLists[slot].list) continue;
+        uint64_t message = astral_wire_message_for_row(gLists[slot].list, index);
+        if (message) return message;
+    }
+    return 0;
+}
+
 uint64_t astral_wire_message_for_row(int32_t list, int64_t index)
 {
     ListWindow *window = listWindow(list, 0);

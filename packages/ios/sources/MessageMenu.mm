@@ -34,12 +34,28 @@ static uint64_t MessageAt(UIView *view)
     return 0;
 }
 
+static uint64_t MessageAtRow(UIView *view)
+{
+    UICollectionViewCell *cell = nil;
+    for (UIView *current = view; current; current = current.superview) {
+        if ([current isKindOfClass:UICollectionViewCell.class]) {
+            cell = (UICollectionViewCell *)current;
+            break;
+        }
+    }
+    UIView *list = cell.superview;
+    while (list && ![list isKindOfClass:UICollectionView.class]) list = list.superview;
+    NSIndexPath *path = [(UICollectionView *)list indexPathForCell:cell];
+    return path ? astral_wire_message_at_row(path.item) : 0;
+}
+
 static void SendEvent(UIWindow *self, SEL selector, UIEvent *event)
 {
     if (event.type == UIEventTypeTouches) {
         for (UITouch *touch in event.allTouches) {
             if (touch.phase != UITouchPhaseBegan || !touch.view) continue;
             uint64_t message = MessageAt(touch.view);
+            if (!message) message = MessageAtRow(touch.view);
             if (message) astral::luahost::setMenuMessage(astral_wire_current_channel(), message);
             break;
         }

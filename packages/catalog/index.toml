@@ -136,7 +136,7 @@ base = "plugins/astral.new-user-sprout/"
 id = "astral.view-raw"
 name = "View Raw"
 version = "0.0.1"
-description = "Shows a message's raw data and content in a reply only you can see, ready to copy."
+description = "View and copy raw data for messages."
 icon = "TextIcon"
 base = "plugins/astral.view-raw/"
 

@@ -40,4 +40,4 @@
 - <img src="../../assets/readme-icons/text-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Tone Indicators](tone-indicators/): Turns tone tags such as /j and /srs into pills that spell out what they mean.
 - <img src="../../assets/readme-icons/language-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Translate](translate/): Translates a message from its long-press menu with Unbound Translate, Google or MyMemory, into a toast or under the message.
 - <img src="../../assets/readme-icons/user-circle-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Typing Avatars](typing-avatars/): Shows the avatar of each person typing in front of their name.
-- <img src="../../assets/readme-icons/text-icon.svg" width="20" height="20" align="absmiddle" alt=""> [View Raw](view-raw/): Shows a message's raw data and content in a reply only you can see, ready to copy.
+- <img src="../../assets/readme-icons/text-icon.svg" width="20" height="20" align="absmiddle" alt=""> [View Raw](view-raw/): View and copy raw data for messages.

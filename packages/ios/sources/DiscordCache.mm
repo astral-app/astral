@@ -84,6 +84,12 @@ NSDictionary *AstralDiscordMessage(NSString *channelID, NSString *messageID)
     return Dictionary(astral::discord::message(Plain(channelID), Plain(messageID)));
 }
 
+NSDictionary *AstralDiscordRawMessage(NSString *channelID, NSString *messageID)
+{
+    UseDiscordData();
+    return Dictionary(astral::discord::rawMessage(Plain(channelID), Plain(messageID)));
+}
+
 NSNumber *AstralDiscordPermissions(NSString *guildID, NSString *userID, NSString *channelID)
 {
     UseDiscordData();

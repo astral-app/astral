@@ -351,6 +351,7 @@ uint64_t astral_wire_message_for_node(int32_t node);
 uint64_t astral_wire_message_author(uint64_t message);
 size_t astral_wire_composer_text(char *text, size_t capacity);
 uint64_t astral_wire_message_for_row(int32_t list, int64_t index);
+uint64_t astral_wire_message_at_row(int64_t index);
 int astral_wire_scroll_to_message(uint64_t message, int animated, const char *align);
 int astral_wire_focus_composer(int focus);
 int astral_wire_take_commands(AstralWireBuffer *buffer);
