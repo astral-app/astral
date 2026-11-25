@@ -103,6 +103,41 @@ pub struct AstralLabelContext {
     pub target_id: u64,
 }
 
+pub const PATCH_BACKGROUND: u32 = 1 << 0;
+pub const PATCH_RADIUS: u32 = 1 << 1;
+pub const PATCH_OPACITY: u32 = 1 << 2;
+pub const PATCH_PADDING: u32 = 1 << 3;
+pub const PATCH_MARGIN: u32 = 1 << 4;
+pub const PATCH_BORDER: u32 = 1 << 5;
+pub const PATCH_TEXT_COLOR: u32 = 1 << 6;
+pub const PATCH_HIDDEN: u32 = 1 << 7;
+pub const PATCH_TEXT_SCALE: u32 = 1 << 8;
+
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct AstralNodePatch {
+    pub fields: u32,
+    pub background: u32,
+    pub radius: f64,
+    pub opacity: f64,
+    pub padding: [f32; 4],
+    pub margin: [f32; 4],
+    pub border_color: u32,
+    pub border_width: f64,
+    pub text_color: u32,
+    pub text_scale: f64,
+}
+
+#[repr(C)]
+pub struct AstralPatchTarget {
+    pub identifier: *const c_char,
+    pub kind: *const c_char,
+    pub key: usize,
+    pub message_id: u64,
+    pub author_id: u64,
+    pub channel_id: u64,
+}
+
 pub fn tracked_author(id: i32) -> Option<u64> {
     let slot = unsafe { wireTrackSlot(id, 0).as_ref() }?;
     (slot.kind == TRACK_AUTHOR).then_some(slot.value)
@@ -110,6 +145,8 @@ pub fn tracked_author(id: i32) -> Option<u64> {
 
 unsafe extern "C" {
     pub fn wireTrackSlot(id: i32, create: c_int) -> *mut Tracked;
+    pub fn wireRowMessage(row: i32) -> u64;
+    pub fn wireMessageAuthor(message: u64) -> u64;
 }
 
 pub use super::ids::{avatar_user, current_channel};
