@@ -17,6 +17,7 @@ pub mod network_policy;
 pub mod network_stack;
 pub mod plugin_trace;
 pub mod privacy;
+pub mod reports;
 pub mod request_sink;
 pub mod session;
 pub mod settings;

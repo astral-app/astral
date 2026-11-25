@@ -11,6 +11,7 @@
 #include <memory>
 
 #include "AstralExitRecord.h"
+#include "AstralReports.h"
 #include "AstralFiles.h"
 #include "AstralLaunchGuard.h"
 #include "AstralLog.h"
@@ -303,6 +304,7 @@ __attribute__((constructor)) static void AstralBootstrap(void)
     });
     settings = std::make_unique<astral::SettingsStore>(astral::joinPath(stateDirectory, "settings.json"));
     settings->load();
+    astral::reports::configure(stateDirectory);
     AstralConfigureMarketplace();
     missingExtensions = AstralMissingAppExtensions();
     AstralApplyTheme(AstralActiveThemeID());
