@@ -15,6 +15,10 @@ impl<'a> Cursor<'a> {
         }
     }
 
+    pub fn bytes(&self) -> &'a [u8] {
+        self.bytes
+    }
+
     pub fn failed(&self) -> bool {
         self.failed
     }
