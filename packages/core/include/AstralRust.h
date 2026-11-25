@@ -1,5 +1,6 @@
 #pragma once
 
+#ifdef __cplusplus
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -8,6 +9,10 @@
 #include <vector>
 
 extern "C" {
+#else
+#include <stddef.h>
+#include <stdint.h>
+#endif
 typedef struct {
     char *bytes;
     size_t length;
@@ -15,6 +20,7 @@ typedef struct {
 
 void astral_rust_string_free(AstralRustString string);
 AstralRustString astral_rust_string_from(const char *bytes, size_t length);
+#ifdef __cplusplus
 }
 
 namespace astral::rust {
@@ -66,3 +72,4 @@ template <typename Call> std::optional<std::string> takeOptional(Call call)
     return take(string);
 }
 } // namespace astral::rust
+#endif

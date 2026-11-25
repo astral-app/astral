@@ -23,6 +23,7 @@ pub mod session;
 pub mod settings;
 pub mod signatures;
 pub mod strings;
+pub mod svg_path;
 pub mod swatch;
 pub mod themes;
 pub mod toml_json;
