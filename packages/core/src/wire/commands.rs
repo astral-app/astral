@@ -7,7 +7,6 @@ use super::properties;
 unsafe extern "C" {
     fn wireRowOfMessage(message: u64, list: *mut i32, index: *mut i64) -> c_int;
     fn wireComposerNode() -> i32;
-    fn wireMessageAuthor(message: u64) -> u64;
 }
 
 static PENDING: Mutex<Vec<u8>> = Mutex::new(Vec::new());
@@ -98,5 +97,5 @@ pub unsafe extern "C" fn astral_wire_take_commands(buffer: *mut AstralWireBuffer
 
 #[unsafe(no_mangle)]
 pub extern "C" fn astral_wire_message_author(message: u64) -> u64 {
-    unsafe { wireMessageAuthor(message) }
+    super::decorate::author_of(message)
 }

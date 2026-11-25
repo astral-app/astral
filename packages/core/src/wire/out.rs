@@ -86,6 +86,82 @@ impl Out {
         }
     }
 
+    pub fn prop_long(&mut self, id: u16, value: i64) {
+        self.put16(id);
+        self.put8(4);
+        self.put(&value.to_le_bytes());
+    }
+
+    pub fn prop_bool(&mut self, id: u16, value: bool) {
+        self.put16(id);
+        self.put8(if value { 2 } else { 1 });
+    }
+
+    pub fn prop_unset(&mut self, id: u16) {
+        self.put16(id);
+        self.put8(0);
+    }
+
+    pub fn prop_events(&mut self, id: u16, event: &[u8]) {
+        self.put16(id);
+        self.put8(7);
+        self.put32(1);
+        self.put8(6);
+        self.put_string(event);
+    }
+
+    pub fn prop_gradient(&mut self, id: u16, angle: f64, colors: &[u32]) {
+        let properties = super::properties::current();
+        self.put16(id);
+        self.put8(8);
+        self.put32(3);
+        self.prop_number(properties.angle, angle);
+        self.put16(properties.colors);
+        self.put8(7);
+        self.put32(colors.len() as u32);
+        for color in colors {
+            self.put8(4);
+            self.put(&i64::from(*color).to_le_bytes());
+        }
+        self.put16(properties.positions);
+        self.put8(7);
+        self.put32(colors.len() as u32);
+        for index in 0..colors.len() {
+            self.put8(5);
+            let position = if colors.len() > 1 {
+                index as f64 / (colors.len() - 1) as f64
+            } else {
+                0.0
+            };
+            self.put(&position.to_le_bytes());
+        }
+    }
+
+    pub fn put_children(&mut self, parent: i32, children: &[i32]) {
+        self.put8(3);
+        self.put(&parent.to_le_bytes());
+        self.put32(children.len() as u32);
+        for child in children {
+            self.put(&child.to_le_bytes());
+        }
+    }
+
+    pub fn remove(&mut self, nodes: &[i32]) {
+        self.put8(4);
+        self.put32(nodes.len() as u32);
+        for node in nodes {
+            self.put(&node.to_le_bytes());
+        }
+    }
+
+    pub fn create(&mut self, node: i32, kind: &[u8], count: u16) {
+        self.put8(1);
+        self.put(&node.to_le_bytes());
+        self.put16(kind.len() as u16);
+        self.put(kind);
+        self.prop_count(count);
+    }
+
     pub fn update(&mut self, node: i32, count: u16) {
         self.put8(2);
         self.put(&node.to_le_bytes());
@@ -280,26 +356,5 @@ pub unsafe extern "C" fn wirePropGradient(pointer: *mut Out, id: u16, angle: f64
     } else {
         unsafe { core::slice::from_raw_parts(colors, count as usize) }
     };
-    let properties = super::properties::current();
-    property(out, id, 8);
-    out.put32(3);
-    property(out, properties.angle, 5);
-    out.put(&angle.to_le_bytes());
-    property(out, properties.colors, 7);
-    out.put32(colors.len() as u32);
-    for color in colors {
-        out.put8(4);
-        out.put(&i64::from(*color).to_le_bytes());
-    }
-    property(out, properties.positions, 7);
-    out.put32(colors.len() as u32);
-    for index in 0..colors.len() {
-        out.put8(5);
-        let position = if colors.len() > 1 {
-            index as f64 / (colors.len() - 1) as f64
-        } else {
-            0.0
-        };
-        out.put(&position.to_le_bytes());
-    }
+    out.prop_gradient(id, angle, colors);
 }

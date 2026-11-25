@@ -71,14 +71,7 @@ static inline void wireSkip(Cursor *cursor, size_t count)
     if (wireNeed(cursor, count)) cursor->offset += count;
 }
 
-typedef struct {
-    int32_t id;
-    uint8_t kind;
-    uint64_t value;
-} Tracked;
-
-enum { kTrackNone, kTrackAuthor, kTrackAvatar, kTrackAvatarImage, kTrackChannel, kTrackTimestamp };
-enum { kTrackCapacity = 32768, kMaxTags = 4, kMaxDecorated = 4096 };
+enum { kMaxTags = 4 };
 
 typedef struct {
     int32_t parent;
@@ -144,7 +137,6 @@ void wirePutChildren(Out *out, int32_t parent, const int32_t *children, uint32_t
 int wireTypeIs(const uint8_t *bytes, const Span *span, const char *type);
 void wireSetTemplateSource(const uint8_t *raw);
 void wireRewritePages(const uint8_t *bytes, const Span *spans, size_t count, Out *out, int *changed, size_t length);
-Tracked *wireTrackSlot(int32_t id, int create);
 uint64_t wireAvatarUser(const uint8_t *text, size_t length);
 void wireSetCurrentChannel(uint64_t channel);
 int wirePrefixed(const uint8_t *text, size_t length, const char *prefix, uint64_t *suffix);
@@ -157,7 +149,6 @@ enum { kWireIdentifierLength = 128, kWireTypeLength = 16 };
 int wireReadIdentifier(const uint8_t *bytes, const Span *span, char *identifier, char *type);
 uint64_t wireMessageOfIdentifier(const char *identifier);
 int wireWriteHostLayout(Out *out, int32_t parent);
-size_t wireInlineTime(uint64_t message, char *text, size_t capacity);
 void wireApplyMessageText(Out *out, uint64_t message);
 uint32_t wireInsertedChildren(int32_t parent, int32_t *children, uint32_t capacity, int *atStart);
 void wireInsertNodes(const uint8_t *bytes, const Span *spans, size_t count, Out *out, int *changed, size_t length);
