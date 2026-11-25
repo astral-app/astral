@@ -198,14 +198,14 @@ fn key_offset(prefixes: &[Vec<u8>], identifier: &[u8]) -> Option<usize> {
 pub fn patch_target(prefix_length: usize, identifier: &CString, kind: &CString, node: i32) -> AstralPatchTarget {
     let mut message = message_of_identifier(identifier.as_bytes());
     if message == 0 && identifier.as_bytes() == b"message-row" {
-        message = unsafe { wireRowMessage(node) };
+        message = wireRowMessage(node);
     }
     AstralPatchTarget {
         identifier: identifier.as_ptr(),
         kind: kind.as_ptr(),
         key: prefix_length,
         message_id: message,
-        author_id: if message != 0 { unsafe { wireMessageAuthor(message) } } else { 0 },
+        author_id: if message != 0 { wireMessageAuthor(message) } else { 0 },
         channel_id: current_channel(),
     }
 }

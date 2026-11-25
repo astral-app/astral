@@ -3,8 +3,9 @@ use std::collections::HashMap;
 use std::ffi::CString;
 use std::sync::Mutex;
 
-use super::abi::{AstralPatchTarget, Callback, Tracked, current_channel, wireMessageAuthor, wireTrackSlot};
+use super::abi::{AstralPatchTarget, Callback, current_channel, wireMessageAuthor};
 use super::children::{wireDiscordChildren, wireDiscordParent};
+use super::decorate::{TRACK_AVATAR_IMAGE, tracked_value, wireAllocateNode, wireWriteHostLayout};
 use super::format::{Span, batch_of, child, spans_of, wireChildList, wireCreation, wireParentOf};
 use super::out::{AstralWireBuffer, Out};
 use super::patch::{c_strings, message_of_identifier, read_identifier, wireMarkRefreshBusy};
@@ -33,7 +34,6 @@ const MAX_PREFIX_LENGTH: usize = 96;
 const TARGET_CAPACITY: usize = 256;
 const TARGET_CHILDREN: usize = 48;
 const PATH_BASES: usize = 32;
-const TRACK_AVATAR_IMAGE: u8 = 3;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -85,11 +85,6 @@ fn text_of(field: &[c_char]) -> &[u8] {
 }
 
 pub type NodeInserter = unsafe extern "C" fn(*const AstralPatchTarget, *mut AstralInsertNode, usize, *mut c_int) -> c_int;
-
-unsafe extern "C" {
-    fn wireAllocateNode() -> i32;
-    fn wireWriteHostLayout(out: *mut Out, parent: i32) -> c_int;
-}
 
 #[derive(Clone, Default)]
 struct Target {
@@ -163,10 +158,7 @@ fn batch_avatar_user(spans: &[Span]) -> u64 {
     spans
         .iter()
         .filter(|span| span.op == 1)
-        .find_map(|span| {
-            let tracked: &Tracked = unsafe { wireTrackSlot(span.id, 0).as_ref() }?;
-            (tracked.kind == TRACK_AVATAR_IMAGE && tracked.value != 0).then_some(tracked.value)
-        })
+        .find_map(|span| tracked_value(span.id, TRACK_AVATAR_IMAGE).filter(|user| *user != 0))
         .unwrap_or(0)
 }
 
@@ -334,7 +326,7 @@ fn put_target_children(out: &mut Out, id: i32, target: &Target) {
 }
 
 fn build_nodes(out: &mut Out, target: &mut Target, nodes: &[AstralInsertNode]) {
-    let ids: Vec<i32> = nodes.iter().map(|_| unsafe { wireAllocateNode() }).collect();
+    let ids: Vec<i32> = nodes.iter().map(|_| wireAllocateNode()).collect();
     for (id, node) in ids.iter().zip(nodes) {
         put_node(out, *id, node);
     }
@@ -376,11 +368,7 @@ fn evaluate(out: &mut Out, prefixes: &[Vec<u8>], id: i32, target: &mut Target) -
         kind: kind.as_ptr(),
         key: prefix_length(prefixes, &target.identifier),
         message_id: message,
-        author_id: if message != 0 {
-            unsafe { wireMessageAuthor(message) }
-        } else {
-            target.user
-        },
+        author_id: if message != 0 { wireMessageAuthor(message) } else { target.user },
         channel_id: current_channel(),
     };
     let mut nodes = vec![AstralInsertNode::empty(); INSERT_CAPACITY];

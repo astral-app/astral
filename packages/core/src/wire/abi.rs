@@ -79,9 +79,8 @@ pub struct AstralNameContext {
     pub channel_id: u64,
 }
 
-pub const TRACK_AUTHOR: u8 = 1;
-
 #[repr(C)]
+#[derive(Clone, Copy)]
 pub struct Tracked {
     pub id: i32,
     pub kind: u8,
@@ -139,15 +138,10 @@ pub struct AstralPatchTarget {
 }
 
 pub fn tracked_author(id: i32) -> Option<u64> {
-    let slot = unsafe { wireTrackSlot(id, 0).as_ref() }?;
-    (slot.kind == TRACK_AUTHOR).then_some(slot.value)
+    super::decorate::tracked_value(id, super::decorate::TRACK_AUTHOR)
 }
 
-unsafe extern "C" {
-    pub fn wireTrackSlot(id: i32, create: c_int) -> *mut Tracked;
-    pub fn wireRowMessage(row: i32) -> u64;
-    pub fn wireMessageAuthor(message: u64) -> u64;
-}
+pub use super::decorate::{wireMessageAuthor, wireRowMessage};
 
 pub use super::ids::{avatar_user, current_channel};
 

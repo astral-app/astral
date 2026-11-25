@@ -12,7 +12,6 @@ pub type TextProvider = unsafe extern "C" fn(u64, *mut c_char, usize, *mut c_cha
 pub type SpanTransformer = unsafe extern "C" fn(u64, *const u8, usize, *mut *mut u8, *mut usize) -> c_int;
 
 unsafe extern "C" {
-    fn wireInlineTime(message: u64, text: *mut c_char, capacity: usize) -> usize;
     fn wireMarkRefreshBusy();
     fn free(pointer: *mut core::ffi::c_void);
 }
@@ -201,10 +200,8 @@ fn provided_text(message: u64) -> Option<(Vec<u8>, Vec<u8>)> {
 }
 
 fn inline_time(message: u64) -> Vec<u8> {
-    let mut time = [0 as c_char; MAX_TIME];
-    unsafe { wireInlineTime(message, time.as_mut_ptr(), MAX_TIME) };
-    time[MAX_TIME - 1] = 0;
-    unsafe { CStr::from_ptr(time.as_ptr()) }.to_bytes().to_vec()
+    let time = super::decorate::inline_time(message);
+    if time.len() < MAX_TIME { time } else { Vec::new() }
 }
 
 fn transformed_spans(text: &mut TrackedText, message: u64) -> Option<Vec<u8>> {

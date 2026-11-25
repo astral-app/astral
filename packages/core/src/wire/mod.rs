@@ -5,6 +5,7 @@ pub mod clone;
 pub mod commands;
 pub mod composer;
 pub mod cursor;
+pub mod decorate;
 pub mod emoji;
 pub mod events;
 pub mod format;

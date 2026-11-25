@@ -129,6 +129,10 @@ pub unsafe extern "C" fn wireExpandChildEdits(
     out.bytes
 }
 
+pub fn discord_children(parent: i32) -> Vec<i32> {
+    with_lists(|lists| lists.get(&parent).cloned()).flatten().unwrap_or_default()
+}
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn wireDiscordChildren(parent: i32, children: *mut *const i32) -> u32 {
     with_lists(|lists| match lists.get(&parent) {
