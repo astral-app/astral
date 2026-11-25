@@ -261,6 +261,9 @@ typedef int (*AstralSendTransform)(uint64_t channel_id, const char *text, char *
 void astral_wire_set_send_transform(AstralSendTransform transform);
 int astral_wire_composer_event(const uint8_t *event, size_t length, AstralWireBuffer *before);
 int astral_wire_refresh_message_texts(AstralWireBuffer *buffer);
+typedef int (*AstralSpanTransformer)(uint64_t message_id, const uint8_t *spans, size_t length, uint8_t **transformed,
+                                     size_t *transformedLength);
+void astral_wire_set_span_transformer(AstralSpanTransformer transformer);
 int astral_wire_refresh_message_backgrounds(AstralWireBuffer *buffer);
 
 typedef enum {
@@ -271,7 +274,8 @@ typedef enum {
     AstralPatchMargin = 1 << 4,
     AstralPatchBorder = 1 << 5,
     AstralPatchTextColor = 1 << 6,
-    AstralPatchHidden = 1 << 7
+    AstralPatchHidden = 1 << 7,
+    AstralPatchTextScale = 1 << 8
 } AstralPatchField;
 
 typedef struct {
@@ -284,6 +288,7 @@ typedef struct {
     uint32_t borderColor;
     double borderWidth;
     uint32_t textColor;
+    double textScale;
 } AstralNodePatch;
 
 typedef struct {
@@ -342,6 +347,7 @@ void astral_wire_set_node_inserter(AstralNodeInserter inserter);
 void astral_wire_set_insert_prefixes(const char *const *prefixes, size_t count);
 int astral_wire_refresh_node_inserts(AstralWireBuffer *buffer);
 uint64_t astral_wire_message_for_node(int32_t node);
+uint64_t astral_wire_message_author(uint64_t message);
 uint64_t astral_wire_message_for_row(int32_t list, int64_t index);
 int astral_wire_scroll_to_message(uint64_t message, int animated, const char *align);
 int astral_wire_focus_composer(int focus);
@@ -354,6 +360,11 @@ typedef int (*AstralEmojiResolver)(const char *codepoints, char *url, size_t cap
 
 void astral_wire_set_emoji_resolver(AstralEmojiResolver resolver);
 int astral_wire_refresh_images(AstralWireBuffer *buffer, unsigned generation);
+typedef int (*AstralImageRewriter)(const char *uri, char *rewritten, size_t capacity);
+void astral_wire_set_image_rewriter(AstralImageRewriter rewriter);
+void astral_host_calls_set_image_rewriter(AstralImageRewriter rewriter);
+int astral_host_call_rewrite(const uint8_t *frame, size_t length, AstralWireBuffer *buffer);
+unsigned astral_host_calls_rewritten(void);
 int astral_wire_pending_mentions(void);
 int astral_wire_retry_mentions(AstralWireBuffer *buffer);
 int astral_wire_unsupported_version(void);

@@ -21,6 +21,19 @@ typedef struct {
 
 static TrackedText gTexts[kMaxTrackedTexts];
 static AstralMessageTextProvider gTextProvider;
+static AstralSpanTransformer gSpanTransformer;
+
+void astral_wire_set_span_transformer(AstralSpanTransformer transformer)
+{
+    gSpanTransformer = transformer;
+}
+
+static uint64_t hashBytes(const uint8_t *bytes, size_t length)
+{
+    uint64_t hash = 1469598103934665603ull;
+    for (size_t index = 0; index < length; index++) hash = (hash ^ bytes[index]) * 1099511628211ull;
+    return hash ? hash : 1;
+}
 
 void astral_wire_set_message_text_provider(AstralMessageTextProvider provider)
 {
@@ -146,29 +159,29 @@ static void putOverride(Out *out, int32_t node, const char *text, const char *no
     if (time[0]) putTimeSpan(out, time);
 }
 
-static int putOriginalWithTime(Out *out, const TrackedText *text, const char *time)
+static int putSpansWithTime(Out *out, int32_t node, const uint8_t *spans, size_t length, const char *time)
 {
-    if (!text->original || text->originalLength < 5 || text->original[0] != 7) return 0;
+    if (!spans || length < 5 || spans[0] != 7) return 0;
     uint32_t count = 0;
-    memcpy(&count, text->original + 1, sizeof(count));
+    memcpy(&count, spans + 1, sizeof(count));
     wirePut8(out, 2);
-    wirePut32(out, (uint32_t)text->node);
+    wirePut32(out, (uint32_t)node);
     wirePut16(out, 1);
     wirePut16(out, P(spans));
     wirePut8(out, 7);
     wirePut32(out, count + 1);
-    wirePut(out, text->original + 5, text->originalLength - 5);
+    wirePut(out, spans + 5, length - 5);
     putTimeSpan(out, time);
     return 1;
 }
 
-static void putOriginal(Out *out, const TrackedText *text)
+static void putSpans(Out *out, int32_t node, const uint8_t *spans, size_t length)
 {
     wirePut8(out, 2);
-    wirePut32(out, (uint32_t)text->node);
+    wirePut32(out, (uint32_t)node);
     wirePut16(out, 1);
     wirePut16(out, P(spans));
-    wirePut(out, text->original, text->originalLength);
+    wirePut(out, spans, length);
 }
 
 static void startFade(Out *out, int32_t node)
@@ -190,22 +203,42 @@ static int apply(Out *out, TrackedText *text, int force)
     time[0] = 0;
     int wanted = gTextProvider && gTextProvider(text->message, override, sizeof(override), note, sizeof(note)) && override[0];
     wireInlineTime(text->message, time, sizeof(time));
-    if (wanted || time[0]) {
-        uint64_t hash = wanted ? hashOf(override, note) : 2;
+    uint8_t *transformed = NULL;
+    size_t transformedLength = 0;
+    if (!wanted && gSpanTransformer && text->original) {
+        int result = gSpanTransformer(text->message, text->original, text->originalLength, &transformed, &transformedLength);
+        if (result < 0) wireMarkRefreshBusy();
+        if (result <= 0 || !transformed) {
+            free(transformed);
+            transformed = NULL;
+        }
+    }
+    const uint8_t *base = transformed ? transformed : text->original;
+    size_t baseLength = transformed ? transformedLength : text->originalLength;
+    if (wanted || time[0] || transformed) {
+        uint64_t hash = wanted ? hashOf(override, note) : transformed ? hashBytes(transformed, transformedLength) : 2;
         hash = (hash ^ hashOf(time, "")) | 1;
-        if (!force && text->applied == hash) return 0;
+        if (!force && text->applied == hash) {
+            free(transformed);
+            return 0;
+        }
         int overrideChanged = wanted != text->overridden;
+        int wrote = 1;
         if (wanted)
             putOverride(out, text->node, override, note, time);
-        else if (!putOriginalWithTime(out, text, time))
-            return 0;
+        else if (time[0])
+            wrote = putSpansWithTime(out, text->node, base, baseLength, time);
+        else
+            putSpans(out, text->node, base, baseLength);
+        free(transformed);
+        if (!wrote) return 0;
         if (!force && overrideChanged) startFade(out, text->node);
         text->applied = hash;
         text->overridden = wanted;
         return 1;
     }
     if (!text->applied || !text->original) return 0;
-    putOriginal(out, text);
+    putSpans(out, text->node, text->original, text->originalLength);
     if (!force && text->overridden) startFade(out, text->node);
     text->applied = 0;
     text->overridden = 0;

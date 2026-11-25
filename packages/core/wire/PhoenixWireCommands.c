@@ -89,3 +89,8 @@ int astral_wire_take_commands(AstralWireBuffer *buffer)
     buffer->length = out.length;
     return 1;
 }
+
+uint64_t astral_wire_message_author(uint64_t message)
+{
+    return wireMessageAuthor(message);
+}

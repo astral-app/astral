@@ -36,6 +36,13 @@ int astral_settings_rewrite(const uint8_t *bytes, size_t length, AstralWireBuffe
         length = expandedLength;
         changed = 1;
     }
+    size_t imagesLength = 0;
+    uint8_t *images = wireRewriteImages(bytes, length, spans, &count, &imagesLength);
+    if (images) {
+        bytes = images;
+        length = imagesLength;
+        changed = 1;
+    }
     size_t relabelledLength = 0;
     uint8_t *relabelled = wireRelabel(bytes, length, spans, count, &relabelledLength);
     if (relabelled) {
@@ -86,6 +93,7 @@ int astral_settings_rewrite(const uint8_t *bytes, size_t length, AstralWireBuffe
     free(emoji);
     free(relabelled);
     free(expanded);
+    free(images);
     if (!changed || out.failed) {
         free(out.bytes);
         return 0;

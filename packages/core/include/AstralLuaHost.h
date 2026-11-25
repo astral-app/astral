@@ -40,6 +40,7 @@ struct LuaHostPlatform {
     std::function<bool(uint64_t message, bool animated, const std::string &align)> scrollToMessage;
     std::function<bool(bool focus)> focusComposer;
     std::function<bool(const std::string &message)> dispatchGateway;
+    std::function<bool(const std::string &identifier, bool prefix)> pressNode;
     std::function<bool(const std::string &text, const std::string &language, double rate)> speak;
     std::function<bool(const std::string &path, double volume)> playSound;
     std::function<void()> stopAudio;
@@ -127,6 +128,8 @@ size_t AstralLuaMessageMenu(AstralMenuEntry *entries, size_t capacity);
 size_t AstralLuaDecorate(const AstralDecorationContext *context, AstralTag *tags, size_t capacity);
 int AstralLuaMessageBackground(const AstralMessageBackgroundContext *context, AstralMessageBackgroundStyle *style);
 int AstralLuaPatchNode(const AstralPatchTarget *target, AstralNodePatch *patch);
+int AstralLuaImageRewrite(const char *uri, char *rewritten, size_t capacity);
+int AstralLuaSpanTransform(uint64_t messageID, const uint8_t *spans, size_t length, uint8_t **transformed, size_t *transformedLength);
 int AstralLuaInsertNodes(const AstralPatchTarget *target, AstralInsertNode *nodes, size_t capacity, int *atStart);
 int AstralLuaRelabel(const AstralLabelContext *context, const char *text, size_t length, char *out, size_t capacity);
 }

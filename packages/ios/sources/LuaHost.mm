@@ -20,6 +20,71 @@
 #import "NetworkRequest.h"
 #import "NetworkFilter.h"
 #import <UIKit/UIKit.h>
+#import <objc/message.h>
+#import <objc/runtime.h>
+
+static UIView *IdentifiedView(UIView *view, NSString *identifier, BOOL prefix)
+{
+    if (view.hidden || view.alpha < 0.01) return nil;
+    NSString *own = view.accessibilityIdentifier;
+    if (own && (prefix ? [own hasPrefix:identifier] : [own isEqualToString:identifier])) return view;
+    for (UIView *child in view.subviews.reverseObjectEnumerator) {
+        UIView *found = IdentifiedView(child, identifier, prefix);
+        if (found) return found;
+    }
+    return nil;
+}
+
+static BOOL FireTapRecognizer(UIView *view)
+{
+    for (UIView *current = view; current; current = current.superview) {
+        for (UIGestureRecognizer *recognizer in current.gestureRecognizers) {
+            if (![recognizer isKindOfClass:UITapGestureRecognizer.class] || !recognizer.enabled) continue;
+            Ivar targetsIvar = class_getInstanceVariable(UIGestureRecognizer.class, "_targets");
+            NSArray *targets = targetsIvar ? object_getIvar(recognizer, targetsIvar) : nil;
+            BOOL fired = NO;
+            for (id entry in targets) {
+                Ivar targetIvar = class_getInstanceVariable([entry class], "_target");
+                Ivar actionIvar = class_getInstanceVariable([entry class], "_action");
+                if (!targetIvar || !actionIvar) continue;
+                id target = object_getIvar(entry, targetIvar);
+                SEL action = ((SEL (*)(id, Ivar))object_getIvar)(entry, actionIvar);
+                if (!target || !action || ![target respondsToSelector:action]) continue;
+                SEL setState = NSSelectorFromString(@"setState:");
+                BOOL settable = [recognizer respondsToSelector:setState];
+                @try {
+                    if (settable) ((void (*)(id, SEL, NSInteger))objc_msgSend)(recognizer, setState, UIGestureRecognizerStateEnded);
+                    ((void (*)(id, SEL, id))objc_msgSend)(target, action, recognizer);
+                    fired = YES;
+                } @catch (NSException *exception) {
+                    AstralDevAppendLog(
+                        [NSString stringWithFormat:@"press: %@ refused the tap: %@", NSStringFromClass([target class]), exception.reason]);
+                }
+                if (settable) ((void (*)(id, SEL, NSInteger))objc_msgSend)(recognizer, setState, UIGestureRecognizerStatePossible);
+            }
+            if (fired) return YES;
+        }
+    }
+    return NO;
+}
+
+static BOOL PressIdentifiedView(NSString *identifier, BOOL prefix)
+{
+    for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
+        if (![scene isKindOfClass:UIWindowScene.class]) continue;
+        for (UIWindow *window in ((UIWindowScene *)scene).windows.reverseObjectEnumerator) {
+            UIView *view = IdentifiedView(window, identifier, prefix);
+            if (!view) continue;
+            if ([view accessibilityActivate] || FireTapRecognizer(view)) return YES;
+            if ([view isKindOfClass:UIControl.class]) {
+                [(UIControl *)view sendActionsForControlEvents:UIControlEventTouchUpInside];
+                return YES;
+            }
+            return NO;
+        }
+    }
+    return NO;
+}
 
 static std::string AppLink(const std::string &url)
 {
@@ -236,6 +301,15 @@ static astral::LuaHostPlatform Platform(void)
         AstralRecordPluginFailure(Native(identifier), Native(name), Native(error));
     };
     platform.developerLog = [](const std::string &line) { AstralDevAppendLog(Native(line)); };
+    platform.pressNode = [](const std::string &identifier, bool prefix) {
+        NSString *wanted = Native(identifier);
+        if ([NSThread isMainThread]) return (bool)PressIdentifiedView(wanted, prefix);
+        __block BOOL pressed = NO;
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            pressed = PressIdentifiedView(wanted, prefix);
+        });
+        return (bool)pressed;
+    };
     platform.dispatchGateway = [](const std::string &message) { return (bool)AstralDispatchLocalGatewayEvent(Native(message)); };
     platform.scrollToMessage = [](uint64_t message, bool animated, const std::string &align) {
         if (!astral_wire_scroll_to_message(message, animated, align.c_str())) return false;

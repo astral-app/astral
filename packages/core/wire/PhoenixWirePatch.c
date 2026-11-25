@@ -20,6 +20,16 @@ typedef struct {
     RawProp originals[kPatchProps];
 } Patched;
 
+typedef struct {
+    int32_t id;
+    int32_t owner;
+    double base;
+    int scaled;
+} ScaledText;
+
+enum { kScaledTextCapacity = 2048, kScaleDepth = 5, kScaleNodes = 64 };
+
+static ScaledText gScaled[kScaledTextCapacity];
 static AstralNodePatcher gPatcher;
 static char gPrefixes[kPatchPrefixCapacity][kPatchPrefixLength];
 static size_t gPrefixCount;
@@ -268,6 +278,98 @@ static int writePatch(Out *out, Patched *patched, const AstralNodePatch *patch)
     return 1;
 }
 
+static ScaledText *scaledSlot(int32_t id, int create)
+{
+    size_t start = ((uint32_t)id * 2654435761u) % kScaledTextCapacity;
+    for (size_t probe = 0; probe < kScaledTextCapacity; probe++) {
+        ScaledText *slot = &gScaled[(start + probe) % kScaledTextCapacity];
+        if (slot->id == id) return slot;
+        if (slot->id == 0 || (create && slot->id < 0)) {
+            if (!create) return NULL;
+            memset(slot, 0, sizeof(*slot));
+            slot->id = id;
+            return slot;
+        }
+    }
+    return NULL;
+}
+
+static const Span *createSpan(const Span *spans, size_t count, int32_t id)
+{
+    for (size_t index = 0; index < count; index++)
+        if (spans[index].op == 1 && spans[index].id == id) return &spans[index];
+    return NULL;
+}
+
+static int readFontSize(const uint8_t *bytes, const Span *span, double *size)
+{
+    Cursor cursor = {bytes, span->end, span->start + 1 + 4, 0};
+    wireSkip(&cursor, wireRead16(&cursor));
+    uint16_t count = wireRead16(&cursor);
+    for (uint16_t index = 0; index < count && !cursor.failed; index++) {
+        uint16_t property = wireRead16(&cursor);
+        uint8_t tag = wireRead8(&cursor);
+        if (property == P(fontSize) && tag == 5 && wireNeed(&cursor, 8)) {
+            memcpy(size, bytes + cursor.offset, 8);
+            return 1;
+        }
+        wireSkipValue(&cursor, tag, 0);
+    }
+    return 0;
+}
+
+static void writeFontSize(Out *out, int32_t id, double size)
+{
+    wirePut8(out, 2);
+    wirePut32(out, (uint32_t)id);
+    wirePropCount(out, 1);
+    wirePropNumber(out, P(fontSize), size);
+}
+
+static int writeScaledTexts(Out *out, int32_t owner, const AstralNodePatch *patch)
+{
+    int wrote = 0;
+    double scale = (patch->fields & AstralPatchTextScale) ? patch->textScale : 1;
+    for (size_t index = 0; index < kScaledTextCapacity; index++) {
+        ScaledText *text = &gScaled[index];
+        if (text->id <= 0 || text->owner != owner) continue;
+        if (scale == 1 && !text->scaled) continue;
+        writeFontSize(out, text->id, text->base * scale);
+        text->scaled = scale != 1;
+        wrote = 1;
+    }
+    return wrote;
+}
+
+static void collectTexts(const uint8_t *bytes, const Span *spans, size_t count, int32_t owner)
+{
+    int32_t nodes[kScaleNodes];
+    int depths[kScaleNodes];
+    size_t used = 0, cursor = 0;
+    nodes[used] = owner;
+    depths[used++] = 0;
+    while (cursor < used) {
+        int32_t node = nodes[cursor];
+        int depth = depths[cursor++];
+        const Span *created = createSpan(spans, count, node);
+        double size = 0;
+        if (created && wireTypeIs(bytes, created, "text") && readFontSize(bytes, created, &size)) {
+            ScaledText *text = scaledSlot(node, 1);
+            if (text) {
+                text->owner = owner;
+                text->base = size;
+                text->scaled = 0;
+            }
+        }
+        if (depth >= kScaleDepth) continue;
+        const Span *list = wireChildList(bytes, spans, count, node);
+        for (uint32_t position = 0; list && position < list->childCount && used < kScaleNodes; position++) {
+            nodes[used] = wireChildAt(bytes, list, position);
+            depths[used++] = depth + 1;
+        }
+    }
+}
+
 static int evaluate(Out *out, Patched *patched)
 {
     AstralNodePatch patch = {0};
@@ -275,7 +377,8 @@ static int evaluate(Out *out, Patched *patched)
         wireMarkRefreshBusy();
         return 0;
     }
-    return writePatch(out, patched, &patch);
+    int wrote = writePatch(out, patched, &patch);
+    return writeScaledTexts(out, patched->id, &patch) || wrote;
 }
 
 void wirePatchNodes(const uint8_t *bytes, const Span *spans, size_t count, Out *out, int *changed, size_t length)
@@ -285,8 +388,11 @@ void wirePatchNodes(const uint8_t *bytes, const Span *spans, size_t count, Out *
         const Span *span = &spans[index];
         if (span->op == 4) {
             for (uint32_t position = 0; position < span->childCount; position++) {
-                Patched *removed = patchedSlot(wireChildAt(bytes, span, position), 0);
+                int32_t child = wireChildAt(bytes, span, position);
+                Patched *removed = patchedSlot(child, 0);
                 if (removed) removed->id = -1;
+                ScaledText *text = scaledSlot(child, 0);
+                if (text) text->id = -1;
             }
             continue;
         }
@@ -298,6 +404,7 @@ void wirePatchNodes(const uint8_t *bytes, const Span *spans, size_t count, Out *
         strcpy(patched->identifier, identifier);
         strcpy(patched->type, type);
         captureOriginals(bytes, span, patched);
+        collectTexts(bytes, spans, count, span->id);
         AstralNodePatch patch = {0};
         int result = callPatcher(span->id, identifier, type, &patch);
         if (result < 0) wireMarkRefreshBusy();
@@ -305,6 +412,7 @@ void wirePatchNodes(const uint8_t *bytes, const Span *spans, size_t count, Out *
         if (!*changed) wirePut(out, bytes, length);
         *changed = 1;
         writePatch(out, patched, &patch);
+        writeScaledTexts(out, span->id, &patch);
     }
 }
 

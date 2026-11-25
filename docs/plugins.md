@@ -22,7 +22,7 @@ Plugin settings take an optional `icon` (a Discord icon name such as `PaintPalet
 
 ## Patching nodes
 
-`astral.ui.patch(selector, fn)` restyles any node whose `accessibilityId` starts with `selector.id` (and, when given, whose type is `selector.type`). `fn` gets `{ id, key, type }`, where `key` is the part after the prefix, plus `message_id`, `author_id` and `channel_id` for `message.*` nodes, and returns the props to set: `background`, `radius`, `opacity`, `padding`, `margin`, `border_color` with `border_width`, `text_color` and `hidden`. Returning nothing puts Discord's own values back, and so does turning the plugin off. Needs the `ui.patch` permission. A plugin installed while Discord is open patches nodes drawn after it loads.
+`astral.ui.patch(selector, fn)` restyles any node whose `accessibilityId` starts with `selector.id` (and, when given, whose type is `selector.type`). `fn` gets `{ id, key, type }`, where `key` is the part after the prefix, plus `message_id`, `author_id` and `channel_id` for `message.*` nodes, and returns the props to set: `background`, `radius`, `opacity`, `padding`, `margin`, `border_color` with `border_width`, `text_color`, `text_scale` (0.5 to 3, applied to the font size of every text inside the node) and `hidden`. Returning nothing puts Discord's own values back, and so does turning the plugin off. Needs the `ui.patch` permission. A plugin installed while Discord is open patches nodes drawn after it loads.
 
 ## Inserting nodes
 
@@ -86,6 +86,9 @@ Each plugin gets its own `lua_State` with `base`, `table`, `string`, `math`, `ut
 | `astral.ui.open(url)` | Opens an `https://` or `discord://` link, which Discord handles itself when it can |
 | `astral.ui.open_channel(channel_id, message_id?)` | Opens a channel inside Discord, at a message when one is given; needs `ui.navigate` |
 | `astral.ui.scroll_to(message_id, {animated, align}?)` | Scrolls the open chat to a loaded message with Discord's own list scroll; returns `false` when the message isn't loaded; needs `ui.navigate` |
+| `astral.ui.text_transform(fn)` | `fn(spans, {message_id, author_id})` gets a message's text as a list of spans (`text`, `color`, `weight`, `link`, `font`, `bg`, `bg_radius`, `scale`, `bold`, `strike`, `underline`) and returns a new list to show, for pills, highlighting and replacements; parts astral doesn't model, such as inline emoji, are kept as they were; needs `ui.text` |
+| `astral.ui.image_rewrite(prefix, fn)` | `fn(url)` returns a different `http(s)` URL for every image Discord draws whose URL starts with `prefix` (for example animated avatars); applies to images drawn after it is registered; needs `ui.images` |
+| `astral.ui.press(identifier)` | Presses the Discord control whose `accessibilityId` is `identifier` (or starts with it, when it ends in `*`), the way an accessibility tool would; needs `ui.press` |
 | `astral.ui.focus_composer(focus?)` | Focuses the chat input, or hides the keyboard with `false`; needs `ui.navigate` |
 | `astral.ui.composer(fn)` | Passes unsent composer text to `fn(text)`, which returns up to 128 one-based UTF-8 byte ranges per plugin using `bold`, `italic`, `underline`, `strike`, `code`, `spoiler`, `marker`, `heading1` to `heading3`, `subtext` or `quote`; input is limited to 8 KiB and requires `ui.composer` |
 | `astral.ui.haptic(strength)` | Triggers `light`, `medium` or `heavy` native haptic feedback after the plugin declares `ui.haptics` |

@@ -7,6 +7,11 @@ extern "C" {
 #endif
 
 #define ASTRAL_WIRE_PROPERTIES(X)                                                                                                          \
+    X(cacheKey, 113)                                                                                                                       \
+    X(font, 205)                                                                                                                           \
+    X(bold, 103)                                                                                                                           \
+    X(strike, 487)                                                                                                                         \
+    X(underline, 540)                                                                                                                      \
     X(accessibilityActions, 1)                                                                                                             \
     X(accessibilityBusy, 2)                                                                                                                \
     X(accessibilityChecked, 3)                                                                                                             \

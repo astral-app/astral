@@ -409,6 +409,29 @@ function astral.ui.open_channel(channel_id, message_id) end
 ---@param options? astral.ScrollOptions
 ---@return boolean scrolled false when the message is not loaded
 function astral.ui.scroll_to(message_id, options) end
+---@class astral.TextSpan
+---@field text? string
+---@field color? astral.ColorLike
+---@field weight? integer
+---@field link? string
+---@field font? string
+---@field bg? integer background colour behind the span, as ARGB
+---@field bg_radius? number
+---@field scale? number
+---@field bold? boolean
+---@field strike? boolean
+---@field underline? boolean
+---Changes how message text is drawn. Return a new list of spans, or nothing to keep Discord's.
+---@param transform fun(spans: astral.TextSpan[], context: { message_id: string, author_id?: string }): astral.TextSpan[]?
+function astral.ui.text_transform(transform) end
+---Rewrites the URL of every image Discord draws whose URL starts with `prefix`.
+---@param prefix string
+---@param rewrite fun(url: string): string?
+function astral.ui.image_rewrite(prefix, rewrite) end
+---Presses Discord's own control with this accessibility id, or the first starting with it when it ends in "*".
+---@param identifier string
+---@return boolean pressed
+function astral.ui.press(identifier) end
 ---Focuses the chat input, or hides the keyboard when `focus` is false.
 ---@param focus? boolean defaults to true
 ---@return boolean
@@ -455,6 +478,7 @@ function astral.ui.message_color(colorizer) end
 ---@field border_width? number
 ---@field text_color? astral.Color|integer|string
 ---@field hidden? boolean
+---@field text_scale? number 0.5 to 3, scales every text inside the node
 
 ---@param selector string|astral.PatchSelector
 ---@param patcher fun(node: astral.PatchTarget): astral.NodePatch?
