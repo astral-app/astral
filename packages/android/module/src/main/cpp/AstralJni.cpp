@@ -616,6 +616,7 @@ void installDecorators()
 {
     astral_wire_set_decorator(AstralLuaDecorate);
     astral_wire_set_message_background_decorator(AstralLuaMessageBackground);
+    astral_wire_set_code_block_decorator(AstralLuaCodeBlock);
     astral_wire_set_node_patcher(AstralLuaPatchNode);
     astral_wire_set_image_rewriter(AstralLuaImageRewrite);
     astral_host_calls_set_image_rewriter(AstralLuaImageRewrite);
@@ -658,6 +659,7 @@ std::vector<uint8_t> pendingUpdates()
         if (astral_wire_refresh_message_texts(&buffer)) append(merged, buffer);
         if (astral_wire_refresh_author_tags(&buffer)) append(merged, buffer);
         if (astral_wire_refresh_message_backgrounds(&buffer)) append(merged, buffer);
+        if (astral_wire_refresh_code_blocks(&buffer)) append(merged, buffer);
         if (astral_wire_refresh_node_patches(&buffer)) append(merged, buffer);
         if (astral_wire_refresh_node_inserts(&buffer)) {
             astral_wire_note_identifiers(buffer.bytes, buffer.length);

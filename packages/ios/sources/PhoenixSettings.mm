@@ -526,6 +526,8 @@ void AstralPhoenixRefreshDecorations(void)
         if (live && astral_wire_refresh_author_tags(&tags)) Send(&tags);
         AstralWireBuffer backgrounds = {};
         if (live && astral_wire_refresh_message_backgrounds(&backgrounds)) Send(&backgrounds);
+        AstralWireBuffer codeBlocks = {};
+        if (live && astral_wire_refresh_code_blocks(&codeBlocks)) Send(&codeBlocks);
         AstralWireBuffer patches = {};
         if (live && astral_wire_refresh_node_patches(&patches)) Send(&patches);
         AstralWireBuffer inserts = {};

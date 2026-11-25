@@ -1,0 +1,11 @@
+signature = "PzHFPNiXadh59XVJXTTNBzcMK51bRqgXf6m2JWdi+WUeeu577rd4KYjKYOElBbjDkNMT4j7o1Me4xrrRsVS9BA=="
+
+[files]
+"i18n/en-US.toml" = "0b20f62733aa52f84c6c4f50049fc4ce8f03d5542c91cc8efe85f4b692f57054"
+"lib/devicons.lua" = "8eef686df7bf3f1530dce499f757021755915a655d194a9616c3c947478a3053"
+"lib/devicons.luac" = "a195e7b2350532958542685627a6ef024827d6f37f8f013b620b5e8a552c8757"
+"lib/themes.lua" = "53c3b7205ab792b9cf7ea1dd7810853884b1001c4194497084eb398cbbcf0d87"
+"lib/themes.luac" = "be2bf6bd7a55f970fe26b76191cf171c6e1facd0b3098d7581893d6f790189bf"
+"main.lua" = "c2aa8b20199df1e4a3eb27270613af30b1c58956a8e6c8a9f0ccfdad2d45667f"
+"main.luac" = "83e90afde89fc22b6bd359b705a7d7d14116c4b6b0da92af023af9ac6a7b4caf"
+"manifest.toml" = "63c65ffc6c1a53535ff6175c958d29d24ecf550b1ba9c5f2bfefe3f99290069a"

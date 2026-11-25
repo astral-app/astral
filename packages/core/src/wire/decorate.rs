@@ -176,6 +176,7 @@ struct Block {
     accent_color: u32,
     padding: [f32; 4],
     children: Vec<i32>,
+    wide: bool,
 }
 
 #[derive(Default)]
@@ -583,13 +584,14 @@ fn write_block_update(out: &mut Out, block: &Block, shown: bool, color: u32, rad
         let top = if shown { block.padding[1] - MEDIA_INSET } else { 0.0 };
         out.prop_quad(properties.margin, [0.0, top, 0.0, 0.0]);
     }
-    if shown {
-        out.prop_unset(properties.width);
-    } else {
+    let fill = !shown || block.wide;
+    if fill {
         out.prop_string(properties.width, b"fill");
+    } else {
+        out.prop_unset(properties.width);
     }
     for node in &block.children {
-        put_unset_width(out, *node, !shown);
+        put_unset_width(out, *node, fill);
     }
 }
 
@@ -723,6 +725,7 @@ fn remember_block_children(batch: &Batch, block: &mut Block) {
     let properties = properties::current();
     let Some(list) = batch.list(block.id) else { return };
     block.children.clear();
+    block.wide = false;
     for position in 0..list.child_count {
         if block.children.len() >= BUBBLE_CHILDREN {
             break;
@@ -745,8 +748,21 @@ fn remember_block_children(batch: &Batch, block: &mut Block) {
         if block.media && !creation.is_some_and(|creation| string_is(batch.bytes, creation, properties.width, b"fill")) {
             continue;
         }
+        block.wide |= !block.media && holds_code(batch, node);
         block.children.push(node);
     }
+}
+
+fn holds_code(batch: &Batch, node: i32) -> bool {
+    let is_code = |id: i32| {
+        batch
+            .creation(id)
+            .is_some_and(|creation| super::code_blocks::is_code_block(batch.bytes, creation))
+    };
+    is_code(node)
+        || batch
+            .list(node)
+            .is_some_and(|list| (0..list.child_count).any(|position| is_code(batch.child(list, position))))
 }
 
 fn reply_body(batch: &Batch, row: i32) -> i32 {

@@ -245,6 +245,7 @@ std::pair<std::string, std::string> permissionDescription(const std::string &per
         {"ui.dialogs", {"Shows dialogs and pickers", "res://ic_mana_chat"}},
         {"ui.patch", {"Restyles parts of Discord's screens", "res://ic_mana_paint_palette"}},
         {"ui.insert", {"Adds buttons and text to Discord's screens", "res://ic_mana_paint_palette"}},
+        {"ui.code_blocks", {"Restyles code blocks in messages", "res://ic_mana_paint_palette"}},
         {"files.read", {"Reads files you pick", "res://ic_mana_image"}},
         {"media.save", {"Changes which file Discord saves to your photos", "res://ic_mana_download"}},
         {"ui.haptics", {"Triggers haptic feedback", "res://ic_mana_bell"}},

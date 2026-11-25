@@ -4,6 +4,7 @@ use std::sync::atomic::{AtomicI32, AtomicU32, Ordering};
 
 use super::backdrop::wireSettingsBackdrop;
 use super::children::wireExpandChildEdits;
+use super::code_blocks::wireCodeBlocks;
 use super::composer::wireTrackComposer;
 use super::decorate::{wireDecorate, wireObserve, wireObserveRemovals};
 use super::emoji::{wireEmojiBatch, wireReactionEmoji};
@@ -29,7 +30,7 @@ unsafe extern "C" {
 type Stage = unsafe extern "C" fn(*const u8, *const Span, usize, *mut Out, *mut c_int, usize);
 type Expansion = unsafe extern "C" fn(*const u8, usize, *mut Span, *mut usize, *mut usize) -> *mut u8;
 
-const STAGES: [Stage; 11] = [
+const STAGES: [Stage; 12] = [
     wireDecorate,
     wirePatchNodes,
     wireInsertNodes,
@@ -38,6 +39,7 @@ const STAGES: [Stage; 11] = [
     wireColorNames,
     wireReactionEmoji,
     wireMessageTexts,
+    wireCodeBlocks,
     wireReactionAvatars,
     wireSettingsBackdrop,
     wireObserveRemovals,

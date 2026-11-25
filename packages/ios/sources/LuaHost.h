@@ -1,6 +1,7 @@
 #import <Foundation/Foundation.h>
 
 #import "PhoenixWire.h"
+#include "AstralCodeBlocks.h"
 
 #ifdef __cplusplus
 namespace astral {
@@ -27,6 +28,7 @@ int AstralLuaTyping(const AstralNameContext *context, AstralMentionDecoration *d
 int AstralLuaNameColor(const AstralNameContext *context, uint32_t *color);
 int AstralLuaMessageTextColor(uint64_t messageID, uint64_t channelID, uint32_t *color);
 int AstralLuaMessageBackground(const AstralMessageBackgroundContext *context, AstralMessageBackgroundStyle *style);
+int AstralLuaCodeBlock(const AstralCodeBlockContext *context, AstralRustString *card);
 int AstralLuaPatchNode(const AstralPatchTarget *target, AstralNodePatch *patch);
 int AstralLuaImageRewrite(const char *uri, char *rewritten, size_t capacity);
 int AstralLuaSpanTransform(uint64_t messageID, const uint8_t *spans, size_t length, uint8_t **transformed, size_t *transformedLength);
