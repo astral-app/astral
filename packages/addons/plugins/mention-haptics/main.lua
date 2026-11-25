@@ -5,8 +5,10 @@ settings:choice("strength", "Haptic strength", {
 	astral.settings.option("medium", "Medium"),
 	astral.settings.option("heavy", "Heavy"),
 }, "medium")
-settings:switch("directMessages", "Direct messages", true, "Tap for incoming direct messages.")
-settings:switch("openChannel", "Current channel", false, "Tap when the message is in the open channel.")
+settings:switch("direct_messages", "Direct messages", true, "Tap for incoming direct messages")
+settings:switch("everyone", "@everyone and @here", true, "Tap when a message pings everyone in a server")
+settings:switch("roles", "Your roles", true, "Tap when a message mentions a role you have")
+settings:switch("open_channel", "Current channel", false, "Tap when the message is in the open channel")
 
 local seen = {}
 local recent = {}
@@ -26,15 +28,20 @@ local function remember(message_id)
 	return true
 end
 
+local function pings_me(message, values)
+	return message.mentioned
+		or (message.direct and values.direct_messages)
+		or (message.everyone and values.everyone)
+		or (message.role_mentioned and values.roles)
+end
+
 astral.events.on("message.create", function(message)
-	if not message or message.from_me or (message.open and not astral.settings.values.openChannel) then
+	local values = astral.settings.values
+	if not message or message.from_me or (message.open and not values.open_channel) then
 		return
 	end
-	if not message.mentioned and not (message.direct and astral.settings.values.directMessages) then
+	if not pings_me(message, values) or not remember(message.message_id) then
 		return
 	end
-	if not remember(message.message_id) then
-		return
-	end
-	astral.ui.haptic(astral.settings.values.strength or "medium")
+	astral.ui.haptic(values.strength or "medium")
 end)

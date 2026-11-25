@@ -41,18 +41,27 @@ assert(haptics[1] == "medium")
 callback({ message_id = "m2", from_me = true, mentioned = true, direct = false, open = false })
 callback({ message_id = "m3", from_me = false, mentioned = true, direct = false, open = true })
 assert(#haptics == 1)
-values.openChannel = true
+values.open_channel = true
 callback({ message_id = "m4", from_me = false, mentioned = true, direct = false, open = true })
 assert(#haptics == 2)
 callback({ message_id = "m4", from_me = false, mentioned = true, direct = false, open = false })
 assert(#haptics == 2)
 callback({ message_id = "m5", from_me = false, mentioned = false, direct = true, open = false })
 assert(#haptics == 3)
-values.directMessages = false
+values.direct_messages = false
 callback({ message_id = "m6", from_me = false, mentioned = false, direct = true, open = false })
 assert(#haptics == 3)
 values.strength = "heavy"
 callback({ message_id = "m7", from_me = false, mentioned = true, direct = false, open = false })
 assert(haptics[4] == "heavy")
+callback({ message_id = "m8", from_me = false, mentioned = false, everyone = true, direct = false, open = false })
+assert(#haptics == 5)
+callback({ message_id = "m9", from_me = false, role_mentioned = true, direct = false, open = false })
+assert(#haptics == 6)
+values.everyone = false
+values.roles = false
+callback({ message_id = "m10", from_me = false, mentioned = false, everyone = true, direct = false, open = false })
+callback({ message_id = "m11", from_me = false, role_mentioned = true, direct = false, open = false })
+assert(#haptics == 6)
 
 print("mention-haptics ok")

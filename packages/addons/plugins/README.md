@@ -12,7 +12,7 @@
 - <img src="../../assets/readme-icons/paint-palette-icon.svg" width="20" height="20" align="absmiddle" alt=""> [IRC Colors](irc-colors/): Gives everyone in chat their own username color, picked from their user id like in IRC clients.
 - <img src="../../assets/readme-icons/text-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Live Markdown](live-markdown/): Styles Discord markdown as you type in the message composer.
 - <img src="../../assets/readme-icons/user-circle-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Mention Avatars](mention-avatars/): Shows user avatars and role icons inside mentions.
-- <img src="../../assets/readme-icons/bell-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Mention Haptics](mention-haptics/): Taps your phone when a new message mentions you or arrives in a direct message.
+- <img src="../../assets/readme-icons/bell-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Mention Haptics](mention-haptics/): Taps your phone when a new message mentions you, your roles or everyone, or arrives in a direct message.
 - <img src="../../assets/readme-icons/more-user-tags.svg" width="20" height="20" align="absmiddle" alt=""> [More User Tags](more-user-tags/): Adds tags for webhooks and moderative roles, and can show each member's top coloured role.
 - <img src="../../assets/readme-icons/user-plus-icon.svg" width="20" height="20" align="absmiddle" alt=""> [New Member Sprout](new-member-sprout/): Shows desktop's new member sprout beside people who joined the server in the last week.
 - <img src="../../assets/readme-icons/reaction-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Reaction Avatars](reaction-avatars/): Shows the people who reacted beside each message reaction.

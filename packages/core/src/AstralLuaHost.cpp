@@ -2319,8 +2319,28 @@ static bool FilterMessageCreate(const std::string &messageID, const std::string 
     return false;
 }
 
-static void EmitMessageCreate(const std::string &messageID, const std::string &channelID, const std::string &authorID, bool fromMe,
-                              bool mentioned, bool direct, bool open)
+struct MessageMentions {
+    bool user = false;
+    bool everyone = false;
+    bool role = false;
+};
+
+static bool MentionsMyRole(const nlohmann::json &data, const std::string &guild, const std::string &currentUser)
+{
+    auto roles = data.find("mention_roles");
+    if (roles == data.end() || !roles->is_array() || roles->empty() || guild.empty() || !gPlatform.member) return false;
+    auto member = gPlatform.member(guild, currentUser);
+    if (!member || !member->is_object()) return false;
+    auto mine = member->find("roles");
+    if (mine == member->end() || !mine->is_array()) return false;
+    for (const auto &role : *roles)
+        for (const auto &held : *mine)
+            if (role.is_string() && held.is_string() && role == held) return true;
+    return false;
+}
+
+static void EmitMessageCreate(const std::string &messageID, const std::string &channelID, const std::string &authorID,
+                              const std::string &guildID, bool fromMe, const MessageMentions &mentions, bool direct, bool open)
 {
     std::lock_guard<std::recursive_mutex> lock(gMutex);
     for (auto *plugin : gPlugins) {
@@ -2333,16 +2353,24 @@ static void EmitMessageCreate(const std::string &messageID, const std::string &c
             if (found == plugin->eventCallbacks.end() || !plugin->state || plugin->failed) continue;
             lua_State *state = plugin->state;
             lua_rawgeti(state, LUA_REGISTRYINDEX, found->second.reference);
-            lua_createtable(state, 0, 7);
+            lua_createtable(state, 0, 10);
             lua_pushlstring(state, messageID.data(), messageID.size());
             lua_setfield(state, -2, "message_id");
+            if (!guildID.empty()) {
+                lua_pushlstring(state, guildID.data(), guildID.size());
+                lua_setfield(state, -2, "guild_id");
+            }
+            lua_pushboolean(state, mentions.everyone);
+            lua_setfield(state, -2, "everyone");
+            lua_pushboolean(state, mentions.role);
+            lua_setfield(state, -2, "role_mentioned");
             lua_pushlstring(state, channelID.data(), channelID.size());
             lua_setfield(state, -2, "channel_id");
             lua_pushlstring(state, authorID.data(), authorID.size());
             lua_setfield(state, -2, "author_id");
             lua_pushboolean(state, fromMe);
             lua_setfield(state, -2, "from_me");
-            lua_pushboolean(state, mentioned);
+            lua_pushboolean(state, mentions.user);
             lua_setfield(state, -2, "mentioned");
             lua_pushboolean(state, direct);
             lua_setfield(state, -2, "direct");
@@ -2407,7 +2435,8 @@ std::optional<std::string> processGatewayMessage(std::string_view message)
                 referencedAuthorID = referencedID->get<std::string>();
         }
     }
-    bool mentioned = false;
+    MessageMentions mentions;
+    bool &mentioned = mentions.user;
     if (!currentUser.empty()) {
         auto mentions = data->find("mentions");
         if (mentions != data->end() && mentions->is_array()) {
@@ -2421,6 +2450,10 @@ std::optional<std::string> processGatewayMessage(std::string_view message)
     }
     auto guild = data->find("guild_id");
     bool direct = guild == data->end() || !guild->is_string();
+    std::string guildID = direct ? std::string() : guild->get<std::string>();
+    auto everyone = data->find("mention_everyone");
+    mentions.everyone = everyone != data->end() && everyone->is_boolean() && everyone->get<bool>();
+    mentions.role = !currentUser.empty() && MentionsMyRole(*data, guildID, currentUser);
     uint64_t selectedChannel = astral_wire_current_channel();
     bool open = selectedChannel != 0 && std::to_string(selectedChannel) == channelID;
     bool fromMe = senderID == currentUser;
@@ -2428,7 +2461,7 @@ std::optional<std::string> processGatewayMessage(std::string_view message)
         envelope["t"] = "ASTRAL_FILTERED";
         return envelope.dump();
     }
-    EmitMessageCreate(messageID, channelID, senderID, fromMe, mentioned, direct, open);
+    EmitMessageCreate(messageID, channelID, senderID, guildID, fromMe, mentions, direct, open);
     return std::nullopt;
 }
 
