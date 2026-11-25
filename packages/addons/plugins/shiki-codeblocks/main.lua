@@ -126,13 +126,29 @@ local function fences(content)
 	return languages
 end
 
+local RETRY_MS = 500
+local RETRIES = 6
+local retries = {}
+
+local function retry_later(message_id)
+	local count = retries[message_id] or 0
+	if count >= RETRIES then
+		return
+	end
+	retries[message_id] = count + 1
+	astral.time.after(RETRY_MS, function()
+		astral.ui.refresh()
+	end)
+end
+
 local function language_of(block)
-	if not block.channel_id then
+	local message = block.channel_id and astral.discord.raw_message(block.channel_id, block.message_id)
+	if type(message) ~= "table" or type(message.content) ~= "string" then
+		retry_later(block.message_id)
 		return ""
 	end
-	local message = astral.discord.raw_message(block.channel_id, block.message_id)
-	local content = type(message) == "table" and type(message.content) == "string" and message.content or ""
-	return fences(content)[block.index + 1] or ""
+	retries[block.message_id] = nil
+	return fences(message.content)[block.index + 1] or ""
 end
 
 local function with_alpha(color, opacity)
