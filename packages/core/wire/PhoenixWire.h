@@ -297,6 +297,47 @@ void astral_wire_set_node_patcher(AstralNodePatcher patcher);
 void astral_wire_set_patch_prefixes(const char *const *prefixes, size_t count);
 int astral_wire_refresh_node_patches(AstralWireBuffer *buffer);
 int astral_wire_take_refresh_busy(void);
+uint64_t astral_wire_message_of(const char *identifier);
+
+typedef enum { AstralInsertText = 1, AstralInsertView = 2, AstralInsertImage = 3 } AstralInsertKind;
+
+typedef enum {
+    AstralInsertColor = 1 << 0,
+    AstralInsertBackground = 1 << 1,
+    AstralInsertRadius = 1 << 2,
+    AstralInsertPadding = 1 << 3,
+    AstralInsertMargin = 1 << 4,
+    AstralInsertFontSize = 1 << 5,
+    AstralInsertWidth = 1 << 6,
+    AstralInsertHeight = 1 << 7,
+    AstralInsertRow = 1 << 8,
+    AstralInsertTint = 1 << 9,
+    AstralInsertBold = 1 << 10
+} AstralInsertField;
+
+typedef struct {
+    AstralInsertKind kind;
+    int parent;
+    uint32_t fields;
+    char text[160];
+    char uri[256];
+    char tap[96];
+    uint32_t color;
+    uint32_t background;
+    double radius;
+    double fontSize;
+    double width;
+    double height;
+    float padding[4];
+    float margin[4];
+} AstralInsertNode;
+
+enum { kAstralInsertCapacity = 8 };
+
+typedef int (*AstralNodeInserter)(const AstralPatchTarget *target, AstralInsertNode *nodes, size_t capacity, int *atStart);
+void astral_wire_set_node_inserter(AstralNodeInserter inserter);
+void astral_wire_set_insert_prefixes(const char *const *prefixes, size_t count);
+int astral_wire_refresh_node_inserts(AstralWireBuffer *buffer);
 uint64_t astral_wire_message_for_node(int32_t node);
 uint64_t astral_wire_message_for_row(int32_t list, int64_t index);
 void astral_wire_note_identifiers(const uint8_t *bytes, size_t length);

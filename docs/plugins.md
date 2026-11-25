@@ -24,6 +24,10 @@ Plugin settings take an optional `icon` (a Discord icon name such as `PaintPalet
 
 `astral.ui.patch(selector, fn)` restyles any node whose `accessibilityId` starts with `selector.id` (and, when given, whose type is `selector.type`). `fn` gets `{ id, key, type }`, where `key` is the part after the prefix, plus `message_id`, `author_id` and `channel_id` for `message.*` nodes, and returns the props to set: `background`, `radius`, `opacity`, `padding`, `margin`, `border_color` with `border_width`, `text_color` and `hidden`. Returning nothing puts Discord's own values back, and so does turning the plugin off. Needs the `ui.patch` permission. A plugin installed while Discord is open patches nodes drawn after it loads.
 
+## Inserting nodes
+
+`astral.ui.insert(selector, build, on_press)` adds up to eight nodes to every node matching the selector. `build(node)` gets the same target as `astral.ui.patch` and returns one node or a list: `{ type = "view" | "text" | "image", text, icon, color, background, radius, padding, margin, size, width, height, row, bold, action, children, position }`. `position = "start"` puts them before Discord's own children. A node with an `action` is tappable and calls `on_press(node, action)`. Returning nothing removes what the plugin added, and astral re-adds its nodes whenever Discord rebuilds the target, alongside Chat Bubbles' inline reply quotes. Needs the `ui.insert` permission.
+
 ## Package
 
 ```

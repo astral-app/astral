@@ -10,6 +10,7 @@ local native = {
 	composer = astral.ui.composer,
 	message_background = astral.ui.message_background,
 	patch = astral.ui.patch,
+	insert = astral.ui.insert,
 	toast = astral.ui.toast,
 	web_auth = astral.ui.web_auth,
 	cancel_web_auth = astral.ui.cancel_web_auth,
@@ -636,6 +637,39 @@ function astral.ui.patch(selector, patcher)
 			end
 		end
 		return patch
+	end)
+end
+
+local function insert_spec(spec)
+	if type(spec) ~= "table" then
+		return spec
+	end
+	local converted = {}
+	for field, value in pairs(spec) do
+		if field == "color" or field == "background" then
+			converted[field] = astral.Color.from(value).value
+		elseif field == "children" or (type(field) == "number" and type(value) == "table") then
+			local items = {}
+			for index, child in ipairs(field == "children" and value or { value }) do
+				items[index] = insert_spec(child)
+			end
+			converted[field] = field == "children" and items or items[1]
+		else
+			converted[field] = value
+		end
+	end
+	return converted
+end
+
+function astral.ui.insert(selector, build, on_press)
+	local id, kind = selector, nil
+	if type(selector) == "table" then
+		id, kind = selector.id, selector.type
+	end
+	return native.insert(id, kind, function(node)
+		return insert_spec(build(wrap_node(node)))
+	end, on_press and function(node, action)
+		on_press(wrap_node(node), action)
 	end)
 end
 

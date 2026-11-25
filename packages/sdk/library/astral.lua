@@ -441,6 +441,28 @@ function astral.ui.message_color(colorizer) end
 ---@param selector string|astral.PatchSelector
 ---@param patcher fun(node: astral.PatchTarget): astral.NodePatch?
 function astral.ui.patch(selector, patcher) end
+---@class astral.InsertNode
+---@field type? "view"|"text"|"image"
+---@field text? string
+---@field icon? string a Discord icon name, res:// URI, https URL or a png in the plugin folder
+---@field color? astral.Color|integer|string text colour, or the tint of an image
+---@field background? astral.Color|integer|string
+---@field radius? number
+---@field padding? number|number[]
+---@field margin? number|number[]
+---@field size? number font size
+---@field width? number
+---@field height? number
+---@field row? boolean lay children out in a row
+---@field bold? boolean
+---@field action? string passed to on_press when the node is tapped
+---@field position? "start"|"end" where the nodes go among the target's children
+---@field children? astral.InsertNode[]
+
+---@param selector string|astral.PatchSelector
+---@param build fun(node: astral.PatchTarget): astral.InsertNode|astral.InsertNode[]|nil
+---@param on_press? fun(node: astral.PatchTarget, action: string)
+function astral.ui.insert(selector, build, on_press) end
 ---@class astral.MessageBackgroundStyle
 ---@field color astral.Color|integer|string
 ---@field radius? number

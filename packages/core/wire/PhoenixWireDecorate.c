@@ -693,7 +693,10 @@ static void writeTextDirection(Out *out, int32_t text, int inside)
 
 static void writeQuoteMove(Out *out, BackgroundState *state, const BubbleBlock *text, int inside, double radius)
 {
-    int32_t children[kBubbleChildren + 1];
+    int32_t children[kBubbleChildren + 1 + kAstralInsertCapacity];
+    int32_t inserted[kAstralInsertCapacity];
+    int insertedAtStart = 0;
+    uint32_t insertedCount = wireInsertedChildren(text->id, inserted, kAstralInsertCapacity, &insertedAtStart);
     uint32_t childCount = 0;
     if (inside && !state->quoteBox) state->quoteBox = createQuoteBox(out, radius);
     writeBarLayout(out, state, inside);
@@ -701,7 +704,11 @@ static void writeQuoteMove(Out *out, BackgroundState *state, const BubbleBlock *
         wirePutChildren(out, state->quoteBox, &state->reply, 1);
         children[childCount++] = state->quoteBox;
     }
+    if (insertedAtStart)
+        for (uint32_t index = 0; index < insertedCount; index++) children[childCount++] = inserted[index];
     for (uint32_t index = 0; index < text->childCount; index++) children[childCount++] = text->children[index];
+    if (!insertedAtStart)
+        for (uint32_t index = 0; index < insertedCount; index++) children[childCount++] = inserted[index];
     wirePutChildren(out, text->id, children, childCount);
     writeTextDirection(out, text->id, inside);
     if (inside || !state->quoteBox) return;
@@ -719,6 +726,15 @@ static void putOriginalOnce(Out *out, const uint8_t *bytes, size_t length, int *
 }
 
 static int32_t gInsideRows[kInsideCapacity];
+
+int32_t wireQuoteBoxIn(int32_t parent)
+{
+    for (size_t slot = 0; slot < kInsideCapacity; slot++) {
+        BackgroundState *state = gInsideRows[slot] ? backgroundState(gInsideRows[slot], 0) : NULL;
+        if (state && state->replyShown == AstralReplyInside && state->quotedIn == parent) return state->quoteBox;
+    }
+    return 0;
+}
 
 static void trackInside(int32_t row, int inside)
 {
@@ -1037,6 +1053,11 @@ static int32_t tagId(void)
     int32_t id = gNextTagId++;
     if (gNextTagId >= kFirstTagId + 0x00f00000) gNextTagId = kFirstTagId;
     return id;
+}
+
+int32_t wireAllocateNode(void)
+{
+    return tagId();
 }
 
 enum { kIconCacheSize = 8, kMaxIconFileBytes = 64 * 1024 };

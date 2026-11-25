@@ -145,6 +145,13 @@ int wirePrefixed(const uint8_t *text, size_t length, const char *prefix, uint64_
 int32_t wireBuildTag(Out *out, const AstralTag *tag, Decorated *slot);
 void wireMarkRefreshBusy(void);
 int wirePatchingActive(void);
+int32_t wireAllocateNode(void);
+enum { kWireIdentifierLength = 128, kWireTypeLength = 16 };
+int wireReadIdentifier(const uint8_t *bytes, const Span *span, char *identifier, char *type);
+uint64_t wireMessageOfIdentifier(const char *identifier);
+int32_t wireQuoteBoxIn(int32_t parent);
+uint32_t wireInsertedChildren(int32_t parent, int32_t *children, uint32_t capacity, int *atStart);
+void wireInsertNodes(const uint8_t *bytes, const Span *spans, size_t count, Out *out, int *changed, size_t length);
 uint64_t wireMessageAuthor(uint64_t message);
 void wirePatchNodes(const uint8_t *bytes, const Span *spans, size_t count, Out *out, int *changed, size_t length);
 void wireDecorate(const uint8_t *bytes, const Span *spans, size_t count, Out *out, int *changed, size_t length);

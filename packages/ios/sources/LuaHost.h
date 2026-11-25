@@ -28,6 +28,7 @@ int AstralLuaNameColor(const AstralNameContext *context, uint32_t *color);
 int AstralLuaMessageTextColor(uint64_t messageID, uint64_t channelID, uint32_t *color);
 int AstralLuaMessageBackground(const AstralMessageBackgroundContext *context, AstralMessageBackgroundStyle *style);
 int AstralLuaPatchNode(const AstralPatchTarget *target, AstralNodePatch *patch);
+int AstralLuaInsertNodes(const AstralPatchTarget *target, AstralInsertNode *nodes, size_t capacity, int *atStart);
 int AstralLuaMention(const AstralMentionContext *context, AstralMentionDecoration *decoration);
 size_t AstralLuaDecorate(const AstralDecorationContext *context, AstralTag *tags, size_t capacity);
 int AstralLuaRelabel(const AstralLabelContext *context, const char *text, size_t length, char *out, size_t capacity);

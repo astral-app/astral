@@ -3,15 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-enum {
-    kPatchPrefixCapacity = 32,
-    kPatchPrefixLength = 96,
-    kPatchedCapacity = 512,
-    kRawCapacity = 40,
-    kIdentifierLength = 128,
-    kTypeLength = 16,
-    kPatchProps = 11
-};
+enum { kPatchPrefixCapacity = 32, kPatchPrefixLength = 96, kPatchedCapacity = 512, kRawCapacity = 40, kPatchProps = 11 };
 
 typedef struct {
     uint8_t present;
@@ -22,8 +14,8 @@ typedef struct {
 
 typedef struct {
     int32_t id;
-    char identifier[kIdentifierLength];
-    char type[kTypeLength];
+    char identifier[kWireIdentifierLength];
+    char type[kWireTypeLength];
     uint32_t applied;
     RawProp originals[kPatchProps];
 } Patched;
@@ -82,7 +74,7 @@ static size_t keyOffset(const char *identifier)
     return 0;
 }
 
-static uint64_t messageOf(const char *identifier)
+uint64_t wireMessageOfIdentifier(const char *identifier)
 {
     if (strncmp(identifier, "message.", 8) != 0) return 0;
     const char *colon = strchr(identifier, ':');
@@ -94,19 +86,24 @@ static uint64_t messageOf(const char *identifier)
     return digits >= 15 ? value : 0;
 }
 
+uint64_t astral_wire_message_of(const char *identifier)
+{
+    return wireMessageOfIdentifier(identifier);
+}
+
 static int callPatcher(const char *identifier, const char *type, AstralNodePatch *patch)
 {
-    uint64_t message = messageOf(identifier);
+    uint64_t message = wireMessageOfIdentifier(identifier);
     AstralPatchTarget target = {
         identifier, type, keyOffset(identifier), message, message ? wireMessageAuthor(message) : 0, astral_wire_current_channel()};
     return gPatcher(&target, patch);
 }
 
-static int readIdentifier(const uint8_t *bytes, const Span *span, char *identifier, char *type)
+int wireReadIdentifier(const uint8_t *bytes, const Span *span, char *identifier, char *type)
 {
     Cursor cursor = {bytes, span->end, span->start + 1 + 4, 0};
     uint16_t typeLength = wireRead16(&cursor);
-    if (!wireNeed(&cursor, typeLength) || typeLength >= kTypeLength) return 0;
+    if (!wireNeed(&cursor, typeLength) || typeLength >= kWireTypeLength) return 0;
     memcpy(type, bytes + cursor.offset, typeLength);
     type[typeLength] = 0;
     cursor.offset += typeLength;
@@ -116,7 +113,7 @@ static int readIdentifier(const uint8_t *bytes, const Span *span, char *identifi
         uint8_t tag = wireRead8(&cursor);
         if (property == P(accessibilityId) && tag == 6) {
             uint32_t length = wireRead32(&cursor);
-            if (!wireNeed(&cursor, length) || length >= kIdentifierLength) return 0;
+            if (!wireNeed(&cursor, length) || length >= kWireIdentifierLength) return 0;
             memcpy(identifier, bytes + cursor.offset, length);
             identifier[length] = 0;
             return 1;
@@ -293,8 +290,8 @@ void wirePatchNodes(const uint8_t *bytes, const Span *spans, size_t count, Out *
             continue;
         }
         if (span->op != 1) continue;
-        char identifier[kIdentifierLength], type[kTypeLength];
-        if (!readIdentifier(bytes, span, identifier, type) || !matchesPrefix(identifier)) continue;
+        char identifier[kWireIdentifierLength], type[kWireTypeLength];
+        if (!wireReadIdentifier(bytes, span, identifier, type) || !matchesPrefix(identifier)) continue;
         Patched *patched = patchedSlot(span->id, 1);
         if (!patched) continue;
         strcpy(patched->identifier, identifier);

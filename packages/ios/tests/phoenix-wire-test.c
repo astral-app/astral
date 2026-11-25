@@ -828,6 +828,58 @@ static void nodePatchTest(void)
     astral_wire_set_patch_prefixes(NULL, 0);
 }
 
+static int insertNodes(const AstralPatchTarget *target, AstralInsertNode *nodes, size_t capacity, int *atStart)
+{
+    assert(capacity >= 2);
+    if (strcmp(target->identifier, "demo.slot:1") != 0) return 0;
+    *atStart = 0;
+    nodes[0] = (AstralInsertNode){
+        .kind = AstralInsertView, .parent = -1, .fields = AstralInsertRow | AstralInsertBackground, .background = 0xFF202020};
+    strcpy(nodes[0].tap, "astral.tap.1:open:1");
+    nodes[1] = (AstralInsertNode){.kind = AstralInsertText, .parent = 0, .fields = AstralInsertColor, .color = 0xFFFFFFFF};
+    strcpy(nodes[1].text, "Hi");
+    return 2;
+}
+
+static void nodeInsertTest(void)
+{
+    AstralWireBuffer out;
+    Batch batch = {.length = 0};
+    const char *prefixes[] = {"demo.slot:"};
+    astral_wire_set_insert_prefixes(prefixes, 1);
+    astral_wire_set_node_inserter(insertNodes);
+    b8(&batch, 1);
+    create(&batch, 950, "view", 1);
+    b16(&batch, 9);
+    b8(&batch, 6);
+    bstr(&batch, "demo.slot:1");
+    create(&batch, 951, "text", 0);
+    children(&batch, 950, 1, (int[]){951});
+    assert(astral_settings_rewrite(batch.bytes, batch.length, &out));
+    assert(astral_wire_summarise(out.bytes, out.length, sink, NULL) > 0);
+    char *created = strstr(line, "\"view\",[[9,6,\"astral.tap.1:open:1\"]");
+    if (!created) created = strstr(line, "astral.tap.1:open:1");
+    assert(created);
+    assert(strstr(line, "[499,6,{\"n\":2,"));
+    char needle[64];
+    int32_t inserted = 0;
+    char *list = strstr(line, "[3,950,[951,");
+    assert(list && sscanf(list, "[3,950,[951,%d]]", &inserted) == 1 && inserted > 0);
+    astral_wire_buffer_free(&out);
+
+    batch.length = 0;
+    b8(&batch, 1);
+    create(&batch, 952, "text", 0);
+    children(&batch, 950, 2, (int[]){951, 952});
+    assert(astral_settings_rewrite(batch.bytes, batch.length, &out));
+    assert(astral_wire_summarise(out.bytes, out.length, sink, NULL) > 0);
+    snprintf(needle, sizeof(needle), "[3,950,[951,952,%d]]", inserted);
+    assert(strstr(line, needle));
+    astral_wire_buffer_free(&out);
+    astral_wire_set_node_inserter(NULL);
+    astral_wire_set_insert_prefixes(NULL, 0);
+}
+
 int main(void)
 {
     messageBackgroundTest();
@@ -984,6 +1036,7 @@ int main(void)
     profileRelabelTest();
     gradientThemeTest();
     assert(astral_wire_rewrite_failures() == 0);
+    nodeInsertTest();
     unsupportedVersionTest();
     puts("ok");
     return 0;

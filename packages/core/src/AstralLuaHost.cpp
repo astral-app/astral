@@ -89,6 +89,14 @@ struct LuaNodePatch {
     int reference;
 };
 
+struct LuaNodeInsert {
+    uint64_t identifier;
+    std::string prefix;
+    std::string type;
+    int build;
+    int press;
+};
+
 struct LuaEventCallback {
     std::string event;
     int reference;
@@ -127,6 +135,7 @@ struct LuaPlugin : astral::PluginPackage, astral::PluginHealth {
     std::vector<int> composerDecorators;
     std::vector<int> messageBackgroundDecorators;
     std::vector<LuaNodePatch> nodePatches;
+    std::vector<LuaNodeInsert> nodeInserts;
     std::vector<LuaMessageAction> messageActions;
     std::map<uint64_t, int> networkRequests;
     std::map<uint64_t, LuaTimer> timers;
@@ -993,6 +1002,42 @@ static void SyncPatchPrefixes()
     astral_wire_set_patch_prefixes(pointers.data(), pointers.size());
 }
 
+static std::atomic<uint64_t> gNextInsert{1};
+
+static void SyncInsertPrefixes()
+{
+    std::vector<std::string> prefixes;
+    for (auto *plugin : gPlugins) {
+        if (!plugin->state || plugin->failed) continue;
+        for (const auto &insert : plugin->nodeInserts)
+            if (std::find(prefixes.begin(), prefixes.end(), insert.prefix) == prefixes.end()) prefixes.push_back(insert.prefix);
+    }
+    std::vector<const char *> pointers;
+    for (const auto &prefix : prefixes) pointers.push_back(prefix.c_str());
+    astral_wire_set_insert_prefixes(pointers.data(), pointers.size());
+}
+
+static int RegisterNodeInsert(lua_State *state)
+{
+    LuaPlugin *plugin = Self(state);
+    RequirePermission(state, "ui.insert");
+    std::string prefix = luaL_checkstring(state, 1);
+    std::string type = luaL_optstring(state, 2, "");
+    luaL_checktype(state, 3, LUA_TFUNCTION);
+    if (prefix.size() < 3 || prefix.size() >= 96) return luaL_error(state, "astral.ui.insert: id prefix must be 3 to 95 characters");
+    if (plugin->nodeInserts.size() >= 16) return luaL_error(state, "astral.ui.insert: at most 16 inserts per plugin");
+    lua_pushvalue(state, 3);
+    int build = luaL_ref(state, LUA_REGISTRYINDEX);
+    int press = LUA_NOREF;
+    if (lua_isfunction(state, 4)) {
+        lua_pushvalue(state, 4);
+        press = luaL_ref(state, LUA_REGISTRYINDEX);
+    }
+    plugin->nodeInserts.push_back({gNextInsert.fetch_add(1), prefix, type, build, press});
+    SyncInsertPrefixes();
+    return 0;
+}
+
 static int RegisterNodePatch(lua_State *state)
 {
     LuaPlugin *plugin = Self(state);
@@ -1629,6 +1674,7 @@ static void InstallAPI(LuaPlugin *plugin)
     Function(state, plugin, "composer", RegisterComposerDecorator);
     Function(state, plugin, "message_background", RegisterMessageBackground);
     Function(state, plugin, "patch", RegisterNodePatch);
+    Function(state, plugin, "insert", RegisterNodeInsert);
     Function(state, plugin, "haptic", Haptic);
     Function(state, plugin, "web_auth", WebAuth);
     Function(state, plugin, "cancel_web_auth", CancelWebAuth);
@@ -1784,6 +1830,8 @@ static void Stop(LuaPlugin *plugin)
     plugin->messageBackgroundDecorators.clear();
     plugin->nodePatches.clear();
     SyncPatchPrefixes();
+    plugin->nodeInserts.clear();
+    SyncInsertPrefixes();
     ApplySettingsBackdrop();
     TraceRunningPlugins();
 }
@@ -3062,6 +3110,131 @@ int AstralLuaPatchNode(const AstralPatchTarget *target, AstralNodePatch *patch)
     return patch->fields ? 1 : 0;
 }
 
+static void PushPatchTarget(lua_State *state, const AstralPatchTarget *target, size_t prefixLength)
+{
+    lua_createtable(state, 0, 6);
+    lua_pushstring(state, target->identifier);
+    lua_setfield(state, -2, "id");
+    lua_pushstring(state, target->identifier + prefixLength);
+    lua_setfield(state, -2, "key");
+    lua_pushstring(state, target->type);
+    lua_setfield(state, -2, "type");
+    PushSnowflakeField(state, "message_id", target->message_id);
+    PushSnowflakeField(state, "author_id", target->author_id);
+    PushSnowflakeField(state, "channel_id", target->channel_id);
+}
+
+static void CopyField(lua_State *state, const char *field, char *out, size_t capacity)
+{
+    lua_getfield(state, -1, field);
+    if (lua_isstring(state, -1)) snprintf(out, capacity, "%s", lua_tostring(state, -1));
+    lua_pop(state, 1);
+}
+
+static void ReadInsertStyle(lua_State *state, AstralInsertNode *node)
+{
+    double number = 0;
+    if (PatchColor(state, "color", &node->color)) node->fields |= node->kind == AstralInsertImage ? AstralInsertTint : AstralInsertColor;
+    if (PatchColor(state, "background", &node->background)) node->fields |= AstralInsertBackground;
+    if (PatchNumber(state, "radius", 0, 64, &node->radius)) node->fields |= AstralInsertRadius;
+    if (PatchQuad(state, "padding", node->padding)) node->fields |= AstralInsertPadding;
+    if (PatchQuad(state, "margin", node->margin)) node->fields |= AstralInsertMargin;
+    if (PatchNumber(state, "size", 6, 48, &number)) {
+        node->fontSize = number;
+        node->fields |= AstralInsertFontSize;
+    }
+    if (PatchNumber(state, "width", 0, 1000, &node->width)) node->fields |= AstralInsertWidth;
+    if (PatchNumber(state, "height", 0, 1000, &node->height)) node->fields |= AstralInsertHeight;
+    lua_getfield(state, -1, "row");
+    if (lua_toboolean(state, -1)) node->fields |= AstralInsertRow;
+    lua_pop(state, 1);
+    lua_getfield(state, -1, "bold");
+    if (lua_toboolean(state, -1)) node->fields |= AstralInsertBold;
+    lua_pop(state, 1);
+}
+
+static void ReadInsertNode(lua_State *state, const LuaPlugin *plugin, const LuaNodeInsert &entry, const char *key, AstralInsertNode *nodes,
+                           size_t capacity, size_t *count, int parent)
+{
+    if (!lua_istable(state, -1) || *count >= capacity) return;
+    AstralInsertNode *node = &nodes[*count];
+    memset(node, 0, sizeof(*node));
+    char kind[16] = {0};
+    CopyField(state, "type", kind, sizeof(kind));
+    node->kind = std::strcmp(kind, "text") == 0 ? AstralInsertText : std::strcmp(kind, "image") == 0 ? AstralInsertImage : AstralInsertView;
+    node->parent = parent;
+    CopyField(state, "text", node->text, sizeof(node->text));
+    char icon[256] = {0};
+    CopyField(state, "icon", icon, sizeof(icon));
+    if (icon[0]) {
+        auto uri = PluginIconURI(plugin, icon);
+        if (uri && uri->size() < sizeof(node->uri)) snprintf(node->uri, sizeof(node->uri), "%s", uri->c_str());
+    }
+    char action[32] = {0};
+    CopyField(state, "action", action, sizeof(action));
+    if (action[0] && entry.press != LUA_NOREF)
+        snprintf(node->tap, sizeof(node->tap), "astral.tap.%llu:%s:%s", static_cast<unsigned long long>(entry.identifier), action, key);
+    if (std::strlen(node->tap) >= sizeof(node->tap) - 1) node->tap[0] = 0;
+    ReadInsertStyle(state, node);
+    int index = static_cast<int>((*count)++);
+    lua_getfield(state, -1, "children");
+    if (lua_istable(state, -1)) {
+        lua_Integer children = luaL_len(state, -1);
+        for (lua_Integer child = 1; child <= children && *count < capacity; child++) {
+            lua_rawgeti(state, -1, child);
+            ReadInsertNode(state, plugin, entry, key, nodes, capacity, count, index);
+            lua_pop(state, 1);
+        }
+    }
+    lua_pop(state, 1);
+}
+
+int AstralLuaInsertNodes(const AstralPatchTarget *target, AstralInsertNode *nodes, size_t capacity, int *atStart)
+{
+    if (!target || !target->identifier || !target->type || !nodes || !atStart) return 0;
+    std::unique_lock<std::recursive_mutex> lock(gMutex, std::try_to_lock);
+    if (!lock.owns_lock()) return -1;
+    std::string_view id(target->identifier);
+    size_t count = 0;
+    for (auto *plugin : gPlugins) {
+        if (!plugin->state || plugin->failed) continue;
+        for (const auto &entry : plugin->nodeInserts) {
+            if (id.rfind(entry.prefix, 0) != 0 || (!entry.type.empty() && entry.type != target->type)) continue;
+            lua_State *state = plugin->state;
+            int top = lua_gettop(state);
+            lua_rawgeti(state, LUA_REGISTRYINDEX, entry.build);
+            PushPatchTarget(state, target, entry.prefix.size());
+            if (!Call(plugin, 1, 1, "node insert")) {
+                lua_settop(state, top);
+                MarkFailed(plugin);
+                Stop(plugin);
+                break;
+            }
+            const char *key = target->identifier + entry.prefix.size();
+            if (lua_istable(state, -1)) {
+                lua_getfield(state, -1, "position");
+                if (lua_isstring(state, -1) && std::strcmp(lua_tostring(state, -1), "start") == 0) *atStart = 1;
+                lua_pop(state, 1);
+                lua_getfield(state, -1, "type");
+                bool single = !lua_isnil(state, -1);
+                lua_pop(state, 1);
+                if (single) {
+                    ReadInsertNode(state, plugin, entry, key, nodes, capacity, &count, -1);
+                } else {
+                    lua_Integer items = luaL_len(state, -1);
+                    for (lua_Integer item = 1; item <= items && count < capacity; item++) {
+                        lua_rawgeti(state, -1, item);
+                        ReadInsertNode(state, plugin, entry, key, nodes, capacity, &count, -1);
+                        lua_pop(state, 1);
+                    }
+                }
+            }
+            lua_settop(state, top);
+        }
+    }
+    return static_cast<int>(count);
+}
+
 int AstralLuaMessageBackground(const AstralMessageBackgroundContext *context, AstralMessageBackgroundStyle *style)
 {
     if (!context || !style) return 0;
@@ -3332,6 +3505,45 @@ void setMenuMessage(uint64_t channelID, uint64_t messageID)
     std::lock_guard<std::recursive_mutex> lock(gMutex);
     gMenuChannel = channelID;
     gMenuMessage = messageID;
+}
+
+bool pressInsertedNode(std::string_view identifier)
+{
+    std::lock_guard<std::recursive_mutex> lock(gMutex);
+    constexpr std::string_view prefix = "astral.tap.";
+    if (identifier.rfind(prefix, 0) != 0) return false;
+    identifier.remove_prefix(prefix.size());
+    size_t firstColon = identifier.find(':');
+    size_t secondColon = firstColon == std::string_view::npos ? firstColon : identifier.find(':', firstColon + 1);
+    if (secondColon == std::string_view::npos) return false;
+    uint64_t registration = 0;
+    auto [end, error] = std::from_chars(identifier.data(), identifier.data() + firstColon, registration);
+    if (error != std::errc() || end != identifier.data() + firstColon) return false;
+    std::string action(identifier.substr(firstColon + 1, secondColon - firstColon - 1));
+    std::string key(identifier.substr(secondColon + 1));
+    for (auto *plugin : gPlugins) {
+        if (!plugin->state || plugin->failed) continue;
+        for (const auto &entry : plugin->nodeInserts) {
+            if (entry.identifier != registration || entry.press == LUA_NOREF) continue;
+            std::string full = entry.prefix + key;
+            uint64_t message = astral_wire_message_of(full.c_str());
+            AstralPatchTarget target = {full.c_str(), entry.type.c_str(), entry.prefix.size(), message, 0, astral_wire_current_channel()};
+            lua_State *state = plugin->state;
+            int top = lua_gettop(state);
+            lua_rawgeti(state, LUA_REGISTRYINDEX, entry.press);
+            PushPatchTarget(state, &target, entry.prefix.size());
+            lua_pushstring(state, action.c_str());
+            if (!Call(plugin, 2, 0, "insert press")) {
+                lua_settop(state, top);
+                MarkFailed(plugin);
+                Stop(plugin);
+                return true;
+            }
+            lua_settop(state, top);
+            return true;
+        }
+    }
+    return false;
 }
 
 bool pressMessageAction(std::string_view identifier)
