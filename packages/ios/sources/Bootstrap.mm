@@ -251,6 +251,8 @@ static void StartPlugins(void)
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 30 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
         astral::LaunchGuard(stateDirectory).succeed();
     });
+    AstralPhoenixRecordMoment(@"pluginsMs");
+    AstralPhoenixPluginsReady();
     Status(recovering ? @"plugins-recovery" : @"ready");
 }
 
@@ -306,7 +308,9 @@ __attribute__((constructor)) static void AstralBootstrap(void)
     AstralOnPhoenixRouteChange(^{
         Status(lastStage ?: @"route-changed");
     });
-    AstralStartPhoenixRouteWhenLoaded();
+    AstralStartPhoenixRouteWhenLoaded(^{
+        StartPlugins();
+    });
     dispatch_async(dispatch_get_main_queue(), ^{
         Status(@"injected");
         AstralStartHttpsCheck();
