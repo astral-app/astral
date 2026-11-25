@@ -1,3 +1,5 @@
+local COMPOSER_ICON = 0xFFABACB2
+
 local current_user
 
 local function me()
@@ -18,15 +20,35 @@ local function preview(node)
 	astral.messages.send_local(node.channel_id, message)
 end
 
+local composing = false
+
+astral.ui.composer(function(text)
+	local now = text ~= ""
+	if now ~= composing then
+		composing = now
+		astral.time.after(0, function()
+			astral.ui.refresh()
+		end)
+	end
+	return {}
+end)
+
 astral.ui.insert({ id = "composer.expressions" }, function()
+	if not composing then
+		return nil
+	end
 	return {
-		type = "image",
-		icon = "res://ic_mana_eye",
-		width = 22,
-		height = 22,
-		margin = { 0, 0, 10, 0 },
+		type = "view",
+		row = true,
+		justify = "center",
+		width = 32,
+		height = 32,
+		radius = 8,
 		position = "start",
 		action = "preview",
+		children = {
+			{ type = "image", icon = "res://ic_mana_eye", width = 20, height = 20, color = COMPOSER_ICON },
+		},
 	}
 end, function(node)
 	preview(node)
