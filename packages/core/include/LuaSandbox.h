@@ -25,6 +25,7 @@ class Sandbox
     lua_State *state() const { return luaState; }
     size_t memory() const { return used; }
     std::optional<std::string> load(const std::string &source, const std::string &chunk);
+    std::optional<std::string> loadBytecode(const std::string &bytecode, const std::string &chunk);
     std::optional<std::string> call(int arguments, int results);
     std::optional<std::string> run(const std::string &source, const std::string &chunk);
 

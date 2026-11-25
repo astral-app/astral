@@ -36,6 +36,7 @@
 #include "PluginStorage.h"
 
 extern "C" {
+#include "lauxlib.h"
 #include "lua.h"
 }
 
@@ -795,6 +796,53 @@ static void testNodeInsert(const std::string &work)
     astral::luahost::stop();
 }
 
+static std::string compiledChunk(const std::string &source, const std::string &chunk)
+{
+    lua_State *state = luaL_newstate();
+    assert(luaL_loadbufferx(state, source.data(), source.size(), chunk.c_str(), "t") == LUA_OK);
+    std::string bytecode;
+    lua_dump(
+        state,
+        [](lua_State *, const void *bytes, size_t size, void *out) {
+            static_cast<std::string *>(out)->append(static_cast<const char *>(bytes), size);
+            return 0;
+        },
+        &bytecode, 0);
+    lua_close(state);
+    return bytecode;
+}
+
+static void testBytecodeOnlyWhenSigned(const std::string &work)
+{
+    auto root = std::filesystem::path(work) / "bytecode-host";
+    for (const char *name : {"signed", "unsigned"}) {
+        auto plugin = root / "plugins" / name;
+        std::filesystem::create_directories(plugin / "lib");
+        writeText(plugin / "manifest.toml",
+                  std::string("id = 'astral.bytecode-") + name + "'\nname = 'Bytecode'\nversion = '1.0'\nmain = 'main.lua'\n");
+        writeText(plugin / "main.lua", "astral.state.from = 'source'\nastral.state.module = require('lib.helper')\n");
+        writeText(plugin / "lib" / "helper.lua", "return 'source module'\n");
+    }
+    writeText(root / "plugins" / "signed" / "main.luac",
+              compiledChunk("astral.state.from = 'bytecode'\nastral.state.module = require('lib.helper')\n", "=astral.bytecode-signed"));
+    writeText(root / "plugins" / "signed" / "lib" / "helper.luac",
+              compiledChunk("return 'bytecode module'\n", "=astral.bytecode-signed/lib.helper"));
+    writeText(root / "plugins" / "unsigned" / "main.luac", "\x1bLua not really bytecode");
+    astral::SettingsStore settings((root / "settings.json").string());
+    settings.set("astral", "developer-mode", true);
+    astral::LuaHostPlatform platform;
+    platform.storagePath = (root / "storage.sqlite").string();
+    platform.verifySignature = [](const std::string &directory, const std::string &) {
+        return directory.find("unsigned") == std::string::npos;
+    };
+    astral::luahost::start({(root / "plugins").string()}, &settings, true, std::move(platform));
+    assert(astral::luahost::eval("astral.bytecode-signed", "return astral.state.from .. ':' .. astral.state.module") ==
+           "bytecode:bytecode module");
+    assert(astral::luahost::eval("astral.bytecode-unsigned", "return astral.state.from .. ':' .. astral.state.module") ==
+           "source:source module");
+    astral::luahost::stop();
+}
+
 static void testFilePickerAndDialogs(const std::string &work)
 {
     auto root = std::filesystem::path(work) / "native-ui-host";
@@ -1165,6 +1213,7 @@ int main(int argc, char **argv)
     testMessageBackground(argv[1]);
     testNodePatch(argv[1]);
     testNodeInsert(argv[1]);
+    testBytecodeOnlyWhenSigned(argv[1]);
     testFilePickerAndDialogs(argv[1]);
     testGatewayMessageEventsAndHaptics(argv[1]);
     testSliderSettingsAndNavigation(argv[1]);

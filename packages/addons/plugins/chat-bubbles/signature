@@ -1,5 +1,6 @@
-signature = "7ttCF/iEMMIbZONoVuTcrncQ8Z4eVUfusQelhjZgx5XZ6h3xMnywufYY9ZdGyLqxjokBVxEaSw7y8Kgh8l5tCg=="
+signature = "Tayfrf6FKRcJEIF19CAdV9vDzj+u2NLCCx6Q6LVV9w0zSqwXLd8gWDZ6iVVzAqnDe8ULT0UCbC1AoJnpbMpGAw=="
 
 [files]
 "main.lua" = "63ff3be359a9756460902b2216e5b5251eb22b2750fb2700dc7d16ddefbc7997"
+"main.luac" = "ee0f781e6df8453868d4a3a70efa92c06048e35d46c4ef3ce7e01ee43786bc0d"
 "manifest.toml" = "81c43dcda6212141bb7af4989f400370833b5c5683c0b4312c937ac1e8f3d793"

@@ -1258,7 +1258,10 @@ static int Require(lua_State *state)
     auto module = plugin->modules.find(name);
     if (module == plugin->modules.end()) return luaL_error(state, "module '%s' not found in %s", name.c_str(), plugin->identifier.c_str());
     std::string chunk = "=" + plugin->identifier + "/" + name;
-    if (luaL_loadbufferx(state, module->second.data(), module->second.size(), chunk.c_str(), "t") != LUA_OK) return lua_error(state);
+    auto compiled = plugin->signedByAstral ? plugin->moduleBytecode.find(name) : plugin->moduleBytecode.end();
+    bool binary = compiled != plugin->moduleBytecode.end();
+    const std::string &code = binary ? compiled->second : module->second;
+    if (luaL_loadbufferx(state, code.data(), code.size(), chunk.c_str(), binary ? "b" : "t") != LUA_OK) return lua_error(state);
     lua_pushstring(state, name.c_str());
     lua_call(state, 1, 1);
     if (lua_isnil(state, -1)) {
@@ -1760,7 +1763,8 @@ static void InstallAPI(LuaPlugin *plugin)
 
 static bool RunPrelude(LuaPlugin *plugin)
 {
-    auto error = plugin->sandbox->load(std::string(kAstralPrelude, sizeof(kAstralPrelude) - 1), "astral");
+    auto error =
+        plugin->sandbox->loadBytecode(std::string(reinterpret_cast<const char *>(kAstralPrelude), sizeof(kAstralPrelude)), "astral");
     if (error) {
         Report(plugin, "prelude", *error);
         return false;
@@ -1903,7 +1907,10 @@ static bool Start(LuaPlugin *plugin)
         Stop(plugin);
         return false;
     }
-    if (auto error = plugin->sandbox->load(plugin->source, plugin->identifier)) {
+    bool compiled = plugin->signedByAstral && !plugin->mainBytecode.empty();
+    auto loaded = compiled ? plugin->sandbox->loadBytecode(plugin->mainBytecode, plugin->identifier)
+                           : plugin->sandbox->load(plugin->source, plugin->identifier);
+    if (auto error = loaded) {
         Report(plugin, "load", *error);
         MarkFailed(plugin);
         Stop(plugin);

@@ -75,6 +75,13 @@ std::optional<std::string> Sandbox::load(const std::string &source, const std::s
     return std::nullopt;
 }
 
+std::optional<std::string> Sandbox::loadBytecode(const std::string &bytecode, const std::string &chunk)
+{
+    if (!luaState) return "out of memory";
+    if (luaL_loadbufferx(luaState, bytecode.data(), bytecode.size(), ("=" + chunk).c_str(), "b") != LUA_OK) return popError();
+    return std::nullopt;
+}
+
 std::optional<std::string> Sandbox::call(int arguments, int results)
 {
     remaining = limits.budgetSlices;
