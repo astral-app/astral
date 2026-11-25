@@ -25,4 +25,5 @@ pub mod patch;
 pub mod properties;
 pub mod reactions;
 pub mod rewriter;
+pub mod theme;
 pub mod tween;
