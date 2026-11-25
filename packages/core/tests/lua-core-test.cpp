@@ -989,6 +989,10 @@ static void testGatewayMessageEventsAndHaptics(const std::string &work)
                                   {"reference", {{"channel_id", channel}, {"message_id", "200000000000000010"}}}};
         return std::nullopt;
     };
+    platform.member = [](const std::string &guild, const std::string &user) -> std::optional<nlohmann::json> {
+        if (guild != "200000000000000005" || user != "100000000000000001") return std::nullopt;
+        return nlohmann::json{{"roles", {"300000000000000001"}}};
+    };
     std::vector<std::string> strengths;
     platform.triggerHaptic = [&](const std::string &strength) {
         strengths.push_back(strength);
@@ -1024,6 +1028,16 @@ static void testGatewayMessageEventsAndHaptics(const std::string &work)
     assert(!astral::luahost::processGatewayMessage(
         R"({"op":0,"t":"MESSAGE_CREATE","d":{"id":"200000000000000009","channel_id":"200000000000000007","author":{"id":"100000000000000001"},"mentions":[{"id":"100000000000000001"}],"content":"filtered own message"}})"));
     assert(strengths == std::vector<std::string>({"medium", "medium"}));
+    assert(!astral::luahost::processGatewayMessage(
+        R"({"op":0,"t":"MESSAGE_CREATE","d":{"id":"200000000000000013","channel_id":"200000000000000002","guild_id":"200000000000000005","author":{"id":"200000000000000003"},"mentions":[],"mention_roles":["300000000000000001"],"content":"role ping"}})"));
+    assert(astral::luahost::eval("astral.gateway-events-test",
+                                 "local e = astral.storage.get('event'); return tostring(e.role_mentioned) "
+                                 ".. ':' .. tostring(e.everyone) .. ':' .. e.guild_id") == "true:false:200000000000000005");
+    assert(!astral::luahost::processGatewayMessage(
+        R"({"op":0,"t":"MESSAGE_CREATE","d":{"id":"200000000000000014","channel_id":"200000000000000002","guild_id":"200000000000000005","author":{"id":"200000000000000003"},"mentions":[],"mention_roles":["300000000000000002"],"mention_everyone":true,"content":"everyone ping"}})"));
+    assert(astral::luahost::eval(
+               "astral.gateway-events-test",
+               "local e = astral.storage.get('event'); return tostring(e.role_mentioned) .. ':' .. tostring(e.everyone)") == "false:true");
     uint32_t color = 0;
     assert(AstralLuaMessageTextColor(200000000000000011ULL, 200000000000000007ULL, &color) == 1);
     assert(color == 0x805865F2);
