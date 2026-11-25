@@ -110,20 +110,10 @@ pub fn tracked_author(id: i32) -> Option<u64> {
 
 unsafe extern "C" {
     pub fn wireTrackSlot(id: i32, create: c_int) -> *mut Tracked;
-    pub fn astral_wire_current_channel() -> u64;
-    pub fn wirePrefixed(text: *const u8, length: usize, prefix: *const c_char, suffix: *mut u64) -> c_int;
-    pub fn wireAvatarUser(text: *const u8, length: usize) -> u64;
 }
 
-pub fn current_channel() -> u64 {
-    unsafe { astral_wire_current_channel() }
-}
+pub use super::ids::{avatar_user, current_channel};
 
 pub fn prefixed(text: &[u8], prefix: &CStr) -> Option<u64> {
-    let mut suffix = 0;
-    (unsafe { wirePrefixed(text.as_ptr(), text.len(), prefix.as_ptr(), &mut suffix) } != 0).then_some(suffix)
-}
-
-pub fn avatar_user(text: &[u8]) -> u64 {
-    unsafe { wireAvatarUser(text.as_ptr(), text.len()) }
+    super::ids::prefixed(text, prefix.to_bytes())
 }
