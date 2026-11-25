@@ -19,6 +19,7 @@
 #import "AstralState.h"
 #import "DevServer.h"
 #import "CrashReports.h"
+#import "EnvironmentReport.h"
 #import "AuthorAvatars.h"
 #import "EngineSelection.h"
 #import "ImageAssets.h"
@@ -308,6 +309,7 @@ __attribute__((constructor)) static void AstralBootstrap(void)
     AstralStartPhoenixRouteWhenLoaded();
     dispatch_async(dispatch_get_main_queue(), ^{
         Status(@"injected");
+        AstralStartHttpsCheck();
         AstralReportMissingAppExtensions();
         [NSNotificationCenter.defaultCenter addObserverForName:UIApplicationDidBecomeActiveNotification
                                                         object:nil

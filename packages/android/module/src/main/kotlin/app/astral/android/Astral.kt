@@ -46,6 +46,7 @@ class Astral : XposedModule() {
     }
 
     private fun start(param: PackageReadyParam) {
+        EnvironmentFacts.framework = runCatching { "$frameworkName $frameworkVersion".trim() }.getOrDefault("")
         runCatching { ForcePhoenix.apply(param.applicationInfo.dataDir) }.onFailure { Log.error("Failed to keep Phoenix as Discord's client", it) }
         NativeLibrary.load(moduleApplicationInfo, param.applicationInfo)
         val names = runCatching { PropertyTable.names(param.applicationInfo, param.classLoader) }

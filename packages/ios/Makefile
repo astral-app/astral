@@ -21,7 +21,8 @@ include $(THEOS)/makefiles/common.mk
 
 TWEAK_NAME := astral
 astral_FILES := $(wildcard sources/*.mm sources/*.m sources/*.c sources/*.S sources/*.cpp $(CORE)/wire/*.c) $(addprefix $(CORE)/src/,$(addsuffix .cpp,$(CORE_SOURCES))) $(addprefix $(LUA)/,$(addsuffix .c,$(LUA_SOURCES))) $(MONOCYPHER)/monocypher.c $(MONOCYPHER)/optional/monocypher-ed25519.c
-astral_CFLAGS := -fobjc-arc -flto=thin -Isources -I$(CORE)/wire -I$(GENERATED) -I$(CORE)/include -isystem $(ROOT)/vendor/json/single_include -I$(LUA) -DLUA_USE_POSIX -DASTRAL_VERSION=\"$(ASTRAL_VERSION)\" -DASTRAL_SIGNING_KEY=\"$(SIGNING_KEY)\" -I$(MONOCYPHER) -I$(MONOCYPHER)/optional -isystem $(ROOT)/vendor/tomlplusplus/include
+ASTRAL_COMMIT ?= $(shell git -C $(ROOT) rev-parse --short=9 HEAD 2>/dev/null || echo unknown)
+astral_CFLAGS := -fobjc-arc -flto=thin -Isources -I$(CORE)/wire -I$(GENERATED) -I$(CORE)/include -isystem $(ROOT)/vendor/json/single_include -I$(LUA) -DLUA_USE_POSIX -DASTRAL_VERSION=\"$(ASTRAL_VERSION)\" -DASTRAL_COMMIT=\"$(ASTRAL_COMMIT)\" -DASTRAL_SIGNING_KEY=\"$(SIGNING_KEY)\" -I$(MONOCYPHER) -I$(MONOCYPHER)/optional -isystem $(ROOT)/vendor/tomlplusplus/include
 astral_CCFLAGS := -std=c++20 -fno-cxx-modules
 astral_LDFLAGS := -flto=thin
 astral_FRAMEWORKS := Foundation UIKit UserNotifications AVFoundation Security MetricKit UniformTypeIdentifiers ImageIO AuthenticationServices SafariServices WebKit

@@ -1,5 +1,8 @@
 #import "CrashReports.h"
 
+#import "EnvironmentReport.h"
+#import "PhoenixImage.h"
+
 #import <MetricKit/MetricKit.h>
 #import <mach-o/dyld.h>
 
@@ -123,6 +126,9 @@ static NSDictionary *Environment(void)
 NSDictionary *AstralDiagnosticEnvironment(void)
 {
     NSMutableDictionary *environment = [Environment() mutableCopy];
+    [environment addEntriesFromDictionary:AstralEnvironmentReport()];
+    environment[@"commit"] = @ASTRAL_COMMIT;
+    environment[@"compatibility"] = AstralPhoenixCompatibility() ?: @"";
     NSArray<NSDictionary *> *reports = AstralCrashReports();
     environment[@"reports"] = @(reports.count);
     if (reports.firstObject[@"title"]) environment[@"last_report"] = reports.firstObject[@"title"];

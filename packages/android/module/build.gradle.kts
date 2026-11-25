@@ -6,6 +6,15 @@ plugins {
 
 val repositoryRoot: File = rootDir.parentFile.parentFile
 val astralVersion = repositoryRoot.resolve("version.txt").readText().trim()
+val astralCommit =
+    providers
+        .exec {
+            commandLine("git", "-C", repositoryRoot.absolutePath, "rev-parse", "--short=9", "HEAD")
+            isIgnoreExitValue = true
+        }.standardOutput.asText
+        .get()
+        .trim()
+        .ifEmpty { "unknown" }
 
 abstract class StageResources : DefaultTask() {
     @get:InputFiles
@@ -68,6 +77,7 @@ android {
                         "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON",
                         "-DASTRAL_ROOT=${repositoryRoot.absolutePath}",
                         "-DASTRAL_VERSION=$astralVersion",
+                        "-DASTRAL_COMMIT=$astralCommit",
                     )
                 cppFlags += listOf("-std=c++20", "-fexceptions", "-frtti")
             }
