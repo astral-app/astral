@@ -15,6 +15,7 @@ pub mod macho;
 pub mod marketplace;
 pub mod network_policy;
 pub mod network_stack;
+pub mod packs;
 pub mod plugin_trace;
 pub mod privacy;
 pub mod reports;
