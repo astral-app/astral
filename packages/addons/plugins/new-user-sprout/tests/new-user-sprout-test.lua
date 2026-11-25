@@ -26,6 +26,12 @@ astral = {
 		end,
 	},
 	discord = { permission = {} },
+	snowflake = {
+		timestamp = function(id)
+			local value = math.tointeger(tonumber(id))
+			return value and (value >> 22) + 1420070400000 or nil
+		end,
+	},
 }
 astral.Target = { MessageAuthor = "message.author" }
 astral.Pill = function(text, options)

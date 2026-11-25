@@ -1,5 +1,4 @@
 local DAY_MS = 24 * 60 * 60 * 1000
-local DISCORD_EPOCH = 1420070400000
 
 local settings = astral.settings.section("Sprout")
 settings:number(
@@ -8,13 +7,8 @@ settings:number(
 	{ min = 1, max = 90, step = 1, default = 7, subtitle = "Days a new account keeps the sprout" }
 )
 
-local function created_at(user_id)
-	local id = math.tointeger(tonumber(user_id))
-	return id and (id >> 22) + DISCORD_EPOCH or nil
-end
-
 astral.ui.decorate(astral.Target.MessageAuthor, function(node)
-	local created = node.user_id and created_at(node.user_id)
+	local created = node.user_id and astral.snowflake.timestamp(node.user_id)
 	if not created or node:is_bot() then
 		return nil
 	end

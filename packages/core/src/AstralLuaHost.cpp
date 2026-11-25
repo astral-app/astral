@@ -1380,6 +1380,47 @@ static bool ValidAuthorizationURL(const std::string &url, size_t maximumLength)
     return !authority.empty() && authority.find('@') == std::string::npos;
 }
 
+static int HexValue(char character)
+{
+    if (character >= '0' && character <= '9') return character - '0';
+    if (character >= 'a' && character <= 'f') return character - 'a' + 10;
+    if (character >= 'A' && character <= 'F') return character - 'A' + 10;
+    return -1;
+}
+
+static std::string PercentDecoded(const std::string &text)
+{
+    std::string decoded;
+    for (size_t index = 0; index < text.size(); index++) {
+        int high = index + 2 < text.size() && text[index] == '%' ? HexValue(text[index + 1]) : -1;
+        int low = high >= 0 ? HexValue(text[index + 2]) : -1;
+        if (low >= 0) {
+            decoded += static_cast<char>(high * 16 + low);
+            index += 2;
+        } else {
+            decoded += text[index] == '+' ? ' ' : text[index];
+        }
+    }
+    return decoded;
+}
+
+static std::string RedirectURI(const std::string &url)
+{
+    size_t query = url.find('?');
+    if (query == std::string::npos) return {};
+    size_t end = url.find('#', query);
+    std::string parameters = url.substr(query + 1, end == std::string::npos ? std::string::npos : end - query - 1);
+    size_t start = 0;
+    while (start <= parameters.size()) {
+        size_t next = parameters.find('&', start);
+        std::string pair = parameters.substr(start, next == std::string::npos ? std::string::npos : next - start);
+        if (pair.rfind("redirect_uri=", 0) == 0) return PercentDecoded(pair.substr(13));
+        if (next == std::string::npos) break;
+        start = next + 1;
+    }
+    return {};
+}
+
 static int WebAuth(lua_State *state)
 {
     LuaPlugin *plugin = Self(state);
@@ -1394,7 +1435,8 @@ static int WebAuth(lua_State *state)
     std::string urlAuthority = urlAuthorityEnd == std::string::npos ? url.substr(8) : url.substr(8, urlAuthorityEnd - 8);
     std::string callbackAuthority =
         callbackAuthorityEnd == std::string::npos ? callbackURL.substr(8) : callbackURL.substr(8, callbackAuthorityEnd - 8);
-    if (urlAuthority != callbackAuthority || callbackURL.find_first_of("?#") != std::string::npos)
+    bool redirectsToCallback = RedirectURI(url).rfind(callbackURL, 0) == 0;
+    if ((urlAuthority != callbackAuthority && !redirectsToCallback) || callbackURL.find_first_of("?#") != std::string::npos)
         return luaL_error(state, "astral.ui.web_auth: callback must be a path on the authorization URL's HTTPS host");
     for (auto *pending : gPlugins) {
         if (!pending->webAuthRequests.empty()) return luaL_error(state, "astral.ui.web_auth: another authorization flow is already active");
@@ -3311,8 +3353,6 @@ static std::optional<HttpDecision> HandleInteraction(HttpRequest &request)
             nlohmann::json reply;
             bool hasReply = !lua_isnil(state, -1) && astral::lua::toJSON(state, -1, reply);
             lua_settop(state, top);
-            if (!hasReply) return decision;
-            if (reply.is_string()) reply = {{"content", reply}};
             std::string nonce = payload->value("nonce", std::string());
             std::string interaction = CommandID("interaction", std::to_string(gNextRequest.fetch_add(1)));
             if (gPlatform.dispatchGateway) {
@@ -3323,6 +3363,8 @@ static std::optional<HttpDecision> HandleInteraction(HttpRequest &request)
                 gPlatform.dispatchGateway(created.dump());
                 gPlatform.dispatchGateway(succeeded.dump());
             }
+            if (!hasReply) return decision;
+            if (reply.is_string()) reply = {{"content", reply}};
             if (reply.is_object() && reply.contains("send") && reply["send"].is_object() && SnowflakeText(channel)) {
                 nlohmann::json message = reply["send"];
                 nlohmann::json file = message.value("file", nlohmann::json());
@@ -5095,7 +5137,11 @@ bool pressMessageAction(std::string_view identifier)
     auto [end, error] = std::from_chars(identifier.data(), identifier.data() + identifier.size(), actionID);
     if (error != std::errc() || end != identifier.data() + identifier.size() || !actionID) return false;
     uint64_t channelID = gMenuChannel, messageID = gMenuMessage;
-    if (!channelID || !messageID) return false;
+    if (!channelID || !messageID) {
+        if (gPlatform.developerLog)
+            gPlatform.developerLog("Failed to press message action " + std::to_string(actionID) + ": no menu message");
+        return false;
+    }
     LuaPlugin *owner = nullptr;
     const LuaMessageAction *selected = nullptr;
     for (auto *plugin : gPlugins) {
@@ -5111,9 +5157,9 @@ bool pressMessageAction(std::string_view identifier)
     if (!owner || !selected) return false;
     std::string channel = std::to_string(channelID);
     std::string message = std::to_string(messageID);
-    if (!gPlatform.message) return false;
-    auto record = gPlatform.message(channel, message);
-    if (!record) return false;
+    auto record = gPlatform.message ? gPlatform.message(channel, message) : std::nullopt;
+    if (!record && gPlatform.developerLog)
+        gPlatform.developerLog("Message action " + std::to_string(actionID) + " found no cached message " + message);
     auto guild = gPlatform.channelGuild ? gPlatform.channelGuild(channel) : std::nullopt;
     std::string user;
     if (record && record->is_object()) {

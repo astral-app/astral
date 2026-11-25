@@ -4,7 +4,7 @@ description = "Shows a sprout beside people whose Discord account is less than t
 version = "0.0.1"
 icon = "UserPlusIcon"
 main = "main.lua"
-permissions = []
+permissions = ["discord.messages"]
 
 [[authors]]
 name = "adrian"

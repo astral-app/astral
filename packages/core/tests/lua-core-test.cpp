@@ -946,6 +946,14 @@ static void testFilePickerAndDialogs(const std::string &work)
     assert(astral::luahost::eval("astral.native-ui-test", "return astral.storage.get('authorization').url") ==
            "https://example.com/callback?code=ok");
     assert(astral::luahost::eval("astral.native-ui-test", "return astral.storage.get('authorization').cookies") == "session=ok");
+    assert(astral::luahost::eval("astral.native-ui-test",
+                                 "local request = astral.ui.web_auth('https://discord.com/oauth2/authorize?client_id=1&redirect_uri="
+                                 "https%3A%2F%2Fother.example%2Fcallback%2Fauth', 'https://other.example/callback', function() end); "
+                                 "astral.ui.cancel_web_auth(request); return tostring(request > 0)") == "true");
+    assert(astral::luahost::eval("astral.native-ui-test",
+                                 "local ok = pcall(function() astral.ui.web_auth('https://discord.com/oauth2/authorize?redirect_uri="
+                                 "https%3A%2F%2Fother.example%2Fcallback', 'https://third.example/callback', function() end) end); "
+                                 "return ok") == "false");
     uint64_t cancelledAuth = std::stoull(astral::luahost::eval(
         "astral.native-ui-test", "local request = astral.ui.web_auth('https://example.com/auth', 'https://example.com/callback', "
                                  "function() astral.storage.set('cancelled_auth_callback', true) end); "
