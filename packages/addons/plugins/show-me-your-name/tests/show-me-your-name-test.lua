@@ -1,4 +1,4 @@
-local function englishStrings()
+local function english_strings()
 	local strings = {}
 	local folder = arg[1]:match("(.*/)") or "./"
 	local file = io.open(folder .. "i18n/en-US.toml")
@@ -14,7 +14,7 @@ local function englishStrings()
 	return strings
 end
 
-local english = englishStrings()
+local english = english_strings()
 
 local relabel = nil
 local stored = {}
