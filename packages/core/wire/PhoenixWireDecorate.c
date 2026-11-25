@@ -718,7 +718,7 @@ static void writeLineShrink(Out *out, const BubbleBlock *text, int inLine)
         wirePut32(out, (uint32_t)text->children[index]);
         wirePropCount(out, 1);
         if (inLine) {
-            wirePropNumber(out, P(shrink), 1);
+            wirePropBool(out, P(shrink), 1);
         } else {
             wirePut16(out, P(shrink));
             wirePut8(out, 0);
