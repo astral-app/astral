@@ -21,6 +21,7 @@ pub mod message_menu;
 pub mod message_text;
 pub mod names;
 pub mod out;
+pub mod pages;
 pub mod patch;
 pub mod properties;
 pub mod reactions;
