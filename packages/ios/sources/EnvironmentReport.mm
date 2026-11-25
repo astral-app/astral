@@ -488,6 +488,7 @@ static NSDictionary *StaticReport(void)
         if (auto signer = astral::binary::signer(anatomy->signature)) report[@"signer"] = @(astral::binary::signerLine(*signer).c_str());
     }
     std::string build = SysctlText("kern.osversion");
+    if (!build.empty()) report[@"os_build"] = @(build.c_str());
     if (report::isBetaBuild(build)) report[@"os_beta"] = @(build.c_str());
     report[@"device_name"] = DeviceName();
     report[@"source"] = @(AppSource(signature).c_str());

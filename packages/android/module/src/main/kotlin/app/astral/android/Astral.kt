@@ -61,6 +61,7 @@ class Astral : XposedModule() {
             .put("install_mode", "injected")
             .put("device", "${Build.MANUFACTURER} ${Build.MODEL}".trim())
             .put("system", "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
+            .put("os_build", Build.ID)
             .put("architecture", Build.SUPPORTED_ABIS.firstOrNull().orEmpty())
             .put("abi", Build.SUPPORTED_ABIS.firstOrNull().orEmpty())
             .put("locale", Locale.getDefault().toLanguageTag())

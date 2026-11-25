@@ -1,6 +1,7 @@
 #include <android/log.h>
 #include <jni.h>
 
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <algorithm>
@@ -526,9 +527,8 @@ astral::LuaHostPlatform platform(const std::string &state, const std::string &re
         environment.update(environmentReport());
         environment["commit"] = ASTRAL_COMMIT;
         environment["image"] = "libastral.so";
-        nlohmann::json reports = readReports();
-        environment["reports"] = reports.is_array() ? reports.size() : 0;
-        if (reports.is_array() && !reports.empty() && reports[0].contains("title")) environment["last_report"] = reports[0]["title"];
+        double now = std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count();
+        environment.update(astral::environment_report::crashSummary(readReports(), now));
         return environment;
     };
     platform.pressNode = [](const std::string &identifier, bool prefix) {
