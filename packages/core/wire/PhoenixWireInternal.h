@@ -84,6 +84,8 @@ typedef struct {
     int32_t parent;
     int32_t tags[kMaxTags * 2];
     uint32_t count;
+    uint64_t message;
+    uint64_t signature;
 } Decorated;
 
 typedef enum { kKeep, kDrop, kString, kNumber, kInteger, kBool } Edit;

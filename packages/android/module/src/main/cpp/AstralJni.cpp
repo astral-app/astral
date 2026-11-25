@@ -731,6 +731,7 @@ std::vector<uint8_t> pendingUpdates()
     if (gRefreshDecorations.exchange(false) || astral_wire_take_refresh_busy()) {
         if (astral_wire_refresh_reactions(&buffer)) append(merged, buffer);
         if (astral_wire_refresh_message_texts(&buffer)) append(merged, buffer);
+        if (astral_wire_refresh_author_tags(&buffer)) append(merged, buffer);
         if (astral_wire_refresh_message_backgrounds(&buffer)) append(merged, buffer);
         if (astral_wire_refresh_node_patches(&buffer)) append(merged, buffer);
         if (astral_wire_refresh_node_inserts(&buffer)) {

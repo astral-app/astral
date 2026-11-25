@@ -1501,6 +1501,57 @@ int32_t wireBuildTag(Out *out, const AstralTag *tag, Decorated *slot)
     return pill;
 }
 
+static uint64_t tagSignature(const AstralTag *tags, size_t count)
+{
+    uint64_t hash = 1469598103934665603ull;
+    const uint8_t *bytes = (const uint8_t *)tags;
+    for (size_t index = 0; index < count * sizeof(AstralTag); index++) hash = (hash ^ bytes[index]) * 1099511628211ull;
+    return hash ^ count;
+}
+
+static size_t decorateAuthor(uint64_t message, AstralTag *tags)
+{
+    AstralDecorationContext context = {"message.author:", message, authorOf(message), astral_wire_current_channel()};
+    memset(tags, 0, sizeof(AstralTag) * kMaxTags);
+    size_t tagCount = gDecorator(&context, tags, kMaxTags);
+    gStats.authors++;
+    if (context.user_id) gStats.with_user++;
+    if (context.channel_id) gStats.with_channel++;
+    if (tagCount) gStats.tagged++;
+    return tagCount > kMaxTags ? kMaxTags : tagCount;
+}
+
+static int isTimestamp(int32_t id)
+{
+    Tracked *child = wireTrackSlot(id, 0);
+    return child && child->kind == kTrackTimestamp;
+}
+
+static void writeTags(Out *out, int32_t parent, const int32_t *children, uint32_t childCount, const AstralTag *tags, size_t tagCount,
+                      Decorated *slot)
+{
+    removeTags(out, slot);
+    slot->signature = tagSignature(tags, tagCount);
+    int32_t created[kMaxTags];
+    for (size_t tag = 0; tag < tagCount; tag++) created[tag] = wireBuildTag(out, &tags[tag], slot);
+    uint32_t insertAt = childCount;
+    for (uint32_t position = 0; position < childCount; position++) {
+        if (isTimestamp(children[position])) {
+            insertAt = position;
+            break;
+        }
+    }
+    int32_t merged[72];
+    uint32_t used = 0;
+    for (uint32_t position = 0; position <= childCount && used < 68; position++) {
+        if (position == insertAt)
+            for (size_t tag = 0; tag < tagCount; tag++)
+                if (created[tag]) merged[used++] = created[tag];
+        if (position < childCount) merged[used++] = children[position];
+    }
+    wirePutChildren(out, parent, merged, used);
+}
+
 void wireDecorate(const uint8_t *bytes, const Span *spans, size_t count, Out *out, int *changed, size_t length)
 {
     if (!gDecorator && !gMessageBackgroundDecorator && !wirePatchingActive()) return;
@@ -1512,50 +1563,68 @@ void wireDecorate(const uint8_t *bytes, const Span *spans, size_t count, Out *ou
         if (span->op != 3 || span->childCount == 0 || span->childCount > 64) continue;
         int32_t matched = 0;
         uint64_t message = 0;
+        int32_t children[64];
         for (uint32_t position = 0; position < span->childCount; position++) {
-            Tracked *child = wireTrackSlot(wireChildAt(bytes, span, position), 0);
-            if (child && child->kind == kTrackAuthor) {
+            children[position] = wireChildAt(bytes, span, position);
+            Tracked *child = wireTrackSlot(children[position], 0);
+            if (!matched && child && child->kind == kTrackAuthor) {
                 matched = child->id;
                 message = child->value;
-                break;
             }
         }
         if (!matched) continue;
-        AstralDecorationContext context = {"message.author:", message, authorOf(message), astral_wire_current_channel()};
         AstralTag tags[kMaxTags];
-        memset(tags, 0, sizeof(tags));
-        size_t tagCount = gDecorator(&context, tags, kMaxTags);
-        gStats.authors++;
-        if (context.user_id) gStats.with_user++;
-        if (context.channel_id) gStats.with_channel++;
-        if (tagCount) gStats.tagged++;
-        Decorated *slot = decoratedSlot(span->id, tagCount > 0);
-        if (!tagCount && (!slot || !slot->count)) continue;
+        size_t tagCount = decorateAuthor(message, tags);
+        Decorated *slot = decoratedSlot(span->id, 1);
+        if (!slot) continue;
+        slot->message = message;
+        if (!tagCount && !slot->count) {
+            slot->signature = tagSignature(tags, 0);
+            continue;
+        }
         if (!*changed) wirePut(out, bytes, length);
         *changed = 1;
-        removeTags(out, slot);
-        if (!tagCount) continue;
-        int32_t children[72];
-        uint32_t used = 0;
-        int32_t created[kMaxTags];
-        for (size_t tag = 0; tag < tagCount && tag < kMaxTags; tag++) created[tag] = wireBuildTag(out, &tags[tag], slot);
-        uint32_t insertAt = span->childCount;
-        for (uint32_t position = 0; position < span->childCount; position++) {
-            Tracked *child = wireTrackSlot(wireChildAt(bytes, span, position), 0);
-            if (child && child->kind == kTrackTimestamp) {
-                insertAt = position;
-                break;
-            }
+        if (!tagCount) {
+            removeTags(out, slot);
+            slot->signature = tagSignature(tags, 0);
+            continue;
         }
-        for (uint32_t position = 0; position <= span->childCount && used < 68; position++) {
-            if (position == insertAt) {
-                for (size_t tag = 0; tag < tagCount && tag < kMaxTags; tag++)
-                    if (created[tag]) children[used++] = created[tag];
-            }
-            if (position < span->childCount) children[used++] = wireChildAt(bytes, span, position);
-        }
-        wirePutChildren(out, span->id, children, used);
+        writeTags(out, span->id, children, span->childCount, tags, tagCount, slot);
     }
+}
+
+int astral_wire_refresh_author_tags(AstralWireBuffer *buffer)
+{
+    memset(buffer, 0, sizeof(*buffer));
+    if (!gDecorator) return 0;
+    Out out = {0};
+    wirePut8(&out, kWireVersion);
+    int any = 0;
+    for (size_t index = 0; index < kMaxDecorated; index++) {
+        Decorated *slot = &gDecorated[index];
+        if (!slot->parent || !slot->message) continue;
+        const int32_t *children = NULL;
+        uint32_t childCount = wireDiscordChildren(slot->parent, &children);
+        if (!childCount || childCount > 64) continue;
+        AstralTag tags[kMaxTags];
+        size_t tagCount = decorateAuthor(slot->message, tags);
+        if (tagSignature(tags, tagCount) == slot->signature) continue;
+        any = 1;
+        if (!tagCount) {
+            removeTags(&out, slot);
+            slot->signature = tagSignature(tags, 0);
+            wirePutChildren(&out, slot->parent, (int32_t *)children, childCount);
+            continue;
+        }
+        writeTags(&out, slot->parent, children, childCount, tags, tagCount, slot);
+    }
+    if (!any || out.failed) {
+        free(out.bytes);
+        return 0;
+    }
+    buffer->bytes = out.bytes;
+    buffer->length = out.length;
+    return 1;
 }
 
 void wireObserveRemovals(const uint8_t *bytes, const Span *spans, size_t count, Out *out, int *changed, size_t length)
@@ -1581,6 +1650,7 @@ void wireObserveRemovals(const uint8_t *bytes, const Span *spans, size_t count, 
                 *changed = 1;
                 removeTags(out, slot);
             }
+            if (slot) slot->message = 0;
         }
     }
 }

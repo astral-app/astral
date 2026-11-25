@@ -500,6 +500,8 @@ void AstralPhoenixRefreshDecorations(void)
         if (live && astral_wire_refresh_reactions(&buffer)) Send(&buffer);
         AstralWireBuffer texts = {};
         if (live && astral_wire_refresh_message_texts(&texts)) Send(&texts);
+        AstralWireBuffer tags = {};
+        if (live && astral_wire_refresh_author_tags(&tags)) Send(&tags);
         AstralWireBuffer backgrounds = {};
         if (live && astral_wire_refresh_message_backgrounds(&backgrounds)) Send(&backgrounds);
         AstralWireBuffer patches = {};

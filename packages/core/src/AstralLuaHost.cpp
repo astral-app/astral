@@ -201,6 +201,18 @@ static void RefreshDecorations(void)
     if (gPlatform.refreshDecorations) gPlatform.refreshDecorations();
 }
 
+static std::atomic<bool> gRedrawAfterBusy{false};
+
+static void RedrawAfterBusy(void)
+{
+    if (gRedrawAfterBusy.exchange(true)) return;
+    std::thread([] {
+        std::this_thread::sleep_for(std::chrono::milliseconds(250));
+        gRedrawAfterBusy = false;
+        RefreshDecorations();
+    }).detach();
+}
+
 static std::string SettingKey(const LuaPlugin *plugin, const std::string &key)
 {
     return plugin->identifier + ".setting." + key;
@@ -4100,6 +4112,16 @@ static std::string ResolveChannel(uint64_t channelID, const std::string &message
     return channel;
 }
 
+static std::string MessageAuthor(const std::string &channel, const std::string &message)
+{
+    if (channel.empty() || message.empty() || !gPlatform.message) return "";
+    auto record = gPlatform.message(channel, message);
+    if (!record || !record->is_object()) return "";
+    const auto &author = record->value("author", nlohmann::json::object());
+    std::string user = author.is_object() ? author.value("id", std::string()) : std::string();
+    return SnowflakeText(user) ? user : "";
+}
+
 static const char *LabelTarget(AstralLabelKind kind)
 {
     switch (kind) {
@@ -4137,7 +4159,10 @@ static const char *LabelKindName(AstralLabelKind kind)
 int AstralLuaRelabel(const AstralLabelContext *context, const char *text, size_t length, char *out, size_t capacity)
 {
     std::unique_lock<std::recursive_mutex> lock(gMutex, std::try_to_lock);
-    if (!lock.owns_lock()) return -1;
+    if (!lock.owns_lock()) {
+        RedrawAfterBusy();
+        return -1;
+    }
     std::string message = Snowflake(context->message_id);
     std::string channel = ResolveChannel(context->channel_id, message);
     std::string target = Snowflake(context->target_id);
@@ -4192,7 +4217,10 @@ int AstralLuaRelabel(const AstralLabelContext *context, const char *text, size_t
 int AstralLuaMention(const AstralMentionContext *context, AstralMentionDecoration *decoration)
 {
     std::unique_lock<std::recursive_mutex> lock(gMutex, std::try_to_lock);
-    if (!lock.owns_lock()) return 0;
+    if (!lock.owns_lock()) {
+        RedrawAfterBusy();
+        return 0;
+    }
     std::string message = Snowflake(context->message_id);
     std::string channel = ResolveChannel(context->channel_id, message);
     auto guild = channel.empty() || !gPlatform.channelGuild ? std::nullopt : gPlatform.channelGuild(channel);
@@ -4250,7 +4278,10 @@ int AstralLuaMention(const AstralMentionContext *context, AstralMentionDecoratio
 int AstralLuaMessageTextColor(uint64_t messageID, uint64_t channelID, uint32_t *color)
 {
     std::unique_lock<std::recursive_mutex> lock(gMutex, std::try_to_lock);
-    if (!lock.owns_lock()) return 0;
+    if (!lock.owns_lock()) {
+        RedrawAfterBusy();
+        return 0;
+    }
     bool wanted = false;
     bool wantsReplyContext = false;
     for (auto *plugin : gPlugins) {
@@ -4375,6 +4406,20 @@ static void PushSnowflakeField(lua_State *state, const char *field, uint64_t val
     if (!value) return;
     lua_pushstring(state, std::to_string(value).c_str());
     lua_setfield(state, -2, field);
+}
+
+static void PushTargetAuthor(lua_State *state, const AstralPatchTarget *target)
+{
+    if (target->author_id || !target->message_id) {
+        PushSnowflakeField(state, "author_id", target->author_id);
+        return;
+    }
+    std::string message = std::to_string(target->message_id);
+    std::string channel = target->channel_id ? std::to_string(target->channel_id) : ResolveChannel(0, message);
+    std::string author = MessageAuthor(channel, message);
+    if (author.empty()) return;
+    lua_pushstring(state, author.c_str());
+    lua_setfield(state, -2, "author_id");
 }
 
 static void PushTargetChannel(lua_State *state, const AstralPatchTarget *target)
@@ -4658,7 +4703,10 @@ int AstralLuaSpanTransform(uint64_t messageID, const uint8_t *spans, size_t leng
 {
     if (!spans || !transformed || !transformedLength) return 0;
     std::unique_lock<std::recursive_mutex> lock(gMutex, std::try_to_lock);
-    if (!lock.owns_lock()) return -1;
+    if (!lock.owns_lock()) {
+        RedrawAfterBusy();
+        return -1;
+    }
     std::vector<uint8_t> current(spans, spans + length);
     bool changed = false;
     std::string message = std::to_string(messageID);
@@ -4707,7 +4755,10 @@ int AstralLuaImageRewrite(const char *uri, char *rewritten, size_t capacity)
 {
     if (!uri || !rewritten || capacity == 0) return 0;
     std::unique_lock<std::recursive_mutex> lock(gMutex, std::try_to_lock);
-    if (!lock.owns_lock()) return 0;
+    if (!lock.owns_lock()) {
+        RedrawAfterBusy();
+        return 0;
+    }
     std::string current(uri);
     bool changed = false;
     for (auto *plugin : gPlugins) {
@@ -4743,7 +4794,10 @@ int AstralLuaPatchNode(const AstralPatchTarget *target, AstralNodePatch *patch)
     const char *identifier = target->identifier;
     const char *type = target->type;
     std::unique_lock<std::recursive_mutex> lock(gMutex, std::try_to_lock);
-    if (!lock.owns_lock()) return -1;
+    if (!lock.owns_lock()) {
+        RedrawAfterBusy();
+        return -1;
+    }
     std::string_view id(identifier);
     for (auto *plugin : gPlugins) {
         if (!plugin->state || plugin->failed) continue;
@@ -4760,7 +4814,7 @@ int AstralLuaPatchNode(const AstralPatchTarget *target, AstralNodePatch *patch)
             lua_pushstring(state, type);
             lua_setfield(state, -2, "type");
             PushSnowflakeField(state, "message_id", target->message_id);
-            PushSnowflakeField(state, "author_id", target->author_id);
+            PushTargetAuthor(state, target);
             PushTargetChannel(state, target);
             if (!Call(plugin, 1, 1, "node patch")) {
                 lua_settop(state, top);
@@ -4785,7 +4839,7 @@ static void PushPatchTarget(lua_State *state, const AstralPatchTarget *target, s
     lua_pushstring(state, target->type);
     lua_setfield(state, -2, "type");
     PushSnowflakeField(state, "message_id", target->message_id);
-    PushSnowflakeField(state, "author_id", target->author_id);
+    PushTargetAuthor(state, target);
     PushTargetChannel(state, target);
 }
 
@@ -4858,7 +4912,10 @@ int AstralLuaInsertNodes(const AstralPatchTarget *target, AstralInsertNode *node
 {
     if (!target || !target->identifier || !target->type || !nodes || !atStart) return 0;
     std::unique_lock<std::recursive_mutex> lock(gMutex, std::try_to_lock);
-    if (!lock.owns_lock()) return -1;
+    if (!lock.owns_lock()) {
+        RedrawAfterBusy();
+        return -1;
+    }
     std::string_view id(target->identifier);
     size_t count = 0;
     for (auto *plugin : gPlugins) {
@@ -4904,7 +4961,10 @@ int AstralLuaMessageBackground(const AstralMessageBackgroundContext *context, As
 {
     if (!context || !style) return 0;
     std::unique_lock<std::recursive_mutex> lock(gMutex, std::try_to_lock);
-    if (!lock.owns_lock()) return -1;
+    if (!lock.owns_lock()) {
+        RedrawAfterBusy();
+        return -1;
+    }
     bool wanted = false;
     for (auto *plugin : gPlugins) {
         if (plugin->state && !plugin->failed && !plugin->messageBackgroundDecorators.empty()) wanted = true;
@@ -4913,6 +4973,7 @@ int AstralLuaMessageBackground(const AstralMessageBackgroundContext *context, As
     std::string message = Snowflake(context->message_id);
     std::string user = Snowflake(context->user_id);
     std::string channel = Snowflake(context->channel_id);
+    if (user.empty()) user = MessageAuthor(channel.empty() ? ResolveChannel(0, message) : channel, message);
     for (auto *plugin : gPlugins) {
         if (!plugin->state || plugin->failed) continue;
         for (int decorator : plugin->messageBackgroundDecorators) {
@@ -4987,7 +5048,10 @@ int AstralLuaMessageBackground(const AstralMessageBackgroundContext *context, As
 int AstralLuaTyping(const AstralNameContext *context, AstralMentionDecoration *decoration)
 {
     std::unique_lock<std::recursive_mutex> lock(gMutex, std::try_to_lock);
-    if (!lock.owns_lock()) return 0;
+    if (!lock.owns_lock()) {
+        RedrawAfterBusy();
+        return 0;
+    }
     bool wanted = false;
     for (auto *plugin : gPlugins) wanted = wanted || (plugin->state && !plugin->failed && !plugin->typingDecorators.empty());
     if (!wanted) return 0;
@@ -5053,7 +5117,10 @@ static uint32_t ReadReactionImages(lua_State *state, AstralReactionDecoration *d
 int AstralLuaReaction(const AstralReactionContext *context, AstralReactionDecoration *decoration)
 {
     std::unique_lock<std::recursive_mutex> lock(gMutex, std::try_to_lock);
-    if (!lock.owns_lock()) return 0;
+    if (!lock.owns_lock()) {
+        RedrawAfterBusy();
+        return 0;
+    }
     std::string channel = Snowflake(context->channel_id);
     std::string message = Snowflake(context->message_id);
     if (channel.empty() || message.empty()) return 0;
@@ -5095,7 +5162,10 @@ int AstralLuaReaction(const AstralReactionContext *context, AstralReactionDecora
 int AstralLuaNameColor(const AstralNameContext *context, uint32_t *color)
 {
     std::unique_lock<std::recursive_mutex> lock(gMutex, std::try_to_lock);
-    if (!lock.owns_lock()) return 0;
+    if (!lock.owns_lock()) {
+        RedrawAfterBusy();
+        return 0;
+    }
     std::string channel = Snowflake(context->channel_id);
     auto guild = channel.empty() || !gPlatform.channelGuild ? std::nullopt : gPlatform.channelGuild(channel);
     if (!guild) return 0;
@@ -5140,9 +5210,13 @@ int AstralLuaNameColor(const AstralNameContext *context, uint32_t *color)
 size_t AstralLuaDecorate(const AstralDecorationContext *context, AstralTag *tags, size_t capacity)
 {
     std::unique_lock<std::recursive_mutex> lock(gMutex, std::try_to_lock);
-    if (!lock.owns_lock()) return 0;
+    if (!lock.owns_lock()) {
+        RedrawAfterBusy();
+        return 0;
+    }
     std::string user = Snowflake(context->user_id), message = Snowflake(context->message_id);
     std::string channel = ResolveChannel(context->channel_id, message);
+    if (user.empty()) user = MessageAuthor(channel, message);
     auto guild = channel.empty() || !gPlatform.channelGuild ? std::nullopt : gPlatform.channelGuild(channel);
     size_t count = 0;
     for (auto *plugin : gPlugins) {
@@ -5313,7 +5387,10 @@ static bool ActionShows(LuaPlugin *plugin, const LuaMessageAction &action)
 size_t AstralLuaMessageMenu(AstralMenuEntry *entries, size_t capacity)
 {
     std::unique_lock<std::recursive_mutex> lock(gMutex, std::try_to_lock);
-    if (!lock.owns_lock()) return 0;
+    if (!lock.owns_lock()) {
+        RedrawAfterBusy();
+        return 0;
+    }
     size_t count = 0;
     for (auto *plugin : gPlugins) {
         if (!plugin->state || plugin->failed) continue;
@@ -5332,7 +5409,10 @@ size_t AstralLuaMessageMenu(AstralMenuEntry *entries, size_t capacity)
 int AstralLuaMessageText(uint64_t messageID, char *text, size_t textCapacity, char *note, size_t noteCapacity)
 {
     std::unique_lock<std::recursive_mutex> lock(gMutex, std::try_to_lock);
-    if (!lock.owns_lock()) return 0;
+    if (!lock.owns_lock()) {
+        RedrawAfterBusy();
+        return 0;
+    }
     auto found = gDisplayedTexts.find(messageID);
     if (found == gDisplayedTexts.end()) return 0;
     snprintf(text, textCapacity, "%s", found->second.text.c_str());
