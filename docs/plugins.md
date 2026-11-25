@@ -79,7 +79,7 @@ Each plugin gets its own `lua_State` with `base`, `table`, `string`, `math`, `ut
 | `astral.ui.settings_backdrop({ dim })` | Lays the Nitro or astral theme gradient, darkened by `dim` percent (0 by default), behind Discord's and astral's settings screens; `nil` removes it |
 | `astral.ui.alert(title, message)` | Shows a native alert after the plugin declares `ui.dialogs` |
 | `astral.ui.toast(title, message)` | Shows a brief native notification after the plugin declares `ui.toasts` |
-| `astral.ui.web_auth(url, callback_url, callback)` | Opens one in-app HTTPS sign-in flow at a time and calls back with its matching URL, cookies changed during that flow and error after the plugin declares `ui.web_auth`; the callback must use the authorization URL's host |
+| `astral.ui.web_auth(url, callback_url, callback)` | Opens one in-app HTTPS sign-in flow at a time and calls back with its matching URL, cookies changed during that flow and error after the plugin declares `ui.web_auth`; the callback must use the authorization URL's host or start its `redirect_uri` |
 | `astral.ui.cancel_web_auth(request)` | Cancels a pending in-app sign-in flow after the plugin declares `ui.web_auth` |
 | `astral.ui.copy(value)` | Copies up to 16 KiB of text to the system clipboard after the plugin declares `ui.clipboard` |
 | `astral.ui.paste()` | Returns up to 16 KiB of text from the system clipboard, or `nil`, after the plugin declares `ui.clipboard`; iOS may ask the user to allow the paste |

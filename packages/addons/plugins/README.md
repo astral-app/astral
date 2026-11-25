@@ -1,6 +1,6 @@
 # Plugins
 
-35 first-party plugins for astral, each in its own folder here.
+36 first-party plugins for astral, each in its own folder here.
 
 <!-- Generated from each manifest.toml by `astral readme`. Do not edit by hand. -->
 
@@ -31,6 +31,7 @@
 - <img src="../../assets/readme-icons/chat-dots-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Preview Message](preview-message/): Adds a button to the chat input that shows how your message will look before you send it.
 - <img src="../../assets/readme-icons/user-circle-icon.svg" width="20" height="20" align="absmiddle" alt=""> [PronounDB](pronoundb/): Shows people's pronouns from PronounDB beside their name in messages.
 - <img src="../../assets/readme-icons/reaction-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Reaction Avatars](reaction-avatars/): Shows the people who reacted beside each message reaction.
+- <img src="../../assets/readme-icons/star-icon.svg" width="20" height="20" align="absmiddle" alt=""> [ReviewDB](reviewdb/): Reads and writes ReviewDB reviews of people with /reviews and /review, or from a message's long-press menu.
 - <img src="../../assets/readme-icons/paint-palette-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Role Color Everywhere](role-color-everywhere/): Colors mentions, message text, role headers and names beside avatars with members' role colors.
 - <img src="../../assets/readme-icons/paint-palette-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Settings Theme](settings-theme/): Shows your theme behind User Settings and every page in it, which Discord leaves plain.
 - <img src="../../assets/readme-icons/show-me-your-name.svg" width="20" height="20" align="absmiddle" alt=""> [Show Me Your Name](show-me-your-name/): Display usernames next to display names, or show usernames only.

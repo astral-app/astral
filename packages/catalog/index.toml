@@ -5,6 +5,14 @@ version = "0.0.1"
 passive = []
 
 [[plugins]]
+id = "astral.reviewdb"
+name = "ReviewDB"
+version = "0.0.1"
+description = "Reads and writes ReviewDB reviews of people with /reviews and /review, or from a message's long-press menu."
+icon = "StarIcon"
+base = "plugins/astral.reviewdb/"
+
+[[plugins]]
 id = "astral.always-animate"
 name = "Always Animate"
 version = "0.0.1"

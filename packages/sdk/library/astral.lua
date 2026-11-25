@@ -648,7 +648,7 @@ astral.commands = {}
 ---@field options? astral.CommandOption[]
 ---@field execute fun(args: table<string, any>, context: { channel_id: string, guild_id?: string }): string|table|nil
 ---Adds a slash command to Discord's own command picker. Return text or a message to reply only to you,
----or `{ send = { content, file = { name, data, content_type } } }` to have Discord send it to the channel.
+---or `{ send = { content, file = { name, data, content_type } } }` to have Discord send it to the channel. Return nil to answer later with `astral.messages.send_local`.
 ---@param command astral.Command
 function astral.commands.register(command) end
 
