@@ -585,6 +585,8 @@ function astral.ui.patch(selector, patcher) end
 ---@field width? number
 ---@field height? number
 ---@field row? boolean lay children out in a row
+---@field justify? "start"|"center"|"end" where children sit along the main axis
+---@field fill? boolean take the full width of the parent
 ---@field bold? boolean
 ---@field action? string passed to on_press when the node is tapped
 ---@field position? "start"|"end" where the nodes go among the target's children

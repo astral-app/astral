@@ -5060,6 +5060,21 @@ static void ReadInsertStyle(lua_State *state, AstralInsertNode *node)
     lua_getfield(state, -1, "row");
     if (lua_toboolean(state, -1)) node->fields |= AstralInsertRow;
     lua_pop(state, 1);
+    lua_getfield(state, -1, "fill");
+    if (lua_toboolean(state, -1)) {
+        node->fields |= AstralInsertFill;
+        node->fields &= ~AstralInsertWidth;
+    }
+    lua_pop(state, 1);
+    lua_getfield(state, -1, "justify");
+    if (lua_isstring(state, -1)) {
+        std::string justify = lua_tostring(state, -1);
+        if (justify == "start" || justify == "center" || justify == "end") {
+            std::snprintf(node->justify, sizeof(node->justify), "%s", justify.c_str());
+            node->fields |= AstralInsertJustify;
+        }
+    }
+    lua_pop(state, 1);
     lua_getfield(state, -1, "bold");
     if (lua_toboolean(state, -1)) node->fields |= AstralInsertBold;
     lua_pop(state, 1);

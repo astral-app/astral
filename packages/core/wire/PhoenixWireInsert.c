@@ -121,6 +121,8 @@ static void putNode(Out *out, int32_t id, const AstralInsertNode *node)
     if (node->fields & AstralInsertWidth) wirePropNumber(out, P(width), node->width);
     if (node->fields & AstralInsertHeight) wirePropNumber(out, P(height), node->height);
     if (node->fields & AstralInsertBold) wirePropInt(out, P(fontWeight), 600);
+    if (node->fields & AstralInsertJustify) wirePropString(out, P(justify), node->justify);
+    if (node->fields & AstralInsertFill) wirePropString(out, P(width), "fill");
     if (node->fields & AstralInsertRow) {
         wirePropString(out, P(direction), "row");
         wirePropString(out, P(align), "center");

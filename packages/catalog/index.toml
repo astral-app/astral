@@ -5,6 +5,14 @@ version = "0.0.1"
 passive = []
 
 [[plugins]]
+id = "astral.sticker-preview"
+name = "Sticker Preview"
+version = "0.0.1"
+description = "Displays a preview of a selected sticker instead of sending it immediately."
+icon = "StickerIcon"
+base = "plugins/astral.sticker-preview/"
+
+[[plugins]]
 id = "astral.gif-paste"
 name = "GIF Paste"
 version = "0.0.1"
