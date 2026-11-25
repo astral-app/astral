@@ -281,6 +281,7 @@ static Decorated *decoratedSlot(int32_t parent, int create)
             if (!create) return NULL;
             slot->parent = parent;
             slot->count = 0;
+            slot->rootCount = 0;
             return slot;
         }
     }
@@ -294,6 +295,7 @@ static void removeTags(Out *out, Decorated *slot)
     wirePut32(out, slot->count);
     for (uint32_t index = 0; index < slot->count; index++) wirePut32(out, (uint32_t)slot->tags[index]);
     slot->count = 0;
+    slot->rootCount = 0;
 }
 
 static size_t backgroundIndex(int32_t id, size_t capacity)
@@ -1527,13 +1529,8 @@ static int isTimestamp(int32_t id)
     return child && child->kind == kTrackTimestamp;
 }
 
-static void writeTags(Out *out, int32_t parent, const int32_t *children, uint32_t childCount, const AstralTag *tags, size_t tagCount,
-                      Decorated *slot)
+static void putTaggedChildren(Out *out, int32_t parent, const int32_t *children, uint32_t childCount, const Decorated *slot)
 {
-    removeTags(out, slot);
-    slot->signature = tagSignature(tags, tagCount);
-    int32_t created[kMaxTags];
-    for (size_t tag = 0; tag < tagCount; tag++) created[tag] = wireBuildTag(out, &tags[tag], slot);
     uint32_t insertAt = childCount;
     for (uint32_t position = 0; position < childCount; position++) {
         if (isTimestamp(children[position])) {
@@ -1545,11 +1542,22 @@ static void writeTags(Out *out, int32_t parent, const int32_t *children, uint32_
     uint32_t used = 0;
     for (uint32_t position = 0; position <= childCount && used < 68; position++) {
         if (position == insertAt)
-            for (size_t tag = 0; tag < tagCount; tag++)
-                if (created[tag]) merged[used++] = created[tag];
+            for (uint32_t tag = 0; tag < slot->rootCount; tag++) merged[used++] = slot->roots[tag];
         if (position < childCount) merged[used++] = children[position];
     }
     wirePutChildren(out, parent, merged, used);
+}
+
+static void writeTags(Out *out, int32_t parent, const int32_t *children, uint32_t childCount, const AstralTag *tags, size_t tagCount,
+                      Decorated *slot)
+{
+    removeTags(out, slot);
+    slot->signature = tagSignature(tags, tagCount);
+    for (size_t tag = 0; tag < tagCount; tag++) {
+        int32_t root = wireBuildTag(out, &tags[tag], slot);
+        if (root) slot->roots[slot->rootCount++] = root;
+    }
+    putTaggedChildren(out, parent, children, childCount, slot);
 }
 
 void wireDecorate(const uint8_t *bytes, const Span *spans, size_t count, Out *out, int *changed, size_t length)
@@ -1587,6 +1595,10 @@ void wireDecorate(const uint8_t *bytes, const Span *spans, size_t count, Out *ou
         if (!tagCount) {
             removeTags(out, slot);
             slot->signature = tagSignature(tags, 0);
+            continue;
+        }
+        if (slot->rootCount && tagSignature(tags, tagCount) == slot->signature) {
+            putTaggedChildren(out, span->id, children, span->childCount, slot);
             continue;
         }
         writeTags(out, span->id, children, span->childCount, tags, tagCount, slot);

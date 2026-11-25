@@ -165,8 +165,8 @@ static void decorationTest(void)
     children(&again, 920, 2, (int[]){921, 922});
     assert(astral_settings_rewrite(again.bytes, again.length, &out));
     astral_wire_summarise(out.bytes, out.length, sink, NULL);
-    assert(strstr(line, "[4,[2063597568,2063597569]]"));
-    assert(strstr(line, "[3,920,[921,922,2063597570]]"));
+    assert(!strstr(line, "[4,[2063597568,2063597569]]"));
+    assert(strstr(line, "[3,920,[921,922,2063597568]]"));
     astral_wire_buffer_free(&out);
 
     Batch gone = {.length = 0};
@@ -176,7 +176,7 @@ static void decorationTest(void)
     b32(&gone, 920);
     assert(astral_settings_rewrite(gone.bytes, gone.length, &out));
     astral_wire_summarise(out.bytes, out.length, sink, NULL);
-    assert(strstr(line, "[4,[2063597570,2063597571]]"));
+    assert(strstr(line, "[4,[2063597568,2063597569]]"));
     astral_wire_buffer_free(&out);
     astral_wire_set_decorator(NULL);
 }
