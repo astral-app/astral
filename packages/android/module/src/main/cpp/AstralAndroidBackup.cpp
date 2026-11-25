@@ -7,7 +7,7 @@
 #define TOML_EXCEPTIONS 0
 #include <toml++/toml.hpp>
 
-#include "AstralAndroidMarketplace.h"
+#include "AstralMarketplace.h"
 #include "AstralLuaHost.h"
 #include "AstralSettings.h"
 #include "AstralThemes.h"
@@ -102,7 +102,7 @@ json packageIn(const json &catalog, const std::string &kind, const std::string &
 }
 
 void installMissing(const json &wanted, const std::string &kind, const json &installedItems, const json &catalog,
-                    astral::android::Marketplace &marketplace, const std::function<void()> &changed)
+                    const std::function<void()> &changed)
 {
     if (!wanted.is_array()) return;
     for (const auto &entry : wanted) {
@@ -110,7 +110,7 @@ void installMissing(const json &wanted, const std::string &kind, const json &ins
         std::string id = entry.get<std::string>();
         if (id.empty() || installed(installedItems, id)) continue;
         json package = packageIn(catalog, kind, id);
-        if (!package.is_null()) marketplace.installPackage(package, kind, changed);
+        if (!package.is_null()) astral::marketplace::install(package, kind, changed);
     }
 }
 
@@ -148,7 +148,6 @@ std::string astral::android::exportBackup(SettingsStore &settings, const std::st
 }
 
 std::optional<std::string> astral::android::importBackup(const std::string &contents, SettingsStore &settings, Themes &themes,
-                                                         Marketplace &marketplace,
                                                          const std::function<void(const std::string &)> &applyTheme,
                                                          const std::function<void()> &changed)
 {
@@ -187,9 +186,9 @@ std::optional<std::string> astral::android::importBackup(const std::string &cont
         astral::luahost::setEnabled(id, enabled);
     }
     json marketplaceItems = backup.value("marketplace", json::object());
-    json catalog = marketplace.catalog();
-    installMissing(marketplaceItems.value("plugins", json::array()), "plugin", plugins, catalog, marketplace, changed);
-    installMissing(marketplaceItems.value("themes", json::array()), "theme", themes.list(), catalog, marketplace, changed);
+    json catalog = astral::marketplace::catalog();
+    installMissing(marketplaceItems.value("plugins", json::array()), "plugin", plugins, catalog, changed);
+    installMissing(marketplaceItems.value("themes", json::array()), "theme", themes.list(), catalog, changed);
     if (changed) changed();
     return std::nullopt;
 }

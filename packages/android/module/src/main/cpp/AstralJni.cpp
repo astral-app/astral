@@ -20,7 +20,7 @@
 
 #include "AstralDevServer.h"
 #include "AstralAndroidBackup.h"
-#include "AstralAndroidMarketplace.h"
+#include "AstralMarketplace.h"
 #include "AstralExitRecord.h"
 #include "AstralPluginTrace.h"
 #include "AstralLaunchGuard.h"
@@ -56,7 +56,6 @@ std::unique_ptr<astral::SettingsStore> gSettings;
 std::unique_ptr<astral::Packs> gPacks;
 std::unique_ptr<astral::Themes> gThemes;
 std::unique_ptr<astral::Signatures> gSignatures;
-std::unique_ptr<astral::android::Marketplace> gMarketplace;
 std::string gStateDirectory;
 std::string gReportsPath;
 nlohmann::json gEnvironment = nlohmann::json::object();
@@ -600,6 +599,37 @@ void refreshCatalogIfDue(bool force)
     astral::pages::refreshCatalogIfDue(static_cast<int64_t>(time(nullptr)), force, [] { astral::navigator::refresh(); });
 }
 
+std::string authorAvatar(const std::string &userID, size_t index)
+{
+    std::string fallback = "https://cdn.discordapp.com/embed/avatars/" + std::to_string(index % 6) + ".png";
+    if (userID.size() < 15 || userID.size() > 20 || userID.find_first_not_of("0123456789") != std::string::npos) return fallback;
+    auto user = astral::discord::user(userID);
+    if (!user || !user->is_object() || !user->contains("avatar") || !(*user)["avatar"].is_string() ||
+        (*user)["avatar"].get<std::string>().empty())
+        return fallback;
+    return "https://cdn.discordapp.com/avatars/" + userID + "/" + (*user)["avatar"].get<std::string>() + ".png?size=64";
+}
+
+std::string pluginIconPath(const std::string &name)
+{
+    constexpr std::string_view prefix = "astral_plugin_";
+    if (name.rfind(prefix, 0) != 0) return "";
+    std::string identifier = name.substr(prefix.size());
+    if (!astral::lua::validPluginIdentifier(identifier)) return "";
+    for (const auto &plugin : astral::luahost::plugins()) {
+        if (plugin.value("id", "") != identifier) continue;
+        std::string svg = plugin.value("iconSvg", "");
+        if (svg.empty() || svg.size() > 16384) return "";
+        std::string directory = gStateDirectory + "/plugin-icons";
+        std::string path = directory + "/" + identifier + ".svg";
+        auto cached = astral::readTextFile(path);
+        if ((!cached || *cached != svg) && (!astral::createDirectories(directory) || !astral::writeTextFileAtomically(path, svg)))
+            return "";
+        return path;
+    }
+    return "";
+}
+
 void configurePages(const std::string &discordVersion)
 {
     astral::SettingsPagesPlatform pages;
@@ -641,23 +671,16 @@ void configurePages(const std::string &discordVersion)
         callBridge(gRefreshEmoji);
     };
     pages.blockedRequests = [] { return gBlockedRequests.load(); };
-    pages.catalog = [] { return gMarketplace ? gMarketplace->catalog() : nlohmann::json::object(); };
-    pages.catalogState = [] { return gMarketplace ? gMarketplace->catalogState() : "idle"; };
-    pages.catalogError = [] { return gMarketplace ? gMarketplace->catalogError() : ""; };
-    pages.catalogURL = [] { return gMarketplace ? gMarketplace->catalogURL() : ""; };
-    pages.installStatus = [](const std::string &identifier) {
-        return gMarketplace ? gMarketplace->installStatus(identifier) : std::optional<std::string>();
-    };
+    pages.catalog = [] { return astral::marketplace::catalog(); };
+    pages.catalogState = [] { return astral::marketplace::state(); };
+    pages.catalogError = [] { return astral::marketplace::error(); };
+    pages.catalogURL = [] { return astral::marketplace::url(); };
+    pages.installStatus = [](const std::string &identifier) { return astral::marketplace::installStatus(identifier); };
     pages.installPackage = [](const nlohmann::json &package, const std::string &kind, const std::function<void()> &changed) {
-        if (gMarketplace) gMarketplace->installPackage(package, kind, changed);
+        astral::marketplace::install(package, kind, changed);
     };
-    pages.refreshCatalog = [](const std::function<void()> &changed) {
-        if (gMarketplace) gMarketplace->refreshCatalog(changed);
-    };
-    pages.authorAvatar = [](const std::string &userID, size_t index) {
-        if (gMarketplace) return gMarketplace->authorAvatar(userID, index);
-        return "https://cdn.discordapp.com/embed/avatars/" + std::to_string(index % 6) + ".png";
-    };
+    pages.refreshCatalog = [](const std::function<void()> &changed) { astral::marketplace::refresh(changed); };
+    pages.authorAvatar = authorAvatar;
     pages.pluginIconSVG = [](const nlohmann::json &plugin) -> std::optional<std::string> {
         std::string identifier = plugin.value("id", "");
         if (plugin.value("iconSvg", "").empty() || !astral::lua::validPluginIdentifier(identifier)) return std::nullopt;
@@ -1271,7 +1294,21 @@ ASTRAL_EXPORT JNIEXPORT jint JNICALL Java_app_astral_android_Native_initialize(J
     gSignatures = std::make_unique<astral::Signatures>(ASTRAL_SIGNING_KEY, sha256);
     gPacks = std::make_unique<astral::Packs>(*gSettings, state, resources);
     gThemes = std::make_unique<astral::Themes>(*gSettings, state, resources);
-    gMarketplace = std::make_unique<astral::android::Marketplace>(*gSettings, *gThemes, *gSignatures, state, resources, fetch, applyTheme);
+    astral::marketplace::configure(
+        *gSettings, state, resources, ASTRAL_SIGNING_KEY,
+        [](const std::string &url, std::string &body) {
+            auto response = fetch(url, "");
+            body = std::move(response.body);
+            return response.status;
+        },
+        [](bool theme, const std::string &identifier) {
+            if (theme) {
+                if (gThemes && gThemes->active() == identifier) applyTheme(identifier);
+                return;
+            }
+            astral::luahost::remove(identifier);
+            astral::luahost::rescan();
+        });
     applyTheme(gThemes->active());
     astral_wire_set_emoji_resolver(resolveEmoji);
     bool safeMode = gSettings->getBoolean("astral", "safe-mode", false);
@@ -1659,9 +1696,9 @@ ASTRAL_EXPORT JNIEXPORT jstring JNICALL Java_app_astral_android_Native_exportBac
 
 ASTRAL_EXPORT JNIEXPORT jstring JNICALL Java_app_astral_android_Native_applyBackup(JNIEnv *env, jclass, jstring contents)
 {
-    if (!gSettings || !gThemes || !gMarketplace) return text(env, "astral is not ready");
-    auto failure = astral::android::importBackup(plain(env, contents), *gSettings, *gThemes, *gMarketplace, applyTheme,
-                                                 [] { astral::navigator::refresh(); });
+    if (!gSettings || !gThemes) return text(env, "astral is not ready");
+    auto failure =
+        astral::android::importBackup(plain(env, contents), *gSettings, *gThemes, applyTheme, [] { astral::navigator::refresh(); });
     if (failure) return text(env, *failure);
     gPacks->invalidate();
     refreshImages();
@@ -1886,7 +1923,7 @@ ASTRAL_EXPORT JNIEXPORT jstring JNICALL Java_app_astral_android_Native_sinkUrl(J
 ASTRAL_EXPORT JNIEXPORT jstring JNICALL Java_app_astral_android_Native_iconPath(JNIEnv *env, jclass, jstring name)
 {
     std::string identifier = plain(env, name);
-    std::string path = gMarketplace ? gMarketplace->pluginIconPath(identifier) : "";
+    std::string path = pluginIconPath(identifier);
     if (path.empty() && gPacks) path = gPacks->iconPath(identifier);
     return text(env, path);
 }

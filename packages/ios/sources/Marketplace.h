@@ -11,6 +11,7 @@ typedef NS_ENUM(NSInteger, AstralCatalogState) {
     AstralCatalogFailed,
 };
 
+void AstralConfigureMarketplace(void);
 AstralCatalogState AstralCatalogCurrentState(void);
 NSDictionary *_Nullable AstralCatalog(void);
 NSString *_Nonnull AstralCatalogURL(void);

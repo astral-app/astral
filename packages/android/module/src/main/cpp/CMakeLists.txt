@@ -41,7 +41,7 @@ add_library(astral-vendor STATIC ${LUA_SOURCES} ${VENDOR}/sqlite/sqlite3.c)
 target_compile_definitions(astral-vendor PRIVATE LUA_USE_POSIX SQLITE_THREADSAFE=2 SQLITE_OMIT_LOAD_EXTENSION)
 target_compile_options(astral-vendor PRIVATE -O2 -w -fvisibility=hidden)
 
-add_library(astral SHARED AstralJni.cpp AstralAndroidBackup.cpp AstralAndroidMarketplace.cpp ${CORE_SOURCES})
+add_library(astral SHARED AstralJni.cpp AstralAndroidBackup.cpp ${CORE_SOURCES})
 target_include_directories(astral PRIVATE ${CORE}/include ${CORE}/wire ${ASTRAL_GENERATED} ${VENDOR}/lua ${VENDOR}/sqlite)
 target_include_directories(astral SYSTEM PRIVATE ${VENDOR}/json/single_include ${VENDOR}/tomlplusplus/include)
 target_compile_definitions(astral PRIVATE ASTRAL_VERSION="${ASTRAL_VERSION}" ASTRAL_COMMIT="${ASTRAL_COMMIT}")
