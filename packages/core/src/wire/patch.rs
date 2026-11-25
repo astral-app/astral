@@ -1,0 +1,505 @@
+use core::ffi::{c_char, c_int};
+use std::collections::HashMap;
+use std::ffi::CString;
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+use super::abi::{
+    AstralNodePatch, AstralPatchTarget, Callback, PATCH_BACKGROUND, PATCH_BORDER, PATCH_HIDDEN, PATCH_MARGIN, PATCH_OPACITY, PATCH_PADDING,
+    PATCH_RADIUS, PATCH_TEXT_COLOR, PATCH_TEXT_SCALE, current_channel, wireMessageAuthor, wireRowMessage,
+};
+use super::cursor::Cursor;
+use super::format::{Span, batch_of, child, spans_of, type_is, wireChildList, wireCreation};
+use super::ids::parse_id;
+use super::out::{AstralWireBuffer, Out};
+use super::properties::{self, AstralWireProperties};
+
+pub type NodePatcher = unsafe extern "C" fn(*const AstralPatchTarget, *mut AstralNodePatch) -> c_int;
+
+const MAX_PREFIXES: usize = 32;
+const MAX_PREFIX_LENGTH: usize = 96;
+const PATCHED_CAPACITY: usize = 512;
+const RAW_CAPACITY: usize = 40;
+const PATCH_PROPS: usize = 11;
+const SCALED_CAPACITY: usize = 2048;
+const SCALE_DEPTH: u32 = 5;
+const SCALE_NODES: usize = 64;
+pub const IDENTIFIER_LENGTH: usize = 128;
+pub const TYPE_LENGTH: usize = 16;
+
+#[derive(Clone, Default)]
+struct RawProp {
+    tag: u8,
+    value: Vec<u8>,
+}
+
+#[derive(Clone, Default)]
+struct Patched {
+    identifier: Vec<u8>,
+    kind: Vec<u8>,
+    applied: u32,
+    originals: [Option<RawProp>; PATCH_PROPS],
+}
+
+struct ScaledText {
+    owner: i32,
+    base: f64,
+    scaled: bool,
+}
+
+#[derive(Default)]
+struct State {
+    prefixes: Vec<Vec<u8>>,
+    patched: HashMap<i32, Patched>,
+    scaled: HashMap<i32, ScaledText>,
+}
+
+static STATE: Mutex<Option<State>> = Mutex::new(None);
+static PATCHER: Callback = Callback::new();
+static REFRESH_BUSY: AtomicBool = AtomicBool::new(false);
+
+fn with_state<T>(work: impl FnOnce(&mut State) -> T) -> Option<T> {
+    let mut state = STATE.lock().ok()?;
+    Some(work(state.get_or_insert_with(State::default)))
+}
+
+fn patch_property(properties: &AstralWireProperties, slot: usize) -> u16 {
+    [
+        properties.background,
+        properties.radius,
+        properties.opacity,
+        properties.padding,
+        properties.margin,
+        properties.borderColor,
+        properties.borderWidth,
+        properties.color,
+        properties.width,
+        properties.height,
+        properties.clip,
+    ][slot]
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn wireMarkRefreshBusy() {
+    REFRESH_BUSY.store(true, Ordering::Relaxed);
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn astral_wire_take_refresh_busy() -> c_int {
+    c_int::from(REFRESH_BUSY.swap(false, Ordering::Relaxed))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn astral_wire_set_node_patcher(patcher: Option<NodePatcher>) {
+    PATCHER.set(patcher);
+}
+
+pub unsafe fn c_strings(list: *const *const c_char, count: usize, limit: usize, max_length: usize) -> Vec<Vec<u8>> {
+    if list.is_null() {
+        return Vec::new();
+    }
+    unsafe { core::slice::from_raw_parts(list, count) }
+        .iter()
+        .filter(|text| !text.is_null())
+        .map(|text| unsafe { core::ffi::CStr::from_ptr(*text) }.to_bytes().to_vec())
+        .filter(|text| !text.is_empty() && text.len() < max_length)
+        .take(limit)
+        .collect()
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn astral_wire_set_patch_prefixes(prefixes: *const *const c_char, count: usize) {
+    let prefixes = unsafe { c_strings(prefixes, count, MAX_PREFIXES, MAX_PREFIX_LENGTH) };
+    with_state(|state| state.prefixes = prefixes);
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn wirePatchingActive() -> c_int {
+    let prefixes = with_state(|state| !state.prefixes.is_empty()).unwrap_or(false);
+    c_int::from(PATCHER.get::<NodePatcher>().is_some() && prefixes)
+}
+
+pub fn message_of_identifier(identifier: &[u8]) -> u64 {
+    if !identifier.starts_with(b"message.") {
+        return 0;
+    }
+    identifier
+        .iter()
+        .position(|byte| *byte == b':')
+        .map_or(0, |colon| parse_id(&identifier[colon + 1..]))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn wireMessageOfIdentifier(identifier: *const c_char) -> u64 {
+    if identifier.is_null() {
+        return 0;
+    }
+    message_of_identifier(unsafe { core::ffi::CStr::from_ptr(identifier) }.to_bytes())
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn astral_wire_message_of(identifier: *const c_char) -> u64 {
+    unsafe { wireMessageOfIdentifier(identifier) }
+}
+
+pub fn read_identifier<'a>(bytes: &'a [u8], span: &Span) -> Option<(&'a [u8], &'a [u8])> {
+    let accessibility = properties::current().accessibilityId;
+    let mut cursor = Cursor::new(bytes, span.start + 5);
+    let type_length = cursor.read16() as usize;
+    if type_length >= TYPE_LENGTH {
+        return None;
+    }
+    let kind = cursor.take(type_length)?;
+    let count = cursor.read16();
+    for _ in 0..count {
+        if cursor.failed() {
+            break;
+        }
+        let property = cursor.read16();
+        let tag = cursor.read8();
+        if property == accessibility && tag == 6 {
+            let length = cursor.read32() as usize;
+            if length >= IDENTIFIER_LENGTH {
+                return None;
+            }
+            return Some((cursor.take(length)?, kind));
+        }
+        cursor.skip_value(tag, 0);
+    }
+    None
+}
+
+fn copy_c(text: &[u8], out: *mut c_char, capacity: usize) {
+    let length = text.len().min(capacity - 1);
+    unsafe {
+        core::ptr::copy_nonoverlapping(text.as_ptr(), out.cast::<u8>(), length);
+        *out.add(length) = 0;
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn wireReadIdentifier(bytes: *const u8, span: *const Span, identifier: *mut c_char, kind: *mut c_char) -> c_int {
+    let Some(span) = (unsafe { span.as_ref() }) else { return 0 };
+    if identifier.is_null() || kind.is_null() {
+        return 0;
+    }
+    let Some((text, name)) = read_identifier(batch_of(bytes, span), span) else {
+        return 0;
+    };
+    copy_c(text, identifier, IDENTIFIER_LENGTH);
+    copy_c(name, kind, TYPE_LENGTH);
+    1
+}
+
+fn key_offset(prefixes: &[Vec<u8>], identifier: &[u8]) -> Option<usize> {
+    prefixes.iter().find(|prefix| identifier.starts_with(prefix)).map(Vec::len)
+}
+
+pub fn patch_target(prefix_length: usize, identifier: &CString, kind: &CString, node: i32) -> AstralPatchTarget {
+    let mut message = message_of_identifier(identifier.as_bytes());
+    if message == 0 && identifier.as_bytes() == b"message-row" {
+        message = unsafe { wireRowMessage(node) };
+    }
+    AstralPatchTarget {
+        identifier: identifier.as_ptr(),
+        kind: kind.as_ptr(),
+        key: prefix_length,
+        message_id: message,
+        author_id: if message != 0 { unsafe { wireMessageAuthor(message) } } else { 0 },
+        channel_id: current_channel(),
+    }
+}
+
+fn call_patcher(prefix_length: usize, node: i32, identifier: &[u8], kind: &[u8], patch: &mut AstralNodePatch) -> c_int {
+    let Some(patcher) = PATCHER.get::<NodePatcher>() else { return 0 };
+    let (Ok(identifier), Ok(kind)) = (CString::new(identifier), CString::new(kind)) else {
+        return 0;
+    };
+    let target = patch_target(prefix_length, &identifier, &kind, node);
+    unsafe { patcher(&target, patch) }
+}
+
+fn capture_originals(bytes: &[u8], span: &Span, patched: &mut Patched, properties: &AstralWireProperties) {
+    let mut cursor = Cursor::new(bytes, span.start + 5);
+    let type_length = cursor.read16() as usize;
+    cursor.skip(type_length);
+    let count = cursor.read16();
+    for _ in 0..count {
+        if cursor.failed() {
+            break;
+        }
+        let property = cursor.read16();
+        let tag = cursor.read8();
+        let start = cursor.offset();
+        cursor.skip_value(tag, 0);
+        let Some(value) = bytes.get(start..cursor.offset()) else { break };
+        for slot in 0..PATCH_PROPS {
+            if patch_property(properties, slot) == property && value.len() <= RAW_CAPACITY {
+                patched.originals[slot] = Some(RawProp {
+                    tag,
+                    value: value.to_vec(),
+                });
+            }
+        }
+    }
+}
+
+fn patch_fields(patch: &AstralNodePatch) -> u32 {
+    if patch.fields & PATCH_HIDDEN != 0 {
+        patch.fields | PATCH_OPACITY | PATCH_PADDING | PATCH_MARGIN
+    } else {
+        patch.fields
+    }
+}
+
+fn slot_mask(fields: u32) -> u32 {
+    [
+        (PATCH_BACKGROUND, 1 << 0),
+        (PATCH_RADIUS, 1 << 1),
+        (PATCH_OPACITY, 1 << 2),
+        (PATCH_PADDING, 1 << 3),
+        (PATCH_MARGIN, 1 << 4),
+        (PATCH_BORDER, (1 << 5) | (1 << 6)),
+        (PATCH_TEXT_COLOR, 1 << 7),
+        (PATCH_HIDDEN, (1 << 8) | (1 << 9) | (1 << 10)),
+    ]
+    .iter()
+    .filter(|(field, _)| fields & field != 0)
+    .fold(0, |mask, (_, bits)| mask | bits)
+}
+
+fn put_long(out: &mut Out, property: u16, value: u32) {
+    out.put16(property);
+    out.put8(4);
+    out.put(&i64::from(value).to_le_bytes());
+}
+
+fn put_patched(out: &mut Out, slot: usize, patch: &AstralNodePatch, properties: &AstralWireProperties) {
+    let hidden = patch.fields & PATCH_HIDDEN != 0;
+    let property = patch_property(properties, slot);
+    match slot {
+        0 => put_long(out, property, patch.background),
+        1 => out.prop_number(property, patch.radius),
+        2 => out.prop_number(property, if hidden { 0.0 } else { patch.opacity }),
+        3 => out.prop_quad(property, if hidden { [0.0; 4] } else { patch.padding }),
+        4 => out.prop_quad(property, if hidden { [0.0; 4] } else { patch.margin }),
+        5 => put_long(out, property, patch.border_color),
+        6 => out.prop_number(property, patch.border_width),
+        7 => put_long(out, property, patch.text_color),
+        8 | 9 => out.prop_number(property, 0.0),
+        _ => {
+            out.put16(property);
+            out.put8(2);
+        }
+    }
+}
+
+fn put_original(out: &mut Out, slot: usize, raw: Option<&RawProp>, properties: &AstralWireProperties) {
+    out.put16(patch_property(properties, slot));
+    match raw {
+        Some(raw) => {
+            out.put8(raw.tag);
+            out.put(&raw.value);
+        }
+        None => out.put8(0),
+    }
+}
+
+fn write_patch(out: &mut Out, id: i32, patched: &mut Patched, patch: &AstralNodePatch) -> bool {
+    let properties = properties::current();
+    let wanted = slot_mask(patch_fields(patch));
+    let touched = wanted | patched.applied;
+    if touched == 0 {
+        return false;
+    }
+    out.update(id, touched.count_ones() as u16);
+    for slot in (0..PATCH_PROPS).filter(|slot| touched >> slot & 1 == 1) {
+        if wanted >> slot & 1 == 1 {
+            put_patched(out, slot, patch, &properties);
+        } else {
+            put_original(out, slot, patched.originals[slot].as_ref(), &properties);
+        }
+    }
+    patched.applied = wanted;
+    true
+}
+
+fn write_scaled(out: &mut Out, scaled: &mut HashMap<i32, ScaledText>, owner: i32, patch: &AstralNodePatch) -> bool {
+    let font_size = properties::current().fontSize;
+    let scale = if patch.fields & PATCH_TEXT_SCALE != 0 {
+        patch.text_scale
+    } else {
+        1.0
+    };
+    let mut wrote = false;
+    for (id, text) in scaled.iter_mut().filter(|(_, text)| text.owner == owner) {
+        if scale == 1.0 && !text.scaled {
+            continue;
+        }
+        out.update(*id, 1);
+        out.prop_number(font_size, text.base * scale);
+        text.scaled = scale != 1.0;
+        wrote = true;
+    }
+    wrote
+}
+
+fn font_size(bytes: &[u8], span: &Span) -> Option<f64> {
+    let wanted = properties::current().fontSize;
+    let mut cursor = Cursor::new(bytes, span.start + 5);
+    let type_length = cursor.read16() as usize;
+    cursor.skip(type_length);
+    let count = cursor.read16();
+    for _ in 0..count {
+        if cursor.failed() {
+            break;
+        }
+        let property = cursor.read16();
+        let tag = cursor.read8();
+        if property == wanted && tag == 5 {
+            return Some(f64::from_le_bytes(cursor.take(8)?.try_into().ok()?));
+        }
+        cursor.skip_value(tag, 0);
+    }
+    None
+}
+
+fn collect_texts(scaled: &mut HashMap<i32, ScaledText>, bytes: *const u8, spans: &[Span], owner: i32) {
+    let mut queue = vec![(owner, 0u32)];
+    let mut cursor = 0;
+    while cursor < queue.len() {
+        let (node, depth) = queue[cursor];
+        cursor += 1;
+        if let Some(created) = unsafe { wireCreation(spans.as_ptr(), spans.len(), node).as_ref() } {
+            let data = batch_of(bytes, created);
+            if type_is(data, created, b"text")
+                && let Some(base) = font_size(data, created)
+                && (scaled.len() < SCALED_CAPACITY || scaled.contains_key(&node))
+            {
+                scaled.insert(
+                    node,
+                    ScaledText {
+                        owner,
+                        base,
+                        scaled: false,
+                    },
+                );
+            }
+        }
+        if depth >= SCALE_DEPTH {
+            continue;
+        }
+        let Some(list) = (unsafe { wireChildList(bytes, spans.as_ptr(), spans.len(), node).as_ref() }) else {
+            continue;
+        };
+        let data = batch_of(bytes, list);
+        for position in 0..list.child_count {
+            if queue.len() >= SCALE_NODES {
+                break;
+            }
+            queue.push((child(data, list, position), depth + 1));
+        }
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn wirePatchNodes(
+    bytes: *const u8,
+    pointer: *const Span,
+    count: usize,
+    out: *mut Out,
+    changed: *mut c_int,
+    length: usize,
+) {
+    if PATCHER.get::<NodePatcher>().is_none() {
+        return;
+    }
+    let (Some(out), Some(changed)) = (unsafe { out.as_mut() }, unsafe { changed.as_mut() }) else {
+        return;
+    };
+    let spans = spans_of(pointer, count);
+    let properties = properties::current();
+    with_state(|state| {
+        if state.prefixes.is_empty() {
+            return;
+        }
+        for span in spans {
+            let data = batch_of(bytes, span);
+            if span.op == 4 {
+                for position in 0..span.child_count {
+                    let removed = child(data, span, position);
+                    state.patched.remove(&removed);
+                    state.scaled.remove(&removed);
+                }
+                continue;
+            }
+            if span.op != 1 {
+                continue;
+            }
+            let Some((identifier, kind)) = read_identifier(data, span) else {
+                continue;
+            };
+            let Some(prefix) = key_offset(&state.prefixes, identifier) else {
+                continue;
+            };
+            if state.patched.len() >= PATCHED_CAPACITY && !state.patched.contains_key(&span.id) {
+                continue;
+            }
+            let mut patched = Patched {
+                identifier: identifier.to_vec(),
+                kind: kind.to_vec(),
+                ..Patched::default()
+            };
+            capture_originals(data, span, &mut patched, &properties);
+            collect_texts(&mut state.scaled, bytes, spans, span.id);
+            let mut patch = AstralNodePatch::default();
+            let result = call_patcher(prefix, span.id, identifier, kind, &mut patch);
+            if result < 0 {
+                wireMarkRefreshBusy();
+            }
+            if result > 0 {
+                if *changed == 0 {
+                    out.put(unsafe { core::slice::from_raw_parts(bytes, length) });
+                }
+                *changed = 1;
+                write_patch(out, span.id, &mut patched, &patch);
+                write_scaled(out, &mut state.scaled, span.id, &patch);
+            }
+            state.patched.insert(span.id, patched);
+        }
+    });
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn astral_wire_refresh_node_patches(buffer: *mut AstralWireBuffer) -> c_int {
+    let Some(buffer) = (unsafe { buffer.as_mut() }) else { return 0 };
+    *buffer = AstralWireBuffer {
+        bytes: core::ptr::null_mut(),
+        length: 0,
+    };
+    if PATCHER.get::<NodePatcher>().is_none() {
+        return 0;
+    }
+    let mut out = Out::batch();
+    let any = with_state(|state| {
+        let mut any = false;
+        let prefixes = state.prefixes.clone();
+        for (id, patched) in state.patched.iter_mut() {
+            let mut patch = AstralNodePatch::default();
+            let prefix = key_offset(&prefixes, &patched.identifier).unwrap_or(0);
+            if call_patcher(prefix, *id, &patched.identifier, &patched.kind, &mut patch) < 0 {
+                wireMarkRefreshBusy();
+                continue;
+            }
+            let wrote = write_patch(&mut out, *id, patched, &patch);
+            any |= write_scaled(&mut out, &mut state.scaled, *id, &patch) || wrote;
+        }
+        any
+    })
+    .unwrap_or(false);
+    if !any {
+        out.discard();
+        return 0;
+    }
+    out.finish(buffer) as c_int
+}
