@@ -307,6 +307,42 @@ end
 
 astral.Pill = Pill
 
+local DISCORD_EPOCH = 1420070400000
+local SNOWFLAKE_TIME_SHIFT = 22
+
+local function snowflake_integer(id)
+	local value = math.tointeger(tonumber(id))
+	if not value or value < 0 then
+		return nil
+	end
+	return value
+end
+
+astral.snowflake = {
+	EPOCH = DISCORD_EPOCH,
+	timestamp = function(id)
+		local value = snowflake_integer(id)
+		return value and (value >> SNOWFLAKE_TIME_SHIFT) + DISCORD_EPOCH or nil
+	end,
+	from_time = function(milliseconds)
+		local value = math.tointeger(milliseconds)
+		if not value or value < DISCORD_EPOCH then
+			return nil
+		end
+		return tostring((value - DISCORD_EPOCH) << SNOWFLAKE_TIME_SHIFT)
+	end,
+	is_valid = function(id)
+		return type(id) == "string" and id:match("^%d+$") ~= nil and snowflake_integer(id) ~= nil
+	end,
+	compare = function(left, right)
+		local a, b = snowflake_integer(left), snowflake_integer(right)
+		if not a or not b then
+			return nil
+		end
+		return a < b and -1 or (a > b and 1 or 0)
+	end,
+}
+
 astral.list = {
 	map = function(items, transform)
 		local result = {}
