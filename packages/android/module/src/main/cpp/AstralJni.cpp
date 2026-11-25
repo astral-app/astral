@@ -89,6 +89,7 @@ jmethodID gEditText = nullptr;
 jmethodID gRestartGatewaySession = nullptr;
 jmethodID gPasteText = nullptr;
 jmethodID gPickedMedia = nullptr;
+jmethodID gPickedVideo = nullptr;
 jmethodID gEnvironmentFacts = nullptr;
 jmethodID gOpenURL = nullptr;
 jmethodID gDispatchGateway = nullptr;
@@ -113,7 +114,7 @@ void startNetworkRequest(uint64_t request, const nlohmann::json &options);
 void cancelNetworkRequest(uint64_t request);
 JNIEnv *currentEnvironment(bool &attached);
 std::optional<std::string> pasteFromBridge();
-std::optional<std::string> pickedMediaFromBridge(jlong slot);
+std::optional<std::string> pickedMediaFromBridge(jmethodID method, jlong slot);
 jstring toJava(JNIEnv *env, std::string_view value);
 std::string bytesFromJava(JNIEnv *env, jbyteArray array);
 nlohmann::json environmentReport();
@@ -348,13 +349,18 @@ astral::LuaHostPlatform platform(const std::string &state, const std::string &re
     platform.pickedMedia = [](const std::string &slot) -> std::optional<astral::PickedMedia> {
         unsigned long long index = strtoull(slot.c_str() + 1, nullptr, 10);
         if (index == 0) return std::nullopt;
-        std::optional<std::string> described = pickedMediaFromBridge(static_cast<jlong>(index - 1));
+        std::optional<std::string> described = pickedMediaFromBridge(gPickedMedia, static_cast<jlong>(index - 1));
         if (!described) return std::nullopt;
         size_t first = described->find('\n');
         size_t second = first == std::string::npos ? std::string::npos : described->find('\n', first + 1);
         if (second == std::string::npos) return std::nullopt;
         return astral::PickedMedia{std::strtoll(described->c_str(), nullptr, 10), std::strtod(described->c_str() + first + 1, nullptr),
                                    described->substr(second + 1)};
+    };
+    platform.pickedVideoURL = [](const std::string &slot) -> std::optional<std::string> {
+        unsigned long long index = strtoull(slot.c_str() + 1, nullptr, 10);
+        if (index == 0) return std::nullopt;
+        return pickedMediaFromBridge(gPickedVideo, static_cast<jlong>(index - 1));
     };
     platform.notify = [](const std::string &, const std::string &title, const std::string &body, double delay, const std::string &link) {
         if (!gNotify) return false;
@@ -855,13 +861,13 @@ nlohmann::json environmentReport()
     return environment;
 }
 
-std::optional<std::string> pickedMediaFromBridge(jlong slot)
+std::optional<std::string> pickedMediaFromBridge(jmethodID method, jlong slot)
 {
-    if (!gVM || !gBridge || !gPickedMedia) return std::nullopt;
+    if (!gVM || !gBridge || !method) return std::nullopt;
     bool attached = false;
     JNIEnv *env = currentEnvironment(attached);
     if (!env) return std::nullopt;
-    auto value = static_cast<jstring>(env->CallStaticObjectMethod(gBridge, gPickedMedia, slot));
+    auto value = static_cast<jstring>(env->CallStaticObjectMethod(gBridge, method, slot));
     std::optional<std::string> result;
     if (env->ExceptionCheck())
         env->ExceptionClear();
@@ -1447,11 +1453,12 @@ ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_attachBridge
     jmethodID playSoundMethod = env->GetStaticMethodID(reference, "playSound", "(JLjava/lang/String;Ljava/lang/String;)V");
     jmethodID stopAudioMethod = env->GetStaticMethodID(reference, "stopAudio", "()V");
     jmethodID pickedMediaMethod = env->GetStaticMethodID(reference, "pickedMedia", "(J)Ljava/lang/String;");
+    jmethodID pickedVideoMethod = env->GetStaticMethodID(reference, "pickedVideo", "(J)Ljava/lang/String;");
     if (env->ExceptionCheck() || !deliverMethod || !fetchMethod || !requestMethod || !cancelMethod || !exportBackupMethod ||
         !importBackupMethod || !openReportMethod || !refreshEmojiMethod || !showAlertMethod || !triggerHapticMethod || !copyTextMethod ||
         !pickFileMethod || !cancelFilePickMethod || !showToastMethod || !openWebAuthMethod || !cancelWebAuthMethod || !editTextMethod ||
         !restartGatewaySessionMethod || !pasteTextMethod || !openURLMethod || !notifyMethod || !speakMethod || !playSoundMethod ||
-        !stopAudioMethod || !pickedMediaMethod) {
+        !stopAudioMethod || !pickedMediaMethod || !pickedVideoMethod) {
         env->ExceptionClear();
         env->DeleteGlobalRef(reference);
         return;
@@ -1480,6 +1487,7 @@ ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_attachBridge
         gRestartGatewaySession = restartGatewaySessionMethod;
         gPasteText = pasteTextMethod;
         gPickedMedia = pickedMediaMethod;
+        gPickedVideo = pickedVideoMethod;
         gOpenURL = openURLMethod;
         gDispatchGateway = env->GetStaticMethodID(reference, "dispatchGateway", "(Ljava/lang/String;)V");
         if (env->ExceptionCheck()) env->ExceptionClear();

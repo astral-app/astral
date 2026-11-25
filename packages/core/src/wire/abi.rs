@@ -135,6 +135,7 @@ pub struct AstralPatchTarget {
     pub message_id: u64,
     pub author_id: u64,
     pub channel_id: u64,
+    pub parent: *const c_char,
 }
 
 pub fn tracked_author(id: i32) -> Option<u64> {

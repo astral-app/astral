@@ -402,6 +402,13 @@ static astral::LuaHostPlatform Platform(void)
             return std::nullopt;
         return astral::PickedMedia{size, duration, type.UTF8String ?: "unknown"};
     };
+    platform.pickedVideoURL = [](const std::string &slot) -> std::optional<std::string> {
+        unsigned long long index = strtoull(slot.c_str() + 1, nullptr, 10);
+        if (index == 0) return std::nullopt;
+        NSString *url = AstralPickedVideoURL((NSUInteger)(index - 1));
+        if (!url) return std::nullopt;
+        return std::string(url.UTF8String);
+    };
     platform.speak = [](const std::string &text, const std::string &language, double rate) {
         AVSpeechUtterance *utterance = [AVSpeechUtterance speechUtteranceWithString:Native(text)];
         utterance.rate =

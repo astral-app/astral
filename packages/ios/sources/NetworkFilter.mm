@@ -1,5 +1,6 @@
 #import "NetworkFilter.h"
 #import "MediaSave.h"
+#import "PickedMedia.h"
 
 #import <objc/runtime.h>
 #import <atomic>
@@ -167,8 +168,8 @@ static NSHTTPURLResponse *HttpResponseOf(NSURL *url, const astral::luahost::Http
         gDiscordRequests++;
         if ([request.HTTPMethod isEqualToString:@"POST"] && [request.URL.path hasSuffix:@"/messages"]) gMessageRequests++;
     }
-    return IsTelemetry(request.URL) || (StaffDevTools() && IsCurrentUser(request)) || IsOutgoingMessage(request) || WantsHttp(request) ||
-           RewrittenImage(request);
+    return AstralIsPickedVideoURL(request.URL) || IsTelemetry(request.URL) || (StaffDevTools() && IsCurrentUser(request)) ||
+           IsOutgoingMessage(request) || WantsHttp(request) || RewrittenImage(request);
 }
 
 + (BOOL)canInitWithTask:(NSURLSessionTask *)task
@@ -281,8 +282,44 @@ static NSHTTPURLResponse *HttpResponseOf(NSURL *url, const astral::luahost::Http
     [self.forwarded resume];
 }
 
+- (void)deliverPickedFile:(NSURL *)file
+{
+    NSData *data = file ? [NSData dataWithContentsOfURL:file options:NSDataReadingMappedIfSafe error:nil] : nil;
+    if (!data) {
+        [self.client URLProtocol:self
+                didFailWithError:[NSError errorWithDomain:NSURLErrorDomain code:NSURLErrorFileDoesNotExist userInfo:nil]];
+        return;
+    }
+    NSRange range = AstralByteRange([self.request valueForHTTPHeaderField:@"Range"], data.length);
+    BOOL partial = range.location != NSNotFound;
+    if (!partial) range = NSMakeRange(0, data.length);
+    NSMutableDictionary *headers = [@{
+        @"Content-Type" : @"video/mp4",
+        @"Accept-Ranges" : @"bytes",
+        @"Content-Length" : [NSString stringWithFormat:@"%lu", (unsigned long)range.length],
+    } mutableCopy];
+    if (partial)
+        headers[@"Content-Range"] = [NSString stringWithFormat:@"bytes %lu-%lu/%lu", (unsigned long)range.location,
+                                                               (unsigned long)NSMaxRange(range) - 1, (unsigned long)data.length];
+    NSHTTPURLResponse *response = [[NSHTTPURLResponse alloc] initWithURL:self.request.URL
+                                                              statusCode:partial ? 206 : 200
+                                                             HTTPVersion:@"HTTP/1.1"
+                                                            headerFields:headers];
+    [self.client URLProtocol:self didReceiveResponse:response cacheStoragePolicy:NSURLCacheStorageNotAllowed];
+    [self.client URLProtocol:self didLoadData:[data subdataWithRange:range]];
+    [self.client URLProtocolDidFinishLoading:self];
+}
+
 - (void)startLoading
 {
+    if (AstralIsPickedVideoURL(self.request.URL)) {
+        NSThread *loading = NSThread.currentThread;
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+            NSURL *file = AstralPickedVideoFile(self.request.URL);
+            [self performSelector:@selector(deliverPickedFile:) onThread:loading withObject:file waitUntilDone:NO];
+        });
+        return;
+    }
     if (IsTelemetry(self.request.URL)) {
         gBlocked++;
         [self finishEmpty];

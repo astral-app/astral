@@ -744,7 +744,7 @@ static void testNodePatch(const std::string &work)
     platform.storagePath = (root / "storage.sqlite").string();
     astral::luahost::start({(root / "plugins").string()}, &settings, true, std::move(platform));
     auto target = [](const char *identifier, const char *type, uint64_t author) {
-        return AstralPatchTarget{identifier, type, strlen("demo.card:"), 0, author, 0};
+        return AstralPatchTarget{identifier, type, strlen("demo.card:"), 0, author, 0, nullptr};
     };
     AstralNodePatch patch = {};
     auto card = target("demo.card:42", "view", 0);
@@ -782,7 +782,7 @@ static void testNodeInsert(const std::string &work)
     platform.storagePath = (root / "storage.sqlite").string();
     astral::luahost::start({(root / "plugins").string()}, &settings, true, std::move(platform));
     const char *identifier = "message.content:200000000000000011";
-    AstralPatchTarget target = {identifier, "view", strlen("message.content:"), 200000000000000011ULL, 0, 0};
+    AstralPatchTarget target = {identifier, "view", strlen("message.content:"), 200000000000000011ULL, 0, 0, nullptr};
     AstralInsertNode nodes[kAstralInsertCapacity] = {};
     int atStart = 0;
     assert(AstralLuaInsertNodes(&target, nodes, kAstralInsertCapacity, &atStart) == 2 && atStart == 1);
