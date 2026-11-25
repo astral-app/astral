@@ -11,7 +11,7 @@ CORE := $(abspath ../core)
 LUA := $(ROOT)/vendor/lua
 LUA_SOURCES := lapi lcode lctype ldebug ldo ldump lfunc lgc llex lmem lobject lopcodes lparser lstate lstring ltable ltm lundump lvm lzio lauxlib lbaselib lstrlib ltablib lmathlib lutf8lib lcorolib
 ANDROID_ONLY_SOURCES := AstralSettingsNavigator
-CORE_SOURCES := $(filter-out $(ANDROID_ONLY_SOURCES),$(basename $(notdir $(wildcard $(CORE)/src/*.cpp))))
+CORE_SOURCES := $(filter-out $(ANDROID_ONLY_SOURCES),$(basename $(notdir $(wildcard $(CORE)/*.cpp))))
 
 GENERATED := $(abspath .theos/generated)
 RUST_TARGET := aarch64-apple-ios
@@ -21,7 +21,7 @@ PRELUDE := $(CORE)/lua/prelude.lua
 include $(THEOS)/makefiles/common.mk
 
 TWEAK_NAME := astral
-astral_FILES := $(wildcard sources/*.mm sources/*.m sources/*.c sources/*.S sources/*.cpp) $(addprefix $(CORE)/src/,$(addsuffix .cpp,$(CORE_SOURCES))) $(addprefix $(LUA)/,$(addsuffix .c,$(LUA_SOURCES)))
+astral_FILES := $(wildcard sources/*.mm sources/*.m sources/*.c sources/*.S sources/*.cpp) $(addprefix $(CORE)/,$(addsuffix .cpp,$(CORE_SOURCES))) $(addprefix $(LUA)/,$(addsuffix .c,$(LUA_SOURCES)))
 ASTRAL_COMMIT ?= $(shell git -C $(ROOT) rev-parse --short=9 HEAD 2>/dev/null || echo unknown)
 astral_CFLAGS := -fobjc-arc -flto=thin -Isources -I$(CORE)/wire -I$(GENERATED) -I$(CORE)/include -isystem $(ROOT)/vendor/json/single_include -I$(LUA) -DLUA_USE_POSIX -DASTRAL_VERSION=\"$(ASTRAL_VERSION)\" -DASTRAL_COMMIT=\"$(ASTRAL_COMMIT)\" -DASTRAL_SIGNING_KEY=\"$(SIGNING_KEY)\" -isystem $(ROOT)/vendor/tomlplusplus/include
 astral_CCFLAGS := -std=c++20 -fno-cxx-modules

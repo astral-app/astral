@@ -7,11 +7,11 @@ import (
 )
 
 func TestEveryPermissionHasADescription(t *testing.T) {
-	host, err := os.ReadFile(repoPath("packages", "core", "src", "AstralLuaHost.cpp"))
+	host, err := os.ReadFile(repoPath("packages", "core", "AstralLuaHost.cpp"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	pages, err := os.ReadFile(repoPath("packages", "core", "src", "AstralSettingsPages.cpp"))
+	pages, err := os.ReadFile(repoPath("packages", "core", "AstralSettingsPages.cpp"))
 	if err != nil {
 		t.Fatal(err)
 	}

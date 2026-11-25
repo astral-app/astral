@@ -6,6 +6,7 @@ publish = false
 
 [lib]
 name = "astral_core"
+path = "lib.rs"
 crate-type = ["staticlib", "rlib"]
 
 [profile.dev]

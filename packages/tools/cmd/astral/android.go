@@ -75,7 +75,7 @@ func ndkCandidates(explicit string) []string {
 }
 
 func portableCoreSources() ([]string, error) {
-	files, err := filepath.Glob(repoPath("packages", "core", "src", "*.cpp"))
+	files, err := filepath.Glob(repoPath("packages", "core", "*.cpp"))
 	if err != nil {
 		return nil, err
 	}
