@@ -1,4 +1,4 @@
-local function englishStrings()
+local function english_strings()
 	local strings = {}
 	local folder = arg[1]:match("(.*/)") or "./"
 	local file = io.open(folder .. "i18n/en-US.toml")
@@ -14,7 +14,7 @@ local function englishStrings()
 	return strings
 end
 
-local english = englishStrings()
+local english = english_strings()
 
 local decorator, stored = nil, {}
 astral = {
@@ -73,7 +73,7 @@ astral = {
 			return { roles = { "r2" } }
 		end,
 		permissions = function(_, user)
-			if user == "mod" then
+			if user == "mod" or user == "owner" then
 				return 8192
 			end
 			return 0
@@ -116,6 +116,14 @@ expect("mod as original poster", decorator(node("mod")), {
 })
 astral.on_setting("useRoleColor", false)
 expect("tag colour without role colour", decorator(node("mod")), {
+	{ text = "Mod", color = 0xFF4E7FFF, shape = "op" },
+	{ text = "Holo", color = 0xFFA9C9FF, shape = "pill", stops = 3 },
+})
+astral.on_setting("OWNER", false)
+expect("owner with the owner tag off", decorator(node("owner")), {
+	{ text = "Dev", color = 0xFF2D7FD0, shape = "pill" },
+})
+expect("mod unaffected", decorator(node("mod")), {
 	{ text = "Mod", color = 0xFF4E7FFF, shape = "op" },
 	{ text = "Holo", color = 0xFFA9C9FF, shape = "pill", stops = 3 },
 })

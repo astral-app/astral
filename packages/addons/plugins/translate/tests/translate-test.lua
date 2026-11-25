@@ -1,15 +1,15 @@
-local previousPath = package.path
-package.path = arg[1]:gsub("main.lua$", "?.lua;") .. previousPath
+local previous_path = package.path
+package.path = arg[1]:gsub("main.lua$", "?.lua;") .. previous_path
 
 local values = {}
 local requests = {}
 local storage = {}
 local action
-local webAuth
+local web_auth
 local toast
 local displayed = {}
-local messageContent = "hello world"
-local nowMilliseconds = 1000000
+local message_content = "hello world"
+local now_milliseconds = 1000000
 
 astral = {
 	settings = {
@@ -26,7 +26,7 @@ astral = {
 	},
 	time = {
 		now_ms = function()
-			return nowMilliseconds
+			return now_milliseconds
 		end,
 	},
 	storage = {
@@ -43,7 +43,7 @@ astral = {
 	discord = {
 		permission = {},
 		message = function()
-			return { content = messageContent }
+			return { content = message_content }
 		end,
 	},
 	ui = {
@@ -54,8 +54,8 @@ astral = {
 		toast = function(title, message)
 			toast = { title = title, message = message }
 		end,
-		web_auth = function(url, callbackURL, callback)
-			webAuth = { url = url, callbackURL = callbackURL, callback = callback }
+		web_auth = function(url, callback_url, callback)
+			web_auth = { url = url, callbackURL = callback_url, callback = callback }
 			return 77
 		end,
 		cancel_web_auth = function(request)
@@ -109,16 +109,16 @@ assert(requests[4].options.url:find("langpair=fr%7Cde", 1, true))
 requests[4].callback({ ok = true, json = { responseStatus = 403, responseData = { translatedText = "invalid" } } })
 assert(toast.title == "Translate Error")
 
-local beforeLongMessage = #requests
-messageContent = string.rep("x", 401)
+local before_long_message = #requests
+message_content = string.rep("x", 401)
 action(node)
-assert(#requests == beforeLongMessage)
+assert(#requests == before_long_message)
 assert(toast.title == "Translate")
 
 astral.on_setting("account_action", "connect")
-assert(webAuth.url == "https://translate.unbound.rip/auth/login")
-assert(webAuth.callbackURL == "https://translate.unbound.rip/auth/callback")
-webAuth.callback(
+assert(web_auth.url == "https://translate.unbound.rip/auth/login")
+assert(web_auth.callbackURL == "https://translate.unbound.rip/auth/callback")
+web_auth.callback(
 	"https://translate.unbound.rip/auth/callback?code=oauth-code&state=oauth-state",
 	"session=oauth-cookie",
 	nil
@@ -137,44 +137,44 @@ assert(storage.access_token == "access-1" and storage.refresh_token == "refresh-
 assert(storage.expires_at_ms == 4600000)
 assert(toast.title == "Translate" and toast.message == "Discord login completed")
 
-messageContent = "bonjour"
+message_content = "bonjour"
 values.service = "auto"
 action(node)
-local firstTranslateIndex = #requests
-assert(requests[firstTranslateIndex].options.url == "https://translate.unbound.rip/translate")
-assert(requests[firstTranslateIndex].options.headers.Authorization == "Bearer access-1")
-assert(requests[firstTranslateIndex].options.body:find('"q":"bonjour"', 1, true))
-assert(requests[firstTranslateIndex].options.body:find('"source":"fr"', 1, true))
-assert(requests[firstTranslateIndex].options.body:find('"target":"de"', 1, true))
+local first_translate_index = #requests
+assert(requests[first_translate_index].options.url == "https://translate.unbound.rip/translate")
+assert(requests[first_translate_index].options.headers.Authorization == "Bearer access-1")
+assert(requests[first_translate_index].options.body:find('"q":"bonjour"', 1, true))
+assert(requests[first_translate_index].options.body:find('"source":"fr"', 1, true))
+assert(requests[first_translate_index].options.body:find('"target":"de"', 1, true))
 
 action(node)
-local secondTranslateIndex = #requests
-assert(requests[secondTranslateIndex].options.url == "https://translate.unbound.rip/translate")
-assert(requests[secondTranslateIndex].options.headers.Authorization == "Bearer access-1")
+local second_translate_index = #requests
+assert(requests[second_translate_index].options.url == "https://translate.unbound.rip/translate")
+assert(requests[second_translate_index].options.headers.Authorization == "Bearer access-1")
 
-requests[firstTranslateIndex].callback({ status = 401, ok = false })
-local refreshIndex = #requests
-assert(requests[refreshIndex].options.url == "https://translate.unbound.rip/auth/refresh")
-assert(requests[refreshIndex].options.method == "POST")
-assert(requests[refreshIndex].options.headers["Content-Type"] == "application/json")
-assert(requests[refreshIndex].options.body:find('"refreshToken":"refresh-1"', 1, true))
-requests[secondTranslateIndex].callback({ status = 401, ok = false })
-assert(#requests == refreshIndex)
-requests[refreshIndex].callback({
+requests[first_translate_index].callback({ status = 401, ok = false })
+local refresh_index = #requests
+assert(requests[refresh_index].options.url == "https://translate.unbound.rip/auth/refresh")
+assert(requests[refresh_index].options.method == "POST")
+assert(requests[refresh_index].options.headers["Content-Type"] == "application/json")
+assert(requests[refresh_index].options.body:find('"refreshToken":"refresh-1"', 1, true))
+requests[second_translate_index].callback({ status = 401, ok = false })
+assert(#requests == refresh_index)
+requests[refresh_index].callback({
 	ok = true,
 	json = { accessToken = "access-2", refreshToken = "refresh-2", expiresIn = 3600 },
 })
-local firstRetryIndex = refreshIndex + 1
-local secondRetryIndex = refreshIndex + 2
-assert(requests[firstRetryIndex].options.url == "https://translate.unbound.rip/translate")
-assert(requests[firstRetryIndex].options.headers.Authorization == "Bearer access-2")
-assert(requests[secondRetryIndex].options.url == "https://translate.unbound.rip/translate")
-assert(requests[secondRetryIndex].options.headers.Authorization == "Bearer access-2")
-requests[firstRetryIndex].callback({
+local first_retry_index = refresh_index + 1
+local second_retry_index = refresh_index + 2
+assert(requests[first_retry_index].options.url == "https://translate.unbound.rip/translate")
+assert(requests[first_retry_index].options.headers.Authorization == "Bearer access-2")
+assert(requests[second_retry_index].options.url == "https://translate.unbound.rip/translate")
+assert(requests[second_retry_index].options.headers.Authorization == "Bearer access-2")
+requests[first_retry_index].callback({
 	ok = true,
 	json = { translations = { { translatedText = "guten tag", detectedSourceLanguage = "fr" } } },
 })
-requests[secondRetryIndex].callback({
+requests[second_retry_index].callback({
 	ok = true,
 	json = { translations = { { translatedText = "guten tag", detectedSourceLanguage = "fr" } } },
 })
@@ -182,27 +182,27 @@ assert(displayed["2"].text == "guten tag")
 
 displayed = {}
 action(node)
-local cachedTranslateIndex = #requests
-assert(requests[cachedTranslateIndex].options.url == "https://translate.unbound.rip/translate")
-assert(requests[cachedTranslateIndex].options.headers.Authorization == "Bearer access-2")
-requests[cachedTranslateIndex].callback({
+local cached_translate_index = #requests
+assert(requests[cached_translate_index].options.url == "https://translate.unbound.rip/translate")
+assert(requests[cached_translate_index].options.headers.Authorization == "Bearer access-2")
+requests[cached_translate_index].callback({
 	ok = true,
 	json = { translations = { { translatedText = "guten tag", detectedSourceLanguage = "fr" } } },
 })
 
-nowMilliseconds = storage.expires_at_ms - 10000
+now_milliseconds = storage.expires_at_ms - 10000
 displayed = {}
 action(node)
-local proactiveRefreshIndex = #requests
-assert(requests[proactiveRefreshIndex].options.url == "https://translate.unbound.rip/auth/refresh")
-requests[proactiveRefreshIndex].callback({
+local proactive_refresh_index = #requests
+assert(requests[proactive_refresh_index].options.url == "https://translate.unbound.rip/auth/refresh")
+requests[proactive_refresh_index].callback({
 	ok = true,
 	json = { accessToken = "access-3", refreshToken = "refresh-3", expiresIn = 3600 },
 })
-local proactiveTranslateIndex = #requests
-assert(requests[proactiveTranslateIndex].options.url == "https://translate.unbound.rip/translate")
-assert(requests[proactiveTranslateIndex].options.headers.Authorization == "Bearer access-3")
-requests[proactiveTranslateIndex].callback({
+local proactive_translate_index = #requests
+assert(requests[proactive_translate_index].options.url == "https://translate.unbound.rip/translate")
+assert(requests[proactive_translate_index].options.headers.Authorization == "Bearer access-3")
+requests[proactive_translate_index].callback({
 	ok = true,
 	json = { translations = { { translatedText = "guten tag", detectedSourceLanguage = "fr" } } },
 })
@@ -217,28 +217,32 @@ assert(
 assert(toast.title == "Translate" and toast.message == "Discord account disconnected")
 
 astral.on_setting("account_action", "connect")
-webAuth.callback("https://translate.unbound.rip/auth/callback?code=late&state=late", "session=late", nil)
-local pendingLoginIndex = #requests
-assert(requests[pendingLoginIndex].options.url:find("/auth/callback", 1, true))
+web_auth.callback("https://translate.unbound.rip/auth/callback?code=late&state=late", "session=late", nil)
+local pending_login_index = #requests
+assert(requests[pending_login_index].options.url:find("/auth/callback", 1, true))
 astral.on_setting("account_action", "disconnect")
-requests[pendingLoginIndex].callback({
+requests[pending_login_index].callback({
 	ok = true,
 	json = { accessToken = "stale-access", refreshToken = "stale-refresh", expiresIn = 3600 },
 })
 assert(storage.access_token == "" and storage.refresh_token == "" and storage.expires_at_ms == 0)
 
 astral.on_setting("account_action", "connect")
-local beforeCancelledCallback = #requests
+local before_cancelled_callback = #requests
 astral.on_setting("account_action", "disconnect")
-webAuth.callback("https://translate.unbound.rip/auth/callback?code=cancelled&state=cancelled", "session=cancelled", nil)
-assert(#requests == beforeCancelledCallback)
+web_auth.callback(
+	"https://translate.unbound.rip/auth/callback?code=cancelled&state=cancelled",
+	"session=cancelled",
+	nil
+)
+assert(#requests == before_cancelled_callback)
 
 values.service = "unbound"
-local disconnectedRequests = #requests
+local disconnected_requests = #requests
 displayed = {}
 action(node)
-assert(#requests == disconnectedRequests)
+assert(#requests == disconnected_requests)
 assert(toast.title == "Translate Error")
 
-package.path = previousPath
+package.path = previous_path
 print("translate ok")

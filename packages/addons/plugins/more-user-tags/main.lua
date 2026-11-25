@@ -103,9 +103,10 @@ local function top_colored_role(node)
 end
 
 local function resolve_tag(node)
-	return astral.list.find(TAGS, function(tag)
-		return settings[tag.key] and tag.applies(node)
+	local highest = astral.list.find(TAGS, function(tag)
+		return tag.applies(node)
 	end)
+	return highest and settings[highest.key] and highest or nil
 end
 
 local function tag_colors(tag, node)

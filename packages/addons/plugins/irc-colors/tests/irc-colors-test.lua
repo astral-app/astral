@@ -1,5 +1,5 @@
-local previousPath = package.path
-package.path = arg[1]:gsub("main.lua$", "?.lua;") .. previousPath
+local previous_path = package.path
+package.path = arg[1]:gsub("main.lua$", "?.lua;") .. previous_path
 
 local xxhash64 = require("lib.xxhash64")
 assert(xxhash64.hash("224617799434108928shuffle-seed-that-is-long-enough-for-stripes") == -6643768567790270702)
