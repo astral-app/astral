@@ -268,8 +268,30 @@ static void ScheduleRetry(void)
     });
 }
 
+static const int64_t kPluginWaitNs = 300 * NSEC_PER_MSEC;
+static std::atomic<bool> gPluginWaitOver{false};
+
+static dispatch_semaphore_t PluginsReady(void)
+{
+    static dispatch_semaphore_t ready;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        ready = dispatch_semaphore_create(0);
+    });
+    return ready;
+}
+
+static void WaitForPlugins(void)
+{
+    if (gPluginWaitOver.load() || NSThread.isMainThread) return;
+    if (dispatch_semaphore_wait(PluginsReady(), dispatch_time(DISPATCH_TIME_NOW, kPluginWaitNs)) == 0)
+        dispatch_semaphore_signal(PluginsReady());
+    gPluginWaitOver = true;
+}
+
 static bool InterceptHostCall(void *context, const uint8_t *frame, size_t length, void *result)
 {
+    WaitForPlugins();
     if (length >= 16 && frame[0] == 1 && !gRewriteDisabled.load()) {
         AstralWireBuffer call;
         if (astral_host_call_rewrite(frame, length, &call)) {
@@ -767,6 +789,8 @@ NSString *AstralStartPhoenixRoute(void)
     return gRouteRefusal;
 }
 
+static void (^gRouteStarted)(void);
+
 static void PhoenixImageAdded(const struct mach_header *header, intptr_t slide)
 {
     (void)slide;
@@ -774,12 +798,13 @@ static void PhoenixImageAdded(const struct mach_header *header, intptr_t slide)
     if (!dladdr(header, &info) || !info.dli_fname || !strstr(info.dli_fname, "/PhoenixFatClient.framework/PhoenixFatClient")) return;
     RecordTiming(@"phoenixLoadedMs", @(Rounded(MillisecondsSinceLaunch())));
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INTERACTIVE, 0), ^{
-        AstralStartPhoenixRoute();
+        if (!AstralStartPhoenixRoute() && gRouteStarted) dispatch_async(dispatch_get_main_queue(), gRouteStarted);
     });
 }
 
-void AstralStartPhoenixRouteWhenLoaded(void)
+void AstralStartPhoenixRouteWhenLoaded(void (^started)(void))
 {
+    gRouteStarted = [started copy];
     _dyld_register_func_for_add_image(PhoenixImageAdded);
 }
 
@@ -813,4 +838,14 @@ void AstralRefreshPhoenixSettings(void)
     dispatch_async(dispatch_get_main_queue(), ^{
         if (gPageModel && astral_page_depth() > 0) RefreshTop();
     });
+}
+
+void AstralPhoenixPluginsReady(void)
+{
+    dispatch_semaphore_signal(PluginsReady());
+}
+
+void AstralPhoenixRecordMoment(NSString *key)
+{
+    RecordTiming(key, @(Rounded(MillisecondsSinceLaunch())));
 }
