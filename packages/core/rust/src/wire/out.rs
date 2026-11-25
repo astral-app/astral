@@ -195,3 +195,35 @@ pub unsafe extern "C" fn wirePutChildren(pointer: *mut Out, parent: i32, childre
         out.put(&child.to_le_bytes());
     }
 }
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn wirePropGradient(pointer: *mut Out, id: u16, angle: f64, colors: *const u32, count: u32) {
+    let Some(out) = out(pointer) else { return };
+    let colors = if colors.is_null() || count == 0 {
+        &[][..]
+    } else {
+        unsafe { core::slice::from_raw_parts(colors, count as usize) }
+    };
+    let properties = super::properties::current();
+    property(out, id, 8);
+    out.put32(3);
+    property(out, properties.angle, 5);
+    out.put(&angle.to_le_bytes());
+    property(out, properties.colors, 7);
+    out.put32(colors.len() as u32);
+    for color in colors {
+        out.put8(4);
+        out.put(&i64::from(*color).to_le_bytes());
+    }
+    property(out, properties.positions, 7);
+    out.put32(colors.len() as u32);
+    for index in 0..colors.len() {
+        out.put8(5);
+        let position = if colors.len() > 1 {
+            index as f64 / (colors.len() - 1) as f64
+        } else {
+            0.0
+        };
+        out.put(&position.to_le_bytes());
+    }
+}
