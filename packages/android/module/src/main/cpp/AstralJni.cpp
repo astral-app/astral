@@ -606,6 +606,7 @@ void installDecorators()
     astral_wire_set_decorator(AstralLuaDecorate);
     astral_wire_set_message_background_decorator(AstralLuaMessageBackground);
     astral_wire_set_node_patcher(AstralLuaPatchNode);
+    astral_wire_set_node_inserter(AstralLuaInsertNodes);
     astral_wire_set_message_menu_provider(AstralLuaMessageMenu);
     astral_wire_set_message_text_provider(AstralLuaMessageText);
     astral_wire_set_send_transform(AstralLuaSendTransform);
@@ -642,6 +643,10 @@ std::vector<uint8_t> pendingUpdates()
         if (astral_wire_refresh_message_texts(&buffer)) append(merged, buffer);
         if (astral_wire_refresh_message_backgrounds(&buffer)) append(merged, buffer);
         if (astral_wire_refresh_node_patches(&buffer)) append(merged, buffer);
+        if (astral_wire_refresh_node_inserts(&buffer)) {
+            astral_wire_note_identifiers(buffer.bytes, buffer.length);
+            append(merged, buffer);
+        }
         if (astral_wire_take_refresh_busy()) gRefreshDecorations = true;
     }
     return merged;
@@ -1179,6 +1184,16 @@ ASTRAL_EXPORT JNIEXPORT jboolean JNICALL Java_app_astral_android_Native_press(JN
     if (!astral::navigator::handles(identifier)) return JNI_FALSE;
     astral::navigator::tap(identifier);
     return JNI_TRUE;
+}
+
+ASTRAL_EXPORT JNIEXPORT jboolean JNICALL Java_app_astral_android_Native_pressInsertedNode(JNIEnv *, jclass, jint node)
+{
+    char identifier[128];
+    {
+        std::lock_guard<std::mutex> lock(gWireLock);
+        if (!astral_wire_identifier(node, identifier, sizeof(identifier))) return JNI_FALSE;
+    }
+    return astral::luahost::pressInsertedNode(identifier) ? JNI_TRUE : JNI_FALSE;
 }
 
 ASTRAL_EXPORT JNIEXPORT jboolean JNICALL Java_app_astral_android_Native_pressMessageAction(JNIEnv *, jclass, jint node)

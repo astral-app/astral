@@ -24,6 +24,7 @@ object Native {
 
     @JvmStatic external fun press(node: Int): Boolean
     @JvmStatic external fun pressMessageAction(node: Int): Boolean
+    @JvmStatic external fun pressInsertedNode(node: Int): Boolean
     @JvmStatic external fun touchMessage(node: Int, row: Long)
     @JvmStatic external fun composerEvent(event: ByteArray): ByteArray?
     @JvmStatic external fun slide(node: Int, payload: ByteArray): Boolean

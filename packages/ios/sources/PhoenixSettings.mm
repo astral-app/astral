@@ -59,6 +59,7 @@ static NSString *const kRowPrefix = @"astral.row.";
 static NSString *const kSwitchPrefix = @"astral.switch.";
 static NSString *const kSliderPrefix = @"astral.slider.";
 static NSString *const kActionPrefix = @"astral.action.";
+static NSString *const kTapPrefix = @"astral.tap.";
 
 static pthread_mutex_t gLock = PTHREAD_MUTEX_INITIALIZER;
 static AstralHostCall gHostOriginal;
@@ -491,6 +492,8 @@ void AstralPhoenixRefreshDecorations(void)
         if (live && astral_wire_refresh_message_backgrounds(&backgrounds)) Send(&backgrounds);
         AstralWireBuffer patches = {};
         if (live && astral_wire_refresh_node_patches(&patches)) Send(&patches);
+        AstralWireBuffer inserts = {};
+        if (live && astral_wire_refresh_node_inserts(&inserts)) Send(&inserts);
         bool busy = astral_wire_take_refresh_busy();
         pthread_mutex_unlock(&gLock);
         ScheduleRetry();
@@ -559,6 +562,11 @@ static void Pop(void)
         Push(route);
     } else if ([identifier isEqualToString:kBack]) {
         Pop();
+    } else if ([identifier hasPrefix:kTapPrefix]) {
+        std::string tap = identifier.UTF8String ?: "";
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+            astral::luahost::pressInsertedNode(tap);
+        });
     } else if ([identifier hasPrefix:kActionPrefix]) {
         std::string action = identifier.UTF8String ?: "";
         AstralDismissMessageMenu();
@@ -649,7 +657,7 @@ static void RouteSlider(UIView *view, NSString *identifier)
 static BOOL Routed(NSString *identifier)
 {
     return [identifier hasPrefix:kOverviewRow] || [identifier isEqualToString:kBack] || [identifier hasPrefix:kRowPrefix] ||
-           [identifier hasPrefix:kSwitchPrefix] || [identifier hasPrefix:kActionPrefix];
+           [identifier hasPrefix:kSwitchPrefix] || [identifier hasPrefix:kActionPrefix] || [identifier hasPrefix:kTapPrefix];
 }
 
 static void Route(UIView *view)

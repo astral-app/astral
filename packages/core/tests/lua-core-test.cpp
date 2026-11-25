@@ -763,6 +763,38 @@ static void testNodePatch(const std::string &work)
     astral::luahost::stop();
 }
 
+static void testNodeInsert(const std::string &work)
+{
+    auto root = std::filesystem::path(work) / "node-insert-host";
+    auto plugin = root / "plugins" / "inserter";
+    std::filesystem::create_directories(plugin);
+    writeText(plugin / "manifest.toml", "id = 'astral.node-insert-test'\nname = 'Node insert test'\nversion = '1.0'\nmain = 'main.lua'\n"
+                                        "permissions = ['ui.insert']\n");
+    writeText(plugin / "main.lua", "astral.ui.insert('message.content:', function(node)\n"
+                                   "  return { type = 'view', row = true, background = '#202020', action = 'open', position = 'start',\n"
+                                   "    children = { { type = 'text', text = 'Hi ' .. node.key, color = 0xFFFFFFFF, bold = true } } }\n"
+                                   "end, function(node, action) astral.state.pressed = action .. ':' .. node.message_id end)\n");
+    astral::SettingsStore settings((root / "settings.json").string());
+    settings.set("astral", "developer-mode", true);
+    astral::LuaHostPlatform platform;
+    platform.storagePath = (root / "storage.sqlite").string();
+    astral::luahost::start({(root / "plugins").string()}, &settings, true, std::move(platform));
+    const char *identifier = "message.content:200000000000000011";
+    AstralPatchTarget target = {identifier, "view", strlen("message.content:"), 200000000000000011ULL, 0, 0};
+    AstralInsertNode nodes[kAstralInsertCapacity] = {};
+    int atStart = 0;
+    assert(AstralLuaInsertNodes(&target, nodes, kAstralInsertCapacity, &atStart) == 2 && atStart == 1);
+    assert(nodes[0].kind == AstralInsertView && nodes[0].parent == -1 && (nodes[0].fields & AstralInsertRow));
+    assert(nodes[0].background == 0xFF202020);
+    assert(nodes[1].kind == AstralInsertText && nodes[1].parent == 0 && std::string(nodes[1].text) == "Hi 200000000000000011");
+    std::string tap = nodes[0].tap;
+    assert(tap.rfind("astral.tap.", 0) == 0 && tap.find(":open:200000000000000011") != std::string::npos);
+    assert(astral::luahost::pressInsertedNode(tap));
+    assert(astral::luahost::eval("astral.node-insert-test", "return astral.state.pressed") == "open:200000000000000011");
+    assert(!astral::luahost::pressInsertedNode("astral.tap.999999:open:1"));
+    astral::luahost::stop();
+}
+
 static void testFilePickerAndDialogs(const std::string &work)
 {
     auto root = std::filesystem::path(work) / "native-ui-host";
@@ -1110,6 +1142,7 @@ int main(int argc, char **argv)
     testComposerStyles(argv[1]);
     testMessageBackground(argv[1]);
     testNodePatch(argv[1]);
+    testNodeInsert(argv[1]);
     testFilePickerAndDialogs(argv[1]);
     testGatewayMessageEventsAndHaptics(argv[1]);
     testSliderSettingsAndNavigation(argv[1]);

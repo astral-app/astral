@@ -170,6 +170,7 @@ object PhoenixBridge {
 
     private fun press(node: Int): Boolean {
         if (Native.press(node)) return true
+        if (Native.pressInsertedNode(node)) return true
         if (Native.pressMessageAction(node)) {
             mainHandler.post { dismissMessageMenu() }
             return true
