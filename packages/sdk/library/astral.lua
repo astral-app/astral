@@ -382,6 +382,26 @@ function astral.time.after(delay_ms, callback) end
 ---@param callback fun()
 ---@return integer timer
 function astral.time.every(interval_ms, callback) end
+astral.snowflake = {}
+---Milliseconds since 1970 for Discord's epoch (2015-01-01).
+astral.snowflake.EPOCH = 1420070400000
+---When a Discord id was created, in Unix milliseconds, or nil for anything that isn't an id.
+---@param id string
+---@return integer?
+function astral.snowflake.timestamp(id) end
+---The smallest id created at a Unix time in milliseconds, for `before`/`after` queries.
+---@param milliseconds integer
+---@return string?
+function astral.snowflake.from_time(milliseconds) end
+---Whether a string is a Discord id.
+---@param id any
+---@return boolean
+function astral.snowflake.is_valid(id) end
+---Orders two ids by creation: -1, 0 or 1, or nil when either isn't an id.
+---@param left string
+---@param right string
+---@return integer?
+function astral.snowflake.compare(left, right) end
 ---Formats a time, or now, as "YYYY-MM-DD HH:MM UTC".
 ---@param milliseconds? integer
 ---@return string

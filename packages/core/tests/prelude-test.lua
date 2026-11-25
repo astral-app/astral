@@ -102,4 +102,12 @@ assert(Dog.is(dog) and Animal.is(dog) and tostring(dog) == "Dog(Rex)")
 
 assert(type(astral.state) == "table" and next(astral.state) == nil)
 
+assert(astral.snowflake.timestamp("175928847299117063") == 1462015105796)
+assert(astral.snowflake.timestamp("nope") == nil)
+assert(astral.snowflake.from_time(1462015105796) == "175928847298985984")
+assert(astral.snowflake.from_time(0) == nil)
+assert(astral.snowflake.is_valid("175928847299117063") and not astral.snowflake.is_valid("17x"))
+assert(astral.snowflake.compare("2", "10") == -1 and astral.snowflake.compare("10", "10") == 0)
+assert(astral.snowflake.compare("a", "1") == nil)
+
 print("prelude ok")
