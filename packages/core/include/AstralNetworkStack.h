@@ -1,16 +1,14 @@
 #pragma once
 
 #include <string>
-#include <vector>
+
+#include "AstralRust.h"
+
+extern "C" AstralRustString astral_current_network_stack_marker(void);
 
 namespace astral::environment_report {
-struct InterfaceAddress {
-    std::string interface;
-    std::string address;
-    bool ipv6 = false;
-};
-
-std::string networkStackMarker(const std::vector<InterfaceAddress> &addresses);
-std::vector<InterfaceAddress> interfaceAddresses();
-std::string currentNetworkStackMarker();
+inline std::string currentNetworkStackMarker()
+{
+    return rust::take(astral_current_network_stack_marker());
+}
 }
