@@ -1,6 +1,6 @@
 # Plugins
 
-39 first-party plugins for astral, each in its own folder here.
+40 first-party plugins for astral, each in its own folder here.
 
 <!-- Generated from each manifest.toml by `astral readme`. Do not edit by hand. -->
 
@@ -36,6 +36,7 @@
 - <img src="../../assets/readme-icons/star-icon.svg" width="20" height="20" align="absmiddle" alt=""> [ReviewDB](reviewdb/): Leave reviews on other users' profiles and see what others think of you.
 - <img src="../../assets/readme-icons/paint-palette-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Role Color Everywhere](role-color-everywhere/): Colors mentions, message text, role headers and names beside avatars with members' role colors.
 - <img src="../../assets/readme-icons/paint-palette-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Settings Theme](settings-theme/): Shows your theme behind User Settings and every page in it, which Discord leaves plain.
+- <img src="../../assets/readme-icons/text-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Shiki Codeblocks](shiki-codeblocks/): Highlights code blocks with VS Code-style syntax colors.
 - <img src="../../assets/readme-icons/show-me-your-name.svg" width="20" height="20" align="absmiddle" alt=""> [Show Me Your Name](show-me-your-name/): Display usernames next to display names, or show usernames only.
 - <img src="../../assets/readme-icons/sticker-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Sticker Preview](sticker-preview/): Displays a preview of a selected sticker instead of sending it immediately.
 - <img src="../../assets/readme-icons/text-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Text Replace](text-replace/): Rewrites outgoing message text with literal or Lua pattern rules.

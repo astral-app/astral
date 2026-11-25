@@ -48,6 +48,7 @@ extern "C" {
     X(first, 194)                                                                                                                          \
     X(flex, 198)                                                                                                                           \
     X(focusBorderColor, 201)                                                                                                               \
+    X(fontFamily, 206)                                                                                                                     \
     X(fontSize, 207)                                                                                                                       \
     X(fontWeight, 208)                                                                                                                     \
     X(fullScreenBack, 218)                                                                                                                 \
@@ -55,6 +56,7 @@ extern "C" {
     X(height, 235)                                                                                                                         \
     X(image, 249)                                                                                                                          \
     X(includeFontPadding, 251)                                                                                                             \
+    X(italic, 257)                                                                                                                         \
     X(index, 252)                                                                                                                          \
     X(offset, 317)                                                                                                                         \
     X(justify, 260)                                                                                                                        \

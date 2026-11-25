@@ -608,6 +608,29 @@ function astral.ui.insert(selector, build, on_press) end
 ---@field time? "header"|"inline"|"hidden" where the time sits: in the author line, beside the text, or nowhere
 ---@param decorator fun(node: astral.Node): astral.MessageBackgroundStyle?
 function astral.ui.message_background(decorator) end
+---@class astral.CodeBlock
+---@field message_id string
+---@field channel_id? string
+---@field index integer which code block of the message, from 0
+---@field code string
+---@class astral.CodeCardHeader
+---@field label string
+---@field icon? string image URI shown before the label
+---@field iconTint? integer
+---@field copy? string label of the copy button; the press handler receives the action "copy"
+---@field background integer
+---@field foreground integer
+---@class astral.CodeCard
+---@field background integer
+---@field foreground integer
+---@field lineNumbers? integer colour of the line numbers; leave out to hide them
+---@field fontSize? number
+---@field lineHeight? number
+---@field lines {[1]: string, [2]: integer, [3]: integer}[][] runs of text, ARGB colour and style flags (1 bold, 2 italic, 4 underline)
+---@field header? astral.CodeCardHeader
+---@param render fun(block: astral.CodeBlock): astral.CodeCard?
+---@param press? fun(block: astral.CodeBlock, action: string)
+function astral.ui.code_block(render, press) end
 ---@param colorizer fun(node: astral.Node): astral.Color|integer|string|nil
 function astral.ui.author_color(colorizer) end
 ---@class astral.MessageActionOptions
@@ -882,3 +905,17 @@ function astral.list.contains(items, wanted) end
 ---@param item T
 ---@return T[]
 function astral.list.push_unique(items, item) end
+
+astral.code = {}
+---@class astral.HighlightResult
+---@field found boolean whether the language has a grammar
+---@field language string
+---@field foreground integer
+---@field background integer
+---@field light boolean
+---@field lines {[1]: string, [2]: integer, [3]: integer}[][]
+---@param code string
+---@param language? string fence language or file extension
+---@param theme? string VS Code theme JSON
+---@return astral.HighlightResult
+function astral.code.highlight(code, language, theme) end

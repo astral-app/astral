@@ -2,6 +2,7 @@ pub mod abi;
 pub mod backdrop;
 pub mod children;
 pub mod clone;
+pub mod code_blocks;
 pub mod commands;
 pub mod composer;
 pub mod cursor;

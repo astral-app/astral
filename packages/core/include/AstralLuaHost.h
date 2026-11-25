@@ -9,6 +9,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include "AstralCodeBlocks.h"
 #include "PhoenixWire.h"
 
 namespace astral {
@@ -150,6 +151,7 @@ int AstralLuaSendTransform(uint64_t channelID, const char *text, char *rewritten
 size_t AstralLuaMessageMenu(AstralMenuEntry *entries, size_t capacity);
 size_t AstralLuaDecorate(const AstralDecorationContext *context, AstralTag *tags, size_t capacity);
 int AstralLuaMessageBackground(const AstralMessageBackgroundContext *context, AstralMessageBackgroundStyle *style);
+int AstralLuaCodeBlock(const AstralCodeBlockContext *context, AstralRustString *card);
 int AstralLuaPatchNode(const AstralPatchTarget *target, AstralNodePatch *patch);
 int AstralLuaImageRewrite(const char *uri, char *rewritten, size_t capacity);
 int AstralLuaSpanTransform(uint64_t messageID, const uint8_t *spans, size_t length, uint8_t **transformed, size_t *transformedLength);

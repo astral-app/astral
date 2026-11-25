@@ -7,6 +7,7 @@ pub mod cutout;
 pub mod disk_full;
 pub mod exit_record;
 pub mod files;
+pub mod highlight;
 pub mod launch_guard;
 pub mod leftover_mods;
 pub mod locate;

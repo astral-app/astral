@@ -110,6 +110,12 @@ struct LuaNodeInsert {
     int press;
 };
 
+struct LuaCodeBlock {
+    uint64_t identifier;
+    int render;
+    int press;
+};
+
 struct LuaEventCallback {
     std::string event;
     int reference;
@@ -167,6 +173,7 @@ struct LuaPlugin : astral::PluginPackage, astral::PluginHealth {
     std::vector<int> messageBackgroundDecorators;
     std::vector<LuaNodePatch> nodePatches;
     std::vector<LuaNodeInsert> nodeInserts;
+    std::vector<LuaCodeBlock> codeBlocks;
     std::vector<LuaMessageAction> messageActions;
     std::map<uint64_t, int> networkRequests;
     std::map<uint64_t, LuaTimer> timers;
@@ -1887,6 +1894,7 @@ static void SyncPatchPrefixes()
 }
 
 static std::atomic<uint64_t> gNextInsert{1};
+static std::map<std::string, std::string> gCodeBlockCode;
 
 static void SyncInsertPrefixes()
 {
@@ -1920,6 +1928,34 @@ static int RegisterNodeInsert(lua_State *state)
     plugin->nodeInserts.push_back({gNextInsert.fetch_add(1), prefix, type, build, press});
     SyncInsertPrefixes();
     return 0;
+}
+
+static int RegisterCodeBlock(lua_State *state)
+{
+    LuaPlugin *plugin = Self(state);
+    RequirePermission(state, "ui.code_blocks");
+    luaL_checktype(state, 1, LUA_TFUNCTION);
+    if (!plugin->codeBlocks.empty()) return luaL_error(state, "astral.ui.code_block: at most one renderer per plugin");
+    lua_pushvalue(state, 1);
+    int render = luaL_ref(state, LUA_REGISTRYINDEX);
+    int press = LUA_NOREF;
+    if (lua_isfunction(state, 2)) {
+        lua_pushvalue(state, 2);
+        press = luaL_ref(state, LUA_REGISTRYINDEX);
+    }
+    plugin->codeBlocks.push_back({gNextInsert.fetch_add(1), render, press});
+    return 0;
+}
+
+static int HighlightCode(lua_State *state)
+{
+    size_t codeLength = 0, languageLength = 0, themeLength = 0;
+    const char *code = luaL_checklstring(state, 1, &codeLength);
+    const char *language = luaL_optlstring(state, 2, "", &languageLength);
+    const char *theme = luaL_optlstring(state, 3, "{}", &themeLength);
+    std::string result = astral::rust::take(astral_code_highlight(code, codeLength, language, languageLength, theme, themeLength));
+    astral::lua::pushJSON(state, nlohmann::json::parse(result, nullptr, false));
+    return 1;
 }
 
 static int RegisterNodePatch(lua_State *state)
@@ -2607,6 +2643,7 @@ static void InstallAPI(LuaPlugin *plugin)
     Function(state, plugin, "message_background", RegisterMessageBackground);
     Function(state, plugin, "patch", RegisterNodePatch);
     Function(state, plugin, "insert", RegisterNodeInsert);
+    Function(state, plugin, "code_block", RegisterCodeBlock);
     Function(state, plugin, "haptic", Haptic);
     Function(state, plugin, "web_auth", WebAuth);
     Function(state, plugin, "cancel_web_auth", CancelWebAuth);
@@ -2648,6 +2685,10 @@ static void InstallAPI(LuaPlugin *plugin)
     lua_newtable(state);
     Function(state, plugin, "environment", DiagnosticEnvironment);
     lua_setfield(state, -2, "diagnostics");
+
+    lua_newtable(state);
+    Function(state, plugin, "highlight", HighlightCode);
+    lua_setfield(state, -2, "code");
 
     lua_newtable(state);
     Function(state, plugin, "decode", DecodeJSON);
@@ -2833,6 +2874,7 @@ static void Stop(LuaPlugin *plugin)
     plugin->nodePatches.clear();
     SyncPatchPrefixes();
     plugin->nodeInserts.clear();
+    plugin->codeBlocks.clear();
     SyncInsertPrefixes();
     ApplySettingsBackdrop();
     TraceRunningPlugins();
@@ -5311,6 +5353,59 @@ int AstralLuaInsertNodes(const AstralPatchTarget *target, AstralInsertNode *node
     return static_cast<int>(count);
 }
 
+int AstralLuaCodeBlock(const AstralCodeBlockContext *context, AstralRustString *card)
+{
+    if (!context || !card) return 0;
+    std::unique_lock<std::recursive_mutex> lock(gMutex, std::try_to_lock);
+    if (!lock.owns_lock()) {
+        RedrawAfterBusy();
+        return -1;
+    }
+    std::string message = Snowflake(context->message_id);
+    std::string channel = Snowflake(context->channel_id);
+    std::string code(context->code ? context->code : "", context->code ? context->code_length : 0);
+    std::string key = message + "." + std::to_string(context->index);
+    for (auto *plugin : gPlugins) {
+        if (!plugin->state || plugin->failed) continue;
+        for (const auto &entry : plugin->codeBlocks) {
+            lua_State *state = plugin->state;
+            int top = lua_gettop(state);
+            lua_rawgeti(state, LUA_REGISTRYINDEX, entry.render);
+            lua_createtable(state, 0, 4);
+            lua_pushstring(state, message.c_str());
+            lua_setfield(state, -2, "message_id");
+            if (!channel.empty()) {
+                lua_pushstring(state, channel.c_str());
+                lua_setfield(state, -2, "channel_id");
+            }
+            lua_pushinteger(state, context->index);
+            lua_setfield(state, -2, "index");
+            lua_pushlstring(state, code.data(), code.size());
+            lua_setfield(state, -2, "code");
+            if (!Call(plugin, 1, 1, "code block")) {
+                lua_settop(state, top);
+                MarkFailed(plugin);
+                Stop(plugin);
+                return 0;
+            }
+            nlohmann::json rendered;
+            bool converted = lua_istable(state, -1) && astral::lua::toJSON(state, -1, rendered) && rendered.is_object();
+            lua_settop(state, top);
+            if (!converted) continue;
+            if (rendered.contains("header") && rendered["header"].is_object() && entry.press != LUA_NOREF &&
+                rendered["header"].contains("copy")) {
+                rendered["header"]["tap"] = "astral.tap." + std::to_string(entry.identifier) + ":copy:" + key;
+                if (gCodeBlockCode.size() > 256) gCodeBlockCode.clear();
+                gCodeBlockCode[key] = code;
+            }
+            std::string text = rendered.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
+            *card = astral_rust_string_from(text.data(), text.size());
+            return 1;
+        }
+    }
+    return 0;
+}
+
 int AstralLuaMessageBackground(const AstralMessageBackgroundContext *context, AstralMessageBackgroundStyle *style)
 {
     if (!context || !style) return 0;
@@ -5684,6 +5779,33 @@ bool pressInsertedNode(std::string_view identifier)
             PushPatchTarget(state, &target, entry.prefix.size());
             lua_pushstring(state, action.c_str());
             if (!Call(plugin, 2, 0, "insert press")) {
+                lua_settop(state, top);
+                MarkFailed(plugin);
+                Stop(plugin);
+                return true;
+            }
+            lua_settop(state, top);
+            return true;
+        }
+    }
+    for (auto *plugin : gPlugins) {
+        if (!plugin->state || plugin->failed) continue;
+        for (const auto &entry : plugin->codeBlocks) {
+            if (entry.identifier != registration || entry.press == LUA_NOREF) continue;
+            auto code = gCodeBlockCode.find(key);
+            lua_State *state = plugin->state;
+            int top = lua_gettop(state);
+            lua_rawgeti(state, LUA_REGISTRYINDEX, entry.press);
+            lua_createtable(state, 0, 3);
+            size_t dot = key.rfind('.');
+            lua_pushstring(state, key.substr(0, dot).c_str());
+            lua_setfield(state, -2, "message_id");
+            lua_pushinteger(state, dot == std::string::npos ? 0 : std::atoll(key.c_str() + dot + 1));
+            lua_setfield(state, -2, "index");
+            lua_pushstring(state, code == gCodeBlockCode.end() ? "" : code->second.c_str());
+            lua_setfield(state, -2, "code");
+            lua_pushstring(state, action.c_str());
+            if (!Call(plugin, 2, 0, "code block press")) {
                 lua_settop(state, top);
                 MarkFailed(plugin);
                 Stop(plugin);

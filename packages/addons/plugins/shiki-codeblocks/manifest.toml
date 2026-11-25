@@ -1,0 +1,27 @@
+id = "astral.shiki-codeblocks"
+name = "Shiki Codeblocks"
+description = "Highlights code blocks with VS Code-style syntax colors."
+version = "0.0.1"
+icon = "TextIcon"
+main = "main.lua"
+permissions = [
+	"discord.messages",
+	"discord.messages.content",
+	"network",
+	"storage",
+	"ui.clipboard",
+	"ui.code_blocks",
+	"ui.toasts",
+]
+
+[[authors]]
+name = "Vap0r1ze"
+id = "454072114492866560"
+
+[[authors]]
+name = "eternal"
+id = "263689920210534400"
+
+[[authors]]
+name = "adrian"
+id = "224617799434108928"

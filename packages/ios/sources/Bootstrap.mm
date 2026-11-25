@@ -213,6 +213,7 @@ static void StartPlugins(void)
                        !recovering && !safeMode);
     astral_wire_set_decorator(AstralLuaDecorate);
     astral_wire_set_message_background_decorator(AstralLuaMessageBackground);
+    astral_wire_set_code_block_decorator(AstralLuaCodeBlock);
     astral_wire_set_node_patcher(AstralLuaPatchNode);
     astral_wire_set_image_rewriter(AstralLuaImageRewrite);
     astral_host_calls_set_image_rewriter(AstralLuaImageRewrite);

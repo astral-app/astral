@@ -262,6 +262,7 @@ void astral_wire_set_send_transform(AstralSendTransform transform);
 int astral_wire_composer_event(const uint8_t *event, size_t length, AstralWireBuffer *before);
 int astral_wire_refresh_message_texts(AstralWireBuffer *buffer);
 int astral_wire_refresh_author_tags(AstralWireBuffer *buffer);
+int astral_wire_refresh_code_blocks(AstralWireBuffer *buffer);
 typedef int (*AstralSpanTransformer)(uint64_t message_id, const uint8_t *spans, size_t length, uint8_t **transformed,
                                      size_t *transformedLength);
 void astral_wire_set_span_transformer(AstralSpanTransformer transformer);
