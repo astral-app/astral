@@ -14,8 +14,6 @@ const androidAPILevel = "26"
 
 var androidABIs = map[string]string{"arm64-v8a": "aarch64-linux-android", "x86_64": "x86_64-linux-android"}
 
-var appleOnlyCoreSources = map[string]bool{"AstralMetricKitCrash": true}
-
 var luaLibrarySources = []string{"lapi", "lcode", "lctype", "ldebug", "ldo", "ldump", "lfunc", "lgc", "llex", "lmem", "lobject", "lopcodes", "lparser", "lstate", "lstring", "ltable", "ltm", "lundump", "lvm", "lzio", "lauxlib", "lbaselib", "lstrlib", "ltablib", "lmathlib", "lutf8lib", "lcorolib"}
 
 func runAndroidCore(args []string) error {
@@ -81,13 +79,7 @@ func portableCoreSources() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	var sources []string
-	for _, file := range files {
-		if !appleOnlyCoreSources[strings.TrimSuffix(filepath.Base(file), ".cpp")] {
-			sources = append(sources, file)
-		}
-	}
-	return sources, nil
+	return files, nil
 }
 
 func buildAndroidCore(toolchain string, triple string, sources []string, directory string) (string, error) {
