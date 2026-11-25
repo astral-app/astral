@@ -5556,13 +5556,59 @@ int AstralLuaNameColor(const AstralNameContext *context, uint32_t *color)
     return 0;
 }
 
+namespace {
+constexpr size_t kRememberedTagRows = 512;
+std::mutex gTagMemoryMutex;
+std::map<std::pair<uint64_t, uint64_t>, std::vector<AstralTag>> gTagMemory;
+std::vector<std::pair<uint64_t, uint64_t>> gTagMemoryOrder;
+
+std::pair<uint64_t, uint64_t> TagRow(const AstralDecorationContext *context)
+{
+    return {context->message_id, context->user_id};
+}
+
+void RememberTags(const AstralDecorationContext *context, const AstralTag *tags, size_t count)
+{
+    std::lock_guard<std::mutex> lock(gTagMemoryMutex);
+    auto row = TagRow(context);
+    if (gTagMemory.find(row) == gTagMemory.end()) {
+        gTagMemoryOrder.push_back(row);
+        if (gTagMemoryOrder.size() > kRememberedTagRows) {
+            gTagMemory.erase(gTagMemoryOrder.front());
+            gTagMemoryOrder.erase(gTagMemoryOrder.begin());
+        }
+    }
+    gTagMemory[row].assign(tags, tags + count);
+}
+
+std::optional<size_t> RememberedTags(const AstralDecorationContext *context, AstralTag *tags, size_t capacity)
+{
+    std::lock_guard<std::mutex> lock(gTagMemoryMutex);
+    auto found = gTagMemory.find(TagRow(context));
+    if (found == gTagMemory.end()) return std::nullopt;
+    size_t count = std::min(capacity, found->second.size());
+    std::copy_n(found->second.begin(), count, tags);
+    return count;
+}
+} // namespace
+
+static size_t DecorateWithLua(const AstralDecorationContext *context, AstralTag *tags, size_t capacity);
+
 size_t AstralLuaDecorate(const AstralDecorationContext *context, AstralTag *tags, size_t capacity)
 {
     std::unique_lock<std::recursive_mutex> lock(gMutex, std::try_to_lock);
     if (!lock.owns_lock()) {
+        if (auto remembered = RememberedTags(context, tags, capacity)) return *remembered;
         RedrawAfterBusy();
         return 0;
     }
+    size_t count = DecorateWithLua(context, tags, capacity);
+    RememberTags(context, tags, count);
+    return count;
+}
+
+static size_t DecorateWithLua(const AstralDecorationContext *context, AstralTag *tags, size_t capacity)
+{
     std::string user = Snowflake(context->user_id), message = Snowflake(context->message_id);
     std::string channel = ResolveChannel(context->channel_id, message);
     if (user.empty()) user = MessageAuthor(channel, message);
