@@ -26,11 +26,15 @@ object Http {
             .cache(null)
             .build()
 
-    fun get(url: String, token: String): ByteArray {
+    fun get(url: String, token: String): ByteArray =
+        getWith(url, JSONObject().apply { if (token.isNotEmpty()) put("Authorization", token) }.toString())
+
+    fun getWith(url: String, encodedHeaders: String): ByteArray {
+        val headers = runCatching { JSONObject(encodedHeaders) }.getOrDefault(JSONObject())
         var status = 0
         val body =
             try {
-                val request = Request.Builder().url(url).apply { if (token.isNotEmpty()) header("Authorization", token) }.get().build()
+                val request = Request.Builder().url(url).apply { headers.keys().forEach { name -> header(name, headers.getString(name)) } }.get().build()
                 client.newBuilder().callTimeout(TIMEOUT_MS.toLong(), TimeUnit.MILLISECONDS).build().newCall(request).execute().use { response ->
                     status = response.code
                     response.body?.byteStream()?.use(::readBounded) ?: ByteArray(0)

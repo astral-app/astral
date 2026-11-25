@@ -67,6 +67,7 @@ JavaVM *gVM = nullptr;
 jclass gBridge = nullptr;
 jmethodID gDeliver = nullptr;
 jmethodID gFetch = nullptr;
+jmethodID gFetchWith = nullptr;
 jmethodID gRequest = nullptr;
 jmethodID gCancelRequest = nullptr;
 jmethodID gExportBackup = nullptr;
@@ -986,6 +987,50 @@ void cancelNetworkRequest(uint64_t request)
     if (failed) throw std::runtime_error("could not cancel the network request");
 }
 
+astral::reactors::FetchResult fetchReply(JNIEnv *env, jbyteArray reply)
+{
+    astral::reactors::FetchResult result;
+    if (!reply) return result;
+    jsize length = env->GetArrayLength(reply);
+    if (length >= 4) {
+        jbyte status[4]{};
+        env->GetByteArrayRegion(reply, 0, 4, status);
+        if (!env->ExceptionCheck()) {
+            result.status = ((static_cast<uint8_t>(status[0]) << 24) | (static_cast<uint8_t>(status[1]) << 16) |
+                             (static_cast<uint8_t>(status[2]) << 8) | static_cast<uint8_t>(status[3]));
+            result.body.resize(static_cast<size_t>(length - 4));
+            if (length > 4) env->GetByteArrayRegion(reply, 4, length - 4, reinterpret_cast<jbyte *>(result.body.data()));
+        }
+        if (env->ExceptionCheck()) {
+            env->ExceptionClear();
+            result = {};
+        }
+    }
+    env->DeleteLocalRef(reply);
+    return result;
+}
+
+astral::reactors::FetchResult fetchWithHeaders(const std::string &url, const astral::reactors::Headers &headers)
+{
+    bool attached = false;
+    JNIEnv *env = currentEnvironment(attached);
+    if (!env || !gBridge || !gFetchWith) return {};
+    nlohmann::json fields = nlohmann::json::object();
+    for (const auto &[name, value] : headers) fields[name] = value;
+    jstring jurl = toJava(env, url);
+    jstring jheaders = toJava(env, fields.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace));
+    auto reply = static_cast<jbyteArray>(env->CallStaticObjectMethod(gBridge, gFetchWith, jurl, jheaders));
+    if (env->ExceptionCheck()) {
+        env->ExceptionClear();
+        reply = nullptr;
+    }
+    astral::reactors::FetchResult result = fetchReply(env, reply);
+    env->DeleteLocalRef(jurl);
+    env->DeleteLocalRef(jheaders);
+    if (attached) gVM->DetachCurrentThread();
+    return result;
+}
+
 astral::reactors::FetchResult fetch(const std::string &url, const std::string &token)
 {
     astral::reactors::FetchResult result;
@@ -1422,6 +1467,17 @@ ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_refreshDecor
     gRefreshDecorations = true;
 }
 
+ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_noteDiscordRequest(JNIEnv *env, jclass, jstring host, jstring path,
+                                                                                       jstring headers)
+{
+    auto fields = nlohmann::json::parse(fromJava(env, headers), nullptr, false);
+    if (!fields.is_object()) return;
+    astral::reactors::Headers pairs;
+    for (const auto &[name, value] : fields.items())
+        if (value.is_string()) pairs.emplace_back(name, value.get<std::string>());
+    astral::reactors::noteDiscordRequest(fromJava(env, host), fromJava(env, path), pairs);
+}
+
 ASTRAL_EXPORT JNIEXPORT jboolean JNICALL Java_app_astral_android_Native_pageOpen(JNIEnv *, jclass)
 {
     return astral::navigator::open();
@@ -1433,6 +1489,7 @@ ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_attachBridge
     if (!reference) return;
     jmethodID deliverMethod = env->GetStaticMethodID(reference, "deliver", "([B)V");
     jmethodID fetchMethod = env->GetStaticMethodID(reference, "fetch", "(Ljava/lang/String;Ljava/lang/String;)[B");
+    jmethodID fetchWithMethod = env->GetStaticMethodID(reference, "fetchWith", "(Ljava/lang/String;Ljava/lang/String;)[B");
     jmethodID requestMethod = env->GetStaticMethodID(reference, "request", "(JLjava/lang/String;)V");
     jmethodID cancelMethod = env->GetStaticMethodID(reference, "cancelRequest", "(J)V");
     jmethodID exportBackupMethod = env->GetStaticMethodID(reference, "exportBackup", "()V");
@@ -1457,11 +1514,11 @@ ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_attachBridge
     jmethodID stopAudioMethod = env->GetStaticMethodID(reference, "stopAudio", "()V");
     jmethodID pickedMediaMethod = env->GetStaticMethodID(reference, "pickedMedia", "(J)Ljava/lang/String;");
     jmethodID pickedVideoMethod = env->GetStaticMethodID(reference, "pickedVideo", "(J)Ljava/lang/String;");
-    if (env->ExceptionCheck() || !deliverMethod || !fetchMethod || !requestMethod || !cancelMethod || !exportBackupMethod ||
-        !importBackupMethod || !openReportMethod || !refreshEmojiMethod || !showAlertMethod || !triggerHapticMethod || !copyTextMethod ||
-        !pickFileMethod || !cancelFilePickMethod || !showToastMethod || !openWebAuthMethod || !cancelWebAuthMethod || !editTextMethod ||
-        !restartGatewaySessionMethod || !pasteTextMethod || !openURLMethod || !notifyMethod || !speakMethod || !playSoundMethod ||
-        !stopAudioMethod || !pickedMediaMethod || !pickedVideoMethod) {
+    if (env->ExceptionCheck() || !deliverMethod || !fetchMethod || !fetchWithMethod || !requestMethod || !cancelMethod ||
+        !exportBackupMethod || !importBackupMethod || !openReportMethod || !refreshEmojiMethod || !showAlertMethod ||
+        !triggerHapticMethod || !copyTextMethod || !pickFileMethod || !cancelFilePickMethod || !showToastMethod || !openWebAuthMethod ||
+        !cancelWebAuthMethod || !editTextMethod || !restartGatewaySessionMethod || !pasteTextMethod || !openURLMethod || !notifyMethod ||
+        !speakMethod || !playSoundMethod || !stopAudioMethod || !pickedMediaMethod || !pickedVideoMethod) {
         env->ExceptionClear();
         env->DeleteGlobalRef(reference);
         return;
@@ -1472,6 +1529,7 @@ ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_attachBridge
         gBridge = reference;
         gDeliver = deliverMethod;
         gFetch = fetchMethod;
+        gFetchWith = fetchWithMethod;
         gRequest = requestMethod;
         gCancelRequest = cancelMethod;
         gExportBackup = exportBackupMethod;
@@ -1515,7 +1573,7 @@ ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_attachBridge
         gPlaySound = playSoundMethod;
         gStopAudio = stopAudioMethod;
     }
-    astral::reactors::setFetcher(fetch);
+    astral::reactors::setFetcher(fetchWithHeaders);
 }
 
 ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_completeRequest(JNIEnv *env, jclass, jlong request, jint status,

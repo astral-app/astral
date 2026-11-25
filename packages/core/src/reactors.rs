@@ -6,12 +6,13 @@ use std::time::{Duration, Instant};
 use serde_json::{Value, json};
 
 use crate::bridge::{AstralRustString, bytes};
-use crate::session;
+use crate::{discord_headers, session};
 
 const FACES: usize = 5;
 const MAX_ENTRIES: usize = 512;
 const RETRY_AFTER: Duration = Duration::from_secs(3);
 const MAX_RATE_LIMIT_WAIT: Duration = Duration::from_secs(10);
+const REFRESH_COOLDOWN: Duration = Duration::from_secs(10);
 
 pub type Fetcher = unsafe extern "C" fn(*const c_char, usize, *const c_char, usize, *mut AstralRustString) -> c_int;
 
@@ -20,12 +21,14 @@ struct Entry {
     count: u64,
     users: Option<Value>,
     failed: Option<Instant>,
+    fetched: Option<Instant>,
 }
 
 struct Job {
     key: String,
-    url: String,
+    path: String,
     count: u64,
+    not_before: Option<Instant>,
 }
 
 #[derive(Default)]
@@ -93,15 +96,32 @@ fn store(key: &str, count: u64, found: Option<Value>) {
             state.entries.clear();
         }
         let failed = found.is_none().then(Instant::now);
+        let users = found.or_else(|| state.entries.get(key).and_then(|entry| entry.users.clone()));
         state.entries.insert(
             key.to_owned(),
             Entry {
                 count,
-                users: found,
+                users,
                 failed,
+                fetched: Some(Instant::now()),
             },
         );
     });
+}
+
+fn header_frames(token: &[u8]) -> Vec<u8> {
+    let mut frames = Vec::new();
+    let mut push = |value: &[u8]| {
+        frames.extend_from_slice(&(value.len() as u32).to_le_bytes());
+        frames.extend_from_slice(value);
+    };
+    push(b"Authorization");
+    push(token);
+    for (name, value) in discord_headers::headers() {
+        push(name.as_bytes());
+        push(value.as_bytes());
+    }
+    frames
 }
 
 fn fetch(fetcher: Fetcher, url: &str, token: &[u8]) -> (c_int, Vec<u8>) {
@@ -109,7 +129,8 @@ fn fetch(fetcher: Fetcher, url: &str, token: &[u8]) -> (c_int, Vec<u8>) {
         bytes: core::ptr::null_mut(),
         length: 0,
     };
-    let status = unsafe { fetcher(url.as_ptr().cast(), url.len(), token.as_ptr().cast(), token.len(), &mut body) };
+    let headers = header_frames(token);
+    let status = unsafe { fetcher(url.as_ptr().cast(), url.len(), headers.as_ptr().cast(), headers.len(), &mut body) };
     let data = if body.bytes.is_null() {
         Vec::new()
     } else {
@@ -125,10 +146,20 @@ fn work() {
             let mut guard = STATE.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
             loop {
                 let state = guard.get_or_insert_with(State::default);
-                if let Some(job) = state.jobs.pop_front() {
+                let now = Instant::now();
+                if let Some(index) = state.jobs.iter().position(|job| job.not_before.is_none_or(|moment| moment <= now)) {
+                    let job = state.jobs.remove(index).expect("ready job");
                     break (job, state.fetcher);
                 }
-                guard = WAKE.wait(guard).unwrap_or_else(|poisoned| poisoned.into_inner());
+                let earliest = state.jobs.iter().filter_map(|job| job.not_before).min();
+                guard = match earliest {
+                    Some(moment) => {
+                        WAKE.wait_timeout(guard, moment.saturating_duration_since(now))
+                            .unwrap_or_else(|poisoned| poisoned.into_inner())
+                            .0
+                    }
+                    None => WAKE.wait(guard).unwrap_or_else(|poisoned| poisoned.into_inner()),
+                };
             }
         };
         let token = session::current();
@@ -136,7 +167,8 @@ fn work() {
             store(&job.key, job.count, None);
             continue;
         };
-        let (status, body) = fetch(fetcher, &job.url, &token);
+        let url = format!("https://discord.com/api/v{}{}", discord_headers::api_version(), job.path);
+        let (status, body) = fetch(fetcher, &url, &token);
         store(&job.key, job.count, if status == 200 { users(&body) } else { None });
         if status == 429 {
             std::thread::sleep(rate_limit_wait(&body));
@@ -160,21 +192,40 @@ pub fn lookup(channel: &str, message: &str, emoji: &str, burst: bool, count: u64
         let fetch = (stale || (failed.is_some() && !cooling_down)) && !state.in_flight.contains(&key);
         let users = entry.and_then(|entry| entry.users.clone());
         let fresh = !fetch && users.is_some() && entry.is_some_and(|entry| entry.count == count);
+        let not_before = entry
+            .and_then(|entry| entry.fetched)
+            .map(|fetched| fetched + REFRESH_COOLDOWN)
+            .filter(|moment| *moment > Instant::now());
         if fetch {
             state.in_flight.insert(key.clone());
             state.jobs.push_back(Job {
-                url: format!(
-                    "https://discord.com/api/v9/channels/{channel}/messages/{message}/reactions/{}?limit={FACES}&type={}",
+                path: format!(
+                    "/channels/{channel}/messages/{message}/reactions/{}?limit={FACES}&type={}",
                     encoded(emoji),
                     u8::from(burst)
                 ),
                 key,
                 count,
+                not_before,
             });
             WAKE.notify_one();
         }
         (users, fresh)
     })
+}
+
+pub fn invalidate() {
+    with_state(|state| {
+        for entry in state.entries.values_mut() {
+            entry.count = 0;
+            entry.fetched = None;
+        }
+    });
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn astral_reactors_invalidate() {
+    invalidate();
 }
 
 #[unsafe(no_mangle)]

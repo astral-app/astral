@@ -7,6 +7,7 @@
 #import <string>
 
 #import "AstralLuaHost.h"
+#include "AstralReactors.h"
 #import "AstralNetworkPolicy.h"
 #include "PhoenixWire.h"
 #import "DevServer.h"
@@ -165,6 +166,9 @@ static NSHTTPURLResponse *HttpResponseOf(NSURL *url, const astral::luahost::Http
     if ([NSURLProtocol propertyForKey:kHandledKey inRequest:request]) return NO;
     AstralRememberMediaRequest(request.URL);
     if (request.URL && astral::isDiscordHost(Text(request.URL.host))) {
+        astral::reactors::Headers headers;
+        for (NSString *name in request.allHTTPHeaderFields) headers.emplace_back(Text(name), Text(request.allHTTPHeaderFields[name]));
+        astral::reactors::noteDiscordRequest(Text(request.URL.host), Text(request.URL.path), headers);
         gDiscordRequests++;
         if ([request.HTTPMethod isEqualToString:@"POST"] && [request.URL.path hasSuffix:@"/messages"]) gMessageRequests++;
     }

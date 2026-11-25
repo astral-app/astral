@@ -28,6 +28,7 @@
 #include "AstralNetworkPolicy.h"
 #include "PhoenixProperties.h"
 #include "AstralJSON.h"
+#include "AstralReactors.h"
 #include "AstralSettings.h"
 #include "LuaJSON.h"
 #include "LuaLocale.h"
@@ -4040,6 +4041,7 @@ static std::optional<std::string> processKnownGatewayEvents(nlohmann::json &enve
     auto data = envelope.find("d");
     if (event == envelope.end() || !event->is_string() || data == envelope.end() || !data->is_object()) return std::nullopt;
     std::string type = event->get<std::string>();
+    if (type == "READY" || type == "RESUMED") astral_reactors_invalidate();
     if (type == "READY") {
         auto user = data->find("user");
         if (user == data->end() || !user->is_object()) return std::nullopt;

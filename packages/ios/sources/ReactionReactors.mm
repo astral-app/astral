@@ -5,12 +5,16 @@
 #import "DiscordSession.h"
 #import "FoundationJSON.h"
 
-static astral::reactors::FetchResult Fetch(const std::string &url, const std::string &token)
+static astral::reactors::FetchResult Fetch(const std::string &url, const astral::reactors::Headers &headers)
 {
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:[NSString stringWithUTF8String:url.c_str()]]
                                                            cachePolicy:NSURLRequestReloadIgnoringLocalCacheData
                                                        timeoutInterval:15];
-    [request setValue:[NSString stringWithUTF8String:token.c_str()] forHTTPHeaderField:@"Authorization"];
+    for (const auto &[name, value] : headers) {
+        NSString *field = [NSString stringWithUTF8String:name.c_str()];
+        NSString *text = [NSString stringWithUTF8String:value.c_str()];
+        if (field && text) [request setValue:text forHTTPHeaderField:field];
+    }
     dispatch_semaphore_t done = dispatch_semaphore_create(0);
     __block astral::reactors::FetchResult result;
     [[NSURLSession.sharedSession dataTaskWithRequest:request
