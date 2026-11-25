@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -32,6 +33,22 @@ inline std::vector<std::string> takeList(AstralRustString string)
     for (size_t end = joined.find('\0'); end != std::string::npos; end = joined.find('\0', start)) {
         entries.emplace_back(joined, start, end - start);
         start = end + 1;
+    }
+    return entries;
+}
+
+inline std::vector<std::string> takeFrames(AstralRustString string)
+{
+    std::string joined = take(string);
+    std::vector<std::string> entries;
+    size_t at = 0;
+    while (at + 4 <= joined.size()) {
+        uint32_t length = static_cast<uint8_t>(joined[at]) | static_cast<uint8_t>(joined[at + 1]) << 8 |
+                          static_cast<uint8_t>(joined[at + 2]) << 16 | static_cast<uint32_t>(static_cast<uint8_t>(joined[at + 3])) << 24;
+        at += 4;
+        if (length > joined.size() - at) break;
+        entries.emplace_back(joined, at, length);
+        at += length;
     }
     return entries;
 }

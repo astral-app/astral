@@ -19,6 +19,15 @@ impl AstralRustString {
         }
     }
 
+    pub fn frames(entries: &[Vec<u8>]) -> Self {
+        let mut joined = Vec::new();
+        for entry in entries {
+            joined.extend_from_slice(&(entry.len() as u32).to_le_bytes());
+            joined.extend_from_slice(entry);
+        }
+        AstralRustString::new(joined)
+    }
+
     pub fn list(entries: &[Vec<u8>]) -> Self {
         let mut joined = Vec::new();
         for entry in entries {
