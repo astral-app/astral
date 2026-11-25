@@ -97,16 +97,8 @@ object PhoenixOkHttp {
         val exchange = runCatching { exchangeOf(request, requestType, method, loader) }
             .onFailure { Log.error("Failed to read a Discord request for plugins", it) }
             .getOrNull() ?: return proceed(chain, request, requestType)
-        val original = HttpExchange(exchange.method, exchange.url, exchange.headers, exchange.body)
-        var outgoing = request
-        if (Native.interceptHttpRequest(exchange, path)) {
-            if (exchange.respond) return respond(request, loader, exchange.status, headerValue(exchange.headers, "content-type"), exchange.body)
-            outgoing = runCatching { rebuiltRequest(request, requestType, exchange, loader) }
-                .onFailure { Log.error("Failed to change a Discord request for a plugin", it) }
-                .getOrDefault(request)
-        }
-        val response = proceed(chain, outgoing, requestType) ?: return null
-        return runCatching { interceptResponse(response, if (outgoing === request) original else exchange, path, loader) }
+        val response = proceed(chain, request, requestType) ?: return null
+        return runCatching { interceptResponse(response, exchange, path, loader) }
             .onFailure { Log.error("Failed to change a Discord response for a plugin", it) }
             .getOrDefault(response)
     }
@@ -132,11 +124,6 @@ object PhoenixOkHttp {
 
     private fun requestBody(request: Any, requestType: Class<*>): Any? = bodyField(requestType).get(request)
 
-    private fun contentTypeGetter(bodyType: Class<*>): java.lang.reflect.Method =
-        bodyType.declaredMethods.first { method ->
-            Modifier.isAbstract(method.modifiers) && method.parameterCount == 0 && !method.returnType.isPrimitive && method.returnType != String::class.java
-        }
-
     private fun bodyBytes(body: Any, loader: ClassLoader): ByteArray {
         val bufferType = loader.loadClass(PhoenixClasses.OKIO_BUFFER)
         val buffer = bufferType.getConstructor().newInstance()
@@ -151,41 +138,6 @@ object PhoenixOkHttp {
 
     private fun headerValue(headers: Array<String>, name: String): String? =
         headers.toList().chunked(2).firstOrNull { it.size == 2 && it[0].equals(name, ignoreCase = true) }?.get(1)
-
-    private fun rebuiltRequest(request: Any, requestType: Class<*>, exchange: HttpExchange, loader: ClassLoader): Any {
-        val urlType = loader.loadClass(PhoenixClasses.OKHTTP_URL)
-        val headersType = requestHeaders(request, requestType).javaClass
-        val oldBody = requestBody(request, requestType)
-        val bodyType = bodyField(requestType).type
-        val getter = contentTypeGetter(bodyType)
-        val contentType = oldBody?.let { getter.invoke(it) }
-        val mediaType = getter.returnType
-        val body = if (exchange.body.isEmpty() && (exchange.method == "GET" || exchange.method == "HEAD")) null
-        else bodyType.declaredMethods.first { method ->
-            Modifier.isStatic(method.modifiers) && method.returnType == bodyType &&
-                method.parameterTypes.contentEquals(arrayOf(mediaType, ByteArray::class.java))
-        }.invoke(null, contentType, exchange.body)
-        val headers = headersType.getDeclaredConstructor(Array<String>::class.java).apply { isAccessible = true }
-            .newInstance(stripContentLength(exchange.headers) as Any)
-        val tags = instanceFields(requestType).first { Map::class.java.isAssignableFrom(it.type) }.get(request)
-        val constructor = requestType.declaredConstructors.first { it.parameterCount == 5 }.apply { isAccessible = true }
-        return constructor.newInstance(urlOf(exchange.url, urlType), exchange.method, headers, body, tags)
-    }
-
-    private fun stripContentLength(headers: Array<String>): Array<String> =
-        headers.toList().chunked(2).filter { it.size == 2 && !it[0].equals("content-length", ignoreCase = true) }.flatten().toTypedArray()
-
-    private fun urlOf(address: String, urlType: Class<*>): Any {
-        val uri = URI(address)
-        val segments = ArrayList((uri.path ?: "/").removePrefix("/").split('/'))
-        val query = uri.rawQuery?.split('&')?.flatMap { pair ->
-            listOf(URLDecoder.decode(pair.substringBefore('='), "UTF-8"), if (pair.contains('=')) URLDecoder.decode(pair.substringAfter('='), "UTF-8") else null)
-        }?.let { ArrayList(it) }
-        val port = if (uri.port != -1) uri.port else if (uri.scheme == "http") 80 else 443
-        val constructor = urlType.declaredConstructors.first { it.parameterCount == 9 }.apply { isAccessible = true }
-        return constructor.newInstance(uri.scheme, uri.rawUserInfo?.substringBefore(':') ?: "", uri.rawUserInfo?.substringAfter(':', "") ?: "",
-            uri.host, port, segments, query, uri.fragment, address)
-    }
 
     private fun interceptResponse(response: Any, request: HttpExchange, path: String, loader: ClassLoader): Any {
         val bodyType = responseBodyBase(loader)
@@ -210,21 +162,6 @@ object PhoenixOkHttp {
         typedField(builder.javaClass, Int::class.javaPrimitiveType!!).setInt(builder, status)
         typedField(builder.javaClass, bodyType).set(builder, responseBody(loader, contentType, body))
         return builder.javaClass.getMethod("a").invoke(builder) ?: response
-    }
-
-    private fun respond(request: Any, loader: ClassLoader, status: Int, contentType: String?, body: ByteArray): Any {
-        val responseBuilderType = loader.loadClass(PhoenixClasses.OKHTTP_RESPONSE_BUILDER)
-        val protocolType = loader.loadClass(PhoenixClasses.OKHTTP_PROTOCOL)
-        val protocol = protocolType.enumConstants?.firstOrNull { value ->
-            value.toString().equals("http/1.1", ignoreCase = true) || (value as? Enum<*>)?.name == "HTTP_1_1"
-        } ?: throw NoSuchFieldException("Phoenix HTTP/1.1 protocol")
-        val builder = responseBuilderType.getConstructor().newInstance()
-        typedField(responseBuilderType, loader.loadClass(PhoenixClasses.OKHTTP_REQUEST)).set(builder, request)
-        typedField(responseBuilderType, protocolType).set(builder, protocol)
-        typedField(responseBuilderType, Int::class.javaPrimitiveType!!).setInt(builder, status)
-        typedField(responseBuilderType, String::class.java).set(builder, "astral")
-        typedField(responseBuilderType, responseBodyBase(loader)).set(builder, responseBody(loader, contentType, body))
-        return responseBuilderType.getMethod("a").invoke(builder) ?: throw IllegalStateException("Phoenix returned no response")
     }
 
     private fun proceed(chain: Any, request: Any, requestType: Class<*>): Any? {

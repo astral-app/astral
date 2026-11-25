@@ -131,6 +131,7 @@ std::optional<PluginPackage> loadPluginPackage(const std::string &directory, con
     package.version = stringAt(*manifest, "version");
     package.description = stringAt(*manifest, "description");
     package.icon = stringAt(*manifest, "icon");
+    package.enabledByDefault = (*manifest)["enabled_by_default"].value_or(false);
     std::string iconSvg = stringAt(*manifest, "iconSvg");
     if (iconSvg.size() < limits.iconSvg) package.iconSvg = iconSvg;
     if (auto authors = (*manifest)["authors"].as_array()) {

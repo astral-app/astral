@@ -1281,6 +1281,69 @@ static void testGatewayAndHttpIntercepts(const std::string &work)
     assert(!astral::luahost::needsGatewayEvents());
 }
 
+static void testCommands(const std::string &work)
+{
+    auto root = std::filesystem::path(work) / "commands-host";
+    auto plugin = root / "plugins" / "commands";
+    std::filesystem::create_directories(plugin);
+    writeText(plugin / "manifest.toml", "id = 'astral.commands-test'\nname = 'Commands'\nversion = '1.0'\nmain = 'main.lua'\npermissions = "
+                                        "['commands']\n");
+    writeText(
+        plugin / "main.lua",
+        "astral.commands.register({name = 'echo', description = 'Echo', options = {{name = 'text', type = 'string', required = true}},\n"
+        "  execute = function(args, context) last = context.channel_id return 'you said ' .. args.text end})\n"
+        "astral.commands.register({name = 'post', description = 'Post', execute = function()\n"
+        "  return {send = {content = 'card', file = {name = 'card.png', data = 'PNGDATA'}}} end})\n");
+    astral::SettingsStore settings((root / "settings.json").string());
+    settings.set("astral", "developer-mode", true);
+    std::string local;
+    astral::LuaHostPlatform platform;
+    platform.storagePath = (root / "storage.sqlite").string();
+    platform.dispatchGateway = [&](const std::string &message) {
+        local = message;
+        return true;
+    };
+    astral::luahost::start({(root / "plugins").string()}, &settings, true, std::move(platform));
+    assert(astral::luahost::wantsHttp("GET", "discord.com", "/api/v9/channels/1/application-command-index"));
+    astral::luahost::HttpRequest index{
+        "GET", "https://discord.com/api/v9/channels/1/application-command-index", "/api/v9/channels/1/application-command-index", {}, ""};
+    astral::luahost::HttpResponse indexed{200, {}, R"({"applications":[],"application_commands":[],"version":"1"})"};
+    assert(astral::luahost::interceptHttpResponse(index, indexed));
+    auto commands = nlohmann::json::parse(indexed.body);
+    assert(commands["applications"][0]["name"] == "astral" && commands["application_commands"].size() == 2);
+    assert(commands["application_commands"][0]["options"][0]["type"] == 3);
+
+    nlohmann::json echo = {{"type", 2},
+                           {"application_id", "1000000000000000001"},
+                           {"channel_id", "100000000000000002"},
+                           {"data", {{"name", "echo"}, {"options", {{{"name", "text"}, {"type", 3}, {"value", "hi"}}}}}}};
+    astral::luahost::HttpRequest interaction{"POST",
+                                             "https://discord.com/api/v9/interactions",
+                                             "/api/v9/interactions",
+                                             {{"content-type", "multipart/form-data; boundary=x"}, {"authorization", "secret"}},
+                                             "--x\r\nContent-Disposition: form-data; name=\"payload_json\"\r\n\r\n" + echo.dump() +
+                                                 "\r\n--x--\r\n"};
+    auto answered = astral::luahost::interceptHttpRequest(interaction);
+    assert(answered.response && answered.response->status == 204);
+    assert(nlohmann::json::parse(local)["d"]["content"] == "you said hi");
+
+    nlohmann::json post = echo;
+    post["data"] = {{"name", "post"}};
+    astral::luahost::HttpRequest sending{"POST",
+                                         "https://discord.com/api/v9/interactions",
+                                         "/api/v9/interactions",
+                                         {{"content-type", "application/json"}, {"authorization", "secret"}},
+                                         post.dump()};
+    auto sent = astral::luahost::interceptHttpRequest(sending);
+    assert(sent.changed && !sent.response);
+    assert(sending.url == "https://discord.com/api/v9/channels/100000000000000002/messages");
+    assert(sending.body.find("PNGDATA") != std::string::npos && sending.body.find("\"filename\":\"card.png\"") != std::string::npos);
+    bool authorized = false;
+    for (const auto &[name, value] : sending.headers) authorized |= name == "authorization" && value == "secret";
+    assert(authorized);
+    astral::luahost::stop();
+}
+
 int main(int argc, char **argv)
 {
     assert(argc == 3);
@@ -1321,6 +1384,7 @@ int main(int argc, char **argv)
     testBackgroundCatalogUpdates(argv[1]);
     testPluginTrace(argv[1]);
     testGatewayAndHttpIntercepts(argv[1]);
+    testCommands(argv[1]);
     puts("ok");
     return 0;
 }

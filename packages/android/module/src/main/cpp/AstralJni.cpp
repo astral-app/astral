@@ -41,6 +41,7 @@
 #include "LuaLocale.h"
 #include "PhoenixProperties.h"
 #include "PhoenixWire.h"
+#include "AstralHostRequests.h"
 
 #define ASTRAL_EXPORT __attribute__((visibility("default")))
 
@@ -85,6 +86,8 @@ jmethodID gPasteText = nullptr;
 jmethodID gOpenURL = nullptr;
 jmethodID gDispatchGateway = nullptr;
 jmethodID gPressNode = nullptr;
+jmethodID gRenderImage = nullptr;
+jmethodID gInsertComposerText = nullptr;
 jmethodID gNotify = nullptr;
 jmethodID gSpeak = nullptr;
 jmethodID gPlaySound = nullptr;
@@ -104,6 +107,7 @@ void cancelNetworkRequest(uint64_t request);
 JNIEnv *currentEnvironment(bool &attached);
 std::optional<std::string> pasteFromBridge();
 jstring toJava(JNIEnv *env, std::string_view value);
+std::string bytesFromJava(JNIEnv *env, jbyteArray array);
 void callBridge(jmethodID method);
 void callBridge(jmethodID method, const std::string &argument);
 void callBridge(jmethodID method, const std::string &first, const std::string &second);
@@ -463,6 +467,43 @@ astral::LuaHostPlatform platform(const std::string &state, const std::string &re
     platform.developerLog = developerLog;
     platform.recordFailure = recordPluginFailure;
     platform.reactors = astral::reactors::lookup;
+    platform.insertComposerText = [](const std::string &text, bool replace) {
+        bool attached = false;
+        JNIEnv *env = currentEnvironment(attached);
+        if (!env || !gBridge || !gInsertComposerText) return false;
+        jstring value = toJava(env, text);
+        bool inserted = env->CallStaticBooleanMethod(gBridge, gInsertComposerText, value, replace ? JNI_TRUE : JNI_FALSE);
+        if (env->ExceptionCheck()) {
+            env->ExceptionClear();
+            inserted = false;
+        }
+        env->DeleteLocalRef(value);
+        if (attached) gVM->DetachCurrentThread();
+        return inserted;
+    };
+    platform.renderImage = [](const nlohmann::json &spec) -> std::optional<std::string> {
+        bool attached = false;
+        JNIEnv *env = currentEnvironment(attached);
+        if (!env || !gBridge || !gRenderImage) return std::nullopt;
+        jstring value = toJava(env, spec.dump());
+        auto png = static_cast<jbyteArray>(env->CallStaticObjectMethod(gBridge, gRenderImage, value));
+        std::optional<std::string> result;
+        if (env->ExceptionCheck())
+            env->ExceptionClear();
+        else if (png)
+            result = bytesFromJava(env, png);
+        env->DeleteLocalRef(value);
+        if (png) env->DeleteLocalRef(png);
+        if (attached) gVM->DetachCurrentThread();
+        return result;
+    };
+    platform.environment = [] {
+        nlohmann::json environment = reportEnvironment();
+        nlohmann::json reports = readReports();
+        environment["reports"] = reports.is_array() ? reports.size() : 0;
+        if (reports.is_array() && !reports.empty() && reports[0].contains("title")) environment["last_report"] = reports[0]["title"];
+        return environment;
+    };
     platform.pressNode = [](const std::string &identifier, bool prefix) {
         bool attached = false;
         JNIEnv *env = currentEnvironment(attached);
@@ -1392,6 +1433,10 @@ ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_attachBridge
         if (env->ExceptionCheck()) env->ExceptionClear();
         gPressNode = env->GetStaticMethodID(reference, "pressNode", "(Ljava/lang/String;Z)Z");
         if (env->ExceptionCheck()) env->ExceptionClear();
+        gRenderImage = env->GetStaticMethodID(reference, "renderImage", "(Ljava/lang/String;)[B");
+        if (env->ExceptionCheck()) env->ExceptionClear();
+        gInsertComposerText = env->GetStaticMethodID(reference, "insertComposerText", "(Ljava/lang/String;Z)Z");
+        if (env->ExceptionCheck()) env->ExceptionClear();
         gNotify = notifyMethod;
         gSpeak = speakMethod;
         gPlaySound = playSoundMethod;
@@ -1646,6 +1691,20 @@ ASTRAL_EXPORT JNIEXPORT jboolean JNICALL Java_app_astral_android_Native_intercep
     if (!astral::luahost::interceptHttpResponse(request, response)) return JNI_FALSE;
     storeExchange(env, responseExchange, request.method, request.url, response.headers, response.body, response.status, true);
     return JNI_TRUE;
+}
+
+ASTRAL_EXPORT JNIEXPORT jboolean JNICALL Java_app_astral_android_Native_hostRequestWanted(JNIEnv *env, jclass, jbyteArray frame)
+{
+    std::string bytes = bytesFromJava(env, frame);
+    return astral::hostrequests::wanted(std::vector<uint8_t>(bytes.begin(), bytes.end())) ? JNI_TRUE : JNI_FALSE;
+}
+
+ASTRAL_EXPORT JNIEXPORT jbyteArray JNICALL Java_app_astral_android_Native_interceptHostRequest(JNIEnv *env, jclass, jbyteArray frame)
+{
+    std::string bytes = bytesFromJava(env, frame);
+    auto rewritten = astral::hostrequests::intercept(std::vector<uint8_t>(bytes.begin(), bytes.end()));
+    if (!rewritten) return nullptr;
+    return bytesToJava(env, std::string(rewritten->begin(), rewritten->end()));
 }
 
 ASTRAL_EXPORT JNIEXPORT jbyteArray JNICALL Java_app_astral_android_Native_rewriteHostCall(JNIEnv *env, jclass, jbyteArray frame)
