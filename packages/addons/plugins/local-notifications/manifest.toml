@@ -1,0 +1,11 @@
+id = "astral.local-notifications"
+name = "Local Notifications"
+description = "Notifies you of mentions and DMs on installs where Discord's push notifications don't arrive, by keeping Discord connected in the background."
+version = "0.0.1"
+icon = "BellIcon"
+main = "main.lua"
+permissions = ["events.gateway", "events.lifecycle", "ui.notifications", "background", "discord.guilds"]
+
+[[authors]]
+name = "adrian"
+id = "224617799434108928"

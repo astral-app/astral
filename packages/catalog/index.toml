@@ -5,6 +5,22 @@ version = "0.0.1"
 passive = []
 
 [[plugins]]
+id = "astral.always-animate"
+name = "Always Animate"
+version = "0.0.1"
+description = "Animates avatars, server icons, banners and emoji everywhere, not only when you tap them."
+icon = "ReactionIcon"
+base = "plugins/astral.always-animate/"
+
+[[plugins]]
+id = "astral.local-notifications"
+name = "Local Notifications"
+version = "0.0.1"
+description = "Notifies you of mentions and DMs on installs where Discord's push notifications don't arrive, by keeping Discord connected in the background."
+icon = "BellIcon"
+base = "plugins/astral.local-notifications/"
+
+[[plugins]]
 id = "astral.preview-message"
 name = "Preview Message"
 version = "0.0.1"

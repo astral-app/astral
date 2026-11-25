@@ -233,6 +233,7 @@ std::pair<std::string, std::string> permissionDescription(const std::string &per
         {"net.discord", {"Reads and changes Discord's own requests, without your token", "res://ic_mana_shield"}},
         {"events.gateway", {"Reads and changes Discord's live events", "res://ic_mana_bell"}},
         {"messages.local", {"Shows local events and messages only you see", "res://ic_mana_chat"}},
+        {"background", {"Keeps Discord running in the background", "res://ic_mana_moon"}},
         {"diagnostics", {"Reads astral's versions, device details and plugin states", "res://ic_mana_bug"}},
         {"commands", {"Adds slash commands", "res://ic_mana_slash"}},
         {"ui.text", {"Restyles the text of messages", "res://ic_mana_text"}},

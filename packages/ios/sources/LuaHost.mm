@@ -87,6 +87,119 @@ static BOOL PressIdentifiedView(NSString *identifier, BOOL prefix)
     return NO;
 }
 
+static NSData *SilentAudio(void)
+{
+    const uint32_t sampleRate = 8000, samples = sampleRate;
+    NSMutableData *wave = [NSMutableData data];
+    auto append32 = ^(uint32_t value) {
+        [wave appendBytes:&value length:4];
+    };
+    auto append16 = ^(uint16_t value) {
+        [wave appendBytes:&value length:2];
+    };
+    [wave appendBytes:"RIFF" length:4];
+    append32(36 + samples * 2);
+    [wave appendBytes:"WAVEfmt " length:8];
+    append32(16);
+    append16(1);
+    append16(1);
+    append32(sampleRate);
+    append32(sampleRate * 2);
+    append16(2);
+    append16(16);
+    [wave appendBytes:"data" length:4];
+    append32(samples * 2);
+    [wave increaseLengthBy:samples * 2];
+    return wave;
+}
+
+static AVAudioPlayer *gKeepAlivePlayer;
+static bool gKeepAliveWanted;
+
+static bool PlaySilence(void)
+{
+    AVAudioSession *session = AVAudioSession.sharedInstance;
+    if (session.category != AVAudioSessionCategoryPlayback || !(session.categoryOptions & AVAudioSessionCategoryOptionMixWithOthers))
+        [session setCategory:AVAudioSessionCategoryPlayback withOptions:AVAudioSessionCategoryOptionMixWithOthers error:nil];
+    [session setActive:YES error:nil];
+    if (!gKeepAlivePlayer) {
+        gKeepAlivePlayer = [[AVAudioPlayer alloc] initWithData:SilentAudio() error:nil];
+        gKeepAlivePlayer.numberOfLoops = -1;
+        gKeepAlivePlayer.volume = 0;
+    }
+    return gKeepAlivePlayer.playing || [gKeepAlivePlayer play];
+}
+
+static void ReassertSilenceLater(NSNotification *note)
+{
+    if ([note.name isEqualToString:AVAudioSessionMediaServicesWereResetNotification]) gKeepAlivePlayer = nil;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+        if (gKeepAliveWanted) PlaySilence();
+    });
+}
+
+static void WatchAudioSession(void)
+{
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        NSNotificationCenter *center = NSNotificationCenter.defaultCenter;
+        for (NSNotificationName name in @[
+                 UIApplicationDidEnterBackgroundNotification, AVAudioSessionInterruptionNotification,
+                 AVAudioSessionMediaServicesWereResetNotification
+             ])
+            [center addObserverForName:name
+                                object:nil
+                                 queue:NSOperationQueue.mainQueue
+                            usingBlock:^(NSNotification *note) {
+                                ReassertSilenceLater(note);
+                            }];
+    });
+}
+
+static bool SetKeepAlive(bool on)
+{
+    gKeepAliveWanted = on;
+    if (!on) {
+        [gKeepAlivePlayer stop];
+        gKeepAlivePlayer = nil;
+        return true;
+    }
+    WatchAudioSession();
+    return PlaySilence();
+}
+
+static void PostNotification(UNNotificationRequest *request)
+{
+    [UNUserNotificationCenter.currentNotificationCenter
+        addNotificationRequest:request
+         withCompletionHandler:^(NSError *error) {
+             if (error)
+                 AstralDevAppendLog(
+                     [NSString stringWithFormat:@"Failed to post notification %@: %@", request.identifier, error.localizedDescription]);
+         }];
+}
+
+static void PostNotificationWhenAuthorized(UNNotificationRequest *request)
+{
+    UNUserNotificationCenter *center = UNUserNotificationCenter.currentNotificationCenter;
+    [center getNotificationSettingsWithCompletionHandler:^(UNNotificationSettings *settings) {
+        if (settings.authorizationStatus != UNAuthorizationStatusNotDetermined) {
+            PostNotification(request);
+            return;
+        }
+        UNAuthorizationOptions options = UNAuthorizationOptionAlert | UNAuthorizationOptionSound | UNAuthorizationOptionBadge;
+        [center requestAuthorizationWithOptions:options
+                              completionHandler:^(BOOL granted, NSError *error) {
+                                  if (granted)
+                                      PostNotification(request);
+                                  else
+                                      AstralDevAppendLog([NSString stringWithFormat:@"Failed to get notification permission for %@: %@",
+                                                                                    request.identifier,
+                                                                                    error.localizedDescription ?: @"denied"]);
+                              }];
+    }];
+}
+
 static std::string AppLink(const std::string &url)
 {
     static const std::string kChannels = "https://discord.com/channels/";
@@ -232,13 +345,7 @@ static astral::LuaHostPlatform Platform(void)
         UNTimeIntervalNotificationTrigger *trigger =
             delay >= 1 ? [UNTimeIntervalNotificationTrigger triggerWithTimeInterval:delay repeats:NO] : nil;
         UNNotificationRequest *request = [UNNotificationRequest requestWithIdentifier:Native(identifier) content:content trigger:trigger];
-        [UNUserNotificationCenter.currentNotificationCenter
-            addNotificationRequest:request
-             withCompletionHandler:^(NSError *error) {
-                 if (error)
-                     AstralDevAppendLog(
-                         [NSString stringWithFormat:@"Failed to post notification %@: %@", request.identifier, error.localizedDescription]);
-             }];
+        PostNotificationWhenAuthorized(request);
         return true;
     };
     platform.speak = [](const std::string &text, const std::string &language, double rate) {
@@ -302,6 +409,16 @@ static astral::LuaHostPlatform Platform(void)
         AstralRecordPluginFailure(Native(identifier), Native(name), Native(error));
     };
     platform.developerLog = [](const std::string &line) { AstralDevAppendLog(Native(line)); };
+    platform.keepAlive = [](bool on) {
+        __block bool result = false;
+        if (NSThread.isMainThread)
+            result = SetKeepAlive(on);
+        else
+            dispatch_sync(dispatch_get_main_queue(), ^{
+                result = SetKeepAlive(on);
+            });
+        return result;
+    };
     platform.insertComposerText = [](const std::string &text, bool replace) {
         NSString *value = Native(text);
         dispatch_async(dispatch_get_main_queue(), ^{
