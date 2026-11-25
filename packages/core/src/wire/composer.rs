@@ -10,9 +10,7 @@ use super::properties;
 
 pub type SendTransform = unsafe extern "C" fn(u64, *const c_char, *mut c_char, usize) -> c_int;
 
-unsafe extern "C" {
-    fn astral_wire_current_channel() -> u64;
-}
+unsafe extern "C" {}
 
 const EVENT_HEADER: usize = 8;
 const MAX_TEXT: usize = 32768;
@@ -186,7 +184,7 @@ fn composer_event(event: &[u8]) -> Option<Out> {
             && composer.typed.text == composer.value;
         ready.then(|| composer.typed.clone())
     })??;
-    let text = rewritten(unsafe { astral_wire_current_channel() }, &typed.text)?;
+    let text = rewritten(super::ids::current_channel(), &typed.text)?;
     Some(change_text(&typed, &text))
 }
 

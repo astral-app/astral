@@ -12,7 +12,6 @@ static Tracked gTracked[kTrackCapacity];
 static uint64_t gMessageAuthors[kTrackCapacity][2];
 static AstralDecorator gDecorator;
 static AstralMessageBackgroundDecorator gMessageBackgroundDecorator;
-static atomic_uint_fast64_t gCurrentChannel;
 static int32_t gNextTagId = kFirstTagId;
 
 static Decorated gDecorated[kMaxDecorated];
@@ -125,11 +124,6 @@ AstralWireStats astral_wire_stats(void)
     return gStats;
 }
 
-uint64_t astral_wire_current_channel(void)
-{
-    return atomic_load_explicit(&gCurrentChannel, memory_order_relaxed);
-}
-
 Tracked *wireTrackSlot(int32_t id, int create)
 {
     uint32_t index = ((uint32_t)id * 2654435761u) % kTrackCapacity;
@@ -167,39 +161,6 @@ static uint64_t authorOf(uint64_t message)
 uint64_t wireMessageAuthor(uint64_t message)
 {
     return authorOf(message);
-}
-
-static uint64_t parseId(const uint8_t *text, size_t length)
-{
-    uint64_t value = 0;
-    size_t digits = 0;
-    for (size_t index = 0; index < length && text[index] >= '0' && text[index] <= '9'; index++, digits++) {
-        value = value * 10 + (uint64_t)(text[index] - '0');
-    }
-    return digits >= 15 ? value : 0;
-}
-
-uint64_t wireAvatarUser(const uint8_t *text, size_t length)
-{
-    static const char *markers[] = {"/avatars/", "/users/"};
-    for (size_t marker = 0; marker < 2; marker++) {
-        size_t markerLength = strlen(markers[marker]);
-        for (size_t index = 0; index + markerLength < length; index++) {
-            if (memcmp(text + index, markers[marker], markerLength) == 0) {
-                uint64_t user = parseId(text + index + markerLength, length - index - markerLength);
-                if (user) return user;
-            }
-        }
-    }
-    return 0;
-}
-
-int wirePrefixed(const uint8_t *text, size_t length, const char *prefix, uint64_t *suffix)
-{
-    size_t prefixLength = strlen(prefix);
-    if (length <= prefixLength || memcmp(text, prefix, prefixLength) != 0) return 0;
-    *suffix = parseId(text + prefixLength, length - prefixLength);
-    return *suffix != 0;
 }
 
 static void observeProperties(const uint8_t *bytes, const Span *span)
@@ -241,11 +202,11 @@ static void observeProperties(const uint8_t *bytes, const Span *span)
     }
     Tracked *slot = selected >= 0 ? wireTrackSlot(span->id, 0) : NULL;
     if (slot && slot->kind == kTrackChannel) {
-        uint64_t current = atomic_load_explicit(&gCurrentChannel, memory_order_relaxed);
+        uint64_t current = astral_wire_current_channel();
         if (selected == 1)
-            atomic_store_explicit(&gCurrentChannel, slot->value, memory_order_relaxed);
+            wireSetCurrentChannel(slot->value);
         else if (current == slot->value)
-            atomic_store_explicit(&gCurrentChannel, 0, memory_order_relaxed);
+            wireSetCurrentChannel(0);
     }
 }
 
@@ -1647,8 +1608,7 @@ void wireObserveRemovals(const uint8_t *bytes, const Span *spans, size_t count, 
         for (uint32_t position = 0; position < span->childCount; position++) {
             int32_t id = wireChildAt(bytes, span, position);
             Tracked *tracked = wireTrackSlot(id, 0);
-            if (tracked && tracked->kind == kTrackChannel && atomic_load_explicit(&gCurrentChannel, memory_order_relaxed) == tracked->value)
-                atomic_store_explicit(&gCurrentChannel, 0, memory_order_relaxed);
+            if (tracked && tracked->kind == kTrackChannel && astral_wire_current_channel() == tracked->value) wireSetCurrentChannel(0);
             forget(id);
             for (size_t backgroundIndex = 0; backgroundIndex < kMaxDecorated; backgroundIndex++) {
                 if (gBackgroundStates[backgroundIndex].id == id) {

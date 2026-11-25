@@ -12,7 +12,6 @@ pub type TextProvider = unsafe extern "C" fn(u64, *mut c_char, usize, *mut c_cha
 pub type SpanTransformer = unsafe extern "C" fn(u64, *const u8, usize, *mut *mut u8, *mut usize) -> c_int;
 
 unsafe extern "C" {
-    fn wirePrefixed(text: *const u8, length: usize, prefix: *const c_char, suffix: *mut u64) -> c_int;
     fn wireInlineTime(message: u64, text: *mut c_char, capacity: usize) -> usize;
     fn wireMarkRefreshBusy();
     fn free(pointer: *mut core::ffi::c_void);
@@ -102,9 +101,7 @@ fn content_message(bytes: *const u8, spans: &[Span], id: i32) -> u64 {
     let Some(identifier) = find_string(batch_of(bytes, creation), creation, properties::current().accessibilityId) else {
         return 0;
     };
-    let mut message = 0;
-    let found = unsafe { wirePrefixed(identifier.as_ptr(), identifier.len(), c"message.content:".as_ptr(), &mut message) };
-    if found != 0 { message } else { 0 }
+    super::ids::prefixed(identifier, b"message.content:").unwrap_or(0)
 }
 
 fn spans_property(bytes: &[u8], span: &Span) -> Option<Vec<u8>> {
