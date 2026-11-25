@@ -57,6 +57,12 @@ extern "C" {
     X(image, 249)                                                                                                                          \
     X(includeFontPadding, 251)                                                                                                             \
     X(italic, 257)                                                                                                                         \
+    X(looping, 285)                                                                                                                        \
+    X(muted, 312)                                                                                                                          \
+    X(playing, 361)                                                                                                                        \
+    X(keepAwake, 688)                                                                                                                      \
+    X(startAfterScroll, 752)                                                                                                               \
+    X(visibleFraction, 818)                                                                                                                \
     X(index, 252)                                                                                                                          \
     X(offset, 317)                                                                                                                         \
     X(justify, 260)                                                                                                                        \

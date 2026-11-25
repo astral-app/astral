@@ -1891,6 +1891,22 @@ static int PickedMediaInfo(lua_State *state)
     return 1;
 }
 
+static int PickedVideoURL(lua_State *state)
+{
+    RequirePermission(state, "media.picker");
+    std::optional<std::string> slot = PickedSlot(luaL_checkstring(state, 1));
+    if (!slot || !gPlatform.pickedVideoURL) return 0;
+    std::optional<std::string> url;
+    try {
+        url = gPlatform.pickedVideoURL(*slot);
+    } catch (...) {
+        url.reset();
+    }
+    if (!url) return 0;
+    lua_pushstring(state, url->c_str());
+    return 1;
+}
+
 static int RegisterComposerDecorator(lua_State *state)
 {
     LuaPlugin *plugin = Self(state);
@@ -2740,6 +2756,7 @@ static void InstallAPI(LuaPlugin *plugin)
     lua_newtable(state);
     Function(state, plugin, "on_save", RegisterMediaSaveHandler);
     Function(state, plugin, "picked", PickedMediaInfo);
+    Function(state, plugin, "picked_url", PickedVideoURL);
     lua_setfield(state, -2, "media");
 
     lua_newtable(state);
@@ -5252,6 +5269,10 @@ static void PushPatchTarget(lua_State *state, const AstralPatchTarget *target, s
     PushSnowflakeField(state, "message_id", target->message_id);
     PushTargetAuthor(state, target);
     PushTargetChannel(state, target);
+    if (target->parent) {
+        lua_pushstring(state, target->parent);
+        lua_setfield(state, -2, "parent_id");
+    }
 }
 
 static void CopyField(lua_State *state, const char *field, char *out, size_t capacity)
@@ -5259,6 +5280,11 @@ static void CopyField(lua_State *state, const char *field, char *out, size_t cap
     lua_getfield(state, -1, field);
     if (lua_isstring(state, -1)) snprintf(out, capacity, "%s", lua_tostring(state, -1));
     lua_pop(state, 1);
+}
+
+static bool PlayableURI(std::string_view uri)
+{
+    return uri.size() < 256 && (uri.rfind("content://", 0) == 0 || uri.rfind("https://", 0) == 0);
 }
 
 static void ReadInsertStyle(lua_State *state, AstralInsertNode *node)
@@ -5283,6 +5309,15 @@ static void ReadInsertStyle(lua_State *state, AstralInsertNode *node)
         node->fields |= AstralInsertFill;
         node->fields &= ~AstralInsertWidth;
     }
+    lua_pop(state, 1);
+    lua_getfield(state, -1, "fill_height");
+    if (lua_toboolean(state, -1)) {
+        node->fields |= AstralInsertFillHeight;
+        node->fields &= ~AstralInsertHeight;
+    }
+    lua_pop(state, 1);
+    lua_getfield(state, -1, "muted");
+    if (node->kind == AstralInsertPlayer && lua_toboolean(state, -1)) node->fields |= AstralInsertMuted;
     lua_pop(state, 1);
     lua_getfield(state, -1, "justify");
     if (lua_isstring(state, -1)) {
@@ -5311,7 +5346,10 @@ static void ReadInsertNode(lua_State *state, const LuaPlugin *plugin, const LuaN
     memset(node, 0, sizeof(*node));
     char kind[16] = {0};
     CopyField(state, "type", kind, sizeof(kind));
-    node->kind = std::strcmp(kind, "text") == 0 ? AstralInsertText : std::strcmp(kind, "image") == 0 ? AstralInsertImage : AstralInsertView;
+    node->kind = std::strcmp(kind, "text") == 0     ? AstralInsertText
+                 : std::strcmp(kind, "image") == 0  ? AstralInsertImage
+                 : std::strcmp(kind, "player") == 0 ? AstralInsertPlayer
+                                                    : AstralInsertView;
     node->parent = parent;
     CopyField(state, "text", node->text, sizeof(node->text));
     char icon[256] = {0};
@@ -5319,6 +5357,11 @@ static void ReadInsertNode(lua_State *state, const LuaPlugin *plugin, const LuaN
     if (icon[0]) {
         auto uri = PluginIconURI(plugin, icon);
         if (uri && uri->size() < sizeof(node->uri)) snprintf(node->uri, sizeof(node->uri), "%s", uri->c_str());
+    }
+    if (node->kind == AstralInsertPlayer) {
+        char video[256] = {0};
+        CopyField(state, "uri", video, sizeof(video));
+        if (PlayableURI(video)) snprintf(node->uri, sizeof(node->uri), "%s", video);
     }
     char action[32] = {0};
     CopyField(state, "action", action, sizeof(action));
@@ -5807,7 +5850,8 @@ bool pressInsertedNode(std::string_view identifier)
             if (entry.identifier != registration || entry.press == LUA_NOREF) continue;
             std::string full = entry.prefix + key;
             uint64_t message = astral_wire_message_of(full.c_str());
-            AstralPatchTarget target = {full.c_str(), entry.type.c_str(), entry.prefix.size(), message, 0, astral_wire_current_channel()};
+            AstralPatchTarget target = {full.c_str(), entry.type.c_str(), entry.prefix.size(), message, 0, astral_wire_current_channel(),
+                                        nullptr};
             lua_State *state = plugin->state;
             int top = lua_gettop(state);
             lua_rawgeti(state, LUA_REGISTRYINDEX, entry.press);

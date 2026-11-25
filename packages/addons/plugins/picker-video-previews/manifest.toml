@@ -1,0 +1,11 @@
+id = "astral.picker-video-previews"
+name = "Picker Video Previews"
+description = "Plays videos when you long-press them in the media picker, instead of showing a still frame."
+version = "0.0.1"
+icon = "VideoIcon"
+main = "main.lua"
+permissions = ["media.picker", "ui.insert"]
+
+[[authors]]
+name = "adrian"
+id = "224617799434108928"

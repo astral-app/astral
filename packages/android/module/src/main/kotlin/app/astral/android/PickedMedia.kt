@@ -8,7 +8,7 @@ object PickedMedia {
     private const val FETCH_BATCH = 64
     private const val FRESH_MS = 20_000L
 
-    private class Entry(val size: Long, val durationMs: Long, val type: String)
+    private class Entry(val size: Long, val durationMs: Long, val type: String, val uri: String)
 
     private val lock = Any()
     private var entries: List<Entry> = emptyList()
@@ -27,6 +27,8 @@ object PickedMedia {
         if (fetch && context != null) startFetch(context.applicationContext, limit, refresh)
         return entry?.let { "${it.size}\n${it.durationMs / 1000.0}\n${it.type}" }
     }
+
+    fun videoUri(slot: Int): String? = synchronized(lock) { entries.getOrNull(slot)?.takeIf { it.type == "video" }?.uri }
 
     private fun startFetch(context: Context, limit: Int, refresh: () -> Unit) {
         Thread {
@@ -49,6 +51,7 @@ object PickedMedia {
             MediaStore.Files.FileColumns.SIZE,
             MediaStore.Files.FileColumns.MEDIA_TYPE,
             MediaStore.Video.VideoColumns.DURATION,
+            MediaStore.Files.FileColumns._ID,
         )
         val selection = "${MediaStore.Files.FileColumns.MEDIA_TYPE} IN (?, ?)"
         val arguments = arrayOf(
@@ -63,7 +66,9 @@ object PickedMedia {
                 val video = cursor.getInt(1) == MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO
                 val size = if (cursor.isNull(0)) -1L else cursor.getLong(0)
                 val duration = if (video && !cursor.isNull(2)) cursor.getLong(2) else 0L
-                result.add(Entry(size, duration, if (video) "video" else "image"))
+                val collection = if (video) MediaStore.Video.Media.EXTERNAL_CONTENT_URI else MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+                val uri = android.content.ContentUris.withAppendedId(collection, cursor.getLong(3)).toString()
+                result.add(Entry(size, duration, if (video) "video" else "image", uri))
             }
         }
         return result

@@ -300,6 +300,7 @@ typedef struct {
     uint64_t message_id;
     uint64_t author_id;
     uint64_t channel_id;
+    const char *parent;
 } AstralPatchTarget;
 
 typedef int (*AstralNodePatcher)(const AstralPatchTarget *target, AstralNodePatch *patch);
@@ -309,7 +310,7 @@ int astral_wire_refresh_node_patches(AstralWireBuffer *buffer);
 int astral_wire_take_refresh_busy(void);
 uint64_t astral_wire_message_of(const char *identifier);
 
-typedef enum { AstralInsertText = 1, AstralInsertView = 2, AstralInsertImage = 3 } AstralInsertKind;
+typedef enum { AstralInsertText = 1, AstralInsertView = 2, AstralInsertImage = 3, AstralInsertPlayer = 4 } AstralInsertKind;
 
 typedef enum {
     AstralInsertColor = 1 << 0,
@@ -324,7 +325,9 @@ typedef enum {
     AstralInsertTint = 1 << 9,
     AstralInsertBold = 1 << 10,
     AstralInsertJustify = 1 << 11,
-    AstralInsertFill = 1 << 12
+    AstralInsertFill = 1 << 12,
+    AstralInsertMuted = 1 << 13,
+    AstralInsertFillHeight = 1 << 14
 } AstralInsertField;
 
 typedef struct {

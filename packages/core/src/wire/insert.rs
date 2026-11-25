@@ -6,13 +6,14 @@ use std::sync::Mutex;
 use super::abi::{AstralPatchTarget, Callback, current_channel, wireMessageAuthor};
 use super::children::{wireDiscordChildren, wireDiscordParent};
 use super::decorate::{TRACK_AVATAR_IMAGE, tracked_value, wireAllocateNode, wireWriteHostLayout};
-use super::format::{Span, batch_of, child, spans_of, wireChildList, wireCreation, wireParentOf};
+use super::format::{Span, batch_of, child, find_string, spans_of, wireChildList, wireCreation, wireParentOf};
 use super::out::{AstralWireBuffer, Out};
 use super::patch::{c_strings, message_of_identifier, read_identifier, wireMarkRefreshBusy};
 use super::properties;
 
 pub const INSERT_TEXT: c_int = 1;
 pub const INSERT_IMAGE: c_int = 3;
+pub const INSERT_PLAYER: c_int = 4;
 pub const INSERT_CAPACITY: usize = 8;
 
 const COLOR: u32 = 1 << 0;
@@ -28,6 +29,10 @@ const TINT: u32 = 1 << 9;
 const BOLD: u32 = 1 << 10;
 const JUSTIFY: u32 = 1 << 11;
 const FILL: u32 = 1 << 12;
+const MUTED: u32 = 1 << 13;
+const FILL_HEIGHT: u32 = 1 << 14;
+
+const IMAGE_SELECTOR: &[u8] = b"image:";
 
 const MAX_PREFIXES: usize = 32;
 const MAX_PREFIX_LENGTH: usize = 96;
@@ -89,12 +94,14 @@ pub type NodeInserter = unsafe extern "C" fn(*const AstralPatchTarget, *mut Astr
 #[derive(Clone, Default)]
 struct Target {
     identifier: Vec<u8>,
+    parent: Vec<u8>,
     kind: Vec<u8>,
     children: Vec<i32>,
     inserted: Vec<i32>,
     top_level: usize,
     at_start: bool,
     user: u64,
+    built: u64,
 }
 
 #[derive(Clone)]
@@ -188,6 +195,7 @@ fn property_count(node: &AstralInsertNode) -> u16 {
     count += u16::from(node.fields & ROW != 0);
     count += u16::from(node.kind == INSERT_TEXT && !text_of(&node.text).is_empty());
     count += u16::from(node.kind == INSERT_IMAGE && !text_of(&node.uri).is_empty());
+    count += 6 * u16::from(node.kind == INSERT_PLAYER && !text_of(&node.uri).is_empty());
     if !text_of(&node.tap).is_empty() {
         count += 2;
     }
@@ -205,6 +213,7 @@ fn put_node(out: &mut Out, id: i32, node: &AstralInsertNode) {
     let kind: &[u8] = match node.kind {
         INSERT_TEXT => b"text",
         INSERT_IMAGE => b"image",
+        INSERT_PLAYER => b"player",
         _ => b"view",
     };
     out.put8(1);
@@ -218,6 +227,14 @@ fn put_node(out: &mut Out, id: i32, node: &AstralInsertNode) {
     }
     if node.kind == INSERT_IMAGE && !uri.is_empty() {
         out.prop_string(properties.uri, uri);
+    }
+    if node.kind == INSERT_PLAYER && !uri.is_empty() {
+        out.prop_string(properties.uri, uri);
+        out.prop_bool(properties.playing, true);
+        out.prop_bool(properties.looping, true);
+        out.prop_bool(properties.keepAwake, false);
+        out.prop_bool(properties.startAfterScroll, false);
+        out.prop_number(properties.visibleFraction, 0.0);
     }
     let has = |field: u32| node.fields & field != 0;
     if has(COLOR) {
@@ -258,6 +275,12 @@ fn put_node(out: &mut Out, id: i32, node: &AstralInsertNode) {
     }
     if has(FILL) {
         out.prop_string(properties.width, b"fill");
+    }
+    if has(FILL_HEIGHT) {
+        out.prop_string(properties.height, b"fill");
+    }
+    if has(MUTED) {
+        out.prop_bool(properties.muted, true);
     }
     if has(ROW) {
         out.prop_string(properties.direction, b"row");
@@ -355,11 +378,24 @@ fn build_nodes(out: &mut Out, target: &mut Target, nodes: &[AstralInsertNode]) {
     }
 }
 
-fn evaluate(out: &mut Out, prefixes: &[Vec<u8>], id: i32, target: &mut Target) -> bool {
+fn built_signature(nodes: &[AstralInsertNode], at_start: c_int) -> u64 {
+    let bytes = unsafe { core::slice::from_raw_parts(nodes.as_ptr().cast::<u8>(), core::mem::size_of_val(nodes)) };
+    bytes
+        .iter()
+        .chain(&at_start.to_le_bytes())
+        .fold(0xcbf2_9ce4_8422_2325u64, |hash, byte| {
+            (hash ^ u64::from(*byte)).wrapping_mul(0x0100_0000_01b3)
+        })
+}
+
+fn evaluate(out: &mut Out, prefixes: &[Vec<u8>], id: i32, target: &mut Target, keep_unchanged: bool) -> bool {
     let Some(inserter) = INSERTER.get::<NodeInserter>() else {
         return false;
     };
     let (Ok(identifier), Ok(kind)) = (CString::new(target.identifier.clone()), CString::new(target.kind.clone())) else {
+        return false;
+    };
+    let Ok(parent) = CString::new(target.parent.clone()) else {
         return false;
     };
     let message = message_of_identifier(&target.identifier);
@@ -370,6 +406,11 @@ fn evaluate(out: &mut Out, prefixes: &[Vec<u8>], id: i32, target: &mut Target) -
         message_id: message,
         author_id: if message != 0 { wireMessageAuthor(message) } else { target.user },
         channel_id: current_channel(),
+        parent: if target.parent.is_empty() {
+            core::ptr::null()
+        } else {
+            parent.as_ptr()
+        },
     };
     let mut nodes = vec![AstralInsertNode::empty(); INSERT_CAPACITY];
     let mut at_start = 0;
@@ -381,10 +422,16 @@ fn evaluate(out: &mut Out, prefixes: &[Vec<u8>], id: i32, target: &mut Target) -
     if count == 0 && target.inserted.is_empty() {
         return false;
     }
+    let built = &nodes[..(count as usize).min(INSERT_CAPACITY)];
+    let signature = built_signature(built, at_start);
+    if keep_unchanged && count > 0 && !target.inserted.is_empty() && signature == target.built {
+        return false;
+    }
+    target.built = signature;
     remove_inserted(out, target);
     target.at_start = at_start != 0;
     if count > 0 {
-        build_nodes(out, target, &nodes[..(count as usize).min(INSERT_CAPACITY)]);
+        build_nodes(out, target, built);
     }
     put_target_children(out, id, target);
     true
@@ -454,12 +501,58 @@ fn insert_at_paths(state: &mut State, bytes: *const u8, spans: &[Span], base: &m
             None => target.children = known_children(resolved).into_iter().take(TARGET_CHILDREN).collect(),
         }
         let mut staged = Out::default();
-        if evaluate(&mut staged, &prefixes, resolved, &mut target) {
+        if evaluate(&mut staged, &prefixes, resolved, &mut target, false) {
             writer.append(&staged);
         }
         staged.discard();
         state.targets.insert(resolved, target);
     }
+}
+
+fn image_selector(prefixes: &[Vec<u8>], uri: &[u8]) -> bool {
+    prefixes
+        .iter()
+        .filter_map(|prefix| prefix.strip_prefix(IMAGE_SELECTOR))
+        .any(|selector| !selector.is_empty() && uri.starts_with(selector))
+}
+
+fn insert_at_image(state: &mut State, bytes: *const u8, spans: &[Span], span: &Span, writer: &mut Writer) {
+    let data = batch_of(bytes, span);
+    let properties = properties::current();
+    let Some(uri) = find_string(data, span, properties.uri) else {
+        return;
+    };
+    if !image_selector(&state.prefixes, uri) {
+        return;
+    }
+    let parent = unsafe { wireParentOf(bytes, spans.as_ptr(), spans.len(), span.id) };
+    let parent = if parent > 0 { parent } else { wireDiscordParent(span.id) };
+    if parent <= 0 || state.targets.contains_key(&parent) || state.targets.len() >= TARGET_CAPACITY {
+        return;
+    }
+    let creation = unsafe { wireCreation(spans.as_ptr(), spans.len(), parent).as_ref() };
+    let parent_identifier = creation
+        .and_then(|creation| read_identifier(batch_of(bytes, creation), creation))
+        .map(|(identifier, _)| identifier.to_vec())
+        .unwrap_or_default();
+    let mut identifier = IMAGE_SELECTOR.to_vec();
+    identifier.extend_from_slice(uri);
+    let mut target = Target {
+        identifier,
+        parent: parent_identifier,
+        kind: b"image".to_vec(),
+        ..Target::default()
+    };
+    if let Some(children) = list_children(bytes, spans, parent) {
+        remember_children(&mut target, children.into_iter());
+    }
+    let prefixes = state.prefixes.clone();
+    let mut staged = Out::default();
+    if evaluate(&mut staged, &prefixes, parent, &mut target, false) {
+        writer.append(&staged);
+    }
+    staged.discard();
+    state.targets.insert(parent, target);
 }
 
 fn note_bases(state: &mut State, bytes: *const u8, spans: &[Span]) {
@@ -546,6 +639,7 @@ pub unsafe extern "C" fn wireInsertNodes(
                 }
                 1 => {
                     let Some((identifier, kind)) = read_identifier(data, span) else {
+                        insert_at_image(state, bytes, spans, span, &mut writer);
                         continue;
                     };
                     if prefix_length(&prefixes, identifier) == 0 {
@@ -561,7 +655,7 @@ pub unsafe extern "C" fn wireInsertNodes(
                         remember_children(&mut target, children.into_iter());
                     }
                     let mut staged = Out::default();
-                    if evaluate(&mut staged, &prefixes, span.id, &mut target) {
+                    if evaluate(&mut staged, &prefixes, span.id, &mut target, false) {
                         writer.append(&staged);
                     }
                     staged.discard();
@@ -597,7 +691,7 @@ pub unsafe extern "C" fn astral_wire_refresh_node_inserts(buffer: *mut AstralWir
         let prefixes = state.prefixes.clone();
         let mut any = false;
         for (id, target) in state.targets.iter_mut() {
-            any |= evaluate(&mut out, &prefixes, *id, target);
+            any |= evaluate(&mut out, &prefixes, *id, target, true);
         }
         any
     })

@@ -685,6 +685,9 @@ object PhoenixBridge {
         }
 
     @JvmStatic
+    fun pickedVideo(slot: Long): String? = PickedMedia.videoUri(slot.toInt())
+
+    @JvmStatic
     fun pasteText(): String? {
         val activity = activeActivity() ?: return null
         val clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return null

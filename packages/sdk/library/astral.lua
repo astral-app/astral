@@ -558,6 +558,7 @@ function astral.ui.message_color(colorizer) end
 ---@field message_id? string
 ---@field author_id? string
 ---@field channel_id? string the open channel
+---@field parent_id? string the accessibility id of an image selector's parent
 
 ---@class astral.NodePatch
 ---@field background? astral.Color|integer|string
@@ -575,7 +576,10 @@ function astral.ui.message_color(colorizer) end
 ---@param patcher fun(node: astral.PatchTarget): astral.NodePatch?
 function astral.ui.patch(selector, patcher) end
 ---@class astral.InsertNode
----@field type? "view"|"text"|"image"
+---@field type? "view"|"text"|"image"|"player"
+---@field uri? string what a player plays: an https or content URL
+---@field muted? boolean a player plays without sound
+---@field fill_height? boolean take the full height of the parent
 ---@field text? string
 ---@field icon? string a Discord icon name, res:// URI, https URL or a png in the plugin folder
 ---@field color? astral.Color|integer|string text colour, or the tint of an image
@@ -764,6 +768,10 @@ function astral.media.on_save(callback) end
 ---@param uri string
 ---@return astral.PickedMedia?
 function astral.media.picked(uri) end
+---An https URL that plays a media picker video, or nil until astral has found its file.
+---@param uri string
+---@return string?
+function astral.media.picked_url(uri) end
 
 astral.messages = {}
 function astral.messages.transform(callback) end
