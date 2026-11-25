@@ -558,7 +558,10 @@ object PhoenixBridge {
     }
 
     @JvmStatic
-    fun refreshEmoji() = EmojiComposer.refresh()
+    fun refreshEmoji() {
+        EmojiComposer.refresh()
+        handler.post { if (guestHost != null) Native.pendingUpdates()?.let(::apply) }
+    }
 
     @JvmStatic
     fun pasteText(): String? {
@@ -648,10 +651,14 @@ object PhoenixBridge {
     fun openURL(url: String) {
         mainHandler.post {
             val activity = activeActivity() ?: return@post
-            runCatching { activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+            if (isDiscordLink(url)) intent.setPackage(activity.packageName)
+            runCatching { activity.startActivity(intent) }
                 .onFailure { Log.warning("Failed to open $url: ${it.javaClass.simpleName}") }
         }
     }
+
+    private fun isDiscordLink(url: String) = url.startsWith("https://discord.com/channels/")
 
     @JvmStatic
     fun restartGatewaySession() = NetworkHooks.restartGatewaySession()

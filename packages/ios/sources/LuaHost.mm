@@ -14,10 +14,18 @@
 #import "FilePicker.h"
 #import "FoundationJSON.h"
 #import "PhoenixSettings.h"
+#include "PhoenixWire.h"
 #import "PluginSignature.h"
 #import "ReactionReactors.h"
 #import "NetworkRequest.h"
 #import <UIKit/UIKit.h>
+
+static std::string AppLink(const std::string &url)
+{
+    static const std::string kChannels = "https://discord.com/channels/";
+    if (url.rfind(kChannels, 0) != 0) return url;
+    return "discord://-/channels/" + url.substr(kChannels.size());
+}
 
 static NSString *Native(const std::string &value)
 {
@@ -199,7 +207,7 @@ static astral::LuaHostPlatform Platform(void)
         });
     };
     platform.openURL = [](const std::string &url) {
-        NSURL *link = [NSURL URLWithString:Native(url)];
+        NSURL *link = [NSURL URLWithString:Native(AppLink(url))];
         if (!link) return false;
         dispatch_async(dispatch_get_main_queue(), ^{
             [UIApplication.sharedApplication openURL:link options:@{} completionHandler:nil];
@@ -227,6 +235,16 @@ static astral::LuaHostPlatform Platform(void)
         AstralRecordPluginFailure(Native(identifier), Native(name), Native(error));
     };
     platform.developerLog = [](const std::string &line) { AstralDevAppendLog(Native(line)); };
+    platform.scrollToMessage = [](uint64_t message, bool animated, const std::string &align) {
+        if (!astral_wire_scroll_to_message(message, animated, align.c_str())) return false;
+        AstralPhoenixRefreshDecorations();
+        return true;
+    };
+    platform.focusComposer = [](bool focus) {
+        if (!astral_wire_focus_composer(focus)) return false;
+        AstralPhoenixRefreshDecorations();
+        return true;
+    };
     platform.refreshDecorations = [] {
         AstralPhoenixRefreshDecorations();
         AstralRepaintLuaComposers();

@@ -150,3 +150,8 @@ int astral_wire_composer_event(const uint8_t *event, size_t length, AstralWireBu
     putChangeText(before, rewritten);
     return before->bytes != NULL;
 }
+
+int32_t wireComposerNode(void)
+{
+    return gComposerNode;
+}

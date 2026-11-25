@@ -230,6 +230,7 @@ std::pair<std::string, std::string> permissionDescription(const std::string &per
         {"events.messages.filter", {"Reads and filters incoming messages before Discord handles them", "res://ic_mana_chat"}},
         {"events.lifecycle", {"Receives app foreground and background events", "res://ic_mana_calendar"}},
         {"ui.clipboard", {"Copies text to the system clipboard", "res://ic_mana_copy"}},
+        {"ui.navigate", {"Opens channels and scrolls the chat", "res://ic_mana_link"}},
         {"ui.composer", {"Reads and styles draft text in the message composer", "res://ic_mana_chat"}},
         {"ui.message_background", {"Styles message backgrounds", "res://ic_mana_chat"}},
         {"ui.dialogs", {"Shows dialogs and pickers", "res://ic_mana_chat"}},

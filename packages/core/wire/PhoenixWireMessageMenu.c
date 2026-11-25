@@ -150,6 +150,21 @@ static int64_t windowStart(const ListWindow *window)
     return window->first;
 }
 
+int wireRowOfMessage(uint64_t message, int32_t *list, int64_t *index)
+{
+    for (size_t slot = 0; slot < kMaxLists; slot++) {
+        const ListWindow *window = &gLists[slot];
+        if (!window->list) continue;
+        for (uint32_t position = 0; position < window->rowCount; position++) {
+            if (astral_wire_message_for_node(window->rows[position]) != message) continue;
+            *list = window->list;
+            *index = windowStart(window) + position;
+            return 1;
+        }
+    }
+    return 0;
+}
+
 uint64_t astral_wire_message_for_row(int32_t list, int64_t index)
 {
     ListWindow *window = listWindow(list, 0);
