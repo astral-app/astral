@@ -12,6 +12,7 @@ pub mod identifiers;
 pub mod image_rewrite;
 pub mod images;
 pub mod index;
+pub mod labels;
 pub mod message_text;
 pub mod names;
 pub mod out;
