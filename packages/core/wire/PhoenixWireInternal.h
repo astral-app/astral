@@ -171,5 +171,6 @@ int32_t wireComposerNode(void);
 uint8_t *wireRewriteImages(const uint8_t *bytes, size_t length, Span *spans, size_t *count, size_t *newLength);
 uint8_t *wireExpandChildEdits(const uint8_t *bytes, size_t length, Span *spans, size_t *count, size_t *newLength);
 uint32_t wireDiscordChildren(int32_t parent, const int32_t **children);
+int32_t wireDiscordParent(int32_t child);
 void wireResetChildLists(void);
 uint8_t *wireRelabel(const uint8_t *bytes, size_t length, Span *spans, size_t count, size_t *newLength);

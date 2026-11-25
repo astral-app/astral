@@ -956,6 +956,15 @@ static void testFilePickerAndDialogs(const std::string &work)
     astral::luahost::eval("astral.native-ui-test", "sheet:update({ title = 'Raw 2' }); sheet:close()");
     assert(updatedSheet["title"] == "Raw 2" && closedSheet == openedSheet);
     astral::luahost::sheetEvent(openedSheet, "", "", true);
+    astral::luahost::eval("astral.native-ui-test", "astral.settings.section('Account'):button('authorize', 'Authorize', function() "
+                                                   "astral.storage.set('pressed', 'yes') end, { subtitle = 'Sign in' })");
+    bool listed = false;
+    for (const auto &plugin : astral::luahost::plugins())
+        for (const auto &button : plugin.value("settingsButtons", nlohmann::json::array()))
+            listed |= button.value("key", "") == "authorize" && button.value("section", "") == "Account";
+    assert(listed);
+    astral::luahost::pressSettingsButton("astral.native-ui-test", "authorize");
+    assert(astral::luahost::eval("astral.native-ui-test", "return astral.storage.get('pressed')") == "yes");
     assert(astral::luahost::eval("astral.native-ui-test", "return astral.storage.get('sheet_event')") == "closed:");
     assert(astral::luahost::eval("astral.native-ui-test", "return tostring(astral.storage.get('confirmed'))") == "true");
     assert(astral::luahost::eval("astral.native-ui-test",

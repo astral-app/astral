@@ -1,18 +1,17 @@
 id = "astral.reviewdb"
 name = "ReviewDB"
-description = "Reads and writes ReviewDB reviews of people with /reviews and /review, or from a message's long-press menu."
+description = "Leave reviews on other users' profiles and see what others think of you."
 version = "0.0.1"
 icon = "StarIcon"
 main = "main.lua"
 permissions = [
 	"network",
-	"commands",
-	"messages.local",
 	"storage",
 	"ui.web_auth",
 	"ui.toasts",
-	"ui.message_actions",
-	"discord.messages",
+	"ui.dialogs",
+	"ui.insert",
+	"events.gateway",
 	"discord.users",
 ]
 

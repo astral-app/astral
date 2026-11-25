@@ -2,6 +2,8 @@
 
 #include "PluginPackage.h"
 
+#include <algorithm>
+
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -75,7 +77,9 @@ void loadTranslations(PluginPackage &package, const std::vector<std::string> &pr
         package.locale = *locale;
         package.strings = loadStrings(folder / (*locale + ".toml"));
     }
-    if (auto fallback = lua::bestLocale(english, preferred)) package.fallbackStrings = loadStrings(folder / (*fallback + ".toml"));
+    bool hasSource = std::find(english.begin(), english.end(), "en-US") != english.end();
+    auto fallback = hasSource ? std::optional<std::string>("en-US") : lua::bestLocale(english, preferred);
+    if (fallback) package.fallbackStrings = loadStrings(folder / (*fallback + ".toml"));
 }
 
 bool loadModules(PluginPackage &package, size_t limit)

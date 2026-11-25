@@ -252,6 +252,11 @@ local Section = {}
 function Section:switch(key, title, default, options) end
 ---@param key string
 ---@param title string
+---@param callback fun()
+---@param options? string|{ subtitle: string?, icon: string?, detail: string? }
+function Section:button(key, title, callback, options) end
+---@param key string
+---@param title string
 ---@param default? string
 ---@param options? string|astral.SettingOptions
 ---@return string
@@ -336,6 +341,12 @@ function astral.settings.text(key, title, default, options) end
 ---@param options? astral.SettingOptions
 ---@return string
 function astral.settings.color(key, title, default, options) end
+---Adds a tappable row to the plugin's settings page that calls `callback` when pressed.
+---@param key string
+---@param title string
+---@param callback fun()
+---@param options? { subtitle: string?, section: string?, icon: string?, detail: string? }
+function astral.settings.button(key, title, callback, options) end
 ---@param key string
 ---@return astral.SettingValue?
 function astral.settings.get(key, fallback) end

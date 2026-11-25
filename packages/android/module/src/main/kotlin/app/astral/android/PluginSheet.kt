@@ -49,6 +49,7 @@ object PluginSheet {
         val activity: Activity,
         val dialog: Dialog,
         val title: TextView,
+        val subtitle: TextView,
         val content: LinearLayout,
         val event: (String, String, Boolean) -> Unit,
     ) {
@@ -76,6 +77,12 @@ object PluginSheet {
             gravity = Gravity.CENTER
             setPadding(dp(activity, INSET_DP), dp(activity, 14), dp(activity, INSET_DP), dp(activity, 12))
         }
+        val subtitle = TextView(activity).apply {
+            setTextColor(palette.muted)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            gravity = Gravity.CENTER
+            setPadding(dp(activity, INSET_DP), 0, dp(activity, INSET_DP), dp(activity, 10))
+        }
         val content = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(activity, INSET_DP), 0, dp(activity, INSET_DP), dp(activity, INSET_DP))
@@ -83,6 +90,7 @@ object PluginSheet {
         val scroll = ScrollView(activity).apply { addView(content) }
         root.addView(grabber)
         root.addView(title)
+        root.addView(subtitle)
         root.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         dialog.setContentView(root)
         dialog.window?.apply {
@@ -93,7 +101,7 @@ object PluginSheet {
             setLayout(ViewGroup.LayoutParams.MATCH_PARENT, (height * fraction).toInt())
             setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         }
-        val rendered = Rendered(activity, dialog, title, content, event)
+        val rendered = Rendered(activity, dialog, title, subtitle, content, event)
         dialog.setOnDismissListener { finish(sheet, rendered) }
         sheets[sheet] = rendered
         render(rendered, spec)
@@ -120,6 +128,8 @@ object PluginSheet {
     private fun render(rendered: Rendered, spec: JSONObject) {
         val activity = rendered.activity
         rendered.title.text = spec.optString("title")
+        rendered.subtitle.text = spec.optString("subtitle")
+        rendered.subtitle.visibility = if (spec.optString("subtitle").isEmpty()) View.GONE else View.VISIBLE
         rendered.content.removeAllViews()
         items(spec.optJSONArray("items")).forEach { item ->
             val view = viewFor(rendered, item) ?: return@forEach
@@ -140,6 +150,7 @@ object PluginSheet {
             "text" -> label(activity, item, 15f, item.optBoolean("bold"), palette.primary)
             "code" -> code(activity, item, palette)
             "image" -> image(activity, item)
+            "icon" -> icon(activity, item, palette)
             "row", "column" -> group(rendered, item, item.optString("type") == "row")
             "buttons" -> buttons(rendered, item, palette)
             "input" -> input(rendered, item, palette)
@@ -157,6 +168,14 @@ object PluginSheet {
         if (action.isNotEmpty() && item.optString("type") != "buttons" && item.optString("type") != "input") {
             wrapped.isClickable = true
             wrapped.setOnClickListener { rendered.event(action, "", false) }
+        }
+        val longAction = item.optString("long_action")
+        if (longAction.isNotEmpty()) {
+            wrapped.isLongClickable = true
+            wrapped.setOnLongClickListener {
+                rendered.event(longAction, "", false)
+                true
+            }
         }
         if (item.has("opacity")) wrapped.alpha = item.optDouble("opacity", 1.0).toFloat()
         return wrapped
@@ -223,6 +242,31 @@ object PluginSheet {
         return view
     }
 
+    private val iconGlyphs = mapOf(
+        "thumbs_up" to "👍", "thumbs_down" to "👎", "star" to "★", "chevron_right" to "›",
+        "flag" to "⚑", "deny" to "⊘", "trash" to "🗑", "info" to "ⓘ", "link" to "🔗",
+    )
+
+    private fun icon(activity: Activity, item: JSONObject, palette: Palette): View {
+        val name = item.optString("name")
+        val size = dp(activity, item.optInt("size", 16) + 4)
+        val tint = color(item.opt("color"), palette.muted, activity)
+        val drawable = activity.resources.getIdentifier("ic_mana_$name", "drawable", activity.packageName)
+        if (drawable != 0) {
+            return ImageView(activity).apply {
+                setImageResource(drawable)
+                setColorFilter(tint)
+                layoutParams = LinearLayout.LayoutParams(size, size)
+            }
+        }
+        return TextView(activity).apply {
+            text = iconGlyphs[name] ?: "•"
+            setTextColor(tint)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, item.optInt("size", 16).toFloat())
+            gravity = Gravity.CENTER
+        }
+    }
+
     private fun group(rendered: Rendered, item: JSONObject, horizontal: Boolean): View {
         val activity = rendered.activity
         val spacing = dp(activity, item.optInt("spacing", if (horizontal) 10 else 4))
@@ -234,7 +278,7 @@ object PluginSheet {
             val view = viewFor(rendered, child) ?: return@forEachIndexed
             val params = (view.layoutParams as? LinearLayout.LayoutParams)
                 ?: LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-            if (horizontal && child.optString("type") in setOf("text", "column", "heading")) {
+            if (horizontal && (child.optString("type") == "column" || child.optBoolean("grow"))) {
                 params.width = 0
                 params.weight = 1f
             }
@@ -280,7 +324,43 @@ object PluginSheet {
         return layout
     }
 
+    private fun labelledInput(rendered: Rendered, item: JSONObject, palette: Palette): View {
+        val activity = rendered.activity
+        val layout = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
+        val field = EditText(activity).apply {
+            hint = item.optString("placeholder")
+            setText(item.optString("value"))
+            setTextColor(palette.primary)
+            setHintTextColor(palette.muted)
+            background = rounded(palette.surface, dp(activity, CORNER_DP).toFloat())
+            setPadding(dp(activity, 12), dp(activity, 12), dp(activity, 12), dp(activity, 12))
+            minHeight = dp(activity, item.optInt("height", 96))
+            gravity = Gravity.TOP or Gravity.START
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+            filters = arrayOf(InputFilter.LengthFilter(MAXIMUM_INPUT))
+        }
+        val submit = Button(activity).apply {
+            text = item.optString("submit_label")
+            isAllCaps = false
+            setTextColor(Color.WHITE)
+            typeface = Typeface.DEFAULT_BOLD
+            stateListAnimator = null
+            background = rounded(0xFF5865F2.toInt(), dp(activity, CORNER_DP).toFloat())
+            val action = item.optString("action")
+            setOnClickListener {
+                val value = field.text.toString().trim()
+                if (value.isEmpty() || action.isEmpty()) return@setOnClickListener
+                rendered.event(action, value, false)
+                field.setText("")
+            }
+        }
+        layout.addView(field, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        layout.addView(submit, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(activity, 40)).apply { topMargin = dp(activity, 8) })
+        return layout
+    }
+
     private fun input(rendered: Rendered, item: JSONObject, palette: Palette): View {
+        if (item.optString("submit_label").isNotEmpty()) return labelledInput(rendered, item, palette)
         val activity = rendered.activity
         val container = LinearLayout(activity).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -329,6 +409,9 @@ object PluginSheet {
         is String -> when {
             value == "muted" -> palette(activity).muted
             value == "primary" -> palette(activity).primary
+            value == "link" -> 0xFF00A8FC.toInt()
+            value == "positive" -> 0xFF23A55A.toInt()
+            value == "danger" -> 0xFFF23F43.toInt()
             else -> runCatching { Color.parseColor(if (value.startsWith("#")) value else "#$value") }.getOrDefault(fallback)
         }
         else -> fallback

@@ -1,5 +1,6 @@
 #include "PhoenixWireInternal.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -15,6 +16,7 @@ typedef struct {
     uint32_t insertedCount;
     uint32_t topLevel;
     int atStart;
+    uint64_t user;
 } InsertTarget;
 
 static AstralNodeInserter gInserter;
@@ -41,6 +43,16 @@ static size_t prefixLength(const char *identifier)
     for (size_t index = 0; index < gPrefixCount; index++) {
         size_t length = strlen(gPrefixes[index]);
         if (strncmp(identifier, gPrefixes[index], length) == 0) return length;
+    }
+    return 0;
+}
+
+static uint64_t batchAvatarUser(const Span *spans, size_t count)
+{
+    for (size_t index = 0; index < count; index++) {
+        if (spans[index].op != 1) continue;
+        Tracked *tracked = wireTrackSlot(spans[index].id, 0);
+        if (tracked && tracked->kind == kTrackAvatarImage && tracked->value) return tracked->value;
     }
     return 0;
 }
@@ -187,9 +199,12 @@ static int evaluate(Out *out, InsertTarget *target)
     AstralInsertNode nodes[kAstralInsertCapacity];
     memset(nodes, 0, sizeof(nodes));
     uint64_t message = wireMessageOfIdentifier(target->identifier);
-    AstralPatchTarget context = {
-        target->identifier,           target->type, prefixLength(target->identifier), message, message ? wireMessageAuthor(message) : 0,
-        astral_wire_current_channel()};
+    AstralPatchTarget context = {target->identifier,
+                                 target->type,
+                                 prefixLength(target->identifier),
+                                 message,
+                                 message ? wireMessageAuthor(message) : target->user,
+                                 astral_wire_current_channel()};
     int atStart = 0;
     int count = gInserter(&context, nodes, kAstralInsertCapacity, &atStart);
     if (count < 0) {
@@ -202,6 +217,112 @@ static int evaluate(Out *out, InsertTarget *target)
     if (count) buildNodes(out, target, nodes, (size_t)count);
     putTargetChildren(out, target);
     return 1;
+}
+
+static const char *pathSteps(const char *prefix, const char *identifier)
+{
+    size_t length = strlen(identifier);
+    if (strncmp(prefix, identifier, length) != 0 || !prefix[length]) return NULL;
+    for (const char *step = prefix + length; *step; step++)
+        if (*step != '>' && *step != '^') return NULL;
+    return prefix + length;
+}
+
+static int32_t firstChild(const uint8_t *bytes, const Span *spans, size_t count, int32_t node)
+{
+    const Span *list = wireChildList(bytes, spans, count, node);
+    if (list && list->childCount) return wireChildAt(bytes, list, 0);
+    const int32_t *known = NULL;
+    return wireDiscordChildren(node, &known) ? known[0] : 0;
+}
+
+static int32_t parentOf(const uint8_t *bytes, const Span *spans, size_t count, int32_t node)
+{
+    int32_t parent = wireParentOf(bytes, spans, count, node);
+    return parent > 0 ? parent : wireDiscordParent(node);
+}
+
+static int32_t followPath(const uint8_t *bytes, const Span *spans, size_t count, int32_t node, const char *steps)
+{
+    for (const char *step = steps; *step && node > 0; step++)
+        node = *step == '^' ? parentOf(bytes, spans, count, node) : firstChild(bytes, spans, count, node);
+    return node;
+}
+
+static void rememberTargetChildren(const uint8_t *bytes, const Span *spans, size_t count, InsertTarget *target)
+{
+    const Span *list = wireChildList(bytes, spans, count, target->id);
+    if (list) {
+        rememberChildren(bytes, list, target);
+        return;
+    }
+    const int32_t *known = NULL;
+    uint32_t knownCount = wireDiscordChildren(target->id, &known);
+    target->childCount = 0;
+    for (uint32_t position = 0; position < knownCount && target->childCount < kTargetChildren; position++)
+        target->children[target->childCount++] = known[position];
+}
+
+typedef struct {
+    int32_t node;
+    char identifier[kWireIdentifierLength];
+    int32_t resolved;
+    uint64_t user;
+} PathBase;
+
+enum { kPathBaseCapacity = 32 };
+
+static PathBase gPathBases[kPathBaseCapacity];
+
+static int hasPath(const char *identifier)
+{
+    for (size_t index = 0; index < gPrefixCount; index++)
+        if (pathSteps(gPrefixes[index], identifier)) return 1;
+    return 0;
+}
+
+static void rememberPathBase(int32_t node, const char *identifier, uint64_t user)
+{
+    size_t slot = (size_t)((uint32_t)node % kPathBaseCapacity);
+    for (size_t index = 0; index < kPathBaseCapacity; index++) {
+        if (gPathBases[index].node == node || !gPathBases[index].node) {
+            slot = index;
+            break;
+        }
+    }
+    gPathBases[slot].node = node;
+    gPathBases[slot].resolved = 0;
+    gPathBases[slot].user = user;
+    snprintf(gPathBases[slot].identifier, sizeof(gPathBases[slot].identifier), "%s", identifier);
+}
+
+static void insertAtPaths(const uint8_t *bytes, const Span *spans, size_t count, PathBase *base, Out *out, int *changed, size_t length)
+{
+    for (size_t index = 0; index < gPrefixCount; index++) {
+        const char *steps = pathSteps(gPrefixes[index], base->identifier);
+        if (!steps) continue;
+        int32_t resolved = followPath(bytes, spans, count, base->node, steps);
+        if (resolved <= 0) continue;
+        InsertTarget *existing = targetSlot(resolved, 0);
+        if (existing && existing->id > 0) {
+            base->resolved = resolved;
+            continue;
+        }
+        InsertTarget *target = targetSlot(resolved, 1);
+        if (!target) continue;
+        base->resolved = resolved;
+        snprintf(target->identifier, sizeof(target->identifier), "%s", gPrefixes[index]);
+        snprintf(target->type, sizeof(target->type), "%s", "view");
+        target->user = base->user ? base->user : batchAvatarUser(spans, count);
+        rememberTargetChildren(bytes, spans, count, target);
+        Out staged = {0};
+        if (evaluate(&staged, target)) {
+            if (!*changed) wirePut(out, bytes, length);
+            *changed = 1;
+            wirePut(out, staged.bytes, staged.length);
+        }
+        free(staged.bytes);
+    }
 }
 
 void wireInsertNodes(const uint8_t *bytes, const Span *spans, size_t count, Out *out, int *changed, size_t length)
@@ -228,7 +349,8 @@ void wireInsertNodes(const uint8_t *bytes, const Span *spans, size_t count, Out 
         }
         if (span->op != 1) continue;
         char identifier[kWireIdentifierLength], type[kWireTypeLength];
-        if (!wireReadIdentifier(bytes, span, identifier, type) || !prefixLength(identifier)) continue;
+        if (!wireReadIdentifier(bytes, span, identifier, type)) continue;
+        if (!prefixLength(identifier)) continue;
         InsertTarget *target = targetSlot(span->id, 1);
         if (!target) continue;
         strcpy(target->identifier, identifier);
@@ -244,6 +366,25 @@ void wireInsertNodes(const uint8_t *bytes, const Span *spans, size_t count, Out 
         *changed = 1;
         wirePut(out, staged.bytes, staged.length);
         free(staged.bytes);
+    }
+    for (size_t index = 0; index < count; index++) {
+        const Span *span = &spans[index];
+        char identifier[kWireIdentifierLength], type[kWireTypeLength];
+        if (span->op == 4) {
+            for (uint32_t position = 0; position < span->childCount; position++)
+                for (size_t base = 0; base < kPathBaseCapacity; base++)
+                    if (gPathBases[base].node == wireChildAt(bytes, span, position)) gPathBases[base].node = 0;
+            continue;
+        }
+        if (span->op == 1 && wireReadIdentifier(bytes, span, identifier, type) && hasPath(identifier))
+            rememberPathBase(span->id, identifier, batchAvatarUser(spans, count));
+    }
+    for (size_t base = 0; base < kPathBaseCapacity; base++) {
+        PathBase *entry = &gPathBases[base];
+        if (!entry->node) continue;
+        InsertTarget *current = entry->resolved ? targetSlot(entry->resolved, 0) : NULL;
+        if (current && current->id > 0) continue;
+        insertAtPaths(bytes, spans, count, entry, out, changed, length);
     }
 }
 

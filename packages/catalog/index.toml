@@ -16,7 +16,7 @@ base = "plugins/astral.gif-paste/"
 id = "astral.reviewdb"
 name = "ReviewDB"
 version = "0.0.1"
-description = "Reads and writes ReviewDB reviews of people with /reviews and /review, or from a message's long-press menu."
+description = "Leave reviews on other users' profiles and see what others think of you."
 icon = "StarIcon"
 base = "plugins/astral.reviewdb/"
 
