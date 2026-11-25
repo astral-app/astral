@@ -50,30 +50,12 @@ func testWire(work string) error {
 	return run(ios, binary)
 }
 
-func wireSourceFiles() []string {
-	paths, _ := filepath.Glob(repoPath("packages", "core", "wire", "*.c"))
-	files := make([]string, len(paths))
-	for index, path := range paths {
-		files[index] = filepath.Base(path)
-	}
-	return files
-}
-
-func wireSourcePaths() []string {
-	var paths []string
-	for _, file := range wireSourceFiles() {
-		paths = append(paths, repoPath("packages", "core", "wire", file))
-	}
-	return paths
-}
-
 func wireSources() ([]string, error) {
-	paths := append([]string{"-I" + repoPath("packages", "core", "wire")}, wireSourcePaths()...)
 	library, err := rustHostLibrary()
 	if err != nil {
 		return nil, err
 	}
-	return append(paths, library), nil
+	return []string{"-I" + repoPath("packages", "core", "wire"), library}, nil
 }
 
 func testCore(work string) error {
@@ -87,11 +69,7 @@ func testCore(work string) error {
 	}
 	var wireObjects []string
 	monocypher := repoPath("vendor", "monocypher", "src")
-	var nativeSources []string
-	for _, name := range wireSourceFiles() {
-		nativeSources = append(nativeSources, repoPath("packages", "core", "wire", name))
-	}
-	nativeSources = append(nativeSources, filepath.Join(monocypher, "monocypher.c"), filepath.Join(monocypher, "optional", "monocypher-ed25519.c"))
+	nativeSources := []string{filepath.Join(monocypher, "monocypher.c"), filepath.Join(monocypher, "optional", "monocypher-ed25519.c")}
 	for _, source := range nativeSources {
 		target := filepath.Join(work, filepath.Base(source)+".o")
 		if err := run(repoPath(), "clang", "-std=c11", "-g", "-fsanitize=address,undefined", "-I"+monocypher, "-I"+filepath.Join(monocypher, "optional"), "-I"+repoPath("packages", "core", "wire"), "-c", source, "-o", target); err != nil {

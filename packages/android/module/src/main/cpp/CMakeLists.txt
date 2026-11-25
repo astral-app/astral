@@ -16,7 +16,6 @@ if(NOT PRELUDE_RESULT EQUAL 0)
     message(FATAL_ERROR "astral embed-prelude failed")
 endif()
 
-file(GLOB WIRE_SOURCES CONFIGURE_DEPENDS ${CORE}/wire/*.c)
 file(GLOB CORE_SOURCES CONFIGURE_DEPENDS ${CORE}/src/*.cpp)
 list(FILTER CORE_SOURCES EXCLUDE REGEX "AstralMetricKitCrash\\.cpp$")
 list(TRANSFORM LUA_SOURCES PREPEND ${VENDOR}/lua/)
@@ -44,7 +43,7 @@ target_include_directories(astral-vendor PRIVATE ${MONOCYPHER} ${MONOCYPHER}/opt
 target_compile_definitions(astral-vendor PRIVATE LUA_USE_POSIX SQLITE_THREADSAFE=2 SQLITE_OMIT_LOAD_EXTENSION)
 target_compile_options(astral-vendor PRIVATE -O2 -w -fvisibility=hidden)
 
-add_library(astral SHARED AstralJni.cpp AstralAndroidBackup.cpp AstralAndroidMarketplace.cpp ${WIRE_SOURCES} ${CORE_SOURCES})
+add_library(astral SHARED AstralJni.cpp AstralAndroidBackup.cpp AstralAndroidMarketplace.cpp ${CORE_SOURCES})
 target_include_directories(astral PRIVATE ${CORE}/include ${CORE}/wire ${ASTRAL_GENERATED} ${VENDOR}/lua ${VENDOR}/sqlite)
 target_include_directories(astral PRIVATE ${MONOCYPHER} ${MONOCYPHER}/optional)
 target_include_directories(astral SYSTEM PRIVATE ${VENDOR}/json/single_include ${VENDOR}/tomlplusplus/include)

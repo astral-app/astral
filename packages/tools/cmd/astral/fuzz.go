@@ -116,8 +116,8 @@ func runBench(args []string) error {
 	if err != nil {
 		return err
 	}
-	sources := append([]string{"-I" + repoPath("packages", "core", "wire")}, wireSourcePaths()...)
-	if err := run(tests, "cc", append([]string{"-O2", "-flto", "-w", "-o", binary, "bench/rewrite-bench.c"}, append(sources, library, "-lm")...)...); err != nil {
+	arguments := []string{"-O2", "-flto", "-w", "-o", binary, "bench/rewrite-bench.c", "-I" + repoPath("packages", "core", "wire"), library, "-lm"}
+	if err := run(tests, "cc", arguments...); err != nil {
 		return err
 	}
 	return run(repoPath(), binary, flags.Args()...)
