@@ -3452,9 +3452,15 @@ static std::optional<HttpDecision> HandleInteraction(HttpRequest &request)
                 gPlatform.dispatchGateway(created.dump());
                 gPlatform.dispatchGateway(succeeded.dump());
             }
+            bool sends = hasReply && reply.is_object() && reply.contains("send") && reply["send"].is_object() && SnowflakeText(channel);
+            if ((!hasReply || sends) && gPlatform.dispatchGateway && !nonce.empty()) {
+                nlohmann::json placeholder = {
+                    {"op", 0}, {"t", "MESSAGE_DELETE"}, {"s", nullptr}, {"d", {{"id", nonce}, {"channel_id", channel}}}};
+                gPlatform.dispatchGateway(placeholder.dump());
+            }
             if (!hasReply) return decision;
             if (reply.is_string()) reply = {{"content", reply}};
-            if (reply.is_object() && reply.contains("send") && reply["send"].is_object() && SnowflakeText(channel)) {
+            if (sends) {
                 nlohmann::json message = reply["send"];
                 nlohmann::json file = message.value("file", nlohmann::json());
                 message.erase("file");
