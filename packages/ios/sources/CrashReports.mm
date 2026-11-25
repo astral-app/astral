@@ -9,7 +9,9 @@
 #include <set>
 #include <string>
 
+#include "AstralEnvironmentReport.h"
 #include "AstralMetricKitCrash.h"
+#import "FoundationJSON.h"
 #include "AstralPrivacy.h"
 #import "AstralState.h"
 #import "PhoenixImage.h"
@@ -129,9 +131,8 @@ NSDictionary *AstralDiagnosticEnvironment(void)
     [environment addEntriesFromDictionary:AstralEnvironmentReport()];
     environment[@"commit"] = @ASTRAL_COMMIT;
     environment[@"compatibility"] = AstralPhoenixCompatibility() ?: @"";
-    NSArray<NSDictionary *> *reports = AstralCrashReports();
-    environment[@"reports"] = @(reports.count);
-    if (reports.firstObject[@"title"]) environment[@"last_report"] = reports.firstObject[@"title"];
+    auto summary = astral::environment_report::crashSummary(AstralJSONFromObject(AstralCrashReports()), NSDate.date.timeIntervalSince1970);
+    [environment addEntriesFromDictionary:AstralObjectFromJSON(summary)];
     return environment;
 }
 

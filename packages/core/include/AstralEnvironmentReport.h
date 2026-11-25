@@ -71,6 +71,7 @@ std::vector<std::string> appleMarkers(const AppleDeviceFacts &facts);
 std::vector<std::string> androidMarkers(const AndroidDeviceFacts &facts);
 nlohmann::json httpsVerdict(const HttpsCheck &check);
 std::string androidInstallLine(const nlohmann::json &facts);
+nlohmann::json crashSummary(const nlohmann::json &reports, double now);
 
 void recordHttpsCheck(HttpsCheck check);
 HttpsCheck currentHttpsCheck();

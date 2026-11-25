@@ -338,4 +338,19 @@ HttpsCheck currentHttpsCheck()
     std::lock_guard<std::mutex> lock(httpsMutex);
     return latestHttpsCheck;
 }
+nlohmann::json crashSummary(const nlohmann::json &reports, double now)
+{
+    constexpr double kDay = 24 * 60 * 60;
+    nlohmann::json summary = {{"reports", reports.is_array() ? reports.size() : 0}, {"crashes_24h", 0}};
+    if (!reports.is_array()) return summary;
+    if (!reports.empty() && reports[0].contains("title") && reports[0]["title"].is_string()) summary["last_report"] = reports[0]["title"];
+    int recent = 0;
+    for (const auto &report : reports) {
+        std::string kind = report.value("kind", "");
+        double time = report.contains("time") && report["time"].is_number() ? report["time"].get<double>() : 0;
+        if ((kind == "crash" || kind == "hang") && now - time <= kDay) recent++;
+    }
+    summary["crashes_24h"] = recent;
+    return summary;
+}
 }
