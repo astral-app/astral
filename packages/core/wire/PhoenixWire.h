@@ -321,7 +321,9 @@ typedef enum {
     AstralInsertHeight = 1 << 7,
     AstralInsertRow = 1 << 8,
     AstralInsertTint = 1 << 9,
-    AstralInsertBold = 1 << 10
+    AstralInsertBold = 1 << 10,
+    AstralInsertJustify = 1 << 11,
+    AstralInsertFill = 1 << 12
 } AstralInsertField;
 
 typedef struct {
@@ -339,6 +341,7 @@ typedef struct {
     double height;
     float padding[4];
     float margin[4];
+    char justify[8];
 } AstralInsertNode;
 
 enum { kAstralInsertCapacity = 8 };
