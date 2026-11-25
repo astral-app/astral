@@ -1,3 +1,4 @@
+pub mod abi;
 pub mod backdrop;
 pub mod children;
 pub mod commands;
@@ -11,6 +12,8 @@ pub mod identifiers;
 pub mod image_rewrite;
 pub mod images;
 pub mod index;
+pub mod message_text;
+pub mod names;
 pub mod out;
 pub mod properties;
 pub mod rewriter;
