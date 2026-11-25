@@ -483,9 +483,9 @@ static NSDictionary *StaticReport(void)
 {
     NSMutableDictionary *report = [NSMutableDictionary dictionary];
     NSDictionary *signature = SignatureInfo();
-    if (auto anatomy = astral::binary::readAnatomy(Plain(NSBundle.mainBundle.executablePath))) {
-        report[@"binary"] = @(astral::binary::anatomyLine(*anatomy, Plain(NSBundle.mainBundle.bundlePath)).c_str());
-        if (auto signer = astral::binary::signer(anatomy->signature)) report[@"signer"] = @(astral::binary::signerLine(*signer).c_str());
+    if (auto lines = astral::binary::describeExecutable(Plain(NSBundle.mainBundle.executablePath), Plain(NSBundle.mainBundle.bundlePath))) {
+        report[@"binary"] = @(lines->binary.c_str());
+        if (lines->signer) report[@"signer"] = @(lines->signer->c_str());
     }
     std::string build = SysctlText("kern.osversion");
     if (!build.empty()) report[@"os_build"] = @(build.c_str());

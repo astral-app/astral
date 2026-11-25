@@ -1,21 +1,26 @@
 #pragma once
 
 #include <cstdint>
+#include <cstring>
 #include <optional>
 #include <string>
 #include <vector>
 
-namespace astral::codesign {
-constexpr uint32_t kMachOMagic64 = 0xfeedfacf;
-constexpr uint32_t kMachOSwappedMagic64 = 0xcffaedfe;
-constexpr uint32_t kCodeSignatureCommand = 0x1d;
-constexpr uint32_t kEmbeddedSignatureMagic = 0xfade0cc0;
-constexpr uint32_t kEntitlementsBlobMagic = 0xfade7171;
-constexpr uint32_t kEntitlementsSlot = 5;
-constexpr uint32_t kFatMagic = 0xcafebabe;
-constexpr uint32_t kFatMagic64 = 0xcafebabf;
+#include "AstralRust.h"
 
-std::vector<std::string> entitlementBlobs(const std::string &executablePath);
-
-std::optional<std::string> entitlementsFromBlob(const std::string &blob);
+extern "C" {
+AstralRustString astral_entitlement_blobs(const char *executable, size_t length);
+AstralRustString astral_entitlements_from_blob(const char *blob, size_t length);
 }
+
+namespace astral::codesign {
+inline std::vector<std::string> entitlementBlobs(const std::string &executablePath)
+{
+    return rust::takeFrames(astral_entitlement_blobs(executablePath.data(), executablePath.size()));
+}
+
+inline std::optional<std::string> entitlementsFromBlob(const std::string &blob)
+{
+    return rust::takeIfPresent(astral_entitlements_from_blob(blob.data(), blob.size()));
+}
+} // namespace astral::codesign

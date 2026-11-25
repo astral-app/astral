@@ -9,6 +9,7 @@ pub mod files;
 pub mod launch_guard;
 pub mod leftover_mods;
 pub mod log;
+pub mod macho;
 pub mod network_policy;
 pub mod network_stack;
 pub mod plugin_trace;
