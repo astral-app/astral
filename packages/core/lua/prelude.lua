@@ -307,6 +307,50 @@ end
 
 astral.Pill = Pill
 
+local BASE64_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+local BASE64_VALUES = {}
+for index = 1, #BASE64_ALPHABET do
+	BASE64_VALUES[BASE64_ALPHABET:byte(index)] = index - 1
+end
+BASE64_VALUES[("-"):byte()] = 62
+BASE64_VALUES[("_"):byte()] = 63
+
+astral.base64 = {
+	encode = function(text)
+		local out = {}
+		for index = 1, #text, 3 do
+			local a, b, c = text:byte(index, index + 2)
+			local value = (a << 16) | ((b or 0) << 8) | (c or 0)
+			out[#out + 1] = BASE64_ALPHABET:sub((value >> 18) + 1, (value >> 18) + 1)
+				.. BASE64_ALPHABET:sub(((value >> 12) & 63) + 1, ((value >> 12) & 63) + 1)
+				.. (b and BASE64_ALPHABET:sub(((value >> 6) & 63) + 1, ((value >> 6) & 63) + 1) or "=")
+				.. (c and BASE64_ALPHABET:sub((value & 63) + 1, (value & 63) + 1) or "=")
+		end
+		return table.concat(out)
+	end,
+	decode = function(text)
+		if type(text) ~= "string" then
+			return nil
+		end
+		local out, bits, count = {}, 0, 0
+		for index = 1, #text do
+			local byte = text:byte(index)
+			local value = BASE64_VALUES[byte]
+			if value then
+				bits = (bits << 6) | value
+				count = count + 6
+				if count >= 8 then
+					count = count - 8
+					out[#out + 1] = string.char((bits >> count) & 255)
+				end
+			elseif byte ~= 61 and byte ~= 10 and byte ~= 13 then
+				return nil
+			end
+		end
+		return table.concat(out)
+	end,
+}
+
 local DISCORD_EPOCH = 1420070400000
 local SNOWFLAKE_TIME_SHIFT = 22
 

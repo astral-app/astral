@@ -1,6 +1,6 @@
 # Plugins
 
-36 first-party plugins for astral, each in its own folder here.
+37 first-party plugins for astral, each in its own folder here.
 
 <!-- Generated from each manifest.toml by `astral readme`. Do not edit by hand. -->
 
@@ -13,6 +13,7 @@
 - <img src="../../assets/readme-icons/eye-slash-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Declutter](declutter/): Hides buttons, upsells and profile decorations you never use: the gift button, Server Boosts, call buttons, avatar decorations, nameplates, server tags and more.
 - <img src="../../assets/readme-icons/eye-slash-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Enhanced Blocking](enhanced-blocking/): Hides messages by user, keyword or reply author, including people you blocked, edits and messages already loaded.
 - <img src="../../assets/readme-icons/crown-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Force Owner Crown](force-owner-crown/): Always show the owner crown on the server owner's messages.
+- <img src="../../assets/readme-icons/gif-icon.svg" width="20" height="20" align="absmiddle" alt=""> [GIF Paste](gif-paste/): Makes GIF picker selections paste a link into the chat box instead of sending immediately.
 - <img src="../../assets/readme-icons/reaction-icon.svg" width="20" height="20" align="absmiddle" alt=""> [GIF Provider Switcher](gif-provider-switcher/): Searches GIFs from Tenor or Giphy instead of Klipy in Discord's own GIF picker.
 - <img src="../../assets/readme-icons/arrow-angle-left-up-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Highlight Replies](highlight-replies/): Tints the text of messages that reply to your messages.
 - <img src="../../assets/readme-icons/paint-palette-icon.svg" width="20" height="20" align="absmiddle" alt=""> [IRC Colors](irc-colors/): Gives everyone in chat their own username color, picked from their user id like in IRC clients.

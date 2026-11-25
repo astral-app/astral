@@ -382,6 +382,15 @@ function astral.time.after(delay_ms, callback) end
 ---@param callback fun()
 ---@return integer timer
 function astral.time.every(interval_ms, callback) end
+astral.base64 = {}
+---Encodes bytes as standard base64.
+---@param text string
+---@return string
+function astral.base64.encode(text) end
+---Decodes standard or URL-safe base64, or returns nil for anything else.
+---@param text string
+---@return string?
+function astral.base64.decode(text) end
 astral.snowflake = {}
 ---Milliseconds since 1970 for Discord's epoch (2015-01-01).
 astral.snowflake.EPOCH = 1420070400000

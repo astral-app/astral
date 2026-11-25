@@ -110,4 +110,9 @@ assert(astral.snowflake.is_valid("175928847299117063") and not astral.snowflake.
 assert(astral.snowflake.compare("2", "10") == -1 and astral.snowflake.compare("10", "10") == 0)
 assert(astral.snowflake.compare("a", "1") == nil)
 
+assert(astral.base64.encode("hi!?") == "aGkhPw==")
+assert(astral.base64.decode("eyJsb2NhdGlvbiI6ImdpZl9yZXBseSJ9") == '{"location":"gif_reply"}')
+assert(astral.base64.decode(astral.base64.encode("\0\255ab")) == "\0\255ab")
+assert(astral.base64.decode("**") == nil)
+
 print("prelude ok")
