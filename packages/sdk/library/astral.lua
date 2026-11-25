@@ -721,6 +721,16 @@ function astral.json.encode(value, options) end
 function astral.json.array(table) end
 function astral.events.off(subscription) end
 
+astral.media = {}
+---@class astral.MediaSave
+---@field url string the media Discord downloaded for the save
+---@field kind "video"|"image"
+---@field channel_id? astral.Snowflake the cached message that holds the media
+---@field message_id? astral.Snowflake
+---Runs when Discord saves media to Photos. Call `reply(url)` with an https URL to save that file instead, or `reply(nil)` to keep Discord's; needs `media.save`.
+---@param callback fun(save: astral.MediaSave, reply: fun(url: string?))
+function astral.media.on_save(callback) end
+
 astral.messages = {}
 function astral.messages.transform(callback) end
 ---@param channel astral.Snowflake

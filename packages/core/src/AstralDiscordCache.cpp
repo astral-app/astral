@@ -378,6 +378,20 @@ std::optional<std::string> messageChannel(const std::string &messageID)
     return channelID;
 }
 
+std::optional<std::pair<std::string, std::string>> messageContaining(const std::string &text)
+{
+    std::lock_guard<std::recursive_mutex> lock(gMutex);
+    if (text.size() < 16 || text.size() > 4096) return std::nullopt;
+    auto row = column("SELECT k FROM messages WHERE instr(v, ?) > 0 ORDER BY k DESC LIMIT 1", text);
+    if (!row) return std::nullopt;
+    size_t separator = row->find(':');
+    if (separator == std::string::npos) return std::nullopt;
+    std::string channelID = unpadded(row->substr(0, separator));
+    std::string messageID = unpadded(row->substr(separator + 1));
+    if (!snowflake(channelID) || !snowflake(messageID)) return std::nullopt;
+    return std::make_pair(channelID, messageID);
+}
+
 std::optional<nlohmann::json> rawMessage(const std::string &channelID, const std::string &messageID)
 {
     std::lock_guard<std::recursive_mutex> lock(gMutex);

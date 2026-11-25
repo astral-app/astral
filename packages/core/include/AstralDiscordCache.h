@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <utility>
 #include <string>
 
 #include <nlohmann/json.hpp>
@@ -18,6 +19,7 @@ std::optional<std::string> friendNickname(const std::string &userID);
 std::optional<int> relationshipType(const std::string &userID);
 std::optional<std::string> messageChannel(const std::string &messageID);
 std::optional<nlohmann::json> message(const std::string &channelID, const std::string &messageID);
+std::optional<std::pair<std::string, std::string>> messageContaining(const std::string &text);
 std::optional<nlohmann::json> rawMessage(const std::string &channelID, const std::string &messageID);
 std::optional<uint64_t> permissions(const std::string &guildID, const std::string &userID, const std::optional<std::string> &channelID);
 
