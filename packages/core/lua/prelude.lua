@@ -570,6 +570,7 @@ function astral.ui.message_background(decorator)
 			radius = style.radius or 0,
 			bubble = style.bubble == true,
 			reply = style.reply,
+			name = style.name,
 		}
 	end)
 end

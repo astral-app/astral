@@ -141,15 +141,14 @@ uint32_t wireInsertedChildren(int32_t parent, int32_t *children, uint32_t capaci
 
 static void putTargetChildren(Out *out, const InsertTarget *target)
 {
-    int32_t children[kTargetChildren + kAstralInsertCapacity + 1];
-    uint32_t count = 0;
-    int32_t quote = wireQuoteBoxIn(target->id);
-    if (quote) children[count++] = quote;
+    int32_t children[kTargetChildren + kAstralInsertCapacity + 3];
+    uint32_t count = wireLeadingChildren(target->id, children);
     if (target->atStart)
         for (uint32_t index = 0; index < target->topLevel; index++) children[count++] = target->inserted[index];
     for (uint32_t index = 0; index < target->childCount; index++) children[count++] = target->children[index];
     if (!target->atStart)
         for (uint32_t index = 0; index < target->topLevel; index++) children[count++] = target->inserted[index];
+    count += wireTrailingChildren(target->id, children + count);
     wirePutChildren(out, target->id, children, count);
 }
 

@@ -3367,6 +3367,9 @@ int AstralLuaMessageBackground(const AstralMessageBackgroundContext *context, As
                 lua_getfield(state, -1, "bubble");
                 bool bubble = lua_toboolean(state, -1);
                 lua_pop(state, 1);
+                lua_getfield(state, -1, "name");
+                bool nameInside = lua_isstring(state, -1) && std::strcmp(lua_tostring(state, -1), "inside") == 0;
+                lua_pop(state, 1);
                 lua_getfield(state, -1, "reply");
                 const char *reply = lua_isstring(state, -1) ? lua_tostring(state, -1) : "";
                 int replyStyle = std::strcmp(reply, "inside") == 0   ? AstralReplyInside
@@ -3378,6 +3381,7 @@ int AstralLuaMessageBackground(const AstralMessageBackgroundContext *context, As
                     style->radius = radius;
                     style->bubble = bubble;
                     style->reply = replyStyle;
+                    style->nameInside = nameInside;
                     found = true;
                 }
             }

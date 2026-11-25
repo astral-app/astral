@@ -154,6 +154,7 @@ typedef struct {
     double radius;
     int bubble;
     int reply;
+    int nameInside;
 } AstralMessageBackgroundStyle;
 
 typedef int (*AstralMessageBackgroundDecorator)(const AstralMessageBackgroundContext *context, AstralMessageBackgroundStyle *style);
