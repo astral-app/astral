@@ -1,0 +1,7 @@
+signature = "fdF3OdwhZViBxGzqBiFi047uN7B7buGhQEWQQ4O6V40jaSrYg4o7nTH7kJ4wB+sQBDgt6Sve0HUl26NlZv3FDw=="
+
+[files]
+"i18n/en-US.toml" = "a838e3ec3eb2701e91750f9682959eef1fc70c9e791de14435fc342a43ad3bbe"
+"main.lua" = "e4ae0c3fdc0782a63b16ab8996f80ddf04d6ab47cd10c18790209d204cda6f11"
+"main.luac" = "edda2b2743465055ca9a8b45d3c1415468011c1c9b180b8b1256a1d12c09f802"
+"manifest.toml" = "dcb04162c5d4315e93375f73b9576e8108a11b727b52cc8142c9093a17931858"

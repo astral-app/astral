@@ -1,0 +1,27 @@
+id = "astral.no-reply-mention"
+name = "No Reply Mention"
+description = "Turns off the reply ping by default, or only pings the people you list."
+version = "0.0.1"
+icon = "ArrowAngleLeftUpIcon"
+main = "main.lua"
+permissions = ["net.discord", "discord.messages"]
+
+[[authors]]
+name = "DustyAngel47"
+id = "714583473804935238"
+
+[[authors]]
+name = "rae"
+id = "1398136199503282277"
+
+[[authors]]
+name = "pylix"
+id = "492949202121261067"
+
+[[authors]]
+name = "outfoxxed"
+id = "837425748435796060"
+
+[[authors]]
+name = "adrian"
+id = "224617799434108928"

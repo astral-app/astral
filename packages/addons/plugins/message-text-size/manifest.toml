@@ -1,0 +1,11 @@
+id = "astral.message-text-size"
+name = "Message Text Size"
+description = "Makes the text of chat messages bigger or smaller, leaving the rest of Discord as it is."
+version = "0.0.1"
+icon = "TextIcon"
+main = "main.lua"
+permissions = ["ui.patch"]
+
+[[authors]]
+name = "adrian"
+id = "224617799434108928"
