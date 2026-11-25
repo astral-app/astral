@@ -1,0 +1,39 @@
+id = "astral.message-logger"
+name = "Message Logger"
+description = "Keeps deleted messages in the chat in red and shows what edited messages said before."
+version = "0.0.1"
+icon = "EyeSlashIcon"
+main = "main.lua"
+permissions = ["events.gateway", "discord.messages", "discord.messages.content", "ui.text", "storage"]
+
+[[authors]]
+name = "rushii"
+id = "295190422244950017"
+
+[[authors]]
+name = "V"
+id = "343383572805058560"
+
+[[authors]]
+name = "AutumnVN"
+id = "393694671383166998"
+
+[[authors]]
+name = "Nickyux"
+id = "427146305651998721"
+
+[[authors]]
+name = "Kyuuhachi"
+id = "236588665420251137"
+
+[[authors]]
+name = "sadan"
+id = "521819891141967883"
+
+[[authors]]
+name = "f3tch"
+id = "1016388460929626174"
+
+[[authors]]
+name = "adrian"
+id = "224617799434108928"

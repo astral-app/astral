@@ -1071,6 +1071,12 @@ static int InsertComposerText(lua_State *state)
     return 1;
 }
 
+static int RefreshDecorationsNow(lua_State *)
+{
+    if (gPlatform.refreshDecorations) gPlatform.refreshDecorations();
+    return 0;
+}
+
 static int TimeISO(lua_State *state)
 {
     int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
@@ -2314,6 +2320,7 @@ static void InstallAPI(LuaPlugin *plugin)
     Function(state, plugin, "focus_composer", FocusComposer);
     Function(state, plugin, "press", PressNode);
     Function(state, plugin, "insert_text", InsertComposerText);
+    Function(state, plugin, "refresh", RefreshDecorationsNow);
     Function(state, plugin, "image_rewrite", RegisterImageRewrite);
     Function(state, plugin, "text_transform", RegisterTextTransform);
     Function(state, plugin, "notify", Notify);

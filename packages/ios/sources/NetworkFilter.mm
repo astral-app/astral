@@ -390,6 +390,8 @@ static void Receive(id self, SEL selector, MessageHandler handler)
 {
     NSString *injected = handler && IsGatewayTask(self) ? NextInjected() : nil;
     if (injected) {
+        auto processed = astral::luahost::processGatewayMessage(Text(injected));
+        if (processed) injected = [NSString stringWithUTF8String:processed->c_str()] ?: injected;
         NSURLSessionWebSocketMessage *message = [[NSURLSessionWebSocketMessage alloc] initWithString:injected];
         dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
             handler(message, nil);
@@ -433,7 +435,7 @@ static id RememberGateway(id task, NSURL *requested, NSURL *opened)
     if (!task || ![requested.host hasPrefix:@"gateway"]) return task;
     @synchronized(NSMutableArray.class) {
         gGatewayTask = task;
-        gGatewayUncompressed = ![opened isEqual:requested];
+        gGatewayUncompressed = ![opened.query containsString:@"compress="];
     }
     return task;
 }

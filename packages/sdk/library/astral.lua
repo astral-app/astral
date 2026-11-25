@@ -436,6 +436,8 @@ function astral.ui.image_rewrite(prefix, rewrite) end
 ---@param identifier string
 ---@return boolean pressed
 function astral.ui.press(identifier) end
+---Runs every decoration, patch, insert and text transform again on what is on screen.
+function astral.ui.refresh() end
 ---Types text into the chat input at the cursor, or replaces all of it.
 ---@param text string
 ---@param options? { replace?: boolean }
@@ -476,6 +478,9 @@ function astral.ui.message_color(colorizer) end
 ---@field id string
 ---@field key string the part of id after the prefix, such as a message ID
 ---@field type string
+---@field message_id? string
+---@field author_id? string
+---@field channel_id? string the open channel
 
 ---@class astral.NodePatch
 ---@field background? astral.Color|integer|string

@@ -1,0 +1,23 @@
+id = "astral.declutter"
+name = "Declutter"
+description = "Hides buttons, upsells and profile decorations you never use: the gift button, Server Boosts, call buttons, avatar decorations, nameplates, server tags and more."
+version = "0.0.1"
+icon = "EyeSlashIcon"
+main = "main.lua"
+permissions = ["ui.patch", "events.gateway", "net.discord"]
+
+[[authors]]
+name = "Benjii"
+id = "463702169443368970"
+
+[[authors]]
+name = "kmmiio99o"
+id = "0"
+
+[[authors]]
+name = "ssense"
+id = "0"
+
+[[authors]]
+name = "adrian"
+id = "224617799434108928"
