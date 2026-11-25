@@ -30,7 +30,7 @@ else()
     message(FATAL_ERROR "astral core has no Rust target for ${ANDROID_ABI}")
 endif()
 find_program(CARGO cargo HINTS $ENV{HOME}/.cargo/bin REQUIRED)
-set(RUST_CRATE ${CORE}/rust)
+set(RUST_CRATE ${CORE})
 set(RUST_LIBRARY ${RUST_CRATE}/target/${RUST_TARGET}/release/libastral_core.a)
 file(GLOB_RECURSE RUST_SOURCES CONFIGURE_DEPENDS ${RUST_CRATE}/src/*.rs)
 add_custom_command(OUTPUT ${RUST_LIBRARY}

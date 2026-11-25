@@ -3,6 +3,7 @@ use core::ffi::{c_char, c_int, c_void};
 
 unsafe extern "C" {
     fn realloc(pointer: *mut c_void, size: usize) -> *mut c_void;
+    fn free(pointer: *mut c_void);
 }
 
 const INITIAL_CAPACITY: usize = 4096;
@@ -15,7 +16,82 @@ pub struct Out {
     pub failed: c_int,
 }
 
+#[repr(C)]
+pub struct AstralWireBuffer {
+    pub bytes: *mut u8,
+    pub length: usize,
+}
+
+pub const WIRE_VERSION: u8 = 1;
+
+impl Default for Out {
+    fn default() -> Self {
+        Out {
+            bytes: core::ptr::null_mut(),
+            length: 0,
+            capacity: 0,
+            failed: 0,
+        }
+    }
+}
+
 impl Out {
+    pub fn batch() -> Self {
+        let mut out = Out::default();
+        out.put8(WIRE_VERSION);
+        out
+    }
+
+    pub fn finish(self, buffer: &mut AstralWireBuffer) -> bool {
+        if self.failed != 0 {
+            unsafe { free(self.bytes.cast()) };
+            return false;
+        }
+        buffer.bytes = self.bytes;
+        buffer.length = self.length;
+        true
+    }
+
+    pub fn discard(self) {
+        unsafe { free(self.bytes.cast()) };
+    }
+
+    pub fn prop_count(&mut self, count: u16) {
+        self.put16(count);
+    }
+
+    pub fn prop_number(&mut self, id: u16, value: f64) {
+        self.put16(id);
+        self.put8(5);
+        self.put(&value.to_le_bytes());
+    }
+
+    pub fn prop_int(&mut self, id: u16, value: i32) {
+        self.put16(id);
+        self.put8(3);
+        self.put(&value.to_le_bytes());
+    }
+
+    pub fn prop_string(&mut self, id: u16, value: &[u8]) {
+        self.put16(id);
+        self.put8(6);
+        self.put_string(value);
+    }
+
+    pub fn prop_quad(&mut self, id: u16, quad: [f32; 4]) {
+        self.put16(id);
+        self.put8(9);
+        for value in quad {
+            self.put(&value.to_le_bytes());
+        }
+    }
+
+    pub fn update(&mut self, node: i32, count: u16) {
+        self.put8(2);
+        self.put(&node.to_le_bytes());
+        self.prop_count(count);
+    }
+
     fn reserve(&mut self, more: usize) -> bool {
         if self.failed != 0 {
             return false;

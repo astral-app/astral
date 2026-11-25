@@ -7,7 +7,7 @@ import (
 )
 
 func rustCrate() string {
-	return repoPath("packages", "core", "rust")
+	return repoPath("packages", "core")
 }
 
 func rustHostLibrary() (string, error) {
