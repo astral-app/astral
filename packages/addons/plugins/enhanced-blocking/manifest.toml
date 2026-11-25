@@ -1,10 +1,16 @@
 id = "astral.enhanced-blocking"
 name = "Enhanced Blocking"
-description = "Filters incoming messages by user, keyword or reply author before Phoenix handles them."
-version = "0.0.1"
+description = "Hides messages by user, keyword or reply author, including people you blocked, edits and messages already loaded."
+version = "0.0.2"
 icon = "EyeSlashIcon"
 main = "main.lua"
-permissions = ["events.messages.filter"]
+permissions = [
+	"events.messages.filter",
+	"ui.patch",
+	"discord.messages",
+	"discord.messages.content",
+	"discord.relationships",
+]
 
 [[authors]]
 name = "adrian"

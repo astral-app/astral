@@ -6,7 +6,7 @@
 
 - <img src="../../assets/readme-icons/chat-dots-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Chat Bubbles](chat-bubbles/): Draws a rounded bubble behind each message's text, media and embeds.
 - <img src="../../assets/readme-icons/link-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Clear URLs](clear-urls/): Removes common tracking parameters from links before messages are sent or edited.
-- <img src="../../assets/readme-icons/eye-slash-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Enhanced Blocking](enhanced-blocking/): Filters incoming messages by user, keyword or reply author before Phoenix handles them.
+- <img src="../../assets/readme-icons/eye-slash-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Enhanced Blocking](enhanced-blocking/): Hides messages by user, keyword or reply author, including people you blocked, edits and messages already loaded.
 - <img src="../../assets/readme-icons/crown-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Force Owner Crown](force-owner-crown/): Always show the owner crown on the server owner's messages.
 - <img src="../../assets/readme-icons/arrow-angle-left-up-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Highlight Replies](highlight-replies/): Tints the text of messages that reply to your messages.
 - <img src="../../assets/readme-icons/paint-palette-icon.svg" width="20" height="20" align="absmiddle" alt=""> [IRC Colors](irc-colors/): Gives everyone in chat their own username color, picked from their user id like in IRC clients.

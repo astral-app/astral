@@ -1386,6 +1386,19 @@ static int Nickname(lua_State *state)
     return 1;
 }
 
+static int Relationship(lua_State *state)
+{
+    RequirePermission(state, "discord.relationships");
+    auto type = gPlatform.relationship ? gPlatform.relationship(Argument(state, 1)) : std::nullopt;
+    static const char *const names[] = {nullptr, "friend", "blocked", "incoming", "outgoing"};
+    if (!type || *type < 1 || *type > 4) {
+        lua_pushnil(state);
+        return 1;
+    }
+    lua_pushstring(state, names[*type]);
+    return 1;
+}
+
 static int Message(lua_State *state)
 {
     RequirePermission(state, "discord.messages");
@@ -1724,6 +1737,7 @@ static void InstallAPI(LuaPlugin *plugin)
     Function(state, plugin, "reactors", Reactors);
     Function(state, plugin, "user", User);
     Function(state, plugin, "nickname", Nickname);
+    Function(state, plugin, "relationship", Relationship);
     lua_newtable(state);
     Constant(state, "KICK_MEMBERS", 1ll << 1);
     Constant(state, "BAN_MEMBERS", 1ll << 2);
@@ -2276,7 +2290,8 @@ static bool IsSnowflake(const std::string &value)
 }
 
 static bool FilterMessageCreate(const std::string &messageID, const std::string &channelID, const std::string &authorID,
-                                const std::string &referencedAuthorID, const std::string &content, bool fromMe, bool direct, bool open)
+                                const std::string &referencedAuthorID, const std::string &content, bool fromMe, bool direct, bool open,
+                                bool edited)
 {
     std::lock_guard<std::recursive_mutex> lock(gMutex);
     for (auto *plugin : gPlugins) {
@@ -2289,13 +2304,15 @@ static bool FilterMessageCreate(const std::string &messageID, const std::string 
             if (found == plugin->eventCallbacks.end() || !plugin->state || plugin->failed) continue;
             lua_State *state = plugin->state;
             lua_rawgeti(state, LUA_REGISTRYINDEX, found->second.reference);
-            lua_createtable(state, 0, 8);
+            lua_createtable(state, 0, 9);
             lua_pushlstring(state, messageID.data(), messageID.size());
             lua_setfield(state, -2, "message_id");
             lua_pushlstring(state, channelID.data(), channelID.size());
             lua_setfield(state, -2, "channel_id");
             lua_pushlstring(state, authorID.data(), authorID.size());
             lua_setfield(state, -2, "author_id");
+            lua_pushboolean(state, edited);
+            lua_setfield(state, -2, "edited");
             lua_pushlstring(state, referencedAuthorID.data(), referencedAuthorID.size());
             lua_setfield(state, -2, "referenced_author_id");
             lua_pushlstring(state, content.data(), content.size());
@@ -2405,7 +2422,8 @@ std::optional<std::string> processGatewayMessage(std::string_view message)
         gCurrentUserID = std::move(currentUser);
         return std::nullopt;
     }
-    if (type != "MESSAGE_CREATE") return std::nullopt;
+    bool edited = type == "MESSAGE_UPDATE";
+    if (type != "MESSAGE_CREATE" && !edited) return std::nullopt;
     auto channel = data->find("channel_id");
     auto author = data->find("author");
     if (channel == data->end() || !channel->is_string() || author == data->end() || !author->is_object()) return std::nullopt;
@@ -2457,7 +2475,17 @@ std::optional<std::string> processGatewayMessage(std::string_view message)
     uint64_t selectedChannel = astral_wire_current_channel();
     bool open = selectedChannel != 0 && std::to_string(selectedChannel) == channelID;
     bool fromMe = senderID == currentUser;
-    if (!fromMe && FilterMessageCreate(messageID, channelID, senderID, referencedAuthorID, content, fromMe, direct, open)) {
+    if (edited) {
+        if (fromMe || messageID.empty() ||
+            !FilterMessageCreate(messageID, channelID, senderID, referencedAuthorID, content, fromMe, direct, open, true))
+            return std::nullopt;
+        nlohmann::json removed = {{"id", messageID}, {"channel_id", channelID}};
+        if (!guildID.empty()) removed["guild_id"] = guildID;
+        envelope["t"] = "MESSAGE_DELETE";
+        envelope["d"] = removed;
+        return envelope.dump();
+    }
+    if (!fromMe && FilterMessageCreate(messageID, channelID, senderID, referencedAuthorID, content, fromMe, direct, open, false)) {
         envelope["t"] = "ASTRAL_FILTERED";
         return envelope.dump();
     }
@@ -3105,6 +3133,19 @@ static void PushSnowflakeField(lua_State *state, const char *field, uint64_t val
     lua_setfield(state, -2, field);
 }
 
+static void PushTargetChannel(lua_State *state, const AstralPatchTarget *target)
+{
+    if (target->channel_id) {
+        PushSnowflakeField(state, "channel_id", target->channel_id);
+        return;
+    }
+    if (!target->message_id || !gPlatform.messageChannel) return;
+    auto channel = gPlatform.messageChannel(std::to_string(target->message_id));
+    if (!channel || channel->empty()) return;
+    lua_pushstring(state, channel->c_str());
+    lua_setfield(state, -2, "channel_id");
+}
+
 int AstralLuaPatchNode(const AstralPatchTarget *target, AstralNodePatch *patch)
 {
     if (!target || !target->identifier || !target->type || !patch) return 0;
@@ -3129,7 +3170,7 @@ int AstralLuaPatchNode(const AstralPatchTarget *target, AstralNodePatch *patch)
             lua_setfield(state, -2, "type");
             PushSnowflakeField(state, "message_id", target->message_id);
             PushSnowflakeField(state, "author_id", target->author_id);
-            PushSnowflakeField(state, "channel_id", target->channel_id);
+            PushTargetChannel(state, target);
             if (!Call(plugin, 1, 1, "node patch")) {
                 lua_settop(state, top);
                 MarkFailed(plugin);
@@ -3154,7 +3195,7 @@ static void PushPatchTarget(lua_State *state, const AstralPatchTarget *target, s
     lua_setfield(state, -2, "type");
     PushSnowflakeField(state, "message_id", target->message_id);
     PushSnowflakeField(state, "author_id", target->author_id);
-    PushSnowflakeField(state, "channel_id", target->channel_id);
+    PushTargetChannel(state, target);
 }
 
 static void CopyField(lua_State *state, const char *field, char *out, size_t capacity)

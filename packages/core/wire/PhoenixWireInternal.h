@@ -146,6 +146,7 @@ int32_t wireBuildTag(Out *out, const AstralTag *tag, Decorated *slot);
 void wireMarkRefreshBusy(void);
 int wirePatchingActive(void);
 int32_t wireAllocateNode(void);
+uint64_t wireRowMessage(int32_t row);
 enum { kWireIdentifierLength = 128, kWireTypeLength = 16 };
 int wireReadIdentifier(const uint8_t *bytes, const Span *span, char *identifier, char *type);
 uint64_t wireMessageOfIdentifier(const char *identifier);

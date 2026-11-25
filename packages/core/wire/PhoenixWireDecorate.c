@@ -719,6 +719,14 @@ static void writeQuoteMove(Out *out, BackgroundState *state, const BubbleBlock *
     state->quoteBox = 0;
 }
 
+static uint64_t contentMessage(const uint8_t *bytes, const Span *spans, size_t count, int32_t content)
+{
+    const Span *creation = wireCreation(spans, count, content);
+    char identifier[kWireIdentifierLength], type[kWireTypeLength];
+    if (!creation || !wireReadIdentifier(bytes, creation, identifier, type)) return 0;
+    return wireMessageOfIdentifier(identifier);
+}
+
 static void putOriginalOnce(Out *out, const uint8_t *bytes, size_t length, int *changed)
 {
     if (!*changed) wirePut(out, bytes, length);
@@ -876,7 +884,7 @@ static void applyBackgroundStyle(Out *out, BackgroundState *state, const uint8_t
     AstralMessageBackgroundStyle style = {0};
     int result = gMessageBackgroundDecorator ? gMessageBackgroundDecorator(&context, &style) : 0;
     if (result < 0) {
-        if (!bytes) wireMarkRefreshBusy();
+        wireMarkRefreshBusy();
         return;
     }
     int active = result > 0 && validBackgroundStyle(&style);
@@ -1009,6 +1017,7 @@ static void wireMessageBackgrounds(const uint8_t *bytes, const Span *spans, size
         size_t rowIndex = backgroundRowIndex(rows, rowCount, id);
         if (rowIndex == rowCount) continue;
         rows[rowIndex].content = contents[index];
+        if (!rows[rowIndex].message) rows[rowIndex].message = contentMessage(bytes, spans, count, contents[index]);
         contents[index] = 0;
     }
     for (size_t index = 0; index < rowCount; index++) {
@@ -1058,6 +1067,12 @@ static int32_t tagId(void)
 int32_t wireAllocateNode(void)
 {
     return tagId();
+}
+
+uint64_t wireRowMessage(int32_t row)
+{
+    BackgroundState *state = backgroundState(row, 0);
+    return state && state->hasOriginal ? state->message : 0;
 }
 
 enum { kIconCacheSize = 8, kMaxIconFileBytes = 64 * 1024 };

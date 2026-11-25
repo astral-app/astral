@@ -78,6 +78,10 @@ static astral::LuaHostPlatform Platform(void)
     platform.channelGuild = [](const std::string &channel) { return Text(AstralDiscordChannelGuild(Native(channel))); };
     platform.user = [](const std::string &user) { return JSON(AstralDiscordUser(Native(user))); };
     platform.friendNickname = [](const std::string &user) { return Text(AstralDiscordFriendNickname(Native(user))); };
+    platform.relationship = [](const std::string &user) -> std::optional<int> {
+        NSInteger type = AstralDiscordRelationship(Native(user));
+        return type ? std::optional<int>(static_cast<int>(type)) : std::nullopt;
+    };
     platform.messageChannel = [](const std::string &message) { return Text(AstralDiscordMessageChannel(Native(message))); };
     platform.message = [](const std::string &channel, const std::string &message) {
         return JSON(AstralDiscordMessage(Native(channel), Native(message)));

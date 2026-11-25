@@ -39,8 +39,8 @@ base = "plugins/astral.mention-haptics/"
 [[plugins]]
 id = "astral.enhanced-blocking"
 name = "Enhanced Blocking"
-version = "0.0.1"
-description = "Filters incoming messages by user, keyword or reply author before Phoenix handles them."
+version = "0.0.2"
+description = "Hides messages by user, keyword or reply author, including people you blocked, edits and messages already loaded."
 icon = "EyeSlashIcon"
 base = "plugins/astral.enhanced-blocking/"
 

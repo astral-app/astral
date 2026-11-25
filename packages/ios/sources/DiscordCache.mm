@@ -66,6 +66,12 @@ NSString *AstralDiscordFriendNickname(NSString *userID)
     return Native(astral::discord::friendNickname(Plain(userID)));
 }
 
+NSInteger AstralDiscordRelationship(NSString *userID)
+{
+    UseDiscordData();
+    return astral::discord::relationshipType(Plain(userID)).value_or(0);
+}
+
 NSString *AstralDiscordMessageChannel(NSString *messageID)
 {
     UseDiscordData();

@@ -400,6 +400,7 @@ astral::LuaHostPlatform platform(const std::string &state, const std::string &re
     platform.channelGuild = astral::discord::channelGuild;
     platform.user = astral::discord::user;
     platform.friendNickname = astral::discord::friendNickname;
+    platform.relationship = astral::discord::relationshipType;
     platform.messageChannel = astral::discord::messageChannel;
     platform.message = astral::discord::message;
     platform.permissions = astral::discord::permissions;
@@ -638,7 +639,7 @@ std::vector<uint8_t> pendingUpdates()
     AstralWireBuffer buffer;
     if (astral_wire_retry_mentions(&buffer)) append(merged, buffer);
     if (astral_wire_retry_reactions(&buffer)) append(merged, buffer);
-    if (gRefreshDecorations.exchange(false)) {
+    if (gRefreshDecorations.exchange(false) || astral_wire_take_refresh_busy()) {
         if (astral_wire_refresh_reactions(&buffer)) append(merged, buffer);
         if (astral_wire_refresh_message_texts(&buffer)) append(merged, buffer);
         if (astral_wire_refresh_message_backgrounds(&buffer)) append(merged, buffer);

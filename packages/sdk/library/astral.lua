@@ -42,6 +42,7 @@
 ---@field author astral.User
 ---@field webhook_id? astral.Snowflake
 ---@field reference? astral.MessageReference
+---@field content? string cached text; needs discord.messages.content
 
 ---@class astral.Node
 ---@field kind astral.NodeKind
@@ -542,6 +543,9 @@ function astral.discord.user(id) end
 ---@param id astral.Snowflake
 ---@return string?
 function astral.discord.nickname(id) end
+---@param id astral.Snowflake
+---@return "friend"|"blocked"|"incoming"|"outgoing"|nil
+function astral.discord.relationship(id) end
 
 astral.storage = {}
 ---@alias astral.StorageValue string|number|boolean|table

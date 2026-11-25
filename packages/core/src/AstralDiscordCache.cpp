@@ -351,6 +351,17 @@ std::optional<std::string> friendNickname(const std::string &userID)
     return nickname;
 }
 
+std::optional<int> relationshipType(const std::string &userID)
+{
+    std::lock_guard<std::recursive_mutex> lock(gMutex);
+    if (!snowflake(userID)) return std::nullopt;
+    auto record = parsed(column("SELECT v FROM relationships WHERE k = ?", key(userID)));
+    if (!record || !record->is_object()) return std::nullopt;
+    auto type = record->find("type");
+    if (type == record->end() || !type->is_number_integer()) return std::nullopt;
+    return type->get<int>();
+}
+
 std::optional<std::string> messageChannel(const std::string &messageID)
 {
     std::lock_guard<std::recursive_mutex> lock(gMutex);

@@ -22,6 +22,7 @@ struct LuaHostPlatform {
     std::function<std::optional<std::string>(const std::string &channel)> channelGuild;
     std::function<std::optional<nlohmann::json>(const std::string &user)> user;
     std::function<std::optional<std::string>(const std::string &user)> friendNickname;
+    std::function<std::optional<int>(const std::string &user)> relationship;
     std::function<std::optional<std::string>(const std::string &message)> messageChannel;
     std::function<std::optional<nlohmann::json>(const std::string &channel, const std::string &message)> message;
     std::function<std::optional<uint64_t>(const std::string &guild, const std::string &user, const std::optional<std::string> &channel)>
