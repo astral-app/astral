@@ -1,6 +1,7 @@
 use std::env;
 use std::fs;
 use std::path::PathBuf;
+use std::process::Command;
 
 fn properties(header: &str) -> Vec<(String, u16)> {
     header
@@ -43,4 +44,34 @@ fn main() {
     assert!(!properties.is_empty(), "no ViewWire properties in PhoenixProperties.h");
     let output = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR")).join("properties.rs");
     fs::write(output, generated(&properties)).expect("write properties.rs");
+    link_lua_for_host();
+}
+
+fn link_lua_for_host() {
+    if env::var("TARGET").ok() != env::var("HOST").ok() {
+        return;
+    }
+    let source = PathBuf::from("../../vendor/lua/onelua.c");
+    println!("cargo:rerun-if-changed={}", source.display());
+    let object = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR")).join("onelua.o");
+    let status = Command::new("cc")
+        .args(["-c", "-O1", "-w", "-DMAKE_LIB", "-DLUA_USE_POSIX"])
+        .arg(&source)
+        .arg("-o")
+        .arg(&object)
+        .status()
+        .expect("cc for onelua.c");
+    assert!(status.success(), "could not compile onelua.c for host tests");
+    let directory = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR"));
+    let archive = directory.join("liblua_host.a");
+    let _ = fs::remove_file(&archive);
+    let status = Command::new("ar")
+        .arg("rcs")
+        .arg(&archive)
+        .arg(&object)
+        .status()
+        .expect("ar for liblua_host.a");
+    assert!(status.success(), "could not archive onelua.o");
+    println!("cargo:rustc-link-search=native={}", directory.display());
+    println!("cargo:rustc-link-lib=static=lua_host");
 }
