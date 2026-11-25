@@ -30,6 +30,8 @@ struct PluginPackage {
     std::vector<std::pair<std::string, std::string>> authors;
     std::set<std::string> permissions;
     std::map<std::string, std::string> modules;
+    std::string mainBytecode;
+    std::map<std::string, std::string> moduleBytecode;
     std::map<std::string, std::string> strings;
     std::map<std::string, std::string> fallbackStrings;
     std::string locale;

@@ -10,8 +10,11 @@ set(LUA_SOURCES lapi lcode lctype ldebug ldo ldump lfunc lgc llex lmem lobject l
 set(ASTRAL_GENERATED ${CMAKE_CURRENT_BINARY_DIR}/generated)
 set(PRELUDE ${CORE}/lua/prelude.lua)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${PRELUDE})
-file(READ ${PRELUDE} PRELUDE_SOURCE)
-file(WRITE ${ASTRAL_GENERATED}/AstralPrelude.h "static const char kAstralPrelude[] = R\"astral_prelude(${PRELUDE_SOURCE})astral_prelude\";\n")
+execute_process(COMMAND go run ./packages/tools/cmd/astral embed-prelude ${PRELUDE} ${ASTRAL_GENERATED}/AstralPrelude.h
+                WORKING_DIRECTORY ${ASTRAL_ROOT} RESULT_VARIABLE PRELUDE_RESULT)
+if(NOT PRELUDE_RESULT EQUAL 0)
+    message(FATAL_ERROR "astral embed-prelude failed")
+endif()
 
 file(GLOB WIRE_SOURCES CONFIGURE_DEPENDS ${CORE}/wire/*.c)
 file(GLOB CORE_SOURCES CONFIGURE_DEPENDS ${CORE}/src/*.cpp)

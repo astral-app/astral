@@ -65,6 +65,7 @@ func signedPaths(folder string) ([]string, error) {
 	}
 	for _, module := range modules {
 		paths[module] = true
+		paths[bytecodePath(module)] = true
 	}
 	sorted := make([]string, 0, len(paths))
 	for path := range paths {
@@ -167,6 +168,9 @@ func pluginFiles(folder string) (map[string]string, error) {
 }
 
 func writePluginSignature(folder string, key ed25519.PrivateKey) error {
+	if err := compilePlugin(folder); err != nil {
+		return err
+	}
 	files, err := pluginFiles(folder)
 	if err != nil {
 		return err

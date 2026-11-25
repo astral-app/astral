@@ -136,7 +136,7 @@ bool astral::Signatures::directory(const std::string &directory, const std::stri
         if (relative == "tests")
             cursor.disable_recursion_pending();
         else if (cursor->is_regular_file(error)) {
-            bool lua = relative.extension() == ".lua";
+            bool lua = relative.extension() == ".lua" || relative.extension() == ".luac";
             bool translation = *relative.begin() == "i18n";
             if ((lua || translation) && !signedFiles->count(relative.generic_string())) return false;
         }

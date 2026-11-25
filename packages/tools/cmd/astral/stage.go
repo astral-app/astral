@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"errors"
 	"io"
 	"os"
@@ -110,26 +109,4 @@ func runStage(args []string) error {
 		return errors.New("usage: astral stage <directory>")
 	}
 	return stageResources(args[0])
-}
-
-func runEmbedPrelude(args []string) error {
-	if len(args) != 2 {
-		return errors.New("usage: astral embed-prelude <prelude.lua> <header>")
-	}
-	source, err := os.ReadFile(args[0])
-	if err != nil {
-		return err
-	}
-	const delimiter = "astral_prelude"
-	if bytes.Contains(source, []byte(")"+delimiter+"\"")) {
-		return errors.New(args[0] + " contains the raw string delimiter")
-	}
-	header := []byte("static const char kAstralPrelude[] = R\"" + delimiter + "(" + string(source) + ")" + delimiter + "\";\n")
-	if existing, err := os.ReadFile(args[1]); err == nil && bytes.Equal(existing, header) {
-		return nil
-	}
-	if err := os.MkdirAll(filepath.Dir(args[1]), 0o755); err != nil {
-		return err
-	}
-	return os.WriteFile(args[1], header, 0o644)
 }

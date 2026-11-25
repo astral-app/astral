@@ -36,8 +36,28 @@ func TestSignedPathsCoverModulesButNotTests(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := strings.Join(paths, ",")
-	if got != "i18n/en-US.toml,lib/util.lua,main.lua,manifest.toml" {
+	if got != "i18n/en-US.toml,lib/util.lua,lib/util.luac,main.lua,main.luac,manifest.toml" {
 		t.Fatalf("signed paths %s", got)
+	}
+}
+
+func TestCompilePluginWritesBytecodeWithChunkNames(t *testing.T) {
+	folder := writePlugin(t)
+	if err := compilePlugin(folder); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{"main.luac", "lib/util.luac"} {
+		data, err := os.ReadFile(filepath.Join(folder, path))
+		if err != nil || len(data) < 4 || string(data[:4]) != "\x1bLua" {
+			t.Fatalf("%s is not Lua bytecode", path)
+		}
+	}
+	util, _ := os.ReadFile(filepath.Join(folder, "lib", "util.luac"))
+	if !strings.Contains(string(util), "astral.sample/lib.util") {
+		t.Fatal("module bytecode lacks its chunk name")
+	}
+	if _, err := os.Stat(filepath.Join(folder, "tests", "sample.luac")); err == nil {
+		t.Fatal("tests were compiled")
 	}
 }
 

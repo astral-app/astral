@@ -101,6 +101,9 @@ bool loadModules(PluginPackage &package, size_t limit)
             if (character == '/') character = '.';
         }
         package.modules[name] = *contents;
+        fs::path compiled = walker->path();
+        compiled.replace_extension(".luac");
+        if (auto bytecode = readFile(compiled, limit)) package.moduleBytecode[name] = *bytecode;
     }
     return true;
 }
@@ -120,6 +123,9 @@ std::optional<PluginPackage> loadPluginPackage(const std::string &directory, con
     auto source = readFile(fs::path(directory) / package.main, limits.source);
     if (!source) return std::nullopt;
     package.source = *source;
+    fs::path compiledMain = fs::path(directory) / package.main;
+    compiledMain.replace_extension(".luac");
+    if (auto bytecode = readFile(compiledMain, limits.source * 2)) package.mainBytecode = *bytecode;
     package.directory = directory;
     package.name = truncateCodepoints(package.name, limits.nameLength);
     package.version = stringAt(*manifest, "version");
