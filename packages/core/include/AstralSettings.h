@@ -105,6 +105,7 @@ class SettingsStore
     bool apply(const nlohmann::json &changes) { return stage(changes) && save(); }
 
     const std::string &path() const { return path_; }
+    const AstralSettingsHandle *handle() const { return handle_; }
 
   private:
     std::string path_;

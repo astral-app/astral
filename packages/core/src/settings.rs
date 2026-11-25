@@ -457,6 +457,10 @@ fn lock(handle: *const AstralSettingsHandle) -> Option<MutexGuard<'static, Store
     Some(handle.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner()))
 }
 
+pub unsafe fn store(handle: *const AstralSettingsHandle) -> Option<MutexGuard<'static, Store>> {
+    lock(handle)
+}
+
 fn text<'a>(data: *const c_char, length: usize) -> &'a str {
     std::str::from_utf8(bytes(data, length)).unwrap_or("")
 }
