@@ -83,6 +83,7 @@ jmethodID gEditText = nullptr;
 jmethodID gRestartGatewaySession = nullptr;
 jmethodID gPasteText = nullptr;
 jmethodID gOpenURL = nullptr;
+jmethodID gDispatchGateway = nullptr;
 jmethodID gNotify = nullptr;
 jmethodID gSpeak = nullptr;
 jmethodID gPlaySound = nullptr;
@@ -461,6 +462,11 @@ astral::LuaHostPlatform platform(const std::string &state, const std::string &re
     platform.developerLog = developerLog;
     platform.recordFailure = recordPluginFailure;
     platform.reactors = astral::reactors::lookup;
+    platform.dispatchGateway = [](const std::string &message) {
+        if (!gDispatchGateway) return false;
+        callBridge(gDispatchGateway, message);
+        return true;
+    };
     platform.scrollToMessage = [](uint64_t message, bool animated, const std::string &align) {
         if (!astral_wire_scroll_to_message(message, animated, align.c_str())) return false;
         if (gRefreshEmoji) callBridge(gRefreshEmoji);
@@ -1364,6 +1370,8 @@ ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_attachBridge
         gRestartGatewaySession = restartGatewaySessionMethod;
         gPasteText = pasteTextMethod;
         gOpenURL = openURLMethod;
+        gDispatchGateway = env->GetStaticMethodID(reference, "dispatchGateway", "(Ljava/lang/String;)V");
+        if (env->ExceptionCheck()) env->ExceptionClear();
         gNotify = notifyMethod;
         gSpeak = speakMethod;
         gPlaySound = playSoundMethod;
@@ -1485,6 +1493,144 @@ ASTRAL_EXPORT JNIEXPORT jstring JNICALL Java_app_astral_android_Native_applyBack
 ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_setSessionToken(JNIEnv *env, jclass, jstring token)
 {
     astral::session::setToken(plain(env, token));
+}
+
+namespace {
+
+std::vector<std::pair<std::string, std::string>> headersFromJava(JNIEnv *env, jobjectArray array)
+{
+    std::vector<std::pair<std::string, std::string>> headers;
+    jsize count = array ? env->GetArrayLength(array) : 0;
+    for (jsize index = 0; index + 1 < count; index += 2) {
+        auto name = static_cast<jstring>(env->GetObjectArrayElement(array, index));
+        auto value = static_cast<jstring>(env->GetObjectArrayElement(array, index + 1));
+        std::string plainName = name ? plain(env, name) : std::string();
+        for (char &character : plainName) character = static_cast<char>(tolower(static_cast<unsigned char>(character)));
+        headers.emplace_back(plainName, value ? plain(env, value) : std::string());
+        if (name) env->DeleteLocalRef(name);
+        if (value) env->DeleteLocalRef(value);
+    }
+    return headers;
+}
+
+jobjectArray headersToJava(JNIEnv *env, const std::vector<std::pair<std::string, std::string>> &headers)
+{
+    jclass stringType = env->FindClass("java/lang/String");
+    jobjectArray array = env->NewObjectArray(static_cast<jsize>(headers.size() * 2), stringType, nullptr);
+    jsize index = 0;
+    for (const auto &[name, value] : headers) {
+        jstring javaName = toJava(env, name);
+        jstring javaValue = toJava(env, value);
+        env->SetObjectArrayElement(array, index++, javaName);
+        env->SetObjectArrayElement(array, index++, javaValue);
+        env->DeleteLocalRef(javaName);
+        env->DeleteLocalRef(javaValue);
+    }
+    env->DeleteLocalRef(stringType);
+    return array;
+}
+
+struct ExchangeFields {
+    jfieldID method, url, headers, body, status, respond;
+};
+
+ExchangeFields exchangeFields(JNIEnv *env, jobject exchange)
+{
+    jclass type = env->GetObjectClass(exchange);
+    ExchangeFields fields{env->GetFieldID(type, "method", "Ljava/lang/String;"),
+                          env->GetFieldID(type, "url", "Ljava/lang/String;"),
+                          env->GetFieldID(type, "headers", "[Ljava/lang/String;"),
+                          env->GetFieldID(type, "body", "[B"),
+                          env->GetFieldID(type, "status", "I"),
+                          env->GetFieldID(type, "respond", "Z")};
+    env->DeleteLocalRef(type);
+    return fields;
+}
+
+std::string bytesFromJava(JNIEnv *env, jbyteArray array)
+{
+    if (!array) return {};
+    jsize length = env->GetArrayLength(array);
+    std::string bytes(static_cast<size_t>(length), '\0');
+    env->GetByteArrayRegion(array, 0, length, reinterpret_cast<jbyte *>(bytes.data()));
+    return bytes;
+}
+
+jbyteArray bytesToJava(JNIEnv *env, const std::string &bytes)
+{
+    jbyteArray array = env->NewByteArray(static_cast<jsize>(bytes.size()));
+    env->SetByteArrayRegion(array, 0, static_cast<jsize>(bytes.size()), reinterpret_cast<const jbyte *>(bytes.data()));
+    return array;
+}
+
+astral::luahost::HttpRequest requestFromJava(JNIEnv *env, jobject exchange, jstring path)
+{
+    ExchangeFields fields = exchangeFields(env, exchange);
+    astral::luahost::HttpRequest request;
+    request.method = plain(env, static_cast<jstring>(env->GetObjectField(exchange, fields.method)));
+    request.url = plain(env, static_cast<jstring>(env->GetObjectField(exchange, fields.url)));
+    request.path = plain(env, path);
+    request.headers = headersFromJava(env, static_cast<jobjectArray>(env->GetObjectField(exchange, fields.headers)));
+    request.body = bytesFromJava(env, static_cast<jbyteArray>(env->GetObjectField(exchange, fields.body)));
+    return request;
+}
+
+void storeExchange(JNIEnv *env, jobject exchange, const std::string &method, const std::string &url,
+                   const std::vector<std::pair<std::string, std::string>> &headers, const std::string &body, int status, bool respond)
+{
+    ExchangeFields fields = exchangeFields(env, exchange);
+    jstring javaMethod = toJava(env, method);
+    jstring javaURL = toJava(env, url);
+    jobjectArray javaHeaders = headersToJava(env, headers);
+    jbyteArray javaBody = bytesToJava(env, body);
+    env->SetObjectField(exchange, fields.method, javaMethod);
+    env->SetObjectField(exchange, fields.url, javaURL);
+    env->SetObjectField(exchange, fields.headers, javaHeaders);
+    env->SetObjectField(exchange, fields.body, javaBody);
+    env->SetIntField(exchange, fields.status, status);
+    env->SetBooleanField(exchange, fields.respond, respond ? JNI_TRUE : JNI_FALSE);
+}
+
+} // namespace
+
+ASTRAL_EXPORT JNIEXPORT jboolean JNICALL Java_app_astral_android_Native_wantsHttp(JNIEnv *env, jclass, jstring method, jstring host,
+                                                                                  jstring path)
+{
+    return astral::luahost::wantsHttp(plain(env, method), plain(env, host), plain(env, path)) ? JNI_TRUE : JNI_FALSE;
+}
+
+ASTRAL_EXPORT JNIEXPORT jboolean JNICALL Java_app_astral_android_Native_interceptHttpRequest(JNIEnv *env, jclass, jobject exchange,
+                                                                                             jstring path)
+{
+    auto request = requestFromJava(env, exchange, path);
+    auto decision = astral::luahost::interceptHttpRequest(request);
+    if (decision.response) {
+        storeExchange(env, exchange, request.method, request.url, decision.response->headers, decision.response->body,
+                      decision.response->status, true);
+        return JNI_TRUE;
+    }
+    if (!decision.changed) return JNI_FALSE;
+    storeExchange(env, exchange, request.method, request.url, request.headers, request.body, 0, false);
+    return JNI_TRUE;
+}
+
+ASTRAL_EXPORT JNIEXPORT jboolean JNICALL Java_app_astral_android_Native_interceptHttpResponse(JNIEnv *env, jclass, jobject requestExchange,
+                                                                                              jstring path, jobject responseExchange)
+{
+    auto request = requestFromJava(env, requestExchange, path);
+    ExchangeFields fields = exchangeFields(env, responseExchange);
+    astral::luahost::HttpResponse response;
+    response.status = env->GetIntField(responseExchange, fields.status);
+    response.headers = headersFromJava(env, static_cast<jobjectArray>(env->GetObjectField(responseExchange, fields.headers)));
+    response.body = bytesFromJava(env, static_cast<jbyteArray>(env->GetObjectField(responseExchange, fields.body)));
+    if (!astral::luahost::interceptHttpResponse(request, response)) return JNI_FALSE;
+    storeExchange(env, responseExchange, request.method, request.url, response.headers, response.body, response.status, true);
+    return JNI_TRUE;
+}
+
+ASTRAL_EXPORT JNIEXPORT jboolean JNICALL Java_app_astral_android_Native_needsGatewayEvents(JNIEnv *, jclass)
+{
+    return astral::luahost::needsGatewayEvents() ? JNI_TRUE : JNI_FALSE;
 }
 
 ASTRAL_EXPORT JNIEXPORT jstring JNICALL Java_app_astral_android_Native_processGatewayMessage(JNIEnv *env, jclass, jstring message)

@@ -516,7 +516,36 @@ function astral.files.pick(extensions, callback) end
 function astral.files.cancel(request) end
 
 astral.events = {}
-function astral.events.on(event, callback) end
+---@class astral.GatewayEvent
+---@field type string the dispatch type, such as "MESSAGE_CREATE"
+---@field seq? integer
+---@field data any the event's payload
+---Subscribes to an event. `"gateway"` sees every Discord gateway dispatch, or only the types listed in `types`;
+---return `false` to drop the event or a table to replace its data.
+---@param event "app.foreground"|"app.background"|"message.create"|"message.filter"|"gateway"
+---@param callback fun(event: any): any
+---@param types? string[] gateway event types to receive
+---@return integer subscription
+function astral.events.on(event, callback, types) end
+
+astral.gateway = {}
+---Delivers an event to Discord as if the gateway sent it. Only this device sees it.
+---@param type string such as "MESSAGE_CREATE"
+---@param data table
+---@return boolean delivered
+function astral.gateway.dispatch(type, data) end
+
+astral.json = {}
+---@param text string
+---@return any value nil when the text is not JSON
+function astral.json.decode(text) end
+---@param value any
+---@return string
+function astral.json.encode(value) end
+---Marks a table as a JSON array, so it encodes as [] even when empty.
+---@param table? table
+---@return table
+function astral.json.array(table) end
 function astral.events.off(subscription) end
 
 astral.messages = {}
@@ -529,6 +558,11 @@ function astral.messages.set_text(channel, message, text, options) end
 ---@param message astral.Snowflake
 ---@return string?
 function astral.messages.get_text(message) end
+---Shows a message only you see in a channel, from astral, with Discord's "Only you can see this" footer.
+---@param channel_id string
+---@param message string|table text, or message fields such as content and embeds
+---@return string? message_id
+function astral.messages.send_local(channel_id, message) end
 
 astral.discord = {}
 ---@param id astral.Snowflake
@@ -583,6 +617,35 @@ function astral.storage.keys() end
 
 astral.net = {}
 function astral.net.request(options, callback) end
+---@class astral.DiscordRequest
+---@field id string pass to release or respond after returning astral.net.HOLD
+---@field method string
+---@field url string
+---@field path string
+---@field headers table<string, string> lower-case names; the token and cookies are never included
+---@field body string
+---@class astral.DiscordResponse
+---@field status integer
+---@field headers table<string, string>
+---@field body string
+---@class astral.Intercept
+---@field path string a Lua pattern matched against the request path
+---@field method? string
+---@field request? fun(request: astral.DiscordRequest): table|string|nil nil sends it on; a table changes method, url, headers or body; a table with status answers locally; astral.net.HOLD waits
+---@field response? fun(request: astral.DiscordRequest, response: astral.DiscordResponse): table|nil a table changes status, headers or body
+---Watches and changes Discord's own requests to its API.
+---@param intercept astral.Intercept
+function astral.net.intercept(intercept) end
+---Sends a held request on, optionally changed.
+---@param id string
+---@param changes? table
+function astral.net.release(id, changes) end
+---Answers a held request locally instead of sending it.
+---@param id string
+---@param response table status, headers and body
+function astral.net.respond(id, response) end
+---@type string
+astral.net.HOLD = "hold"
 function astral.net.cancel(request) end
 
 ---@param name string

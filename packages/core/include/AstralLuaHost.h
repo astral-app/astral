@@ -39,6 +39,7 @@ struct LuaHostPlatform {
     std::function<bool(const std::string &url)> openURL;
     std::function<bool(uint64_t message, bool animated, const std::string &align)> scrollToMessage;
     std::function<bool(bool focus)> focusComposer;
+    std::function<bool(const std::string &message)> dispatchGateway;
     std::function<bool(const std::string &text, const std::string &language, double rate)> speak;
     std::function<bool(const std::string &path, double volume)> playSound;
     std::function<void()> stopAudio;
@@ -59,6 +60,25 @@ struct LuaHostPlatform {
 
 namespace luahost {
 
+struct HttpRequest {
+    std::string method;
+    std::string url;
+    std::string path;
+    std::vector<std::pair<std::string, std::string>> headers;
+    std::string body;
+};
+
+struct HttpResponse {
+    int status = 200;
+    std::vector<std::pair<std::string, std::string>> headers;
+    std::string body;
+};
+
+struct HttpDecision {
+    bool changed = false;
+    std::optional<HttpResponse> response;
+};
+
 void start(const std::vector<std::string> &directories, SettingsStore *store, bool startEnabled, LuaHostPlatform platform);
 void stop();
 void rescan();
@@ -77,6 +97,10 @@ void completeFilePick(uint64_t request, const std::optional<std::string> &name, 
                       const std::optional<std::string> &error);
 void emitEvent(const std::string &event);
 std::optional<std::string> processGatewayMessage(std::string_view message);
+bool needsGatewayEvents();
+bool wantsHttp(const std::string &method, const std::string &host, const std::string &path);
+HttpDecision interceptHttpRequest(HttpRequest &request);
+bool interceptHttpResponse(const HttpRequest &request, HttpResponse &response);
 bool pressMessageAction(std::string_view identifier);
 bool pressInsertedNode(std::string_view identifier);
 void setMenuMessage(uint64_t channelID, uint64_t messageID);

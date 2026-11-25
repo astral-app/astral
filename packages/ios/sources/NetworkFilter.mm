@@ -92,6 +92,54 @@ static void TransformOutgoingMessage(NSMutableURLRequest *request)
     [request setValue:nil forHTTPHeaderField:@"Transfer-Encoding"];
 }
 
+static BOOL WantsHttp(NSURLRequest *request)
+{
+    NSURL *url = request.URL;
+    return url && astral::luahost::wantsHttp(Text(request.HTTPMethod ?: @"GET"), Text(url.host.lowercaseString),
+                                             Text(url.path.length ? url.path : @"/"));
+}
+
+static astral::luahost::HttpRequest HttpRequestOf(NSURLRequest *request)
+{
+    astral::luahost::HttpRequest plain;
+    plain.method = Text(request.HTTPMethod ?: @"GET");
+    plain.url = Text(request.URL.absoluteString);
+    plain.path = Text(request.URL.path.length ? request.URL.path : @"/");
+    NSDictionary<NSString *, NSString *> *fields = request.allHTTPHeaderFields;
+    for (NSString *name in fields) plain.headers.emplace_back(Text(name.lowercaseString), Text(fields[name]));
+    if (request.HTTPBody) plain.body.assign((const char *)request.HTTPBody.bytes, request.HTTPBody.length);
+    return plain;
+}
+
+static void ApplyHttpRequest(NSMutableURLRequest *request, const astral::luahost::HttpRequest &plain)
+{
+    NSURL *url = [NSURL URLWithString:[NSString stringWithUTF8String:plain.url.c_str()] ?: @""];
+    if (url) request.URL = url;
+    request.HTTPMethod = [NSString stringWithUTF8String:plain.method.c_str()] ?: request.HTTPMethod;
+    NSMutableDictionary<NSString *, NSString *> *headers = [NSMutableDictionary dictionary];
+    for (const auto &[name, value] : plain.headers) {
+        NSString *key = [NSString stringWithUTF8String:name.c_str()];
+        NSString *text = [NSString stringWithUTF8String:value.c_str()];
+        if (key && text) headers[key] = text;
+    }
+    [headers removeObjectForKey:@"content-length"];
+    request.allHTTPHeaderFields = headers;
+    request.HTTPBodyStream = nil;
+    request.HTTPBody = [NSData dataWithBytes:plain.body.data() length:plain.body.size()];
+}
+
+static NSHTTPURLResponse *HttpResponseOf(NSURL *url, const astral::luahost::HttpResponse &plain)
+{
+    NSMutableDictionary<NSString *, NSString *> *headers = [NSMutableDictionary dictionary];
+    for (const auto &[name, value] : plain.headers) {
+        NSString *key = [NSString stringWithUTF8String:name.c_str()];
+        NSString *text = [NSString stringWithUTF8String:value.c_str()];
+        if (key && text && ![key isEqualToString:@"content-encoding"]) headers[key] = text;
+    }
+    headers[@"Content-Length"] = [NSString stringWithFormat:@"%zu", plain.body.size()];
+    return [[NSHTTPURLResponse alloc] initWithURL:url statusCode:plain.status HTTPVersion:@"HTTP/1.1" headerFields:headers];
+}
+
 @interface AstralNetworkFilter : NSURLProtocol
 @property (nonatomic, strong) NSURLSessionDataTask *forwarded;
 @end
@@ -105,7 +153,7 @@ static void TransformOutgoingMessage(NSMutableURLRequest *request)
         gDiscordRequests++;
         if ([request.HTTPMethod isEqualToString:@"POST"] && [request.URL.path hasSuffix:@"/messages"]) gMessageRequests++;
     }
-    return IsTelemetry(request.URL) || (StaffDevTools() && IsCurrentUser(request)) || IsOutgoingMessage(request);
+    return IsTelemetry(request.URL) || (StaffDevTools() && IsCurrentUser(request)) || IsOutgoingMessage(request) || WantsHttp(request);
 }
 
 + (BOOL)canInitWithTask:(NSURLSessionTask *)task
@@ -141,10 +189,32 @@ static void TransformOutgoingMessage(NSMutableURLRequest *request)
     [self.client URLProtocolDidFinishLoading:self];
 }
 
+- (void)deliverLocalResponse:(const astral::luahost::HttpResponse &)plain
+{
+    NSData *body = [NSData dataWithBytes:plain.body.data() length:plain.body.size()];
+    [self.client URLProtocol:self
+          didReceiveResponse:HttpResponseOf(self.request.URL, plain)
+          cacheStoragePolicy:NSURLCacheStorageNotAllowed];
+    [self.client URLProtocol:self didLoadData:body];
+    [self.client URLProtocolDidFinishLoading:self];
+}
+
 - (void)forwardRequest
 {
     NSMutableURLRequest *request = [self.request mutableCopy];
     TransformOutgoingMessage(request);
+    BOOL intercepted = WantsHttp(request);
+    astral::luahost::HttpRequest plain;
+    if (intercepted) {
+        MaterializeBody(request);
+        plain = HttpRequestOf(request);
+        auto decision = astral::luahost::interceptHttpRequest(plain);
+        if (decision.response) {
+            [self deliverLocalResponse:*decision.response];
+            return;
+        }
+        if (decision.changed) ApplyHttpRequest(request, plain);
+    }
     [NSURLProtocol setProperty:@YES forKey:kHandledKey inRequest:request];
     BOOL markStaffResponse = StaffDevTools() && IsCurrentUser(self.request);
     __weak AstralNetworkFilter *weakSelf = self;
@@ -175,6 +245,18 @@ static void TransformOutgoingMessage(NSMutableURLRequest *request)
                       gStaffUsers++;
                   }
               }
+              if (intercepted && http) {
+                  astral::luahost::HttpResponse received;
+                  received.status = (int)http.statusCode;
+                  NSDictionary *fields = http.allHeaderFields;
+                  for (NSString *name in fields)
+                      received.headers.emplace_back(Text(name.lowercaseString), Text([fields[name] description]));
+                  received.body.assign((const char *)body.bytes, body.length);
+                  if (astral::luahost::interceptHttpResponse(plain, received)) {
+                      body = [NSData dataWithBytes:received.body.data() length:received.body.size()];
+                      delivered = HttpResponseOf(http.URL, received);
+                  }
+              }
               [strongSelf.client URLProtocol:strongSelf didReceiveResponse:delivered cacheStoragePolicy:NSURLCacheStorageNotAllowed];
               [strongSelf.client URLProtocol:strongSelf didLoadData:body];
               [strongSelf.client URLProtocolDidFinishLoading:strongSelf];
@@ -189,7 +271,13 @@ static void TransformOutgoingMessage(NSMutableURLRequest *request)
         [self finishEmpty];
         return;
     }
-    [self forwardRequest];
+    if (!WantsHttp(self.request)) {
+        [self forwardRequest];
+        return;
+    }
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        [self forwardRequest];
+    });
 }
 
 - (void)stopLoading
@@ -314,7 +402,7 @@ static void Receive(id self, SEL selector, MessageHandler handler)
 
 static NSURL *WithoutGatewayCompression(NSURL *url)
 {
-    if (!url || !StaffDevTools() || ![url.host hasPrefix:@"gateway"]) return url;
+    if (!url || !(StaffDevTools() || astral::luahost::needsGatewayEvents()) || ![url.host hasPrefix:@"gateway"]) return url;
     NSURLComponents *components = [NSURLComponents componentsWithURL:url resolvingAgainstBaseURL:NO];
     NSMutableArray<NSURLQueryItem *> *items = [NSMutableArray array];
     for (NSURLQueryItem *item in components.queryItems) {
@@ -392,6 +480,17 @@ void AstralInstallNetworkFilter(BOOL (^staffDevTools)(void))
         Class webSocket = NSClassFromString(@"__NSURLSessionWebSocketTask") ?: NSClassFromString(@"NSURLSessionWebSocketTask");
         Swizzle(webSocket, @selector(receiveMessageWithCompletionHandler:), (IMP)Receive, (IMP *)&gOriginalReceive);
     });
+}
+
+BOOL AstralDispatchLocalGatewayEvent(NSString *message)
+{
+    BOOL uncompressed;
+    @synchronized(NSMutableArray.class) {
+        uncompressed = gGatewayTask != nil && gGatewayUncompressed;
+    }
+    if (!uncompressed || !message.length) return NO;
+    QueueInjected(message);
+    return YES;
 }
 
 BOOL AstralInjectGatewayMessage(NSString *message)

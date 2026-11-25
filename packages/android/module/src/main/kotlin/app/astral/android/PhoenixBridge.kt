@@ -661,6 +661,11 @@ object PhoenixBridge {
     private fun isDiscordLink(url: String) = url.startsWith("https://discord.com/channels/")
 
     @JvmStatic
+    fun dispatchGateway(message: String) {
+        handler.post { GatewaySession.dispatchLocal(message) }
+    }
+
+    @JvmStatic
     fun restartGatewaySession() = NetworkHooks.restartGatewaySession()
 
     @JvmStatic
