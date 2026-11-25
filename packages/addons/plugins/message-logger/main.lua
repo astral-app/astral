@@ -2,23 +2,19 @@ local MAXIMUM_ENTRIES = 500
 local MAXIMUM_EDITS = 5
 local DELETED = 0xFFF23F43
 local EDITED = 0xFF949BA4
-local EPHEMERAL_FLAG = 64
+local DELETED_NOTE = "This message was deleted"
 
 local settings = astral.settings.section("Logging")
 settings:switch("log_deletes", "Keep deleted messages", true, "Leaves deleted messages in the chat")
 settings:switch("log_edits", "Keep edit history", true, "Shows what an edited message said before")
 settings:switch("red_text", "Red text", true, "Draws deleted messages in red")
-settings:switch(
-	"marker",
-	"Deleted marker",
-	true,
-	"Marks deleted messages as only visible to you, with Discord's Dismiss link"
-)
+settings:switch("marker", "Deleted marker", true, "Shows This message was deleted under deleted messages")
 settings:switch("ignore_bots", "Ignore bots", true, "Doesn't log messages from bots")
 settings:switch("ignore_self", "Ignore my messages", false, "Doesn't log your own messages")
 settings:switch("persist", "Keep the log after restarting", true, "Saves the log on this device")
 
 local log = { deleted = {}, edits = {}, order = {} }
+local dismissed = {}
 local current_user
 
 local function setting(key, fallback)
@@ -79,20 +75,6 @@ local function on_delete(channel, id)
 	return true
 end
 
-local function mark_ephemeral(channel, id)
-	if not setting("marker", true) then
-		return
-	end
-	astral.time.after(0, function()
-		local message = astral.discord.raw_message(channel, id)
-		if type(message) ~= "table" then
-			return
-		end
-		message.flags = (tonumber(message.flags) or 0) | EPHEMERAL_FLAG
-		astral.gateway.dispatch("MESSAGE_UPDATE", message)
-	end)
-end
-
 local function on_update(data)
 	if type(data.content) ~= "string" then
 		return
@@ -129,19 +111,20 @@ astral.events.on("gateway", function(event)
 		return nil
 	end
 	if event.type == "MESSAGE_DELETE" then
+		if dismissed[data.id] then
+			dismissed[data.id] = nil
+			return nil
+		end
 		if not on_delete(data.channel_id, data.id) then
 			return nil
 		end
-		mark_ephemeral(data.channel_id, data.id)
 		save()
 		astral.ui.refresh()
 		return false
 	end
 	local kept = astral.json.array()
 	for _, id in ipairs(data.ids or {}) do
-		if on_delete(data.channel_id, id) then
-			mark_ephemeral(data.channel_id, id)
-		else
+		if not on_delete(data.channel_id, id) then
 			kept[#kept + 1] = id
 		end
 	end
@@ -172,7 +155,29 @@ astral.ui.text_transform(function(spans, context)
 		end
 		out[#out + 1] = span
 	end
+	if deleted and setting("marker", true) then
+		out[#out + 1] = { text = "\n" .. DELETED_NOTE, color = EDITED, scale = 0.8 }
+	end
 	return out
 end)
+
+local function dismiss(node)
+	local id = node.message_id
+	if not id or not log.deleted[id] then
+		return
+	end
+	log.deleted[id] = nil
+	log.edits[id] = nil
+	dismissed[id] = true
+	save()
+	astral.gateway.dispatch("MESSAGE_DELETE", { id = id, channel_id = node.channel_id })
+end
+
+astral.ui.message_action("Dismiss Message", dismiss, {
+	icon = "res://ic_mana_trash",
+	when = function(node)
+		return node.message_id ~= nil and log.deleted[node.message_id] == true
+	end,
+})
 
 load()

@@ -4,7 +4,15 @@ description = "Keeps deleted messages in the chat in red and shows what edited m
 version = "0.0.1"
 icon = "EyeSlashIcon"
 main = "main.lua"
-permissions = ["events.gateway", "discord.messages", "discord.messages.content", "messages.local", "ui.text", "storage"]
+permissions = [
+	"events.gateway",
+	"discord.messages",
+	"discord.messages.content",
+	"messages.local",
+	"ui.text",
+	"ui.message_actions",
+	"storage",
+]
 
 [[authors]]
 name = "rushii"

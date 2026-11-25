@@ -17,6 +17,9 @@ typedef struct {
     size_t originalLength;
     uint64_t applied;
     int overridden;
+    uint8_t *transformed;
+    size_t transformedLength;
+    uint64_t transformedFrom;
 } TrackedText;
 
 static TrackedText gTexts[kMaxTrackedTexts];
@@ -51,6 +54,7 @@ static TrackedText *textFor(uint64_t message, int create)
     if (!empty) {
         empty = &gTexts[message % kMaxTrackedTexts];
         free(empty->original);
+        free(empty->transformed);
     }
     memset(empty, 0, sizeof(*empty));
     empty->message = message;
@@ -193,6 +197,35 @@ static void startFade(Out *out, int32_t node)
     wireTweenFade(node);
 }
 
+static void rememberTransform(TrackedText *text, const uint8_t *transformed, size_t length)
+{
+    uint8_t *copy = malloc(length);
+    if (!copy) return;
+    memcpy(copy, transformed, length);
+    free(text->transformed);
+    text->transformed = copy;
+    text->transformedLength = length;
+    text->transformedFrom = hashBytes(text->original, text->originalLength);
+}
+
+static uint8_t *rememberedTransform(const TrackedText *text, size_t *length)
+{
+    if (!text->transformed || text->transformedFrom != hashBytes(text->original, text->originalLength)) return NULL;
+    uint8_t *copy = malloc(text->transformedLength);
+    if (!copy) return NULL;
+    memcpy(copy, text->transformed, text->transformedLength);
+    *length = text->transformedLength;
+    return copy;
+}
+
+static void forgetTransform(TrackedText *text)
+{
+    free(text->transformed);
+    text->transformed = NULL;
+    text->transformedLength = 0;
+    text->transformedFrom = 0;
+}
+
 static int apply(Out *out, TrackedText *text, int force)
 {
     static char override[kMaxOverride];
@@ -207,10 +240,16 @@ static int apply(Out *out, TrackedText *text, int force)
     size_t transformedLength = 0;
     if (!wanted && gSpanTransformer && text->original) {
         int result = gSpanTransformer(text->message, text->original, text->originalLength, &transformed, &transformedLength);
-        if (result < 0) wireMarkRefreshBusy();
-        if (result <= 0 || !transformed) {
+        if (result < 0) {
+            wireMarkRefreshBusy();
+            free(transformed);
+            transformed = rememberedTransform(text, &transformedLength);
+        } else if (result == 0 || !transformed) {
             free(transformed);
             transformed = NULL;
+            forgetTransform(text);
+        } else {
+            rememberTransform(text, transformed, transformedLength);
         }
     }
     const uint8_t *base = transformed ? transformed : text->original;
