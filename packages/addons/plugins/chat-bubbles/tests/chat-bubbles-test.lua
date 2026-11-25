@@ -46,7 +46,13 @@ dofile(arg[1])
 
 assert(callback)
 local automatic = callback({ message_id = "m1" })
-assert(automatic.color == 0x24FFFFFF and automatic.radius == 12 and automatic.bubble and automatic.reply == "inside")
+assert(
+	automatic.color == 0x24FFFFFF
+		and automatic.radius == 12
+		and automatic.bubble
+		and automatic.reply == "inside"
+		and automatic.name == "inside"
+)
 values.color = "#5865F2"
 values.radius = 24
 local picked = callback({ message_id = "m2" })
