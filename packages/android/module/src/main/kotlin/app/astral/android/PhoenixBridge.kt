@@ -852,6 +852,9 @@ object PhoenixBridge {
     fun fetch(url: String, token: String): ByteArray = Http.get(url, token)
 
     @JvmStatic
+    fun fetchWith(url: String, headers: String): ByteArray = Http.getWith(url, headers)
+
+    @JvmStatic
     fun request(id: Long, options: String) = Http.request(id, options)
 
     @JvmStatic

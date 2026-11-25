@@ -202,6 +202,7 @@ object NetworkHooks {
             val urlType = url.javaClass
             val host = (urlType.getMethod("host").invoke(url) as? String)?.lowercase(Locale.ROOT) ?: return proceed(chain, request)
             val path = urlType.getMethod("encodedPath").invoke(url) as? String ?: "/"
+            if (host == "discord.com" || host.endsWith(".discord.com")) noteDiscordHeaders(request, requestType, host, path)
             if (Native.isTelemetry(host, path)) {
                 recordBlocked(url.toString())
                 return noContent(request, loader)
@@ -215,6 +216,19 @@ object NetworkHooks {
             return markCurrentUser(response, loader)
         } catch (error: InvocationTargetException) {
             throw error.targetException
+        }
+    }
+
+    private fun noteDiscordHeaders(request: Any, requestType: Class<*>, host: String, path: String) {
+        runCatching {
+            val headers = requestType.getMethod("headers").invoke(request) ?: return
+            val headersType = headers.javaClass
+            val count = headersType.getMethod("size").invoke(headers) as Int
+            val name = headersType.getMethod("name", Int::class.javaPrimitiveType)
+            val value = headersType.getMethod("value", Int::class.javaPrimitiveType)
+            val fields = org.json.JSONObject()
+            for (index in 0 until count) fields.put(name.invoke(headers, index) as String, value.invoke(headers, index) as String)
+            Native.noteDiscordRequest(host, path, fields.toString())
         }
     }
 
