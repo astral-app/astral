@@ -432,6 +432,26 @@ function astral.ui.alert(title, message) end
 ---@param callback fun(accepted: boolean)
 ---@return integer request
 function astral.ui.confirm(spec, callback) end
+---@class astral.SheetItem
+---@field type "heading"|"text"|"code"|"image"|"row"|"column"|"buttons"|"input"|"divider"|"spacer"
+---@field text? string
+---@field url? string https image for `image`
+---@field items? astral.SheetItem[] children of `row` and `column`
+---@field buttons? { label: string, action: string, style: "primary"|"secondary"|"danger"? }[]
+---@field action? string sent to the handler when the item is tapped or the input is submitted
+---@class astral.Sheet
+---@field title string
+---@field items astral.SheetItem[]
+---@field expanded? boolean open at full height
+---@class astral.SheetHandle
+---@field id integer
+---@field update fun(self: astral.SheetHandle, spec: astral.Sheet)
+---@field close fun(self: astral.SheetHandle)
+---Opens a Discord-styled bottom sheet. `handler(action, value)` gets taps and submitted input, then `"closed"` once.
+---@param spec astral.Sheet
+---@param handler fun(action: string, value: string)
+---@return astral.SheetHandle
+function astral.ui.sheet(spec, handler) end
 function astral.ui.toast(title, message) end
 function astral.ui.web_auth(url, callback_url, callback) end
 function astral.ui.cancel_web_auth(request) end
@@ -677,9 +697,11 @@ astral.json = {}
 ---@param text string
 ---@return any value nil when the text is not JSON
 function astral.json.decode(text) end
+---Encodes a value as JSON with sorted keys; `indent` spaces pretty-print it.
 ---@param value any
+---@param options? { indent: integer? }
 ---@return string
-function astral.json.encode(value) end
+function astral.json.encode(value, options) end
 ---Marks a table as a JSON array, so it encodes as [] even when empty.
 ---@param table? table
 ---@return table
@@ -722,6 +744,11 @@ function astral.discord.permissions(guild, user, channel) end
 ---@param message astral.Snowflake
 ---@return astral.Message?
 function astral.discord.message(channel, message) end
+---The full stored record of a message, without the author's private fields. Needs `discord.messages.content`.
+---@param channel_id string
+---@param message_id string
+---@return table?
+function astral.discord.raw_message(channel_id, message_id) end
 ---@param channel astral.Snowflake
 ---@param message astral.Snowflake
 ---@param emoji string

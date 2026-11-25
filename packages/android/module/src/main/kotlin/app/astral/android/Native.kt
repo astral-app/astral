@@ -46,6 +46,7 @@ object Native {
     @JvmStatic external fun completeFilePick(id: Long, name: String?, data: ByteArray?, error: String?)
 
     @JvmStatic external fun completeConfirm(id: Long, accepted: Boolean)
+    @JvmStatic external fun sheetEvent(id: Long, action: String, value: String, closed: Boolean)
     @JvmStatic external fun completeWebAuth(id: Long, url: String?, cookies: String?, error: String?)
 
     @JvmStatic external fun completeTextEdit(id: Long, value: String?)

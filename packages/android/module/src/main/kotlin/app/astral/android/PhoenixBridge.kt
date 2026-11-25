@@ -392,6 +392,30 @@ object PhoenixBridge {
     fun environmentFacts(): String = EnvironmentFacts.collect()
 
     @JvmStatic
+    fun openSheet(sheet: Long, spec: String) {
+        val options = runCatching { org.json.JSONObject(spec) }.getOrNull()
+        mainHandler.post {
+            val activity = activeActivity()
+            if (options == null || activity == null || activity.isFinishing || activity.isDestroyed) {
+                Native.sheetEvent(sheet, "", "", true)
+                return@post
+            }
+            PluginSheet.open(activity, sheet, options) { action, value, closed -> Native.sheetEvent(sheet, action, value, closed) }
+        }
+    }
+
+    @JvmStatic
+    fun updateSheet(sheet: Long, spec: String) {
+        val options = runCatching { org.json.JSONObject(spec) }.getOrNull() ?: return
+        mainHandler.post { PluginSheet.update(sheet, options) }
+    }
+
+    @JvmStatic
+    fun closeSheet(sheet: Long) {
+        mainHandler.post { PluginSheet.close(sheet) }
+    }
+
+    @JvmStatic
     fun showConfirm(request: Long, spec: String) {
         val options = runCatching { org.json.JSONObject(spec) }.getOrNull()
         mainHandler.post {

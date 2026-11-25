@@ -10,6 +10,7 @@
 #import "BrowserAuth.h"
 #import "ConfirmSheet.h"
 #import "NotificationTaps.h"
+#import "PluginSheet.h"
 #import "CrashReports.h"
 #import "DevServer.h"
 #import "DiscordCache.h"
@@ -276,6 +277,9 @@ static astral::LuaHostPlatform Platform(void)
     platform.message = [](const std::string &channel, const std::string &message) {
         return JSON(AstralDiscordMessage(Native(channel), Native(message)));
     };
+    platform.rawMessage = [](const std::string &channel, const std::string &message) {
+        return JSON(AstralDiscordRawMessage(Native(channel), Native(message)));
+    };
     platform.permissions = [](const std::string &guild, const std::string &user,
                               const std::optional<std::string> &channel) -> std::optional<uint64_t> {
         NSNumber *permissions = AstralDiscordPermissions(Native(guild), Native(user), channel ? Native(*channel) : nil);
@@ -299,6 +303,21 @@ static astral::LuaHostPlatform Platform(void)
     };
     platform.cancelWebAuth = [](uint64_t request) { AstralCancelPluginWebAuth(request); };
     platform.showAlert = [](const std::string &title, const std::string &message) { AstralShowAlert(Native(title), Native(message)); };
+    platform.openSheet = [](uint64_t sheet, const nlohmann::json &spec) {
+        NSDictionary *options = AstralObjectFromJSON(spec);
+        if (![options isKindOfClass:NSDictionary.class]) return false;
+        return static_cast<bool>(AstralOpenSheet(sheet, options, ^(NSString *action, NSString *value, BOOL closed) {
+            std::string chosen = Plain(action), text = Plain(value);
+            dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+                astral::luahost::sheetEvent(sheet, chosen, text, closed);
+            });
+        }));
+    };
+    platform.updateSheet = [](uint64_t sheet, const nlohmann::json &spec) {
+        NSDictionary *options = AstralObjectFromJSON(spec);
+        if ([options isKindOfClass:NSDictionary.class]) AstralUpdateSheet(sheet, options);
+    };
+    platform.closeSheet = [](uint64_t sheet) { AstralCloseSheet(sheet); };
     platform.confirm = [](uint64_t request, const nlohmann::json &spec) {
         NSDictionary *options = @{
             @"title" : Native(spec.value("title", std::string())),

@@ -13,6 +13,9 @@ local native = {
 	insert = astral.ui.insert,
 	toast = astral.ui.toast,
 	web_auth = astral.ui.web_auth,
+	sheet = astral.ui.sheet,
+	sheet_update = astral.ui.sheet_update,
+	sheet_close = astral.ui.sheet_close,
 	cancel_web_auth = astral.ui.cancel_web_auth,
 	mention = astral.ui.mention,
 	message_color = astral.ui.message_color,
@@ -674,6 +677,26 @@ end
 function astral.ui.composer(formatter)
 	return native.composer(formatter)
 end
+
+function astral.ui.sheet(spec, handler)
+	local id = native.sheet(spec, function(action, value)
+		if handler then
+			handler(action, value)
+		end
+	end)
+	return {
+		id = id,
+		update = function(_, next_spec)
+			native.sheet_update(id, next_spec)
+		end,
+		close = function()
+			native.sheet_close(id)
+		end,
+	}
+end
+
+astral.ui.sheet_update = nil
+astral.ui.sheet_close = nil
 
 function astral.ui.toast(title, message)
 	return native.toast(title, message)

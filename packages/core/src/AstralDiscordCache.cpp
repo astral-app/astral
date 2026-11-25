@@ -378,6 +378,18 @@ std::optional<std::string> messageChannel(const std::string &messageID)
     return channelID;
 }
 
+std::optional<nlohmann::json> rawMessage(const std::string &channelID, const std::string &messageID)
+{
+    std::lock_guard<std::recursive_mutex> lock(gMutex);
+    if (!snowflake(channelID) || !snowflake(messageID)) return std::nullopt;
+    auto record = parsed(column("SELECT v FROM messages WHERE k = ?", key(channelID) + ":" + key(messageID)));
+    if (!record) return std::nullopt;
+    if (record->contains("author") && (*record)["author"].is_object())
+        for (const char *field : {"email", "phone", "mfa_enabled", "verified", "personal_connection_id"}) (*record)["author"].erase(field);
+    for (const char *field : {"edit_history", "deleted", "first_edit_timestamp"}) record->erase(field);
+    return record;
+}
+
 std::optional<nlohmann::json> message(const std::string &channelID, const std::string &messageID)
 {
     std::lock_guard<std::recursive_mutex> lock(gMutex);

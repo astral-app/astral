@@ -911,6 +911,15 @@ static void testFilePickerAndDialogs(const std::string &work)
         return true;
     };
     platform.cancelWebAuth = [&](uint64_t request) { cancelledAuthRequests.push_back(request); };
+    uint64_t openedSheet = 0, closedSheet = 0;
+    nlohmann::json sheetSpec, updatedSheet;
+    platform.openSheet = [&](uint64_t sheet, const nlohmann::json &spec) {
+        openedSheet = sheet;
+        sheetSpec = spec;
+        return true;
+    };
+    platform.updateSheet = [&](uint64_t, const nlohmann::json &spec) { updatedSheet = spec; };
+    platform.closeSheet = [&](uint64_t sheet) { closedSheet = sheet; };
     uint64_t confirmRequest = 0;
     nlohmann::json confirmSpec;
     platform.confirm = [&](uint64_t request, const nlohmann::json &spec) {
@@ -937,6 +946,17 @@ static void testFilePickerAndDialogs(const std::string &work)
     assert(confirmSpec["title"] == "Send?" && confirmSpec["confirm"] == "Send" && confirmSpec["cancel"] == "Cancel" &&
            confirmSpec["image"] == "https://cdn.example/s.png");
     astral::luahost::completeConfirm(confirmRequest, true);
+    assert(astral::luahost::eval(
+               "astral.native-ui-test",
+               "sheet = astral.ui.sheet({ title = 'Raw', items = { { type = 'code', text = '{}' } } }, function(action, value) "
+               "astral.storage.set('sheet_event', action .. ':' .. value) end); return tostring(sheet.id > 0)") == "true");
+    assert(sheetSpec["title"] == "Raw" && sheetSpec["items"][0]["type"] == "code");
+    astral::luahost::sheetEvent(openedSheet, "copy", "data", false);
+    assert(astral::luahost::eval("astral.native-ui-test", "return astral.storage.get('sheet_event')") == "copy:data");
+    astral::luahost::eval("astral.native-ui-test", "sheet:update({ title = 'Raw 2' }); sheet:close()");
+    assert(updatedSheet["title"] == "Raw 2" && closedSheet == openedSheet);
+    astral::luahost::sheetEvent(openedSheet, "", "", true);
+    assert(astral::luahost::eval("astral.native-ui-test", "return astral.storage.get('sheet_event')") == "closed:");
     assert(astral::luahost::eval("astral.native-ui-test", "return tostring(astral.storage.get('confirmed'))") == "true");
     assert(astral::luahost::eval("astral.native-ui-test",
                                  "return tostring(pcall(astral.ui.confirm, { title = 'x', image = 'http://a' }, function() end))") ==

@@ -1,10 +1,17 @@
 id = "astral.view-raw"
 name = "View Raw"
-description = "Shows a message's raw data and content in a reply only you can see, ready to copy."
+description = "View and copy raw data for messages."
 version = "0.0.1"
 icon = "TextIcon"
 main = "main.lua"
-permissions = ["discord.messages", "discord.messages.content", "messages.local", "ui.message_actions", "ui.clipboard"]
+permissions = [
+	"discord.messages",
+	"discord.messages.content",
+	"ui.message_actions",
+	"ui.clipboard",
+	"ui.dialogs",
+	"ui.toasts",
+]
 
 [[authors]]
 name = "King Fish"

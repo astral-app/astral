@@ -82,6 +82,9 @@ jmethodID gPickFile = nullptr;
 jmethodID gCancelFilePick = nullptr;
 jmethodID gOpenWebAuth = nullptr;
 jmethodID gShowConfirm = nullptr;
+jmethodID gOpenSheet = nullptr;
+jmethodID gUpdateSheet = nullptr;
+jmethodID gCloseSheet = nullptr;
 jmethodID gCancelWebAuth = nullptr;
 jmethodID gEditText = nullptr;
 jmethodID gRestartGatewaySession = nullptr;
@@ -414,6 +417,7 @@ astral::LuaHostPlatform platform(const std::string &state, const std::string &re
     platform.relationship = astral::discord::relationshipType;
     platform.messageChannel = astral::discord::messageChannel;
     platform.message = astral::discord::message;
+    platform.rawMessage = astral::discord::rawMessage;
     platform.permissions = astral::discord::permissions;
     platform.networkRequest = startNetworkRequest;
     platform.cancelNetworkRequest = cancelNetworkRequest;
@@ -422,6 +426,16 @@ astral::LuaHostPlatform platform(const std::string &state, const std::string &re
     platform.webAuth = [](uint64_t request, const std::string &url, const std::string &callbackURL) {
         if (!gOpenWebAuth) return false;
         return callBridge(gOpenWebAuth, static_cast<jlong>(request), url, callbackURL);
+    };
+    platform.openSheet = [](uint64_t sheet, const nlohmann::json &spec) {
+        if (!gOpenSheet) return false;
+        return callBridge(gOpenSheet, static_cast<jlong>(sheet), spec.dump());
+    };
+    platform.updateSheet = [](uint64_t sheet, const nlohmann::json &spec) {
+        if (gUpdateSheet) callBridge(gUpdateSheet, static_cast<jlong>(sheet), spec.dump());
+    };
+    platform.closeSheet = [](uint64_t sheet) {
+        if (gCloseSheet) callBridge(gCloseSheet, static_cast<jlong>(sheet));
     };
     platform.confirm = [](uint64_t request, const nlohmann::json &spec) {
         if (!gShowConfirm) return false;
@@ -1515,6 +1529,12 @@ ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_attachBridge
         if (env->ExceptionCheck()) env->ExceptionClear();
         gEnvironmentFacts = env->GetStaticMethodID(reference, "environmentFacts", "()Ljava/lang/String;");
         if (env->ExceptionCheck()) env->ExceptionClear();
+        gOpenSheet = env->GetStaticMethodID(reference, "openSheet", "(JLjava/lang/String;)V");
+        if (env->ExceptionCheck()) env->ExceptionClear();
+        gUpdateSheet = env->GetStaticMethodID(reference, "updateSheet", "(JLjava/lang/String;)V");
+        if (env->ExceptionCheck()) env->ExceptionClear();
+        gCloseSheet = env->GetStaticMethodID(reference, "closeSheet", "(J)V");
+        if (env->ExceptionCheck()) env->ExceptionClear();
         gNotify = notifyMethod;
         gSpeak = speakMethod;
         gPlaySound = playSoundMethod;
@@ -1542,6 +1562,18 @@ ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_completeRequ
     }
     if (error) response["error"] = fromJava(env, error);
     astral::luahost::completeNetworkRequest(static_cast<uint64_t>(request), response);
+}
+
+ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_sheetEvent(JNIEnv *env, jclass, jlong sheet, jstring action,
+                                                                               jstring value, jboolean closed)
+{
+    if (sheet <= 0) return;
+    std::string chosen = action ? fromJava(env, action) : std::string();
+    std::string text = value ? fromJava(env, value) : std::string();
+    bool finished = closed == JNI_TRUE;
+    std::thread([sheet, chosen, text, finished] {
+        astral::luahost::sheetEvent(static_cast<uint64_t>(sheet), chosen, text, finished);
+    }).detach();
 }
 
 ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_completeConfirm(JNIEnv *, jclass, jlong request, jboolean accepted)

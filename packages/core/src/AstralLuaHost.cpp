@@ -159,6 +159,7 @@ struct LuaPlugin : astral::PluginPackage, astral::PluginHealth {
     std::map<uint64_t, LuaTimer> timers;
     std::map<uint64_t, int> webAuthRequests;
     std::map<uint64_t, int> confirmRequests;
+    std::map<uint64_t, int> sheets;
     std::map<uint64_t, int> filePicks;
     std::map<uint64_t, LuaEventCallback> eventCallbacks;
     std::vector<LuaHttpHook> httpHooks;
@@ -596,7 +597,13 @@ static int EncodeJSON(lua_State *state)
 {
     nlohmann::json value;
     if (!astral::lua::toJSON(state, 1, value)) return luaL_error(state, "astral.json.encode: value is not JSON-compatible");
-    std::string text = value.dump();
+    int indent = -1;
+    if (lua_istable(state, 2)) {
+        lua_getfield(state, 2, "indent");
+        if (lua_isinteger(state, -1)) indent = static_cast<int>(std::clamp<lua_Integer>(lua_tointeger(state, -1), 0, 8));
+        lua_pop(state, 1);
+    }
+    std::string text = value.dump(indent, ' ', false, nlohmann::json::error_handler_t::replace);
     lua_pushlstring(state, text.data(), text.size());
     return 1;
 }
@@ -920,6 +927,74 @@ static int Confirm(lua_State *state)
     }
     lua_pushinteger(state, static_cast<lua_Integer>(request));
     return 1;
+}
+
+static constexpr size_t kMaximumSheetSpec = 256 * 1024;
+
+static std::optional<nlohmann::json> SheetSpec(lua_State *state, int index, const char *function)
+{
+    luaL_checktype(state, index, LUA_TTABLE);
+    nlohmann::json spec;
+    if (!astral::lua::toJSON(state, index, spec) || !spec.is_object()) {
+        luaL_error(state, "%s: give a sheet table", function);
+        return std::nullopt;
+    }
+    if (spec.dump().size() > kMaximumSheetSpec) {
+        luaL_error(state, "%s: the sheet exceeds 256 KiB", function);
+        return std::nullopt;
+    }
+    return spec;
+}
+
+static uint64_t SheetId(lua_State *state, LuaPlugin *plugin, const char *function)
+{
+    lua_Integer value = luaL_checkinteger(state, 1);
+    uint64_t sheet = value > 0 ? static_cast<uint64_t>(value) : 0;
+    if (!plugin->sheets.count(sheet)) luaL_error(state, "%s: that sheet is not open", function);
+    return sheet;
+}
+
+static int OpenSheet(lua_State *state)
+{
+    LuaPlugin *plugin = Self(state);
+    RequirePermission(state, "ui.dialogs");
+    auto spec = SheetSpec(state, 1, "astral.ui.sheet");
+    luaL_checktype(state, 2, LUA_TFUNCTION);
+    if (plugin->sheets.size() >= 4) return luaL_error(state, "astral.ui.sheet: at most 4 open sheets per plugin");
+    if (!gPlatform.openSheet) return luaL_error(state, "astral.ui.sheet: sheets are unavailable on this build");
+    uint64_t sheet = gNextRequest.fetch_add(1);
+    if (!sheet) sheet = gNextRequest.fetch_add(1);
+    lua_pushvalue(state, 2);
+    plugin->sheets[sheet] = luaL_ref(state, LUA_REGISTRYINDEX);
+    bool shown = false;
+    try {
+        shown = gPlatform.openSheet(sheet, *spec);
+    } catch (...) {
+    }
+    if (!shown) {
+        luaL_unref(state, LUA_REGISTRYINDEX, plugin->sheets[sheet]);
+        plugin->sheets.erase(sheet);
+        return luaL_error(state, "astral.ui.sheet: could not show the sheet");
+    }
+    lua_pushinteger(state, static_cast<lua_Integer>(sheet));
+    return 1;
+}
+
+static int UpdateSheet(lua_State *state)
+{
+    LuaPlugin *plugin = Self(state);
+    uint64_t sheet = SheetId(state, plugin, "astral.ui.sheet_update");
+    auto spec = SheetSpec(state, 2, "astral.ui.sheet_update");
+    if (gPlatform.updateSheet) gPlatform.updateSheet(sheet, *spec);
+    return 0;
+}
+
+static int CloseSheet(lua_State *state)
+{
+    LuaPlugin *plugin = Self(state);
+    uint64_t sheet = SheetId(state, plugin, "astral.ui.sheet_close");
+    if (gPlatform.closeSheet) gPlatform.closeSheet(sheet);
+    return 0;
 }
 
 static int ShowToast(lua_State *state)
@@ -2173,6 +2248,15 @@ static int Message(lua_State *state)
     return 1;
 }
 
+static int RawMessage(lua_State *state)
+{
+    RequirePermission(state, "discord.messages");
+    RequirePermission(state, "discord.messages.content");
+    auto message = gPlatform.rawMessage ? gPlatform.rawMessage(Argument(state, 1), Argument(state, 2)) : std::nullopt;
+    PushObject(state, message);
+    return 1;
+}
+
 static bool gReactorsStale;
 
 static int Reactors(lua_State *state)
@@ -2446,6 +2530,9 @@ static void InstallAPI(LuaPlugin *plugin)
     Function(state, plugin, "relabel", Relabel);
     Function(state, plugin, "alert", ShowAlert);
     Function(state, plugin, "confirm", Confirm);
+    Function(state, plugin, "sheet", OpenSheet);
+    Function(state, plugin, "sheet_update", UpdateSheet);
+    Function(state, plugin, "sheet_close", CloseSheet);
     Function(state, plugin, "toast", ShowToast);
     Function(state, plugin, "copy", CopyText);
     Function(state, plugin, "paste", PasteText);
@@ -2542,6 +2629,7 @@ static void InstallAPI(LuaPlugin *plugin)
     Function(state, plugin, "channel_guild", ChannelGuild);
     Function(state, plugin, "permissions", Permissions);
     Function(state, plugin, "message", Message);
+    Function(state, plugin, "raw_message", RawMessage);
     Function(state, plugin, "reactors", Reactors);
     Function(state, plugin, "user", User);
     Function(state, plugin, "nickname", Nickname);
@@ -2594,6 +2682,17 @@ static void Stop(LuaPlugin *plugin)
         if (gPlatform.cancelNetworkRequest) {
             try {
                 gPlatform.cancelNetworkRequest(request);
+            } catch (...) {
+            }
+        }
+        if (plugin->state) luaL_unref(plugin->state, LUA_REGISTRYINDEX, reference);
+    }
+    auto sheets = std::move(plugin->sheets);
+    plugin->sheets.clear();
+    for (const auto &[sheet, reference] : sheets) {
+        if (gPlatform.closeSheet) {
+            try {
+                gPlatform.closeSheet(sheet);
             } catch (...) {
             }
         }
@@ -2999,6 +3098,28 @@ void completeNetworkRequest(uint64_t request, const nlohmann::json &result)
         luaL_unref(state, LUA_REGISTRYINDEX, reference);
         astral::lua::pushJSON(state, response);
         if (!Call(plugin, 1, 0, "network callback")) {
+            MarkFailed(plugin);
+            Stop(plugin);
+        }
+        return;
+    }
+}
+
+void sheetEvent(uint64_t sheet, const std::string &action, const std::string &value, bool closed)
+{
+    std::lock_guard<std::recursive_mutex> lock(gMutex);
+    for (auto *plugin : gPlugins) {
+        auto found = plugin->sheets.find(sheet);
+        if (found == plugin->sheets.end()) continue;
+        int reference = found->second;
+        if (closed) plugin->sheets.erase(found);
+        if (!plugin->state || plugin->failed) return;
+        lua_State *state = plugin->state;
+        lua_rawgeti(state, LUA_REGISTRYINDEX, reference);
+        if (closed) luaL_unref(state, LUA_REGISTRYINDEX, reference);
+        lua_pushlstring(state, closed ? "closed" : action.data(), closed ? 6 : action.size());
+        lua_pushlstring(state, value.data(), value.size());
+        if (!Call(plugin, 2, 0, "sheet")) {
             MarkFailed(plugin);
             Stop(plugin);
         }
