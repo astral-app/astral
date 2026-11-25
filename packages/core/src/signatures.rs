@@ -164,7 +164,7 @@ fn unsigned_code(root: &Path, files: &BTreeMap<String, String>) -> Option<bool> 
     Some(false)
 }
 
-pub fn verify_directory(public_key: &[u8], directory: &[u8], main: &str, digest: Digest, context: *mut c_void) -> bool {
+pub fn verify_directory(public_key: &[u8], directory: &[u8], main: &str, digest: impl Fn(&[u8]) -> Vec<u8>) -> bool {
     if !safe_path(main) {
         return false;
     }
@@ -189,7 +189,7 @@ pub fn verify_directory(public_key: &[u8], directory: &[u8], main: &str, digest:
             return false;
         };
         total += contents.len();
-        if total > TOTAL_LIMIT || digest_of(digest, context, &contents) != expected.as_bytes() {
+        if total > TOTAL_LIMIT || digest(&contents) != expected.as_bytes() {
             return false;
         }
     }
@@ -252,7 +252,6 @@ pub unsafe extern "C" fn astral_signatures_directory(
         bytes(key, key_length),
         bytes(directory, directory_length),
         main,
-        digest,
-        context,
+        |contents| digest_of(digest, context, contents),
     ))
 }

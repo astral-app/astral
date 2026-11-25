@@ -303,6 +303,7 @@ __attribute__((constructor)) static void AstralBootstrap(void)
     });
     settings = std::make_unique<astral::SettingsStore>(astral::joinPath(stateDirectory, "settings.json"));
     settings->load();
+    AstralConfigureMarketplace();
     missingExtensions = AstralMissingAppExtensions();
     AstralApplyTheme(AstralActiveThemeID());
     AstralOnPhoenixRouteChange(^{
