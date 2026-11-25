@@ -29,7 +29,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
-        run: |
+        run: |-
           set -euo pipefail
           pr=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$HEAD_BRANCH" --state open --author 'app/dependabot' --json number,headRefOid \
             --jq ".[] | select(.headRefOid == \"$HEAD_SHA\") | .number")

@@ -78,6 +78,7 @@ func runLint(args []string) error {
 		func() error { return clangFormat("--dry-run", "-Werror") },
 		checkGoFormat,
 		func() error { return run(repoPath("packages", "tools"), "go", "vet", "./...") },
+		lintAllWorkflows,
 	}
 	for _, step := range steps {
 		if err := step(); err != nil {
@@ -95,6 +96,9 @@ func runFormat(args []string) error {
 		return err
 	}
 	if err := clangFormat("-i"); err != nil {
+		return err
+	}
+	if err := formatAllYAML(); err != nil {
 		return err
 	}
 	files, err := goFiles()

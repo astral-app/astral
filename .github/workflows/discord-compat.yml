@@ -160,7 +160,7 @@ jobs:
         run: echo "::warning title=Alpha unsupported::$(jq -r '"Discord Android alpha " + (.versionCode|tostring)' android-compat.json) is not supported; alpha breakages are an early warning"
       - name: Report an unsupported build
         if: steps.scan.outputs.outcome == 'unsupported' && matrix.channel != 'alpha'
-        run: |
+        run: |-
           set -euo pipefail
           version=$(jq -r '.versionCode|tostring' android-compat.json)
           title="compat: Discord Android $version ($CHANNEL) is not supported"
