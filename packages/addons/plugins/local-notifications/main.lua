@@ -81,7 +81,7 @@ astral.events.on("gateway", function(event)
 	if event.type == "READY" then
 		current_user = type(data.user) == "table" and data.user.id or nil
 	elseif in_background and wanted(data) then
-		astral.ui.notify(title_of(data), body_of(data))
+		astral.ui.notify(title_of(data), body_of(data), { channel_id = data.channel_id, message_id = data.id })
 	end
 	return nil
 end, { "READY", "MESSAGE_CREATE" })
