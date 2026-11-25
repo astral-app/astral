@@ -1,12 +1,14 @@
 #include "PhoenixWireInternal.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-enum { kMaxTrackedTexts = 512, kMaxOverride = 8192, kMaxNote = 64 };
+enum { kMaxTrackedTexts = 512, kMaxOverride = 8192, kMaxNote = 64, kMaxTime = 48 };
 
 static const char kContentPrefix[] = "message.content:";
 static const uint32_t kNoteColor = 0x99FFFFFF;
+static const double kTimeScale = 0.75;
 
 typedef struct {
     uint64_t message;
@@ -103,18 +105,32 @@ static uint64_t hashOf(const char *text, const char *note)
     return hash ? hash : 1;
 }
 
-static void putOverride(Out *out, int32_t node, const char *text, const char *note)
+static void putTimeSpan(Out *out, const char *time)
+{
+    char spaced[kMaxTime + 4];
+    snprintf(spaced, sizeof(spaced), "   %s", time);
+    wirePut8(out, 8);
+    wirePut32(out, 3);
+    wirePropString(out, P(text), spaced);
+    wirePropLong(out, P(color), (int64_t)kNoteColor);
+    wirePropNumber(out, P(scale), kTimeScale);
+}
+
+static void putOverride(Out *out, int32_t node, const char *text, const char *note, const char *time)
 {
     wirePut8(out, 2);
     wirePut32(out, (uint32_t)node);
     wirePut16(out, 1);
     wirePut16(out, P(spans));
     wirePut8(out, 7);
-    wirePut32(out, note[0] ? 2 : 1);
+    wirePut32(out, (note[0] ? 2 : 1) + (time[0] ? 1 : 0));
     wirePut8(out, 8);
     wirePut32(out, 1);
     wirePropString(out, P(text), text);
-    if (!note[0]) return;
+    if (!note[0]) {
+        if (time[0]) putTimeSpan(out, time);
+        return;
+    }
     char suffix[kMaxNote + 4];
     size_t length = strlen(note);
     suffix[0] = ' ';
@@ -126,6 +142,23 @@ static void putOverride(Out *out, int32_t node, const char *text, const char *no
     wirePut32(out, 2);
     wirePropString(out, P(text), suffix);
     wirePropLong(out, P(color), (int64_t)kNoteColor);
+    if (time[0]) putTimeSpan(out, time);
+}
+
+static int putOriginalWithTime(Out *out, const TrackedText *text, const char *time)
+{
+    if (!text->original || text->originalLength < 5 || text->original[0] != 7) return 0;
+    uint32_t count = 0;
+    memcpy(&count, text->original + 1, sizeof(count));
+    wirePut8(out, 2);
+    wirePut32(out, (uint32_t)text->node);
+    wirePut16(out, 1);
+    wirePut16(out, P(spans));
+    wirePut8(out, 7);
+    wirePut32(out, count + 1);
+    wirePut(out, text->original + 5, text->originalLength - 5);
+    putTimeSpan(out, time);
+    return 1;
 }
 
 static void putOriginal(Out *out, const TrackedText *text)
@@ -141,13 +174,20 @@ static int apply(Out *out, TrackedText *text, int force)
 {
     static char override[kMaxOverride];
     static char note[kMaxNote];
+    static char time[kMaxTime];
     override[0] = 0;
     note[0] = 0;
+    time[0] = 0;
     int wanted = gTextProvider && gTextProvider(text->message, override, sizeof(override), note, sizeof(note)) && override[0];
-    if (wanted) {
-        uint64_t hash = hashOf(override, note);
+    wireInlineTime(text->message, time, sizeof(time));
+    if (wanted || time[0]) {
+        uint64_t hash = wanted ? hashOf(override, note) : 2;
+        hash = (hash ^ hashOf(time, "")) | 1;
         if (!force && text->applied == hash) return 0;
-        putOverride(out, text->node, override, note);
+        if (wanted)
+            putOverride(out, text->node, override, note, time);
+        else if (!putOriginalWithTime(out, text, time))
+            return 0;
         text->applied = hash;
         return 1;
     }
@@ -157,9 +197,14 @@ static int apply(Out *out, TrackedText *text, int force)
     return 1;
 }
 
+void wireApplyMessageText(Out *out, uint64_t message)
+{
+    TrackedText *text = message ? textFor(message, 0) : NULL;
+    if (text && text->node && text->original) apply(out, text, 0);
+}
+
 void wireMessageTexts(const uint8_t *bytes, const Span *spans, size_t count, Out *out, int *changed, size_t length)
 {
-    if (!gTextProvider) return;
     Out update = {0};
     int any = 0;
     for (size_t index = 0; index < count; index++) {

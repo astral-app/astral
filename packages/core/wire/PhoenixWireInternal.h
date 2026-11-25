@@ -151,6 +151,8 @@ enum { kWireIdentifierLength = 128, kWireTypeLength = 16 };
 int wireReadIdentifier(const uint8_t *bytes, const Span *span, char *identifier, char *type);
 uint64_t wireMessageOfIdentifier(const char *identifier);
 int wireWriteHostLayout(Out *out, int32_t parent);
+size_t wireInlineTime(uint64_t message, char *text, size_t capacity);
+void wireApplyMessageText(Out *out, uint64_t message);
 uint32_t wireInsertedChildren(int32_t parent, int32_t *children, uint32_t capacity, int *atStart);
 void wireInsertNodes(const uint8_t *bytes, const Span *spans, size_t count, Out *out, int *changed, size_t length);
 uint64_t wireMessageAuthor(uint64_t message);

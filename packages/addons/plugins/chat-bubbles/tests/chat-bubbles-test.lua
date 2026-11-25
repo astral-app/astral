@@ -47,18 +47,19 @@ dofile(arg[1])
 assert(callback)
 local automatic = callback({ message_id = "m1" })
 assert(
-	automatic.color == 0x24FFFFFF
-		and automatic.radius == 12
+	automatic.color == 0x33000000
+		and automatic.radius == 16
 		and automatic.bubble
 		and automatic.reply == "inside"
 		and automatic.name == "inside"
+		and automatic.time == "header"
 )
 values.color = "#5865F2"
 values.radius = 24
 local picked = callback({ message_id = "m2" })
-assert(picked.color.value == 0x665865F2 and picked.radius == 24)
-values.opacity = 100
-assert(callback({ message_id = "m3" }).color.value == 0xFF5865F2)
+assert(picked.color.value == 0xFF5865F2 and picked.radius == 24)
+values.opacity = 40
+assert(callback({ message_id = "m3" }).color.value == 0x665865F2)
 values.reply = "bubble"
 assert(callback({ message_id = "m4" }).reply == "bubble")
 

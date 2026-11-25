@@ -148,6 +148,7 @@ typedef struct {
 } AstralMessageBackgroundContext;
 
 typedef enum { AstralReplyAbove = 0, AstralReplyBubble = 1, AstralReplyInside = 2 } AstralReplyStyle;
+typedef enum { AstralTimeHeader = 0, AstralTimeInline = 1, AstralTimeHidden = 2 } AstralTimeStyle;
 
 typedef struct {
     uint32_t color;
@@ -155,6 +156,7 @@ typedef struct {
     int bubble;
     int reply;
     int nameInside;
+    int time;
 } AstralMessageBackgroundStyle;
 
 typedef int (*AstralMessageBackgroundDecorator)(const AstralMessageBackgroundContext *context, AstralMessageBackgroundStyle *style);

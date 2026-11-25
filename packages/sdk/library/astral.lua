@@ -470,6 +470,7 @@ function astral.ui.insert(selector, build, on_press) end
 ---@field bubble? boolean
 ---@field reply? "above"|"bubble"|"inside"
 ---@field name? "above"|"inside" where the author line sits on the first message of a group
+---@field time? "header"|"inline"|"hidden" where the time sits: in the author line, beside the text, or nowhere
 ---@param decorator fun(node: astral.Node): astral.MessageBackgroundStyle?
 function astral.ui.message_background(decorator) end
 ---@param colorizer fun(node: astral.Node): astral.Color|integer|string|nil
