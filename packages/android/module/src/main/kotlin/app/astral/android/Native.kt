@@ -52,6 +52,10 @@ object Native {
     @JvmStatic external fun emitEvent(event: String)
 
     @JvmStatic external fun processGatewayMessage(message: String): String?
+    @JvmStatic external fun needsGatewayEvents(): Boolean
+    @JvmStatic external fun wantsHttp(method: String, host: String, path: String): Boolean
+    @JvmStatic external fun interceptHttpRequest(exchange: HttpExchange, path: String): Boolean
+    @JvmStatic external fun interceptHttpResponse(request: HttpExchange, path: String, response: HttpExchange): Boolean
 
     @JvmStatic external fun recordExitReport(kind: String, timestamp: Long, reason: Int, description: String, trace: String)
 

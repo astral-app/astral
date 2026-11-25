@@ -32,6 +32,14 @@ object GatewaySession {
         deliverInvalidSession(target, from, method)
     }
 
+    fun dispatchLocal(message: String): Boolean {
+        val (current, target, method, plain) = synchronized(lock) { Quad(socket, listener, onMessage, uncompressed) }
+        if (current == null || target == null || method == null || !plain) return false
+        return runCatching { method.invoke(target, current, message) }
+            .onFailure { Log.warning("Failed to deliver a local gateway event: ${it.javaClass.simpleName}: ${it.message}") }
+            .isSuccess
+    }
+
     fun restart() {
         val staffTools = runCatching { Native.staffDevToolsEnabled() }.getOrDefault(false)
         val (current, target, method, plain) = synchronized(lock) { Quad(socket, listener, onMessage, uncompressed) }

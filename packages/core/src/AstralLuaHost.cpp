@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "AstralLog.h"
+#include "AstralNetworkPolicy.h"
 #include "AstralJSON.h"
 #include "AstralSettings.h"
 #include "LuaJSON.h"
@@ -100,6 +101,7 @@ struct LuaNodeInsert {
 struct LuaEventCallback {
     std::string event;
     int reference;
+    std::set<std::string> types;
 };
 
 struct LuaMessageAction {
@@ -108,6 +110,13 @@ struct LuaMessageAction {
     std::string icon = {};
     int reference;
     int when = LUA_NOREF;
+};
+
+struct LuaHttpHook {
+    std::string method;
+    std::string pattern;
+    int request = LUA_NOREF;
+    int response = LUA_NOREF;
 };
 
 struct LuaTimer {
@@ -143,6 +152,7 @@ struct LuaPlugin : astral::PluginPackage, astral::PluginHealth {
     std::map<uint64_t, int> webAuthRequests;
     std::map<uint64_t, int> filePicks;
     std::map<uint64_t, LuaEventCallback> eventCallbacks;
+    std::vector<LuaHttpHook> httpHooks;
 };
 
 static int Translate(lua_State *state);
@@ -303,6 +313,268 @@ static void ScheduleTimer(uint64_t identifier, int64_t delay)
     std::lock_guard<std::mutex> lock(gTimerLock);
     gTimerQueue.emplace(std::chrono::steady_clock::now() + std::chrono::milliseconds(delay), identifier);
     gTimerWake.notify_one();
+}
+
+struct HttpHold {
+    std::mutex mutex;
+    std::condition_variable ready;
+    bool done = false;
+    LuaPlugin *owner = nullptr;
+    std::optional<astral::luahost::HttpResponse> response;
+    std::optional<nlohmann::json> changes;
+};
+
+static std::mutex gHoldMutex;
+static std::map<uint64_t, std::shared_ptr<HttpHold>> gHttpHolds;
+static constexpr const char *kHoldRequest = "hold";
+static constexpr auto kMaximumHold = std::chrono::minutes(10);
+static constexpr size_t kMaximumHttpBody = 4u << 20;
+
+static bool HiddenHeader(const std::string &name)
+{
+    return name == "authorization" || name == "cookie" || name == "set-cookie";
+}
+
+static std::string LowerCase(std::string value)
+{
+    for (char &character : value) character = static_cast<char>(tolower(static_cast<unsigned char>(character)));
+    return value;
+}
+
+static void FinishHold(uint64_t exchange, std::optional<astral::luahost::HttpResponse> response, std::optional<nlohmann::json> changes)
+{
+    std::shared_ptr<HttpHold> hold;
+    {
+        std::lock_guard<std::mutex> lock(gHoldMutex);
+        auto found = gHttpHolds.find(exchange);
+        if (found == gHttpHolds.end()) return;
+        hold = found->second;
+        gHttpHolds.erase(found);
+    }
+    std::lock_guard<std::mutex> lock(hold->mutex);
+    hold->response = std::move(response);
+    hold->changes = std::move(changes);
+    hold->done = true;
+    hold->ready.notify_all();
+}
+
+static void ReleaseHttpHooks(LuaPlugin *plugin)
+{
+    for (const auto &hook : plugin->httpHooks) {
+        if (!plugin->state) continue;
+        if (hook.request != LUA_NOREF) luaL_unref(plugin->state, LUA_REGISTRYINDEX, hook.request);
+        if (hook.response != LUA_NOREF) luaL_unref(plugin->state, LUA_REGISTRYINDEX, hook.response);
+    }
+    plugin->httpHooks.clear();
+    std::vector<uint64_t> owned;
+    {
+        std::lock_guard<std::mutex> lock(gHoldMutex);
+        for (const auto &[exchange, hold] : gHttpHolds)
+            if (hold->owner == plugin) owned.push_back(exchange);
+    }
+    for (uint64_t exchange : owned) FinishHold(exchange, std::nullopt, std::nullopt);
+}
+
+static bool PatternMatches(lua_State *state, const std::string &text, const std::string &pattern)
+{
+    int top = lua_gettop(state);
+    lua_getglobal(state, "string");
+    if (!lua_istable(state, -1)) {
+        lua_settop(state, top);
+        return false;
+    }
+    lua_getfield(state, -1, "find");
+    lua_pushlstring(state, text.data(), text.size());
+    lua_pushlstring(state, pattern.data(), pattern.size());
+    bool matched = lua_pcall(state, 2, 1, 0) == LUA_OK && !lua_isnil(state, -1);
+    lua_settop(state, top);
+    return matched;
+}
+
+static bool HookMatches(LuaPlugin *plugin, const LuaHttpHook &hook, const std::string &method, const std::string &path)
+{
+    if (!hook.method.empty() && hook.method != method) return false;
+    return PatternMatches(plugin->state, path, hook.pattern);
+}
+
+static void PushHeaders(lua_State *state, const std::vector<std::pair<std::string, std::string>> &headers)
+{
+    lua_createtable(state, 0, static_cast<int>(headers.size()));
+    for (const auto &[name, value] : headers) {
+        if (HiddenHeader(name)) continue;
+        lua_getfield(state, -1, name.c_str());
+        std::string joined = lua_isstring(state, -1) ? std::string(lua_tostring(state, -1)) + ", " + value : value;
+        lua_pop(state, 1);
+        lua_pushlstring(state, joined.data(), joined.size());
+        lua_setfield(state, -2, name.c_str());
+    }
+}
+
+static void PushHttpRequest(lua_State *state, uint64_t exchange, const astral::luahost::HttpRequest &request)
+{
+    lua_createtable(state, 0, 6);
+    lua_pushstring(state, std::to_string(exchange).c_str());
+    lua_setfield(state, -2, "id");
+    lua_pushlstring(state, request.method.data(), request.method.size());
+    lua_setfield(state, -2, "method");
+    lua_pushlstring(state, request.url.data(), request.url.size());
+    lua_setfield(state, -2, "url");
+    lua_pushlstring(state, request.path.data(), request.path.size());
+    lua_setfield(state, -2, "path");
+    PushHeaders(state, request.headers);
+    lua_setfield(state, -2, "headers");
+    lua_pushlstring(state, request.body.data(), request.body.size());
+    lua_setfield(state, -2, "body");
+}
+
+static std::vector<std::pair<std::string, std::string>> HeadersFromJSON(const nlohmann::json &value,
+                                                                        const std::vector<std::pair<std::string, std::string>> &previous)
+{
+    std::vector<std::pair<std::string, std::string>> headers;
+    for (const auto &[name, header] : previous)
+        if (HiddenHeader(name)) headers.emplace_back(name, header);
+    for (const auto &[name, header] : value.items()) {
+        std::string lower = LowerCase(name);
+        if (HiddenHeader(lower) || !header.is_string() || ContainsControl(lower) || ContainsControl(header.get<std::string>())) continue;
+        headers.emplace_back(lower, header.get<std::string>());
+    }
+    return headers;
+}
+
+static std::string UrlHost(const std::string &url)
+{
+    size_t start = url.find("://");
+    if (start == std::string::npos) return "";
+    start += 3;
+    size_t end = url.find_first_of("/?#:", start);
+    return LowerCase(url.substr(start, end == std::string::npos ? std::string::npos : end - start));
+}
+
+static std::string UrlPath(const std::string &url)
+{
+    size_t start = url.find("://");
+    start = start == std::string::npos ? 0 : url.find('/', start + 3);
+    if (start == std::string::npos) return "/";
+    size_t end = url.find_first_of("?#", start);
+    return url.substr(start, end == std::string::npos ? std::string::npos : end - start);
+}
+
+static void ApplyRequestChanges(astral::luahost::HttpRequest &request, const nlohmann::json &changes)
+{
+    if (changes.contains("method") && changes["method"].is_string()) request.method = changes["method"].get<std::string>();
+    if (changes.contains("url") && changes["url"].is_string()) {
+        std::string url = changes["url"].get<std::string>();
+        if (url.rfind("https://", 0) == 0 && astral::isDiscordHost(UrlHost(url))) {
+            request.url = url;
+            request.path = UrlPath(url);
+        }
+    }
+    if (changes.contains("headers") && changes["headers"].is_object())
+        request.headers = HeadersFromJSON(changes["headers"], request.headers);
+    if (changes.contains("body") && changes["body"].is_string() &&
+        changes["body"].get_ref<const std::string &>().size() <= kMaximumHttpBody)
+        request.body = changes["body"].get<std::string>();
+}
+
+static astral::luahost::HttpResponse ResponseFromJSON(const nlohmann::json &value)
+{
+    astral::luahost::HttpResponse response;
+    response.status = value.value("status", 200);
+    if (response.status < 100 || response.status > 599) response.status = 200;
+    if (value.contains("headers") && value["headers"].is_object()) response.headers = HeadersFromJSON(value["headers"], {});
+    if (value.contains("body") && value["body"].is_string()) response.body = value["body"].get<std::string>();
+    return response;
+}
+
+static int RegisterHttpIntercept(lua_State *state)
+{
+    LuaPlugin *plugin = Self(state);
+    RequirePermission(state, "net.discord");
+    luaL_checktype(state, 1, LUA_TTABLE);
+    if (plugin->httpHooks.size() >= 16) return luaL_error(state, "astral.net.intercept: at most 16 intercepts per plugin");
+    LuaHttpHook hook;
+    lua_getfield(state, 1, "path");
+    if (!lua_isstring(state, -1)) return luaL_error(state, "astral.net.intercept: path must be a Lua pattern");
+    hook.pattern = lua_tostring(state, -1);
+    lua_getfield(state, 1, "method");
+    if (lua_isstring(state, -1)) hook.method = lua_tostring(state, -1);
+    lua_pop(state, 2);
+    lua_getfield(state, 1, "request");
+    if (lua_isfunction(state, -1))
+        hook.request = luaL_ref(state, LUA_REGISTRYINDEX);
+    else
+        lua_pop(state, 1);
+    lua_getfield(state, 1, "response");
+    if (lua_isfunction(state, -1))
+        hook.response = luaL_ref(state, LUA_REGISTRYINDEX);
+    else
+        lua_pop(state, 1);
+    if (hook.request == LUA_NOREF && hook.response == LUA_NOREF)
+        return luaL_error(state, "astral.net.intercept: give a request or response function");
+    plugin->httpHooks.push_back(std::move(hook));
+    return 0;
+}
+
+static uint64_t ExchangeArgument(lua_State *state, int index)
+{
+    const char *value = luaL_checkstring(state, index);
+    char *end = nullptr;
+    unsigned long long parsed = strtoull(value, &end, 10);
+    if (!parsed || !end || *end) luaL_error(state, "astral.net: '%s' is not a held request", value);
+    return parsed;
+}
+
+static int ReleaseHeldRequest(lua_State *state)
+{
+    RequirePermission(state, "net.discord");
+    uint64_t exchange = ExchangeArgument(state, 1);
+    std::optional<nlohmann::json> changes;
+    if (lua_istable(state, 2)) {
+        nlohmann::json value;
+        if (astral::lua::toJSON(state, 2, value) && value.is_object()) changes = std::move(value);
+    }
+    FinishHold(exchange, std::nullopt, std::move(changes));
+    return 0;
+}
+
+static int RespondToHeldRequest(lua_State *state)
+{
+    RequirePermission(state, "net.discord");
+    uint64_t exchange = ExchangeArgument(state, 1);
+    nlohmann::json value;
+    if (!astral::lua::toJSON(state, 2, value) || !value.is_object()) return luaL_error(state, "astral.net.respond: give a response table");
+    FinishHold(exchange, ResponseFromJSON(value), std::nullopt);
+    return 0;
+}
+
+static int DecodeJSON(lua_State *state)
+{
+    size_t length = 0;
+    const char *text = luaL_checklstring(state, 1, &length);
+    if (length > kMaximumHttpBody) return luaL_error(state, "astral.json.decode: text exceeds 4 MB");
+    nlohmann::json value = nlohmann::json::parse(std::string_view(text, length), nullptr, false);
+    if (value.is_discarded()) return 0;
+    astral::lua::pushJSON(state, value);
+    return 1;
+}
+
+static int MarkJSONArray(lua_State *state)
+{
+    if (lua_isnoneornil(state, 1)) lua_newtable(state);
+    luaL_checktype(state, 1, LUA_TTABLE);
+    lua_settop(state, 1);
+    astral::lua::pushArrayMetatable(state);
+    lua_setmetatable(state, 1);
+    return 1;
+}
+
+static int EncodeJSON(lua_State *state)
+{
+    nlohmann::json value;
+    if (!astral::lua::toJSON(state, 1, value)) return luaL_error(state, "astral.json.encode: value is not JSON-compatible");
+    std::string text = value.dump();
+    lua_pushlstring(state, text.data(), text.size());
+    return 1;
 }
 
 static void ReleaseTimers(LuaPlugin *plugin)
@@ -969,14 +1241,28 @@ static int SubscribeEvent(lua_State *state)
     if (event == "app.foreground" || event == "app.background") permission = "events.lifecycle";
     if (event == "message.create") permission = "events.messages";
     if (event == "message.filter") permission = "events.messages.filter";
+    if (event == "gateway") permission = "events.gateway";
     if (!permission) return luaL_error(state, "astral.events.on: unsupported event '%s'", event.c_str());
     RequirePermission(state, permission);
     luaL_checktype(state, 2, LUA_TFUNCTION);
     if (plugin->eventCallbacks.size() >= 32) return luaL_error(state, "astral.events.on: at most 32 subscriptions per plugin");
+    std::set<std::string> types;
+    if (event == "gateway" && lua_istable(state, 3)) {
+        lua_Integer count = luaL_len(state, 3);
+        if (count > 64) return luaL_error(state, "astral.events.on: at most 64 gateway event types");
+        for (lua_Integer index = 1; index <= count; index++) {
+            lua_rawgeti(state, 3, index);
+            size_t length = 0;
+            const char *type = lua_tolstring(state, -1, &length);
+            if (!type || length == 0 || length > 64) return luaL_error(state, "astral.events.on: gateway event types are strings");
+            types.emplace(type, length);
+            lua_pop(state, 1);
+        }
+    }
     uint64_t subscription = gNextRequest.fetch_add(1);
     if (subscription == 0) subscription = gNextRequest.fetch_add(1);
     lua_pushvalue(state, 2);
-    plugin->eventCallbacks.emplace(subscription, LuaEventCallback{event, luaL_ref(state, LUA_REGISTRYINDEX)});
+    plugin->eventCallbacks.emplace(subscription, LuaEventCallback{event, luaL_ref(state, LUA_REGISTRYINDEX), std::move(types)});
     lua_pushinteger(state, static_cast<lua_Integer>(subscription));
     return 1;
 }
@@ -1000,9 +1286,89 @@ static int UnsubscribeEvent(lua_State *state)
         RequirePermission(state, "events.messages");
     else if (found->second.event == "message.filter")
         RequirePermission(state, "events.messages.filter");
+    else if (found->second.event == "gateway")
+        RequirePermission(state, "events.gateway");
     luaL_unref(state, LUA_REGISTRYINDEX, found->second.reference);
     plugin->eventCallbacks.erase(found);
     lua_pushboolean(state, true);
+    return 1;
+}
+
+static int DispatchGatewayEvent(lua_State *state)
+{
+    RequirePermission(state, "messages.local");
+    size_t length = 0;
+    const char *type = luaL_checklstring(state, 1, &length);
+    if (length == 0 || length > 64) return luaL_error(state, "astral.gateway.dispatch: event types are 1 to 64 characters");
+    for (size_t index = 0; index < length; index++)
+        if (!(isupper((unsigned char)type[index]) || type[index] == '_'))
+            return luaL_error(state, "astral.gateway.dispatch: '%s' is not a gateway event type", type);
+    nlohmann::json data;
+    if (!astral::lua::toJSON(state, 2, data)) return luaL_error(state, "astral.gateway.dispatch: data must be JSON-compatible");
+    nlohmann::json envelope = {{"op", 0}, {"t", std::string(type, length)}, {"s", nullptr}, {"d", std::move(data)}};
+    std::string message = envelope.dump();
+    if (message.size() > (1u << 20)) return luaL_error(state, "astral.gateway.dispatch: event exceeds 1 MB");
+    lua_pushboolean(state, gPlatform.dispatchGateway && gPlatform.dispatchGateway(message));
+    return 1;
+}
+
+static std::string GatewayTimestamp(int64_t milliseconds)
+{
+    int64_t seconds = milliseconds / 1000;
+    int64_t days = seconds / 86400, rest = seconds % 86400;
+    int64_t z = days + 719468, era = z / 146097, doe = z - era * 146097;
+    int64_t yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    int64_t doy = doe - (365 * yoe + yoe / 4 - yoe / 100), mp = (5 * doy + 2) / 153;
+    int64_t day = doy - (153 * mp + 2) / 5 + 1, month = mp < 10 ? mp + 3 : mp - 9, year = yoe + era * 400 + (month <= 2 ? 1 : 0);
+    char text[48];
+    snprintf(text, sizeof text, "%04lld-%02lld-%02lldT%02lld:%02lld:%02lld.%03lld000+00:00", (long long)year, (long long)month,
+             (long long)day, (long long)(rest / 3600), (long long)(rest % 3600 / 60), (long long)(rest % 60),
+             (long long)(milliseconds % 1000));
+    return text;
+}
+
+static int SendLocalMessage(lua_State *state)
+{
+    RequirePermission(state, "messages.local");
+    std::string channel = luaL_checkstring(state, 1);
+    if (!SnowflakeText(channel)) return luaL_error(state, "astral.messages.send_local: '%s' is not a channel id", channel.c_str());
+    nlohmann::json message = nlohmann::json::object();
+    if (lua_isstring(state, 2))
+        message["content"] = lua_tostring(state, 2);
+    else if (!lua_istable(state, 2) || !astral::lua::toJSON(state, 2, message) || !message.is_object())
+        return luaL_error(state, "astral.messages.send_local: give text or a message table");
+    int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+    static std::atomic<uint64_t> sequence{0};
+    uint64_t snowflake = (static_cast<uint64_t>(now - 1420070400000LL) << 22) | (sequence.fetch_add(1) & 0xFFF);
+    nlohmann::json author = {{"id", "1"},   {"username", "astral"}, {"global_name", "astral"}, {"discriminator", "0"},
+                             {"bot", true}, {"public_flags", 0}};
+    nlohmann::json data = {{"id", std::to_string(snowflake)},
+                           {"channel_id", channel},
+                           {"type", 0},
+                           {"content", ""},
+                           {"flags", 64},
+                           {"timestamp", GatewayTimestamp(now)},
+                           {"author", author},
+                           {"tts", false},
+                           {"pinned", false},
+                           {"mention_everyone", false},
+                           {"mentions", nlohmann::json::array()},
+                           {"mention_roles", nlohmann::json::array()},
+                           {"attachments", nlohmann::json::array()},
+                           {"embeds", nlohmann::json::array()},
+                           {"components", nlohmann::json::array()}};
+    if (gPlatform.channelGuild) {
+        auto guild = gPlatform.channelGuild(channel);
+        if (guild && SnowflakeText(*guild)) data["guild_id"] = *guild;
+    }
+    for (const auto &[key, value] : message.items())
+        if (key != "channel_id" && key != "id") data[key] = value;
+    nlohmann::json envelope = {{"op", 0}, {"t", "MESSAGE_CREATE"}, {"s", nullptr}, {"d", data}};
+    std::string text = envelope.dump();
+    if (text.size() > (1u << 20)) return luaL_error(state, "astral.messages.send_local: message exceeds 1 MB");
+    if (!gPlatform.dispatchGateway || !gPlatform.dispatchGateway(text)) return 0;
+    std::string id = data["id"].get<std::string>();
+    lua_pushlstring(state, id.data(), id.size());
     return 1;
 }
 
@@ -1777,13 +2143,29 @@ static void InstallAPI(LuaPlugin *plugin)
     lua_setfield(state, -2, "events");
 
     lua_newtable(state);
+    Function(state, plugin, "dispatch", DispatchGatewayEvent);
+    lua_setfield(state, -2, "gateway");
+
+    lua_newtable(state);
+    Function(state, plugin, "decode", DecodeJSON);
+    Function(state, plugin, "encode", EncodeJSON);
+    Function(state, plugin, "array", MarkJSONArray);
+    lua_setfield(state, -2, "json");
+
+    lua_newtable(state);
     Function(state, plugin, "transform", RegisterOutgoingMessageTransform);
     Function(state, plugin, "set_text", SetMessageText);
     Function(state, plugin, "get_text", GetMessageText);
+    Function(state, plugin, "send_local", SendLocalMessage);
     lua_setfield(state, -2, "messages");
 
     lua_newtable(state);
     Function(state, plugin, "request", NetworkRequest);
+    Function(state, plugin, "intercept", RegisterHttpIntercept);
+    Function(state, plugin, "release", ReleaseHeldRequest);
+    Function(state, plugin, "respond", RespondToHeldRequest);
+    lua_pushstring(state, kHoldRequest);
+    lua_setfield(state, -2, "HOLD");
     Function(state, plugin, "cancel", CancelNetworkRequest);
     lua_setfield(state, -2, "net");
 
@@ -1879,6 +2261,7 @@ static void Stop(LuaPlugin *plugin)
         }
         if (plugin->state) luaL_unref(plugin->state, LUA_REGISTRYINDEX, reference);
     }
+    ReleaseHttpHooks(plugin);
     auto eventCallbacks = std::move(plugin->eventCallbacks);
     plugin->eventCallbacks.clear();
     for (const auto &[subscription, callback] : eventCallbacks) {
@@ -2472,11 +2855,210 @@ static void EmitMessageCreate(const std::string &messageID, const std::string &c
     }
 }
 
+enum class GatewayVerdict { Keep, Changed, Drop };
+
+static bool WantsGatewayType(const LuaEventCallback &callback, const std::string &type)
+{
+    return callback.event == "gateway" && (callback.types.empty() || callback.types.count(type));
+}
+
+static GatewayVerdict RunGatewaySubscribers(nlohmann::json &envelope)
+{
+    auto event = envelope.find("t");
+    if (event == envelope.end() || !event->is_string()) return GatewayVerdict::Keep;
+    std::string type = event->get<std::string>();
+    GatewayVerdict verdict = GatewayVerdict::Keep;
+    std::lock_guard<std::recursive_mutex> lock(gMutex);
+    for (auto *plugin : gPlugins) {
+        if (!plugin->state || plugin->failed) continue;
+        std::vector<uint64_t> subscriptions;
+        for (const auto &[subscription, callback] : plugin->eventCallbacks)
+            if (WantsGatewayType(callback, type)) subscriptions.push_back(subscription);
+        for (uint64_t subscription : subscriptions) {
+            auto found = plugin->eventCallbacks.find(subscription);
+            if (found == plugin->eventCallbacks.end() || !plugin->state || plugin->failed) continue;
+            lua_State *state = plugin->state;
+            lua_rawgeti(state, LUA_REGISTRYINDEX, found->second.reference);
+            lua_createtable(state, 0, 4);
+            lua_pushlstring(state, type.data(), type.size());
+            lua_setfield(state, -2, "type");
+            if (envelope.contains("s") && envelope["s"].is_number_integer()) {
+                lua_pushinteger(state, envelope["s"].get<lua_Integer>());
+                lua_setfield(state, -2, "seq");
+            }
+            astral::lua::pushJSON(state, envelope.value("d", nlohmann::json()));
+            lua_setfield(state, -2, "data");
+            if (!Call(plugin, 1, 1, "gateway")) {
+                MarkFailed(plugin);
+                Stop(plugin);
+                break;
+            }
+            if (lua_isboolean(state, -1) && !lua_toboolean(state, -1)) {
+                lua_pop(state, 1);
+                envelope["t"] = "ASTRAL_FILTERED";
+                return GatewayVerdict::Drop;
+            }
+            if (lua_istable(state, -1)) {
+                nlohmann::json replaced;
+                if (astral::lua::toJSON(state, -1, replaced)) {
+                    envelope["d"] = std::move(replaced);
+                    verdict = GatewayVerdict::Changed;
+                }
+            }
+            lua_pop(state, 1);
+        }
+    }
+    return verdict;
+}
+
+bool needsGatewayEvents()
+{
+    std::lock_guard<std::recursive_mutex> lock(gMutex);
+    for (auto *plugin : gPlugins) {
+        if (!plugin->state || plugin->failed) continue;
+        for (const auto &[subscription, callback] : plugin->eventCallbacks)
+            if (callback.event == "gateway" || callback.event == "message.create" || callback.event == "message.filter") return true;
+        if (plugin->permissions.count("messages.local")) return true;
+    }
+    return false;
+}
+
+static std::optional<std::string> processKnownGatewayEvents(nlohmann::json &envelope);
+
+bool wantsHttp(const std::string &method, const std::string &host, const std::string &path)
+{
+    if (!astral::isDiscordHost(host)) return false;
+    std::lock_guard<std::recursive_mutex> lock(gMutex);
+    for (auto *plugin : gPlugins) {
+        if (!plugin->state || plugin->failed) continue;
+        for (const auto &hook : plugin->httpHooks)
+            if (HookMatches(plugin, hook, method, path)) return true;
+    }
+    return false;
+}
+
+HttpDecision interceptHttpRequest(HttpRequest &request)
+{
+    HttpDecision decision;
+    if (request.body.size() > kMaximumHttpBody) return decision;
+    std::unique_lock<std::recursive_mutex> lock(gMutex);
+    std::vector<LuaPlugin *> plugins(gPlugins.begin(), gPlugins.end());
+    for (auto *plugin : plugins) {
+        size_t hooks = plugin->httpHooks.size();
+        for (size_t index = 0; index < hooks; index++) {
+            if (!plugin->state || plugin->failed || index >= plugin->httpHooks.size()) break;
+            const LuaHttpHook hook = plugin->httpHooks[index];
+            if (hook.request == LUA_NOREF || !HookMatches(plugin, hook, request.method, request.path)) continue;
+            uint64_t exchange = gNextRequest.fetch_add(1);
+            lua_State *state = plugin->state;
+            lua_rawgeti(state, LUA_REGISTRYINDEX, hook.request);
+            PushHttpRequest(state, exchange, request);
+            if (!Call(plugin, 1, 1, "net.intercept request")) {
+                MarkFailed(plugin);
+                Stop(plugin);
+                break;
+            }
+            std::optional<nlohmann::json> changes;
+            bool hold = lua_isstring(state, -1) && std::string(lua_tostring(state, -1)) == kHoldRequest;
+            if (lua_istable(state, -1)) {
+                nlohmann::json value;
+                if (astral::lua::toJSON(state, -1, value) && value.is_object()) changes = std::move(value);
+            }
+            lua_pop(state, 1);
+            if (hold) {
+                auto pending = std::make_shared<HttpHold>();
+                pending->owner = plugin;
+                {
+                    std::lock_guard<std::mutex> holdLock(gHoldMutex);
+                    gHttpHolds[exchange] = pending;
+                }
+                lock.unlock();
+                {
+                    std::unique_lock<std::mutex> waiting(pending->mutex);
+                    if (!pending->ready.wait_for(waiting, kMaximumHold, [&] { return pending->done; })) {
+                        waiting.unlock();
+                        FinishHold(exchange, std::nullopt, std::nullopt);
+                        waiting.lock();
+                    }
+                    changes = pending->changes;
+                    if (pending->response) {
+                        decision.response = pending->response;
+                        return decision;
+                    }
+                }
+                lock.lock();
+            }
+            if (!changes) continue;
+            if (changes->contains("status")) {
+                decision.response = ResponseFromJSON(*changes);
+                return decision;
+            }
+            ApplyRequestChanges(request, *changes);
+            decision.changed = true;
+        }
+    }
+    return decision;
+}
+
+bool interceptHttpResponse(const HttpRequest &request, HttpResponse &response)
+{
+    if (response.body.size() > kMaximumHttpBody) return false;
+    bool changed = false;
+    std::lock_guard<std::recursive_mutex> lock(gMutex);
+    for (auto *plugin : gPlugins) {
+        for (size_t index = 0; index < plugin->httpHooks.size(); index++) {
+            if (!plugin->state || plugin->failed) break;
+            const LuaHttpHook hook = plugin->httpHooks[index];
+            if (hook.response == LUA_NOREF || !HookMatches(plugin, hook, request.method, request.path)) continue;
+            lua_State *state = plugin->state;
+            lua_rawgeti(state, LUA_REGISTRYINDEX, hook.response);
+            PushHttpRequest(state, 0, request);
+            lua_createtable(state, 0, 3);
+            lua_pushinteger(state, response.status);
+            lua_setfield(state, -2, "status");
+            PushHeaders(state, response.headers);
+            lua_setfield(state, -2, "headers");
+            lua_pushlstring(state, response.body.data(), response.body.size());
+            lua_setfield(state, -2, "body");
+            if (!Call(plugin, 2, 1, "net.intercept response")) {
+                MarkFailed(plugin);
+                Stop(plugin);
+                break;
+            }
+            if (lua_istable(state, -1)) {
+                nlohmann::json value;
+                if (astral::lua::toJSON(state, -1, value) && value.is_object()) {
+                    if (value.contains("status") && value["status"].is_number_integer()) {
+                        int status = value["status"].get<int>();
+                        if (status >= 100 && status <= 599) response.status = status;
+                    }
+                    if (value.contains("headers") && value["headers"].is_object())
+                        response.headers = HeadersFromJSON(value["headers"], response.headers);
+                    if (value.contains("body") && value["body"].is_string()) response.body = value["body"].get<std::string>();
+                    changed = true;
+                }
+            }
+            lua_pop(state, 1);
+        }
+    }
+    return changed;
+}
+
 std::optional<std::string> processGatewayMessage(std::string_view message)
 {
-    if (message.empty() || message.size() > (1u << 20)) return std::nullopt;
+    if (message.empty() || message.size() > (8u << 20)) return std::nullopt;
     nlohmann::json envelope = nlohmann::json::parse(message, nullptr, false);
     if (!envelope.is_object()) return std::nullopt;
+    GatewayVerdict verdict = RunGatewaySubscribers(envelope);
+    if (verdict == GatewayVerdict::Drop) return envelope.dump();
+    auto known = processKnownGatewayEvents(envelope);
+    if (known) return known;
+    if (verdict == GatewayVerdict::Changed) return envelope.dump();
+    return std::nullopt;
+}
+
+static std::optional<std::string> processKnownGatewayEvents(nlohmann::json &envelope)
+{
     auto event = envelope.find("t");
     auto data = envelope.find("d");
     if (event == envelope.end() || !event->is_string() || data == envelope.end() || !data->is_object()) return std::nullopt;

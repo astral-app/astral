@@ -163,7 +163,7 @@ object NetworkHooks {
                 listener?.let { hookWebSocketListener(module, it.javaClass, socketType) }
                 val socket = chain.proceed()
                 if (socket != null && listener != null && chain.getArg(0).toString().contains("://gateway"))
-                    GatewaySession.opened(socket, listener, runCatching { Native.staffDevToolsEnabled() }.getOrDefault(false))
+                    GatewaySession.opened(socket, listener, runCatching { Native.staffDevToolsEnabled() || Native.needsGatewayEvents() }.getOrDefault(false))
                 socket
             }
         Log.info("Hooked Phoenix WebSocket creation through ${clientType.name}.${opener.name}")
@@ -209,7 +209,7 @@ object NetworkHooks {
             val requestMethod = requestType.getMethod("method").invoke(request) as? String
             val staffTools = runCatching { Native.staffDevToolsEnabled() }.getOrDefault(false)
             var outgoing = request
-            if (staffTools && host.startsWith("gateway")) outgoing = removeGatewayCompression(outgoing, url, loader)
+            if ((staffTools || plainGateway()) && host.startsWith("gateway")) outgoing = removeGatewayCompression(outgoing, url, loader)
             val response = proceed(chain, outgoing) ?: return null
             if (!staffTools || requestMethod != "GET" || !Native.isCurrentUser(host, path)) return response
             return markCurrentUser(response, loader)
@@ -327,4 +327,6 @@ object NetworkHooks {
                 }
         }
     }
+
+    private fun plainGateway(): Boolean = runCatching { Native.needsGatewayEvents() }.getOrDefault(false)
 }

@@ -18,6 +18,7 @@
 #import "PluginSignature.h"
 #import "ReactionReactors.h"
 #import "NetworkRequest.h"
+#import "NetworkFilter.h"
 #import <UIKit/UIKit.h>
 
 static std::string AppLink(const std::string &url)
@@ -235,6 +236,7 @@ static astral::LuaHostPlatform Platform(void)
         AstralRecordPluginFailure(Native(identifier), Native(name), Native(error));
     };
     platform.developerLog = [](const std::string &line) { AstralDevAppendLog(Native(line)); };
+    platform.dispatchGateway = [](const std::string &message) { return (bool)AstralDispatchLocalGatewayEvent(Native(message)); };
     platform.scrollToMessage = [](uint64_t message, bool animated, const std::string &align) {
         if (!astral_wire_scroll_to_message(message, animated, align.c_str())) return false;
         AstralPhoenixRefreshDecorations();

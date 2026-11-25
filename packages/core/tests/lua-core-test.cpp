@@ -1,6 +1,7 @@
 #include <cassert>
 #include <cstdio>
 #include <filesystem>
+#include <thread>
 #include <fstream>
 #include <cmath>
 #include <string>
@@ -1181,6 +1182,105 @@ static void testPluginTrace(const std::string &work)
     astral::trace::close();
 }
 
+static void testGatewayAndHttpIntercepts(const std::string &work)
+{
+    auto root = std::filesystem::path(work) / "intercept-host";
+    auto plugin = root / "plugins" / "intercept";
+    std::filesystem::create_directories(plugin);
+    writeText(plugin / "manifest.toml", "id = 'astral.intercept'\nname = 'Intercept'\nversion = '1.0'\nmain = 'main.lua'\npermissions = "
+                                        "['events.gateway', 'messages.local', 'net.discord']\n");
+    writeText(plugin / "main.lua",
+              "seen = {}\n"
+              "astral.events.on('gateway', function(event)\n"
+              "  seen[#seen + 1] = event.type\n"
+              "  if event.type == 'MESSAGE_DELETE' then return false end\n"
+              "  if event.type == 'TYPING_START' then event.data.tagged = true return event.data end\n"
+              "end, {'MESSAGE_DELETE', 'TYPING_START'})\n"
+              "astral.net.intercept({method = 'GET', path = '^/api/v%d+/gifs/search', request = function(request)\n"
+              "  auth = request.headers.authorization\n"
+              "  return {url = request.url .. '&provider=tenor', headers = {['x-astral'] = '1'}}\n"
+              "end, response = function(request, response)\n"
+              "  local body = astral.json.decode(response.body)\n"
+              "  body[#body + 1] = {id = 'extra'}\n"
+              "  return {body = astral.json.encode(body)}\n"
+              "end})\n"
+              "astral.net.intercept({method = 'POST', path = '/stickers$', request = function(request)\n"
+              "  held = request.id\n"
+              "  return astral.net.HOLD\n"
+              "end})\n"
+              "astral.net.intercept({method = 'POST', path = '/interactions$', request = function()\n"
+              "  return {status = 204}\n"
+              "end})\n"
+              "dispatched = astral.gateway.dispatch('MESSAGE_CREATE', {id = '1', mentions = astral.json.array()})\n"
+              "localID = astral.messages.send_local('100000000000000002', {content = 'hi', embeds = {{title = 'x'}}})\n"
+              "roundtrip = astral.json.encode(astral.json.decode('{\"a\":[],\"b\":{}}'))\n");
+    astral::SettingsStore settings((root / "settings.json").string());
+    settings.set("astral", "developer-mode", true);
+    std::string dispatchedMessage;
+    astral::LuaHostPlatform platform;
+    platform.storagePath = (root / "storage.sqlite").string();
+    platform.dispatchGateway = [&](const std::string &message) {
+        dispatchedMessage = message;
+        return true;
+    };
+    astral::luahost::start({(root / "plugins").string()}, &settings, true, std::move(platform));
+    assert(astral::luahost::needsGatewayEvents());
+    assert(astral::luahost::eval("astral.intercept", "return dispatched") == "true");
+    assert(nlohmann::json::parse(dispatchedMessage)["t"] == "MESSAGE_CREATE");
+    assert(nlohmann::json::parse(dispatchedMessage)["d"]["mentions"].is_array());
+    assert(astral::luahost::eval("astral.intercept", "return roundtrip") == R"({"a":[],"b":{}})");
+    auto local = nlohmann::json::parse(dispatchedMessage);
+    assert(local["d"]["content"] == "hi" && local["d"]["flags"] == 64 && local["d"]["mentions"].is_array());
+    assert(local["d"]["embeds"][0]["title"] == "x" && local["d"]["timestamp"].get<std::string>().size() == 32);
+    assert(astral::luahost::eval("astral.intercept", "return localID") == local["d"]["id"].get<std::string>());
+    auto dropped = astral::luahost::processGatewayMessage(R"({"op":0,"t":"MESSAGE_DELETE","d":{"id":"5"}})");
+    assert(dropped && nlohmann::json::parse(*dropped)["t"] == "ASTRAL_FILTERED");
+    auto tagged = astral::luahost::processGatewayMessage(R"({"op":0,"t":"TYPING_START","s":4,"d":{"user_id":"7"}})");
+    assert(tagged && nlohmann::json::parse(*tagged)["d"]["tagged"] == true);
+    assert(!astral::luahost::processGatewayMessage(R"({"op":0,"t":"PRESENCE_UPDATE","d":{}})"));
+    assert(astral::luahost::eval("astral.intercept", "return #seen") == "2");
+
+    assert(astral::luahost::wantsHttp("GET", "discord.com", "/api/v9/gifs/search"));
+    assert(!astral::luahost::wantsHttp("GET", "example.com", "/api/v9/gifs/search"));
+    assert(!astral::luahost::wantsHttp("GET", "discord.com", "/api/v9/users/@me"));
+    astral::luahost::HttpRequest search{"GET",
+                                        "https://discord.com/api/v9/gifs/search?q=cat",
+                                        "/api/v9/gifs/search",
+                                        {{"authorization", "secret"}, {"accept", "application/json"}},
+                                        ""};
+    auto decision = astral::luahost::interceptHttpRequest(search);
+    assert(decision.changed && !decision.response);
+    assert(search.url == "https://discord.com/api/v9/gifs/search?q=cat&provider=tenor");
+    assert(astral::luahost::eval("astral.intercept", "return tostring(auth)") == "nil");
+    bool keptAuthorization = false, added = false;
+    for (const auto &[name, value] : search.headers) {
+        keptAuthorization |= name == "authorization" && value == "secret";
+        added |= name == "x-astral";
+    }
+    assert(keptAuthorization && added);
+    astral::luahost::HttpResponse results{200, {{"content-type", "application/json"}}, R"([{"id":"a"}])"};
+    assert(astral::luahost::interceptHttpResponse(search, results));
+    assert(nlohmann::json::parse(results.body).size() == 2);
+
+    astral::luahost::HttpRequest interaction{"POST", "https://discord.com/api/v9/interactions", "/api/v9/interactions", {}, "{}"};
+    auto answered = astral::luahost::interceptHttpRequest(interaction);
+    assert(answered.response && answered.response->status == 204);
+
+    astral::luahost::HttpRequest sticker{"POST", "https://discord.com/api/v9/channels/1/stickers", "/api/v9/channels/1/stickers", {}, "{}"};
+    std::thread releaser([] {
+        for (int attempt = 0; attempt < 200; attempt++) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            if (astral::luahost::eval("astral.intercept", "return tostring(held)") != "nil") break;
+        }
+        astral::luahost::eval("astral.intercept", "astral.net.release(held, {body = 'released'})");
+    });
+    auto held = astral::luahost::interceptHttpRequest(sticker);
+    releaser.join();
+    assert(held.changed && sticker.body == "released");
+    astral::luahost::stop();
+    assert(!astral::luahost::needsGatewayEvents());
+}
+
 int main(int argc, char **argv)
 {
     assert(argc == 3);
@@ -1220,6 +1320,7 @@ int main(int argc, char **argv)
     testTextSettings(argv[1]);
     testBackgroundCatalogUpdates(argv[1]);
     testPluginTrace(argv[1]);
+    testGatewayAndHttpIntercepts(argv[1]);
     puts("ok");
     return 0;
 }

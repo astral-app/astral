@@ -5,6 +5,27 @@ extern "C" {
 }
 
 namespace astral::lua {
+
+static const char kArrayMarker[] = "astral.json.array";
+
+void pushArrayMetatable(lua_State *state)
+{
+    if (lua_getfield(state, LUA_REGISTRYINDEX, kArrayMarker) == LUA_TTABLE) return;
+    lua_pop(state, 1);
+    lua_newtable(state);
+    lua_pushvalue(state, -1);
+    lua_setfield(state, LUA_REGISTRYINDEX, kArrayMarker);
+}
+
+static bool markedArray(lua_State *state, int index)
+{
+    if (!lua_getmetatable(state, index)) return false;
+    pushArrayMetatable(state);
+    bool marked = lua_rawequal(state, -1, -2);
+    lua_pop(state, 2);
+    return marked;
+}
+
 bool toJSON(lua_State *state, int index, nlohmann::json &out, int depth)
 {
     index = lua_absindex(state, index);
@@ -30,7 +51,8 @@ bool toJSON(lua_State *state, int index, nlohmann::json &out, int depth)
     case LUA_TTABLE: {
         if (depth > kMaximumTableDepth) return false;
         lua_Integer length = (lua_Integer)lua_rawlen(state, index);
-        bool array = length > 0;
+        bool marked = markedArray(state, index);
+        bool array = length > 0 || marked;
         if (array) {
             lua_pushnil(state);
             while (lua_next(state, index)) {
@@ -100,6 +122,8 @@ void pushJSON(lua_State *state, const nlohmann::json &value, int depth)
             pushJSON(state, item, depth + 1);
             lua_rawseti(state, -2, position++);
         }
+        pushArrayMetatable(state);
+        lua_setmetatable(state, -2);
     } else {
         lua_createtable(state, 0, (int)value.size());
         for (auto entry = value.begin(); entry != value.end(); ++entry) {
