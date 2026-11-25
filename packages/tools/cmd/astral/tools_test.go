@@ -269,7 +269,7 @@ func plannedNames(changed ...string) string {
 func TestCheckPicksAffectedSteps(t *testing.T) {
 	cases := map[string]string{
 		"packages/core/wire/PhoenixWire.h":   "clang-format,wire tests",
-		"packages/core/src/LuaSandbox.cpp":   "clang-format,core tests",
+		"packages/core/LuaSandbox.cpp":       "clang-format,core tests",
 		"packages/tools/cmd/astral/check.go": "gofmt,go vet and tests",
 		"packages/ios/sources/Themes.mm":     "clang-format",
 		"README.md":                          "",
@@ -282,7 +282,7 @@ func TestCheckPicksAffectedSteps(t *testing.T) {
 }
 
 func TestCheckSkipsFileScopedStepsForDeletions(t *testing.T) {
-	if got := plannedNames("packages/core/src/Removed.cpp"); got != "core tests" {
+	if got := plannedNames("packages/core/Removed.cpp"); got != "core tests" {
 		t.Fatalf("got %q", got)
 	}
 }

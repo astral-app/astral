@@ -48,7 +48,7 @@ func buildReplay(work string) (string, error) {
 		"-I" + repoPath("packages", "core", "wire"), "-isystem", repoPath("vendor", "json", "single_include"),
 		"-isystem", repoPath("vendor", "tomlplusplus", "include"), repoPath("packages", "core", "replay", "replay.cpp")}
 	for _, source := range []string{"LuaSandbox", "LuaJSON", "LuaLocale", "PluginPackage"} {
-		arguments = append(arguments, repoPath("packages", "core", "src", source+".cpp"))
+		arguments = append(arguments, repoPath("packages", "core", source+".cpp"))
 	}
 	library, err := rustHostLibrary()
 	if err != nil {
