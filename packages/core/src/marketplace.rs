@@ -93,6 +93,10 @@ fn with_catalog<T>(work: impl FnOnce(&mut Catalog) -> T) -> T {
     work(guard.as_mut().expect("catalog state initialised"))
 }
 
+pub fn current_catalog() -> Value {
+    with_catalog(|catalog| catalog.catalog.clone())
+}
+
 pub fn valid_package_identifier(identifier: &str) -> bool {
     !identifier.is_empty()
         && identifier.len() <= 128
