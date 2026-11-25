@@ -1,13 +1,15 @@
 local WIDTH = 480
 local SCALE = 3
-local PADDING = 12
-local TILE_GAP = 6
-local TILE_PADDING = 9
+local PADDING = 10
+local TILE_GAP = 5
+local TILE_PADDING = 7
 local LABEL_SIZE = 10
 local VALUE_SIZE = 13
 local DETAIL_SIZE = 11
-local HEADER_HEIGHT = 50
+local HEADER_HEIGHT = 36
+local COLUMNS = 3
 local GLYPH_WIDTH = 0.56
+local VALUE_GLYPH_WIDTH = 0.6
 local MAX_ALT_TEXT = 1024
 local NOISE_BINARY_PART = { "^%d+ dylibs$", "^%d+ injected$", "^UUID %S+$" }
 local ALT_DROP_ORDER =
@@ -202,7 +204,8 @@ local function tile_of(row)
 end
 
 local function wrap(text, size, width)
-	local room = math.max(1, math.floor(width / (size * GLYPH_WIDTH)))
+	local glyph = size == VALUE_SIZE and VALUE_GLYPH_WIDTH or GLYPH_WIDTH
+	local room = math.max(1, math.floor(width / (size * glyph)))
 	local lines, line = {}, ""
 	for found in text:gmatch("%S+") do
 		local word = found
@@ -230,83 +233,121 @@ local function wrap(text, size, width)
 end
 
 local function line_height(size)
-	return math.ceil(size * 1.35)
+	return math.ceil(size * 1.3)
 end
 
-local function measure(tile, width)
+local function text_width(text, size)
+	return utf8.len(text) * size * (size == VALUE_SIZE and VALUE_GLYPH_WIDTH or GLYPH_WIDTH)
+end
+
+local function inline_detail(tile, inner)
+	local detail = tile.details[#tile.details]
+	if not detail or detail.color == COLORS.dim then
+		return nil
+	end
+	local room = inner - text_width(tile.value, VALUE_SIZE) - 8
+	return text_width(detail.text, DETAIL_SIZE) <= room and detail or nil
+end
+
+local function arrange(tile, width)
 	local inner = width - TILE_PADDING * 2
+	tile.inline = inline_detail(tile, inner)
 	tile.value_lines = wrap(tile.value, VALUE_SIZE, inner)
 	tile.detail_lines = {}
 	for _, detail in ipairs(tile.details) do
-		for _, line in ipairs(wrap(detail.text, DETAIL_SIZE, inner)) do
-			tile.detail_lines[#tile.detail_lines + 1] = { text = line, color = detail.color }
+		if detail ~= tile.inline then
+			for _, line in ipairs(wrap(detail.text, DETAIL_SIZE, inner)) do
+				tile.detail_lines[#tile.detail_lines + 1] = { text = line, color = detail.color }
+			end
 		end
 	end
 	return TILE_PADDING * 2
 		+ line_height(LABEL_SIZE)
-		+ 1
 		+ #tile.value_lines * line_height(VALUE_SIZE)
 		+ #tile.detail_lines * line_height(DETAIL_SIZE)
 end
 
-local function fits_half(tile, half)
-	local inner = half - TILE_PADDING * 2
-	if #wrap(tile.value, VALUE_SIZE, inner) ~= 1 or #tile.details > 2 then
-		return false
-	end
-	for _, detail in ipairs(tile.details) do
-		if #wrap(detail.text, DETAIL_SIZE, inner) > 1 then
-			return false
-		end
-	end
-	return true
+local function third_width()
+	return (WIDTH - PADDING * 2 - TILE_GAP * (COLUMNS - 1)) / COLUMNS
 end
 
-local function shortest_half(tiles, half)
-	local best
-	for index, tile in ipairs(tiles) do
-		if fits_half(tile, half) and #tile.details == 0 then
-			best = best or index
+local function half_width()
+	return (WIDTH - PADDING * 2 - TILE_GAP) / 2
+end
+
+local function single_lines(tile, width)
+	arrange(tile, width)
+	local expected = 0
+	for _, detail in ipairs(tile.details) do
+		if detail ~= tile.inline then
+			expected = expected + 1
 		end
 	end
-	return best
+	return #tile.value_lines == 1 and #tile.detail_lines == expected
+end
+
+local function grouped(tiles)
+	local groups = { thirds = {}, halves = {}, fulls = {} }
+	for _, tile in ipairs(tiles) do
+		if single_lines(tile, third_width()) then
+			groups.thirds[#groups.thirds + 1] = tile
+		elseif single_lines(tile, half_width()) then
+			groups.halves[#groups.halves + 1] = tile
+		else
+			groups.fulls[#groups.fulls + 1] = tile
+		end
+	end
+	return groups
+end
+
+local function short_rows(thirds)
+	local packed, count = {}, #thirds
+	local tail = count % COLUMNS == 1 and 1 or math.min(2, count)
+	local rest = count - tail
+	local index = 1
+	while rest > 0 do
+		local take = (rest == 4) and 2 or math.min(COLUMNS, rest)
+		packed[#packed + 1] = { table.unpack(thirds, index, index + take - 1) }
+		index, rest = index + take, rest - take
+	end
+	if tail > 0 then
+		packed[#packed + 1] = { corner = true, table.unpack(thirds, index, index + tail - 1) }
+	end
+	return packed
 end
 
 local function layout(tiles)
 	local full = WIDTH - PADDING * 2
-	local half = (full - TILE_GAP) / 2
-	local corner = shortest_half(tiles, half)
-	local last = corner and table.remove(tiles, corner)
-	local placed, waiting, top = {}, nil, HEADER_HEIGHT
-	local function place(row)
-		local height = 0
-		for _, entry in ipairs(row) do
-			height = math.max(height, measure(entry.tile, entry.width))
+	local groups = grouped(tiles)
+	local stacked = {}
+	for index = 1, #groups.halves, 2 do
+		stacked[#stacked + 1] = { groups.halves[index], groups.halves[index + 1] }
+	end
+	for _, tile in ipairs(groups.fulls) do
+		stacked[#stacked + 1] = { tile }
+	end
+	for _, row in ipairs(short_rows(groups.thirds)) do
+		stacked[#stacked + 1] = row
+	end
+	local placed, top = {}, HEADER_HEIGHT
+	for _, row in ipairs(stacked) do
+		local slots = row.corner and COLUMNS - 1 or #row
+		local start = row.corner and (PADDING + third_width() + TILE_GAP) or PADDING
+		local room = row.corner and (full - third_width() - TILE_GAP) or full
+		local width = (room - TILE_GAP * (slots - 1)) / slots
+		if row.corner and #row == 1 then
+			width = room
 		end
-		for _, entry in ipairs(row) do
-			placed[#placed + 1] = { tile = entry.tile, x = entry.x, y = top, w = entry.width, h = height }
+		local height = 0
+		for _, tile in ipairs(row) do
+			height = math.max(height, arrange(tile, width))
+		end
+		for index, tile in ipairs(row) do
+			arrange(tile, width)
+			placed[#placed + 1] =
+				{ tile = tile, x = start + (index - 1) * (width + TILE_GAP), y = top, w = width, h = height }
 		end
 		top = top + height + TILE_GAP
-	end
-	local left, right = PADDING, PADDING + half + TILE_GAP
-	for _, tile in ipairs(tiles) do
-		if fits_half(tile, half) then
-			if waiting then
-				place({ { tile = waiting, x = left, width = half }, { tile = tile, x = right, width = half } })
-				waiting = nil
-			else
-				waiting = tile
-			end
-		else
-			place({ { tile = tile, x = PADDING, width = full } })
-		end
-	end
-	if waiting and last then
-		place({ { tile = waiting, x = PADDING, width = full } })
-	end
-	last = last or waiting
-	if last then
-		place({ { tile = last, x = right, width = half } })
 	end
 	return placed, top - TILE_GAP + PADDING
 end
@@ -327,13 +368,19 @@ local function draw_tile(items, placed)
 	local tile, x, inner = placed.tile, placed.x + TILE_PADDING, placed.w - TILE_PADDING * 2
 	add(
 		items,
-		{ type = "rect", x = placed.x, y = placed.y, w = placed.w, h = placed.h, radius = 12, color = COLORS.tile }
+		{ type = "rect", x = placed.x, y = placed.y, w = placed.w, h = placed.h, radius = 7, color = COLORS.tile }
 	)
 	local y = placed.y + TILE_PADDING
 	add(items, text_item(x, y, inner, tile.label, LABEL_SIZE, COLORS.label))
-	y = y + line_height(LABEL_SIZE) + 1
-	for _, line in ipairs(tile.value_lines) do
+	y = y + line_height(LABEL_SIZE)
+	for index, line in ipairs(tile.value_lines) do
 		add(items, text_item(x, y, inner, line, VALUE_SIZE, tile.value_color, { weight = "semibold" }))
+		if index == 1 and tile.inline then
+			add(
+				items,
+				text_item(x, y + 2, inner, tile.inline.text, DETAIL_SIZE, tile.inline.color, { align = "right" })
+			)
+		end
 		y = y + line_height(VALUE_SIZE)
 	end
 	for _, line in ipairs(tile.detail_lines) do
@@ -344,8 +391,8 @@ end
 
 local function pill(items, x, y, text, color, size)
 	local width = math.ceil(utf8.len(text) * size * 0.62) + 16
-	add(items, { type = "rect", x = x, y = y, w = width, h = size + 9, radius = (size + 9) / 2, color = color })
-	add(items, text_item(x, y + 4, width, text, size, COLORS.value, { weight = "bold", align = "center" }))
+	add(items, { type = "rect", x = x, y = y, w = width, h = size + 8, radius = (size + 8) / 2, color = color })
+	add(items, text_item(x, y + 3, width, text, size, COLORS.value, { weight = "bold", align = "center" }))
 	return width
 end
 
@@ -388,28 +435,19 @@ end
 local function draw_card(environment, stamp)
 	local placed, height = layout(card_tiles(environment))
 	local items = {}
-	add(items, { type = "rect", x = 0, y = 0, w = WIDTH, h = height, radius = 14, color = COLORS.card })
-	add(items, text_item(PADDING, PADDING - 2, 70, "astral", 19, COLORS.value, { weight = "bold" }))
-	local version_width = pill(items, PADDING + 64, PADDING, environment.astral or "?", COLORS.accent, 11)
-	if present(environment.commit) then
-		add(
-			items,
-			text_item(
-				PADDING + 72 + version_width,
-				PADDING + 4,
-				110,
-				"@" .. environment.commit,
-				11,
-				COLORS.commit,
-				{ mono = true }
-			)
-		)
-	end
+	add(items, { type = "rect", x = 0, y = 0, w = WIDTH, h = height, radius = 12, color = COLORS.card })
+	add(items, text_item(PADDING, PADDING - 3, 64, "astral", 18, COLORS.value, { weight = "bold" }))
+	local x = PADDING + 60
+	x = x + pill(items, x, PADDING, environment.astral or "?", COLORS.accent, 10) + 6
+	local trailing = joined({ present(environment.commit) and ("@" .. environment.commit) or nil, stamp })
 	local good = healthy(environment)
 	local status = good and "Healthy" or "Issues found"
-	local status_width = math.ceil(utf8.len(status) * 11 * 0.62) + 16
-	pill(items, WIDTH - PADDING - status_width, PADDING, status, good and COLORS.good or COLORS.bad, 11)
-	add(items, text_item(PADDING, PADDING + 23, WIDTH - PADDING * 2, stamp, 10, COLORS.dim, { mono = true }))
+	local status_width = math.ceil(utf8.len(status) * 10 * 0.62) + 16
+	add(
+		items,
+		text_item(x, PADDING + 3, WIDTH - PADDING - status_width - 6 - x, trailing, 10, COLORS.dim, { mono = true })
+	)
+	pill(items, WIDTH - PADDING - status_width, PADDING, status, good and COLORS.good or COLORS.bad, 10)
 	for _, entry in ipairs(placed) do
 		draw_tile(items, entry)
 	end
