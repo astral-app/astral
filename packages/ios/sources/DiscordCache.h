@@ -19,3 +19,13 @@ NSNumber *_Nullable AstralDiscordPermissions(NSString *_Nonnull guildID, NSStrin
 #ifdef __cplusplus
 }
 #endif
+
+#ifdef __cplusplus
+#include <nlohmann/json.hpp>
+#include <optional>
+#include <string>
+
+nlohmann::json AstralDiscordGuildList(void);
+std::optional<nlohmann::json> AstralDiscordEmoji(const std::string &emojiID);
+std::optional<std::string> AstralDiscordCurrentUser(void);
+#endif

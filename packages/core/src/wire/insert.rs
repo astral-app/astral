@@ -6,7 +6,7 @@ use std::sync::Mutex;
 use super::abi::{AstralPatchTarget, Callback, current_channel, wireMessageAuthor};
 use super::children::{wireDiscordChildren, wireDiscordParent};
 use super::decorate::{TRACK_AVATAR_IMAGE, tracked_value, wireAllocateNode, wireWriteHostLayout};
-use super::format::{Span, batch_of, child, find_string, spans_of, wireChildList, wireCreation, wireParentOf};
+use super::format::{Span, batch_of, child, find_flag, find_string, spans_of, wireChildList, wireCreation, wireParentOf};
 use super::out::{AstralWireBuffer, Out};
 use super::patch::{c_strings, message_of_identifier, read_identifier, wireMarkRefreshBusy};
 use super::properties;
@@ -14,7 +14,7 @@ use super::properties;
 pub const INSERT_TEXT: c_int = 1;
 pub const INSERT_IMAGE: c_int = 3;
 pub const INSERT_PLAYER: c_int = 4;
-pub const INSERT_CAPACITY: usize = 8;
+pub const INSERT_CAPACITY: usize = 32;
 
 const COLOR: u32 = 1 << 0;
 const BACKGROUND: u32 = 1 << 1;
@@ -31,6 +31,7 @@ const JUSTIFY: u32 = 1 << 11;
 const FILL: u32 = 1 << 12;
 const MUTED: u32 = 1 << 13;
 const FILL_HEIGHT: u32 = 1 << 14;
+const ALIGN: u32 = 1 << 15;
 
 const IMAGE_SELECTOR: &[u8] = b"image:";
 
@@ -59,6 +60,7 @@ pub struct AstralInsertNode {
     pub padding: [f32; 4],
     pub margin: [f32; 4],
     pub justify: [c_char; 8],
+    pub align: [c_char; 8],
 }
 
 impl AstralInsertNode {
@@ -80,6 +82,7 @@ impl AstralInsertNode {
             padding: [0.0; 4],
             margin: [0.0; 4],
             justify: [0; 8],
+            align: [0; 8],
         }
     }
 }
@@ -95,6 +98,8 @@ pub type NodeInserter = unsafe extern "C" fn(*const AstralPatchTarget, *mut Astr
 struct Target {
     identifier: Vec<u8>,
     parent: Vec<u8>,
+    label: Vec<u8>,
+    checked: Option<bool>,
     kind: Vec<u8>,
     children: Vec<i32>,
     inserted: Vec<i32>,
@@ -193,6 +198,7 @@ fn known_children(id: i32) -> Vec<i32> {
 fn property_count(node: &AstralInsertNode) -> u16 {
     let mut count = node.fields.count_ones() as u16;
     count += u16::from(node.fields & ROW != 0);
+    count -= u16::from(node.fields & ROW != 0 && node.fields & ALIGN != 0);
     count += u16::from(node.kind == INSERT_TEXT && !text_of(&node.text).is_empty());
     count += u16::from(node.kind == INSERT_IMAGE && !text_of(&node.uri).is_empty());
     count += 6 * u16::from(node.kind == INSERT_PLAYER && !text_of(&node.uri).is_empty());
@@ -284,7 +290,12 @@ fn put_node(out: &mut Out, id: i32, node: &AstralInsertNode) {
     }
     if has(ROW) {
         out.prop_string(properties.direction, b"row");
-        out.prop_string(properties.align, b"center");
+        if !has(ALIGN) {
+            out.prop_string(properties.align, b"center");
+        }
+    }
+    if has(ALIGN) {
+        out.prop_string(properties.align, text_of(&node.align));
     }
     if !tap.is_empty() {
         out.prop_string(properties.accessibilityId, tap);
@@ -395,7 +406,7 @@ fn evaluate(out: &mut Out, prefixes: &[Vec<u8>], id: i32, target: &mut Target, k
     let (Ok(identifier), Ok(kind)) = (CString::new(target.identifier.clone()), CString::new(target.kind.clone())) else {
         return false;
     };
-    let Ok(parent) = CString::new(target.parent.clone()) else {
+    let (Ok(parent), Ok(label)) = (CString::new(target.parent.clone()), CString::new(target.label.clone())) else {
         return false;
     };
     let message = message_of_identifier(&target.identifier);
@@ -410,6 +421,13 @@ fn evaluate(out: &mut Out, prefixes: &[Vec<u8>], id: i32, target: &mut Target, k
             core::ptr::null()
         } else {
             parent.as_ptr()
+        },
+        node: id,
+        checked: target.checked.map_or(-1, c_int::from),
+        label: if target.label.is_empty() {
+            core::ptr::null()
+        } else {
+            label.as_ptr()
         },
     };
     let mut nodes = vec![AstralInsertNode::empty(); INSERT_CAPACITY];
@@ -496,6 +514,9 @@ fn insert_at_paths(state: &mut State, bytes: *const u8, spans: &[Span], base: &m
             user: if base.user != 0 { base.user } else { batch_avatar_user(spans) },
             ..Target::default()
         };
+        if let Some(creation) = unsafe { wireCreation(spans.as_ptr(), spans.len(), resolved).as_ref() } {
+            remember_state(&mut target, batch_of(bytes, creation), creation);
+        }
         match list_children(bytes, spans, resolved) {
             Some(children) => remember_children(&mut target, children.into_iter()),
             None => target.children = known_children(resolved).into_iter().take(TARGET_CHILDREN).collect(),
@@ -507,6 +528,14 @@ fn insert_at_paths(state: &mut State, bytes: *const u8, spans: &[Span], base: &m
         staged.discard();
         state.targets.insert(resolved, target);
     }
+}
+
+fn remember_state(target: &mut Target, data: &[u8], span: &Span) {
+    let properties = properties::current();
+    target.checked = find_flag(data, span, properties.accessibilityChecked);
+    target.label = find_string(data, span, properties.accessibilityLabel)
+        .map(<[u8]>::to_vec)
+        .unwrap_or_default();
 }
 
 fn image_selector(prefixes: &[Vec<u8>], uri: &[u8]) -> bool {
@@ -651,6 +680,7 @@ pub unsafe extern "C" fn wireInsertNodes(
                     let mut target = state.targets.remove(&span.id).unwrap_or_default();
                     target.identifier = identifier.to_vec();
                     target.kind = kind.to_vec();
+                    remember_state(&mut target, data, span);
                     if let Some(children) = list_children(bytes, spans, span.id) {
                         remember_children(&mut target, children.into_iter());
                     }

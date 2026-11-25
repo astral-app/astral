@@ -404,6 +404,77 @@ std::optional<nlohmann::json> rawMessage(const std::string &channelID, const std
     return record;
 }
 
+std::optional<nlohmann::json> emojiInContent(const std::string &content, const std::string &emojiID)
+{
+    std::string tail = ":" + emojiID + ">";
+    size_t end = content.find(tail);
+    if (end == std::string::npos) return std::nullopt;
+    size_t open = content.rfind('<', end);
+    if (open == std::string::npos) return std::nullopt;
+    std::string inner = content.substr(open + 1, end - open - 1);
+    bool animated = inner.rfind("a:", 0) == 0;
+    std::string name = inner.substr(inner.find(':') + 1);
+    if (name.size() < 2 || name.size() > 32 ||
+        name.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_") != std::string::npos)
+        return std::nullopt;
+    return nlohmann::json{{"id", emojiID}, {"name", name}, {"animated", animated}};
+}
+
+std::optional<nlohmann::json> emojiInReactions(const nlohmann::json &record, const std::string &emojiID)
+{
+    for (const auto &reaction : record.value("reactions", nlohmann::json::array())) {
+        if (!reaction.is_object() || !reaction.contains("emoji") || !reaction["emoji"].is_object()) continue;
+        const auto &emoji = reaction["emoji"];
+        if (stringField(emoji, "id") != emojiID) continue;
+        std::string name = stringField(emoji, "name");
+        if (name.empty()) return std::nullopt;
+        return nlohmann::json{{"id", emojiID}, {"name", name}, {"animated", emoji.value("animated", false)}};
+    }
+    return std::nullopt;
+}
+
+std::optional<nlohmann::json> emoji(const std::string &emojiID)
+{
+    std::lock_guard<std::recursive_mutex> lock(gMutex);
+    if (!snowflake(emojiID)) return std::nullopt;
+    std::string cacheKey = "emoji:" + emojiID;
+    if (auto hit = cached(cacheKey)) return fromCache(*hit);
+    auto found = messageContaining(emojiID);
+    if (!found) return remember(cacheKey, std::nullopt);
+    auto record = rawMessage(found->first, found->second);
+    if (!record) return remember(cacheKey, std::nullopt);
+    auto described = emojiInContent(stringField(*record, "content"), emojiID);
+    return remember(cacheKey, described ? described : emojiInReactions(*record, emojiID));
+}
+
+std::optional<std::string> currentUser()
+{
+    std::lock_guard<std::recursive_mutex> lock(gMutex);
+    std::string path = newestStore();
+    if (path.empty()) return std::nullopt;
+    std::string account = std::filesystem::path(path).parent_path().filename().string();
+    if (!snowflake(account)) return std::nullopt;
+    return account;
+}
+
+nlohmann::json guilds()
+{
+    std::lock_guard<std::recursive_mutex> lock(gMutex);
+    nlohmann::json list = nlohmann::json::array();
+    sqlite3 *db = database();
+    if (!db) return list;
+    sqlite3_stmt *statement = nullptr;
+    if (sqlite3_prepare_v2(db, "SELECT k FROM guilds", -1, &statement, nullptr) != SQLITE_OK) return list;
+    while (sqlite3_step(statement) == SQLITE_ROW && list.size() < 512) {
+        const unsigned char *text = sqlite3_column_text(statement, 0);
+        if (!text) continue;
+        auto found = guild(unpadded(reinterpret_cast<const char *>(text)));
+        if (found) list.push_back({{"id", (*found)["id"]}, {"name", (*found)["name"]}});
+    }
+    sqlite3_finalize(statement);
+    return list;
+}
+
 std::optional<nlohmann::json> message(const std::string &channelID, const std::string &messageID)
 {
     std::lock_guard<std::recursive_mutex> lock(gMutex);

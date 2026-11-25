@@ -69,7 +69,8 @@ static void PrepareRequestStorage(void)
         id value = self.response.allHeaderFields[name];
         if ([name isKindOfClass:NSString.class] && [value respondsToSelector:@selector(description)]) headers[name] = [value description];
     }
-    NSString *body = [[NSString alloc] initWithData:self.body encoding:NSUTF8StringEncoding] ?: @"";
+    NSString *text = [[NSString alloc] initWithData:self.body encoding:NSUTF8StringEncoding];
+    NSString *body = text ?: @"";
     NSMutableDictionary *result = [@{
         @"status" : @(self.response.statusCode),
         @"ok" : @(self.response.statusCode >= 200 && self.response.statusCode < 300 && !self.bodyTooLarge && !error),
@@ -77,6 +78,7 @@ static void PrepareRequestStorage(void)
         @"headers" : headers,
         @"body" : self.bodyTooLarge ? @"" : body
     } mutableCopy];
+    if (!text && !self.bodyTooLarge && self.body.length) result[@"body_base64"] = [self.body base64EncodedStringWithOptions:0];
     if (self.bodyTooLarge)
         result[@"error"] = @"response body exceeds 1 MiB";
     else if (error)

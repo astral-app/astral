@@ -249,6 +249,7 @@ std::pair<std::string, std::string> permissionDescription(const std::string &per
         {"files.read", {"Reads files you pick", "res://ic_mana_image"}},
         {"media.save", {"Changes which file Discord saves to your photos", "res://ic_mana_download"}},
         {"media.picker", {"Reads the size and length of photos in the media picker", "res://ic_mana_image"}},
+        {"media.offer", {"Answers Discord's next photo picker with an image", "res://ic_mana_image"}},
         {"ui.haptics", {"Triggers haptic feedback", "res://ic_mana_bell"}},
         {"ui.toasts", {"Shows brief notifications", "res://ic_mana_bell"}},
         {"ui.notifications", {"Posts system notifications", "res://ic_mana_bell"}},

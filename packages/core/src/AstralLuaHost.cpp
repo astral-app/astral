@@ -3,8 +3,10 @@
 #include "AstralSwatch.h"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cmath>
+#include <ctime>
 #include <cctype>
 #include <charconv>
 #include <chrono>
@@ -1108,6 +1110,13 @@ static int FocusComposer(lua_State *state)
     return 1;
 }
 
+static int DismissSheets(lua_State *state)
+{
+    RequirePermission(state, "ui.navigate");
+    lua_pushboolean(state, gPlatform.dismissSheets && gPlatform.dismissSheets());
+    return 1;
+}
+
 static bool SnowflakeText(const std::string &value)
 {
     return !value.empty() && value.size() <= 20 && value.find_first_not_of("0123456789") == std::string::npos;
@@ -1138,7 +1147,8 @@ static int PressNode(lua_State *state)
     std::string wanted(identifier, length);
     bool prefix = !wanted.empty() && wanted.back() == '*';
     if (prefix) wanted.pop_back();
-    if (ContainsControl(wanted)) return luaL_error(state, "astral.ui.press: identifier has control characters");
+    if (std::any_of(wanted.begin(), wanted.end(), [](unsigned char character) { return character < 0x20 || character == 0x7f; }))
+        return luaL_error(state, "astral.ui.press: identifier has control characters");
     lua_pushboolean(state, gPlatform.pressNode && gPlatform.pressNode(wanted, prefix));
     return 1;
 }
@@ -1284,6 +1294,20 @@ static int TimeISO(lua_State *state)
 {
     int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
     int64_t milliseconds = lua_isinteger(state, 1) ? lua_tointeger(state, 1) : now;
+    bool local = false;
+    if (lua_istable(state, 2)) {
+        lua_getfield(state, 2, "local_time");
+        local = lua_toboolean(state, -1);
+        lua_pop(state, 1);
+    }
+    if (local) {
+        std::time_t seconds = static_cast<std::time_t>(milliseconds / 1000);
+        std::tm parts{};
+        char text[32] = {0};
+        if (!localtime_r(&seconds, &parts) || !std::strftime(text, sizeof(text), "%Y-%m-%d %H:%M", &parts)) return 0;
+        lua_pushstring(state, text);
+        return 1;
+    }
     std::string iso = GatewayTimestamp(milliseconds).substr(0, 16);
     iso[10] = ' ';
     iso += " UTC";
@@ -1907,6 +1931,36 @@ static int PickedVideoURL(lua_State *state)
     return 1;
 }
 
+static bool OfferableName(const std::string &name)
+{
+    static const std::array<std::string, 5> extensions = {".png", ".gif", ".webp", ".jpg", ".jpeg"};
+    if (name.size() < 5 || name.size() > 64) return false;
+    if (!std::all_of(name.begin(), name.end(), [](unsigned char c) { return std::isalnum(c) || c == '_' || c == '-' || c == '.'; }))
+        return false;
+    if (name.front() == '.' || name.find("..") != std::string::npos) return false;
+    return std::any_of(extensions.begin(), extensions.end(), [&](const std::string &extension) {
+        return name.size() > extension.size() && name.compare(name.size() - extension.size(), extension.size(), extension) == 0;
+    });
+}
+
+static int OfferPick(lua_State *state)
+{
+    RequirePermission(state, "media.offer");
+    size_t length = 0;
+    const char *bytes = luaL_checklstring(state, 1, &length);
+    std::string name = luaL_checkstring(state, 2);
+    if (length == 0 || length > 1024 * 1024) return luaL_error(state, "astral.media.offer_pick: the image is 1 byte to 1 MiB");
+    if (!OfferableName(name)) return luaL_error(state, "astral.media.offer_pick: name is a png, gif, webp or jpg file name");
+    bool offered = false;
+    try {
+        offered = gPlatform.offerPick && gPlatform.offerPick(std::string(bytes, length), name);
+    } catch (...) {
+        offered = false;
+    }
+    lua_pushboolean(state, offered);
+    return 1;
+}
+
 static int RegisterComposerDecorator(lua_State *state)
 {
     LuaPlugin *plugin = Self(state);
@@ -2339,6 +2393,26 @@ static int Guild(lua_State *state)
     return 1;
 }
 
+static int Guilds(lua_State *state)
+{
+    RequirePermission(state, "discord.guilds");
+    PushObject(state, gPlatform.guilds ? std::optional<nlohmann::json>(gPlatform.guilds()) : std::nullopt);
+    return 1;
+}
+
+static int CurrentUser(lua_State *state)
+{
+    PushString(state, gPlatform.currentUser ? gPlatform.currentUser() : std::nullopt);
+    return 1;
+}
+
+static int Emoji(lua_State *state)
+{
+    RequirePermission(state, "discord.messages");
+    PushObject(state, gPlatform.emoji ? gPlatform.emoji(Argument(state, 1)) : std::nullopt);
+    return 1;
+}
+
 static int Member(lua_State *state)
 {
     RequirePermission(state, "discord.members");
@@ -2682,6 +2756,7 @@ static void InstallAPI(LuaPlugin *plugin)
     Function(state, plugin, "open_channel", OpenChannel);
     Function(state, plugin, "scroll_to", ScrollToMessage);
     Function(state, plugin, "focus_composer", FocusComposer);
+    Function(state, plugin, "dismiss", DismissSheets);
     Function(state, plugin, "press", PressNode);
     Function(state, plugin, "insert_text", InsertComposerText);
     Function(state, plugin, "refresh", RefreshDecorationsNow);
@@ -2757,6 +2832,7 @@ static void InstallAPI(LuaPlugin *plugin)
     Function(state, plugin, "on_save", RegisterMediaSaveHandler);
     Function(state, plugin, "picked", PickedMediaInfo);
     Function(state, plugin, "picked_url", PickedVideoURL);
+    Function(state, plugin, "offer_pick", OfferPick);
     lua_setfield(state, -2, "media");
 
     lua_newtable(state);
@@ -2778,6 +2854,9 @@ static void InstallAPI(LuaPlugin *plugin)
 
     lua_newtable(state);
     Function(state, plugin, "guild", Guild);
+    Function(state, plugin, "guilds", Guilds);
+    Function(state, plugin, "emoji", Emoji);
+    Function(state, plugin, "me", CurrentUser);
     Function(state, plugin, "member", Member);
     Function(state, plugin, "channel_guild", ChannelGuild);
     Function(state, plugin, "permissions", Permissions);
@@ -3242,6 +3321,9 @@ void completeNetworkRequest(uint64_t request, const nlohmann::json &result)
         response["body"] = result.is_object() && result.contains("body") && result["body"].is_string()
                                ? result["body"].get<std::string>().substr(0, (1u << 20) + 1)
                                : "";
+        if (result.is_object() && result.contains("body_base64") && result["body_base64"].is_string() &&
+            result["body_base64"].get_ref<const std::string &>().size() <= (1400u << 10))
+            response["body_base64"] = result["body_base64"];
         nlohmann::json headers = nlohmann::json::object();
         if (result.is_object() && result.contains("headers") && result["headers"].is_object()) {
             size_t count = 0;
@@ -5273,6 +5355,18 @@ static void PushPatchTarget(lua_State *state, const AstralPatchTarget *target, s
         lua_pushstring(state, target->parent);
         lua_setfield(state, -2, "parent_id");
     }
+    if (target->node) {
+        lua_pushinteger(state, target->node);
+        lua_setfield(state, -2, "node");
+    }
+    if (target->checked >= 0) {
+        lua_pushboolean(state, target->checked);
+        lua_setfield(state, -2, "checked");
+    }
+    if (target->label) {
+        lua_pushstring(state, target->label);
+        lua_setfield(state, -2, "label");
+    }
 }
 
 static void CopyField(lua_State *state, const char *field, char *out, size_t capacity)
@@ -5325,6 +5419,15 @@ static void ReadInsertStyle(lua_State *state, AstralInsertNode *node)
         if (justify == "start" || justify == "center" || justify == "end") {
             std::snprintf(node->justify, sizeof(node->justify), "%s", justify.c_str());
             node->fields |= AstralInsertJustify;
+        }
+    }
+    lua_pop(state, 1);
+    lua_getfield(state, -1, "align");
+    if (lua_isstring(state, -1)) {
+        std::string align = lua_tostring(state, -1);
+        if (align == "start" || align == "center" || align == "end" || align == "stretch") {
+            std::snprintf(node->align, sizeof(node->align), "%s", align.c_str());
+            node->fields |= AstralInsertAlign;
         }
     }
     lua_pop(state, 1);
@@ -5850,8 +5953,8 @@ bool pressInsertedNode(std::string_view identifier)
             if (entry.identifier != registration || entry.press == LUA_NOREF) continue;
             std::string full = entry.prefix + key;
             uint64_t message = astral_wire_message_of(full.c_str());
-            AstralPatchTarget target = {full.c_str(), entry.type.c_str(), entry.prefix.size(), message, 0, astral_wire_current_channel(),
-                                        nullptr};
+            AstralPatchTarget target = {
+                full.c_str(), entry.type.c_str(), entry.prefix.size(), message, 0, astral_wire_current_channel(), nullptr, 0, -1, nullptr};
             lua_State *state = plugin->state;
             int top = lua_gettop(state);
             lua_rawgeti(state, LUA_REGISTRYINDEX, entry.press);

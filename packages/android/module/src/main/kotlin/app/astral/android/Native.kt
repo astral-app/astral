@@ -41,6 +41,7 @@ object Native {
         url: String,
         headers: String,
         body: String,
+        bodyBase64: String?,
         error: String?,
     )
 

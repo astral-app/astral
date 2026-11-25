@@ -86,14 +86,16 @@ object Http {
                         response.headers.names().take(64).forEach { name ->
                             resultHeaders.put(name, response.headers.values(name).joinToString(", ").take(8_192))
                         }
+                        val text = if (tooLarge) "" else textOf(bytes)
                         complete(
                             id,
                             response.code,
                             response.isSuccessful && !tooLarge,
                             response.request.url.toString(),
                             resultHeaders,
-                            if (tooLarge) "" else bytes.decodeToString(),
+                            text ?: "",
                             if (tooLarge) "response body exceeds 1 MiB" else null,
+                            if (tooLarge || text != null) null else android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP),
                         )
                     }
                 }
@@ -104,6 +106,15 @@ object Http {
     fun cancel(id: Long) {
         requests.remove(id)?.cancel()
     }
+
+    private fun textOf(bytes: ByteArray): String? =
+        runCatching {
+            Charsets.UTF_8.newDecoder()
+                .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+                .decode(java.nio.ByteBuffer.wrap(bytes))
+                .toString()
+        }.getOrNull()
 
     private fun readBounded(input: java.io.InputStream): ByteArray {
         val output = ByteArrayOutputStream()
@@ -124,8 +135,9 @@ object Http {
         headers: JSONObject,
         body: String,
         error: String?,
+        bodyBase64: String? = null,
     ) {
-        Native.completeRequest(id, status, ok, url, headers.toString(), body, error)
+        Native.completeRequest(id, status, ok, url, headers.toString(), body, bodyBase64, error)
     }
 
     private fun completeLater(

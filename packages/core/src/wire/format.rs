@@ -253,6 +253,22 @@ pub fn find_string<'a>(bytes: &'a [u8], span: &Span, wanted: u16) -> Option<&'a 
     None
 }
 
+pub fn find_flag(bytes: &[u8], span: &Span, wanted: u16) -> Option<bool> {
+    let (mut cursor, count) = property_cursor(bytes, span);
+    for _ in 0..count {
+        if cursor.failed() {
+            break;
+        }
+        let property = cursor.read16();
+        let tag = cursor.read8();
+        if property == wanted && (tag == 1 || tag == 2) {
+            return Some(tag == 2);
+        }
+        cursor.skip_value(tag, 0);
+    }
+    None
+}
+
 pub fn batch_of<'a>(bytes: *const u8, span: &Span) -> &'a [u8] {
     span_bytes(bytes, span)
 }
