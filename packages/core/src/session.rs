@@ -17,6 +17,10 @@ pub fn plausible(token: &[u8]) -> bool {
     token.iter().all(|character| *character == b'.' || token_character(*character))
 }
 
+pub fn current() -> Vec<u8> {
+    TOKEN.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).clone()
+}
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn astral_session_plausible_token(token: *const c_char, length: usize) -> c_int {
     c_int::from(plausible(bytes(token, length)))
@@ -32,5 +36,5 @@ pub unsafe extern "C" fn astral_session_set_token(token: *const c_char, length: 
 
 #[unsafe(no_mangle)]
 pub extern "C" fn astral_session_token() -> AstralRustString {
-    AstralRustString::new(TOKEN.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).clone())
+    AstralRustString::new(current())
 }
