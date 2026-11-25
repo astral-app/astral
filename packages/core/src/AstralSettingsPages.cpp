@@ -243,7 +243,7 @@ std::pair<std::string, std::string> permissionDescription(const std::string &per
         {"ui.message_actions", {"Adds actions to the message menu", "res://ic_mana_chat"}},
         {"ui.web_auth", {"Opens a secure sign-in window", "res://ic_mana_link"}},
         {"discord.users", {"Reads user profiles", "res://ic_mana_user"}},
-        {"discord.relationships", {"Reads friend nicknames", "res://ic_mana_friends"}},
+        {"discord.relationships", {"Reads your friends, blocks and their nicknames", "res://ic_mana_friends"}},
         {"network", {"Makes HTTPS requests", "res://ic_mana_link"}},
         {"storage", {"Keeps its own data on this device", "res://ic_mana_download"}},
     };

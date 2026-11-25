@@ -1023,6 +1023,14 @@ static void testGatewayMessageEventsAndHaptics(const std::string &work)
     assert(filtered);
     auto skipped = nlohmann::json::parse(*filtered);
     assert(skipped["op"] == 0 && skipped["s"] == 10 && skipped["t"] == "ASTRAL_FILTERED");
+    auto removed = astral::luahost::processGatewayMessage(
+        R"({"op":0,"s":11,"t":"MESSAGE_UPDATE","d":{"id":"200000000000000015","channel_id":"200000000000000002","guild_id":"200000000000000005","author":{"id":"200000000000000003"},"content":"now filtered"}})");
+    assert(removed);
+    auto deletion = nlohmann::json::parse(*removed);
+    assert(deletion["t"] == "MESSAGE_DELETE" && deletion["s"] == 11 && deletion["d"]["id"] == "200000000000000015");
+    assert(deletion["d"]["guild_id"] == "200000000000000005" && !deletion["d"].contains("content"));
+    assert(!astral::luahost::processGatewayMessage(
+        R"({"op":0,"t":"MESSAGE_UPDATE","d":{"id":"200000000000000016","channel_id":"200000000000000002","author":{"id":"200000000000000003"},"content":"harmless edit"}})"));
     assert(astral::luahost::eval("astral.gateway-events-test", "return astral.storage.get('event').message_id") == "200000000000000006");
     assert(strengths == std::vector<std::string>({"medium", "medium"}));
     assert(!astral::luahost::processGatewayMessage(

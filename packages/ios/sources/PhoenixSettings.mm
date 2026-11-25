@@ -250,6 +250,10 @@ static void ScheduleTween(void)
 static void ScheduleRetry(void)
 {
     ScheduleTween();
+    if (astral_wire_take_refresh_busy())
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC / 10), dispatch_get_main_queue(), ^{
+            AstralPhoenixRefreshDecorations();
+        });
     if (!gQueue || !(astral_wire_pending_mentions() || astral_wire_pending_reactions()) || gRetryScheduled.exchange(true)) return;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC), gQueue, ^{
         pthread_mutex_lock(&gLock);

@@ -91,9 +91,10 @@ uint64_t astral_wire_message_of(const char *identifier)
     return wireMessageOfIdentifier(identifier);
 }
 
-static int callPatcher(const char *identifier, const char *type, AstralNodePatch *patch)
+static int callPatcher(int32_t node, const char *identifier, const char *type, AstralNodePatch *patch)
 {
     uint64_t message = wireMessageOfIdentifier(identifier);
+    if (!message && strcmp(identifier, "message-row") == 0) message = wireRowMessage(node);
     AstralPatchTarget target = {
         identifier, type, keyOffset(identifier), message, message ? wireMessageAuthor(message) : 0, astral_wire_current_channel()};
     return gPatcher(&target, patch);
@@ -270,7 +271,7 @@ static int writePatch(Out *out, Patched *patched, const AstralNodePatch *patch)
 static int evaluate(Out *out, Patched *patched)
 {
     AstralNodePatch patch = {0};
-    if (callPatcher(patched->identifier, patched->type, &patch) < 0) {
+    if (callPatcher(patched->id, patched->identifier, patched->type, &patch) < 0) {
         wireMarkRefreshBusy();
         return 0;
     }
@@ -298,7 +299,9 @@ void wirePatchNodes(const uint8_t *bytes, const Span *spans, size_t count, Out *
         strcpy(patched->type, type);
         captureOriginals(bytes, span, patched);
         AstralNodePatch patch = {0};
-        if (callPatcher(identifier, type, &patch) <= 0) continue;
+        int result = callPatcher(span->id, identifier, type, &patch);
+        if (result < 0) wireMarkRefreshBusy();
+        if (result <= 0) continue;
         if (!*changed) wirePut(out, bytes, length);
         *changed = 1;
         writePatch(out, patched, &patch);
