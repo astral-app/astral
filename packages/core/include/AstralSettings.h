@@ -1,94 +1,113 @@
 #pragma once
 
 #include <chrono>
-#include <cstdint>
 #include <functional>
-#include <map>
-#include <mutex>
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
-#include <vector>
 
-#include "AstralSettingsCache.h"
+#include "AstralRust.h"
+
+extern "C" {
+typedef struct AstralSettingsHandle AstralSettingsHandle;
+AstralSettingsHandle *astral_settings_open(const char *path, size_t length, uint64_t recheckMs);
+void astral_settings_close(AstralSettingsHandle *settings);
+void astral_settings_load(const AstralSettingsHandle *settings);
+int astral_settings_readable(const AstralSettingsHandle *settings);
+void astral_settings_reload(const AstralSettingsHandle *settings);
+void astral_settings_refresh(const AstralSettingsHandle *settings);
+int astral_settings_save(const AstralSettingsHandle *settings);
+int astral_settings_flush(const AstralSettingsHandle *settings);
+AstralRustString astral_settings_snapshot(const AstralSettingsHandle *settings, int pretty);
+int astral_settings_replace(const AstralSettingsHandle *settings, const char *json, size_t length);
+int astral_settings_get(const AstralSettingsHandle *settings, const char *store, size_t storeLength, const char *key, size_t keyLength,
+                        AstralRustString *value);
+int astral_settings_get_boolean(const AstralSettingsHandle *settings, const char *store, size_t storeLength, const char *key,
+                                size_t keyLength, int fallback);
+int astral_settings_get_string(const AstralSettingsHandle *settings, const char *store, size_t storeLength, const char *key,
+                               size_t keyLength, AstralRustString *value);
+int astral_settings_set(const AstralSettingsHandle *settings, const char *store, size_t storeLength, const char *key, size_t keyLength,
+                        const char *json, size_t jsonLength);
+void astral_settings_remove(const AstralSettingsHandle *settings, const char *store, size_t storeLength, const char *key, size_t keyLength);
+int astral_settings_stage(const AstralSettingsHandle *settings, const char *changes, size_t length);
+}
 
 namespace astral {
 class SettingsStore
 {
   public:
-    explicit SettingsStore(std::string path, std::chrono::milliseconds diskRecheck = std::chrono::milliseconds(500));
+    explicit SettingsStore(std::string path, std::chrono::milliseconds diskRecheck = std::chrono::milliseconds(500))
+        : path_(std::move(path)), handle_(astral_settings_open(path_.data(), path_.size(), static_cast<uint64_t>(diskRecheck.count())))
+    {
+    }
 
-    void load();
-    bool readable() const;
-    void reload();
-    void refresh();
-    bool save() const;
-    void refreshCache();
+    ~SettingsStore() { astral_settings_close(handle_); }
 
-    std::string serialize() const;
-    nlohmann::json snapshot() const;
-    bool replace(const std::string &json);
+    SettingsStore(const SettingsStore &) = delete;
+    SettingsStore &operator=(const SettingsStore &) = delete;
 
-    std::optional<nlohmann::json> get(const std::string &store, const std::string &key) const;
-    bool read(const std::string &store, const std::string &key, const std::function<void(const nlohmann::json &)> &reader) const;
-    bool getBoolean(const std::string &store, const std::string &key, bool fallback) const;
-    std::string getString(const std::string &store, const std::string &key, const std::string &fallback) const;
-    bool set(const std::string &store, const std::string &key, nlohmann::json value);
-    void remove(const std::string &store, const std::string &key);
-    bool apply(const nlohmann::json &changes);
-    bool stage(const nlohmann::json &changes);
-    bool flush();
+    void load() { astral_settings_load(handle_); }
+    bool readable() const { return astral_settings_readable(handle_); }
+    void reload() { astral_settings_reload(handle_); }
+    void refresh() { astral_settings_refresh(handle_); }
+    bool save() const { return astral_settings_save(handle_); }
+    bool flush() { return astral_settings_flush(handle_); }
 
-    const std::string &path() const;
+    std::string serialize() const { return rust::take(astral_settings_snapshot(handle_, 1)); }
+
+    nlohmann::json snapshot() const { return nlohmann::json::parse(rust::take(astral_settings_snapshot(handle_, 0)), nullptr, false); }
+
+    bool replace(const std::string &json) { return astral_settings_replace(handle_, json.data(), json.size()); }
+
+    std::optional<nlohmann::json> get(const std::string &store, const std::string &key) const
+    {
+        AstralRustString value{};
+        if (!astral_settings_get(handle_, store.data(), store.size(), key.data(), key.size(), &value)) return std::nullopt;
+        return nlohmann::json::parse(rust::take(value), nullptr, false);
+    }
+
+    bool read(const std::string &store, const std::string &key, const std::function<void(const nlohmann::json &)> &reader) const
+    {
+        std::optional<nlohmann::json> value = get(store, key);
+        if (value) reader(*value);
+        return value.has_value();
+    }
+
+    bool getBoolean(const std::string &store, const std::string &key, bool fallback) const
+    {
+        return astral_settings_get_boolean(handle_, store.data(), store.size(), key.data(), key.size(), fallback);
+    }
+
+    std::string getString(const std::string &store, const std::string &key, const std::string &fallback) const
+    {
+        AstralRustString value{};
+        if (!astral_settings_get_string(handle_, store.data(), store.size(), key.data(), key.size(), &value)) return fallback;
+        return rust::take(value);
+    }
+
+    bool set(const std::string &store, const std::string &key, const nlohmann::json &value)
+    {
+        std::string json = value.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
+        return astral_settings_set(handle_, store.data(), store.size(), key.data(), key.size(), json.data(), json.size());
+    }
+
+    void remove(const std::string &store, const std::string &key)
+    {
+        astral_settings_remove(handle_, store.data(), store.size(), key.data(), key.size());
+    }
+
+    bool stage(const nlohmann::json &changes)
+    {
+        std::string json = changes.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
+        return astral_settings_stage(handle_, json.data(), json.size());
+    }
+
+    bool apply(const nlohmann::json &changes) { return stage(changes) && save(); }
+
+    const std::string &path() const { return path_; }
 
   private:
-    static constexpr size_t kCorruptBackupsKept = 3;
-
-    struct FileStamp {
-        bool exists = false;
-        int64_t modified = 0;
-        uint64_t size = 0;
-
-        bool operator==(const FileStamp &other) const = default;
-    };
-
-    struct RawStore {
-        std::string json;
-        std::string packed;
-    };
-
-    void backupCorruptFile() const;
-    void pruneCorruptBackups() const;
-    std::string lastGoodPath() const;
-    void keepLastGoodLocked(const std::string &contents) const;
-    bool restoreLastGoodLocked() const;
-    std::string cachePath() const;
-    FileStamp stampOnDisk() const;
-    void refreshLocked(bool beforeWrite = false) const;
-    bool adoptLocked(const std::string &contents) const;
-    void loadLocked() const;
-    void resetLocked() const;
-    void parseStoreLocked(const std::string &store) const;
-    void parseAllLocked() const;
-    std::string dumpLocked(std::vector<CachedStore> &layout) const;
-    const nlohmann::json *findLocked(const std::string &store, const std::string &key) const;
-    void setLocked(const std::string &store, const std::string &key, nlohmann::json value) const;
-    void removeLocked(const std::string &store, const std::string &key) const;
-    void applyLocked(const nlohmann::json &changes) const;
-    void mergeExternalEditsLocked() const;
-
     std::string path_;
-    mutable nlohmann::json data_ = nlohmann::json::object();
-    mutable std::map<std::string, RawStore> raw_;
-    mutable FileStamp stamp_;
-    mutable uint64_t jsonHash_ = 0;
-    mutable bool cacheStale_ = true;
-    mutable bool dirty_ = false;
-    mutable std::vector<nlohmann::json> journal_;
-    mutable bool replaced_ = false;
-    mutable bool unreadable_ = false;
-    mutable std::mutex mutex_;
-    std::chrono::milliseconds diskRecheck_;
-    mutable std::chrono::steady_clock::time_point checkedAt_{};
+    AstralSettingsHandle *handle_;
 };
 } // namespace astral
