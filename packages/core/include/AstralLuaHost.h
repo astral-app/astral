@@ -16,6 +16,12 @@ namespace astral {
 
 class SettingsStore;
 
+struct PickedMedia {
+    int64_t size = -1;
+    double duration = 0;
+    std::string type;
+};
+
 struct LuaHostPlatform {
     std::function<std::optional<nlohmann::json>(const std::string &guild)> guild;
     std::function<std::optional<nlohmann::json>(const std::string &guild, const std::string &user)> member;
@@ -59,6 +65,7 @@ struct LuaHostPlatform {
         notify;
     std::function<bool(uint64_t request, const std::vector<std::string> &extensions)> pickFile;
     std::function<void(uint64_t request)> cancelFilePick;
+    std::function<std::optional<PickedMedia>(const std::string &slot)> pickedMedia;
     std::function<std::optional<nlohmann::json>(const std::string &channel, const std::string &message, const std::string &emoji,
                                                 bool burst, uint64_t count, bool &fresh)>
         reactors;

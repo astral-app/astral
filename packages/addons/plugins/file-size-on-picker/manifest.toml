@@ -1,0 +1,15 @@
+id = "astral.file-size-on-picker"
+name = "File Size On Picker"
+description = "Shows file sizes on media picker thumbnails."
+version = "0.0.1"
+icon = "ImageIcon"
+main = "main.lua"
+permissions = ["media.picker", "ui.insert"]
+
+[[authors]]
+name = "mafu"
+id = "519760564755365888"
+
+[[authors]]
+name = "adrian"
+id = "224617799434108928"

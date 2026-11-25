@@ -1857,6 +1857,40 @@ static int RegisterMediaSaveHandler(lua_State *state)
     return 0;
 }
 
+static std::optional<std::string> PickedSlot(const std::string &uri)
+{
+    static const std::string scheme = "picked://";
+    if (uri.compare(0, scheme.size(), scheme) != 0) return std::nullopt;
+    std::string slot = uri.substr(scheme.size());
+    if (slot.size() < 2 || slot.size() > 12 || slot[0] != 'p') return std::nullopt;
+    if (!std::all_of(slot.begin() + 1, slot.end(), [](unsigned char c) { return std::isdigit(c); })) return std::nullopt;
+    return slot;
+}
+
+static int PickedMediaInfo(lua_State *state)
+{
+    RequirePermission(state, "media.picker");
+    std::optional<std::string> slot = PickedSlot(luaL_checkstring(state, 1));
+    if (!slot || !gPlatform.pickedMedia) return 0;
+    std::optional<astral::PickedMedia> media;
+    try {
+        media = gPlatform.pickedMedia(*slot);
+    } catch (...) {
+        media.reset();
+    }
+    if (!media) return 0;
+    lua_newtable(state);
+    if (media->size >= 0) {
+        lua_pushinteger(state, media->size);
+        lua_setfield(state, -2, "size");
+    }
+    lua_pushnumber(state, media->duration);
+    lua_setfield(state, -2, "duration");
+    lua_pushstring(state, media->type.c_str());
+    lua_setfield(state, -2, "type");
+    return 1;
+}
+
 static int RegisterComposerDecorator(lua_State *state)
 {
     LuaPlugin *plugin = Self(state);
@@ -2705,6 +2739,7 @@ static void InstallAPI(LuaPlugin *plugin)
 
     lua_newtable(state);
     Function(state, plugin, "on_save", RegisterMediaSaveHandler);
+    Function(state, plugin, "picked", PickedMediaInfo);
     lua_setfield(state, -2, "media");
 
     lua_newtable(state);
