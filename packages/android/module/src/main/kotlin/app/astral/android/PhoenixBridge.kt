@@ -389,6 +389,9 @@ object PhoenixBridge {
     }
 
     @JvmStatic
+    fun environmentFacts(): String = EnvironmentFacts.collect()
+
+    @JvmStatic
     fun showConfirm(request: Long, spec: String) {
         val options = runCatching { org.json.JSONObject(spec) }.getOrNull()
         mainHandler.post {

@@ -31,7 +31,7 @@ add_library(astral SHARED AstralJni.cpp AstralAndroidBackup.cpp AstralAndroidMar
 target_include_directories(astral PRIVATE ${CORE}/include ${CORE}/wire ${ASTRAL_GENERATED} ${VENDOR}/lua ${VENDOR}/sqlite)
 target_include_directories(astral PRIVATE ${MONOCYPHER} ${MONOCYPHER}/optional)
 target_include_directories(astral SYSTEM PRIVATE ${VENDOR}/json/single_include ${VENDOR}/tomlplusplus/include)
-target_compile_definitions(astral PRIVATE ASTRAL_VERSION="${ASTRAL_VERSION}")
+target_compile_definitions(astral PRIVATE ASTRAL_VERSION="${ASTRAL_VERSION}" ASTRAL_COMMIT="${ASTRAL_COMMIT}")
 target_compile_definitions(astral PRIVATE ASTRAL_SIGNING_KEY="${SIGNING_KEY}")
 target_compile_options(astral PRIVATE -O2 -Wall -fvisibility=hidden)
 target_link_libraries(astral astral-vendor log m)

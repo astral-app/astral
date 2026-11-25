@@ -12,7 +12,7 @@ local MAX_ALT_TEXT = 1024
 local NOISE_BINARY_PART = { "^%d+ dylibs$", "^%d+ injected$", "^UUID %S+$" }
 local ALT_DROP_ORDER =
 	{ "plugins_failed", "markers", "https", "binary", "signer", "install", "source", "framework", "jailbreak" }
-local CHANNELS = { canary = "alpha", ptb = "stable", stable = "stable", beta = "beta" }
+local CHANNELS = { canary = "alpha", alpha = "alpha", ptb = "stable", stable = "stable", beta = "beta" }
 
 local COLORS = {
 	background = 0xFF111214,
@@ -68,9 +68,15 @@ local function binary_text(binary)
 end
 
 local function discord_parts(environment)
-	local version, build = tostring(environment.discord or "?"):match("^(%S+) %((%S+)%)$")
-	local channel = CHANNELS[tostring(environment.discord_channel or ""):lower()] or environment.discord_channel
-	return version or tostring(environment.discord or "?"), build, channel
+	local text = tostring(environment.discord or "?")
+	local version, build = text:match("^(%S+) %((%S+)%)$")
+	local named_channel
+	if not version then
+		version, named_channel, build = text:match("^(%S+) %- (%a+) · (%d+)$")
+	end
+	local raw_channel = tostring(environment.discord_channel or named_channel or ""):lower()
+	local channel = CHANNELS[raw_channel] or (raw_channel ~= "" and raw_channel or nil)
+	return version or text, build, channel
 end
 
 local function support_spans(environment)

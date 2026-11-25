@@ -25,7 +25,9 @@
 #include "AstralLaunchGuard.h"
 #include "AstralDiscordCache.h"
 #include "AstralFiles.h"
+#include "AstralEnvironmentReport.h"
 #include "AstralLuaHost.h"
+#include "AstralNetworkStack.h"
 #include "AstralNetworkPolicy.h"
 #include "AstralPrivacy.h"
 #include "AstralPacks.h"
@@ -84,6 +86,7 @@ jmethodID gCancelWebAuth = nullptr;
 jmethodID gEditText = nullptr;
 jmethodID gRestartGatewaySession = nullptr;
 jmethodID gPasteText = nullptr;
+jmethodID gEnvironmentFacts = nullptr;
 jmethodID gOpenURL = nullptr;
 jmethodID gDispatchGateway = nullptr;
 jmethodID gPressNode = nullptr;
@@ -109,6 +112,7 @@ JNIEnv *currentEnvironment(bool &attached);
 std::optional<std::string> pasteFromBridge();
 jstring toJava(JNIEnv *env, std::string_view value);
 std::string bytesFromJava(JNIEnv *env, jbyteArray array);
+nlohmann::json environmentReport();
 void callBridge(jmethodID method);
 void callBridge(jmethodID method, const std::string &argument);
 void callBridge(jmethodID method, const std::string &first, const std::string &second);
@@ -505,6 +509,9 @@ astral::LuaHostPlatform platform(const std::string &state, const std::string &re
     };
     platform.environment = [] {
         nlohmann::json environment = reportEnvironment();
+        environment.update(environmentReport());
+        environment["commit"] = ASTRAL_COMMIT;
+        environment["image"] = "libastral.so";
         nlohmann::json reports = readReports();
         environment["reports"] = reports.is_array() ? reports.size() : 0;
         if (reports.is_array() && !reports.empty() && reports[0].contains("title")) environment["last_report"] = reports[0]["title"];
@@ -845,6 +852,66 @@ std::string fromJava(JNIEnv *env, jstring value)
     }
     env->ReleaseStringChars(value, characters);
     return result;
+}
+
+std::optional<std::string> callBridgeString(jmethodID method)
+{
+    if (!gVM || !gBridge || !method) return std::nullopt;
+    bool attached = false;
+    JNIEnv *env = currentEnvironment(attached);
+    if (!env) return std::nullopt;
+    auto value = static_cast<jstring>(env->CallStaticObjectMethod(gBridge, method));
+    std::optional<std::string> result;
+    if (env->ExceptionCheck())
+        env->ExceptionClear();
+    else if (value)
+        result = fromJava(env, value);
+    if (value) env->DeleteLocalRef(value);
+    if (attached) gVM->DetachCurrentThread();
+    return result;
+}
+
+nlohmann::json environmentReport()
+{
+    nlohmann::json facts = nlohmann::json::parse(callBridgeString(gEnvironmentFacts).value_or("{}"), nullptr, false);
+    nlohmann::json environment = nlohmann::json::object();
+    if (!facts.is_object()) return environment;
+    environment["install"] = astral::environment_report::androidInstallLine(facts.value("install", nlohmann::json()));
+    environment["framework"] = facts.value("framework", std::string());
+    environment["device_name"] = facts.value("device_name", std::string());
+    nlohmann::json device = facts.value("device", nlohmann::json::object());
+    astral::environment_report::AndroidDeviceFacts markers;
+    if (device.contains("selinux") && device["selinux"].is_boolean()) markers.selinuxEnforcing = device["selinux"].get<bool>();
+    markers.verifiedBootState = device.value("verifiedBoot", std::string());
+    markers.buildTags = device.value("buildTags", std::string());
+    markers.customROM = device.value("rom", std::string());
+    markers.pageSize = device.value("pageSize", 0L);
+    markers.webView = device.value("webView", std::string());
+    markers.host = device.value("host", std::string());
+    markers.skin = device.value("skin", std::string());
+    nlohmann::json background = device.value("background", nlohmann::json::object());
+    if (background.is_object()) {
+        markers.batteryOptimized = background.value("optimized", false);
+        markers.backgroundRestricted = background.value("restricted", false);
+        markers.standbyBucket = background.value("bucket", 0);
+    }
+    markers.abiBridge = device.value("abiBridge", std::string());
+    markers.lowRam = device.value("lowRam", false);
+    markers.harmonyOS = device.value("harmony", false);
+    markers.adoptableStorage = device.value("adoptable", false);
+    markers.refreshRate = device.value("refreshRate", 0);
+    markers.boldText = device.value("boldText", false);
+    markers.formFactor = device.value("formFactor", std::string());
+    nlohmann::json locale = device.value("locale", nlohmann::json::object());
+    if (locale.is_object()) {
+        markers.locale.calendar = locale.value("calendar", std::string());
+        markers.locale.nonLatinDigits = locale.value("nonLatinDigits", false);
+        markers.locale.rightToLeft = locale.value("rtl", false);
+    }
+    environment["markers"] = astral::environment_report::androidMarkers(markers);
+    if (std::string stack = astral::environment_report::currentNetworkStackMarker(); !stack.empty())
+        environment["markers"].push_back(stack);
+    return environment;
 }
 
 std::optional<std::string> pasteFromBridge()
@@ -1444,6 +1511,8 @@ ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_attachBridge
         gInsertComposerText = env->GetStaticMethodID(reference, "insertComposerText", "(Ljava/lang/String;Z)Z");
         if (env->ExceptionCheck()) env->ExceptionClear();
         gShowConfirm = env->GetStaticMethodID(reference, "showConfirm", "(JLjava/lang/String;)V");
+        if (env->ExceptionCheck()) env->ExceptionClear();
+        gEnvironmentFacts = env->GetStaticMethodID(reference, "environmentFacts", "()Ljava/lang/String;");
         if (env->ExceptionCheck()) env->ExceptionClear();
         gNotify = notifyMethod;
         gSpeak = speakMethod;
