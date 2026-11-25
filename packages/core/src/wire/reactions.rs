@@ -54,6 +54,9 @@ struct Pill {
     count_text: i32,
     total: u32,
     nodes: Vec<i32>,
+    stack: i32,
+    faces: Vec<i32>,
+    badge: i32,
     shown: u64,
     dirty: bool,
     pending: bool,
@@ -207,6 +210,19 @@ fn remove_stack(out: &mut Out, pill: &mut Pill) {
         out.put(&node.to_le_bytes());
     }
     pill.nodes.clear();
+    pill.stack = 0;
+    pill.faces.clear();
+    pill.badge = 0;
+}
+
+fn reattach(out: &mut Out, id: i32, pill: &Pill) -> bool {
+    if pill.stack == 0 {
+        return false;
+    }
+    let mut children = pill.children.clone();
+    children.push(pill.stack);
+    put_children(out, id, &children);
+    true
 }
 
 fn new_node(out: &mut Out, pill: &mut Pill, kind: &[u8], properties: u16) -> i32 {
@@ -277,14 +293,38 @@ fn put_badge(out: &mut Out, pill: &mut Pill, overflow: u32) -> i32 {
     badge
 }
 
+fn has_badge(decoration: &AstralReactionDecoration) -> bool {
+    let faces = (decoration.image_count as usize).min(FACES);
+    decoration.total as usize > faces && faces == FACES
+}
+
+fn update_in_place(out: &mut Out, pill: &Pill, decoration: &AstralReactionDecoration) -> bool {
+    let faces = (decoration.image_count as usize).min(FACES);
+    if pill.stack == 0 || pill.faces.len() != faces || (pill.badge != 0) != has_badge(decoration) {
+        return false;
+    }
+    let properties = properties::current();
+    for (face, node) in pill.faces.iter().enumerate() {
+        out.update(*node, 1);
+        out.prop_string(properties.uri, image_of(&decoration.images[face]));
+    }
+    if pill.badge != 0 {
+        out.update(pill.badge, 1);
+        out.prop_string(properties.text, format!("+{}", decoration.total - faces as u32).as_bytes());
+    }
+    true
+}
+
 fn put_stack(out: &mut Out, id: i32, pill: &mut Pill, decoration: &AstralReactionDecoration) {
     let properties = properties::current();
     let faces = (decoration.image_count as usize).min(FACES);
     let mut members: Vec<i32> = (0..faces)
         .map(|face| put_face(out, pill, image_of(&decoration.images[face]), face == 0))
         .collect();
-    if decoration.total as usize > faces && faces == FACES {
+    pill.faces = members.clone();
+    if has_badge(decoration) {
         members.push(put_badge(out, pill, decoration.total - faces as u32));
+        pill.badge = pill.nodes.iter().rev().nth(1).copied().unwrap_or(0);
     }
     let stack = new_node(out, pill, b"view", 7);
     out.prop_string(properties.direction, b"row");
@@ -301,6 +341,7 @@ fn put_stack(out: &mut Out, id: i32, pill: &mut Pill, decoration: &AstralReactio
         FACE_SIZE + (members.len() - 1) as f64 * FACE_STEP
     };
     wireTweenIn(stack, width, TRAILING_INSET);
+    pill.stack = stack;
     put_children(out, stack, &members);
     let mut children = pill.children.clone();
     children.push(stack);
@@ -337,12 +378,7 @@ fn refresh_pill(out: &mut Out, id: i32, pill: &mut Pill, force: bool) -> bool {
     let mut decoration: AstralReactionDecoration = unsafe { core::mem::zeroed() };
     if unsafe { decorator(&context, &mut decoration) } == 0 || decoration.image_count == 0 {
         pill.pending = true;
-        if !force || pill.nodes.is_empty() {
-            return false;
-        }
-        remove_stack(out, pill);
-        pill.shown = 0;
-        return true;
+        return force && reattach(out, id, pill);
     }
     pill.pending = decoration.stale != 0;
     if !pill.pending {
@@ -352,8 +388,15 @@ fn refresh_pill(out: &mut Out, id: i32, pill: &mut Pill, force: bool) -> bool {
         decoration.total = pill.total;
     }
     let hash = decoration_hash(&decoration);
-    if !force && hash == pill.shown && !pill.nodes.is_empty() {
-        return false;
+    if hash == pill.shown && !pill.nodes.is_empty() {
+        return force && reattach(out, id, pill);
+    }
+    if update_in_place(out, pill, &decoration) {
+        if force {
+            reattach(out, id, pill);
+        }
+        pill.shown = hash;
+        return true;
     }
     remove_stack(out, pill);
     put_stack(out, id, pill, &decoration);
@@ -450,7 +493,7 @@ pub unsafe extern "C" fn astral_wire_refresh_reactions(buffer: *mut AstralWireBu
             if decorating {
                 sent |= refresh_pill(&mut out, *id, pill, false);
             }
-            if !pill.nodes.is_empty() && (!decorating || pill.pending) {
+            if !pill.nodes.is_empty() && !decorating {
                 restore(&mut out, *id, pill);
                 sent = true;
             }
