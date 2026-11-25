@@ -29,6 +29,7 @@ struct PluginPackage {
     std::string source;
     std::vector<std::pair<std::string, std::string>> authors;
     std::set<std::string> permissions;
+    bool enabledByDefault = false;
     std::map<std::string, std::string> modules;
     std::string mainBytecode;
     std::map<std::string, std::string> moduleBytecode;

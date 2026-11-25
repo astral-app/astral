@@ -54,6 +54,8 @@ object Native {
     @JvmStatic external fun processGatewayMessage(message: String): String?
     @JvmStatic external fun needsGatewayEvents(): Boolean
     @JvmStatic external fun rewriteHostCall(frame: ByteArray): ByteArray?
+    @JvmStatic external fun hostRequestWanted(frame: ByteArray): Boolean
+    @JvmStatic external fun interceptHostRequest(frame: ByteArray): ByteArray?
     @JvmStatic external fun wantsHttp(method: String, host: String, path: String): Boolean
     @JvmStatic external fun interceptHttpRequest(exchange: HttpExchange, path: String): Boolean
     @JvmStatic external fun interceptHttpResponse(request: HttpExchange, path: String, response: HttpExchange): Boolean

@@ -1,0 +1,12 @@
+id = "astral.debug"
+name = "Debug"
+description = "Adds /debug, which posts a status card with astral's versions, device details and plugin states, for support."
+version = "0.0.1"
+icon = "BugIcon"
+main = "main.lua"
+enabled_by_default = true
+permissions = ["commands", "diagnostics"]
+
+[[authors]]
+name = "adrian"
+id = "224617799434108928"

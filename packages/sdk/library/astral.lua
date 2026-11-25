@@ -382,6 +382,10 @@ function astral.time.after(delay_ms, callback) end
 ---@param callback fun()
 ---@return integer timer
 function astral.time.every(interval_ms, callback) end
+---Formats a time, or now, as "YYYY-MM-DD HH:MM UTC".
+---@param milliseconds? integer
+---@return string
+function astral.time.iso(milliseconds) end
 ---@param timer integer
 function astral.time.cancel(timer) end
 
@@ -432,6 +436,11 @@ function astral.ui.image_rewrite(prefix, rewrite) end
 ---@param identifier string
 ---@return boolean pressed
 function astral.ui.press(identifier) end
+---Types text into the chat input at the cursor, or replaces all of it.
+---@param text string
+---@param options? { replace?: boolean }
+---@return boolean inserted
+function astral.ui.insert_text(text, options) end
 ---Focuses the chat input, or hides the keyboard when `focus` is false.
 ---@param focus? boolean defaults to true
 ---@return boolean
@@ -558,6 +567,56 @@ astral.gateway = {}
 ---@param data table
 ---@return boolean delivered
 function astral.gateway.dispatch(type, data) end
+
+astral.image = {}
+---@class astral.ImageItem
+---@field type "rect"|"circle"|"text"
+---@field x number
+---@field y number
+---@field w? number rect width
+---@field h? number rect height
+---@field r? number circle radius
+---@field radius? number rect corner radius
+---@field color? integer ARGB
+---@field border? integer ARGB
+---@field border_width? number
+---@field text? string
+---@field size? number
+---@field weight? "regular"|"semibold"|"bold"
+---@field mono? boolean
+---@field width? number text width; longer text is cut with an ellipsis
+---@field align? "left"|"center"|"right"
+---@class astral.ImageSpec
+---@field width number points, up to 2048
+---@field height number points, up to 4096
+---@field scale? number 1 to 3, defaults to 2
+---@field background? integer ARGB
+---@field items astral.ImageItem[]
+---Draws shapes and text into a PNG on this device.
+---@param spec astral.ImageSpec
+---@return string? png
+function astral.image.render(spec) end
+
+astral.diagnostics = {}
+---Returns astral's sanitized environment: versions, platform, install mode, device, report count and every plugin's state.
+---@return table
+function astral.diagnostics.environment() end
+
+astral.commands = {}
+---@class astral.CommandOption
+---@field name string
+---@field description? string
+---@field type? "string"|"integer"|"number"|"boolean"|"user"|"channel"|"role"
+---@field required? boolean
+---@class astral.Command
+---@field name string lower-case, up to 32 characters
+---@field description string
+---@field options? astral.CommandOption[]
+---@field execute fun(args: table<string, any>, context: { channel_id: string, guild_id?: string }): string|table|nil
+---Adds a slash command to Discord's own command picker. Return text or a message to reply only to you,
+---or `{ send = { content, file = { name, data, content_type } } }` to have Discord send it to the channel.
+---@param command astral.Command
+function astral.commands.register(command) end
 
 astral.json = {}
 ---@param text string

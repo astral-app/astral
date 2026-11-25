@@ -106,6 +106,23 @@ object PhoenixBridge {
         Log.info("Hooked GuestHost.applyOps")
     }
 
+    private val resending = ThreadLocal.withInitial { false }
+    private val requests = java.util.concurrent.Executors.newCachedThreadPool()
+
+    private fun resendRequest(host: Any?, invoke: Method, frame: ByteArray) {
+        val outgoing = runCatching { Native.interceptHostRequest(frame) }
+            .onFailure { Log.error("Failed to run plugins on a Discord request", it) }
+            .getOrNull() ?: frame
+        resending.set(true)
+        try {
+            invoke.invoke(host, outgoing)
+        } catch (error: Throwable) {
+            Log.error("Failed to send a Discord request after plugins ran", error)
+        } finally {
+            resending.set(false)
+        }
+    }
+
     private fun hookHostCalls(module: XposedModule, type: Class<*>) {
         val invoke = runCatching { type.getDeclaredMethod("invoke", ByteArray::class.java) }.getOrNull()
             ?: return Log.warning("GuestHost has no invoke method; host calls are not rewritten")
@@ -113,7 +130,13 @@ object PhoenixBridge {
             .setExceptionMode(ExceptionMode.PROTECTIVE)
             .intercept { chain ->
                 val frame = chain.getArg(0) as? ByteArray
-                val rewritten = frame?.takeIf { it.size >= 16 && it[0].toInt() == 1 }?.let(Native::rewriteHostCall)
+                if (frame == null || frame.size < 16 || frame[0].toInt() != 1 || resending.get() == true) return@intercept chain.proceed()
+                val host = chain.thisObject
+                if (runCatching { Native.hostRequestWanted(frame) }.getOrDefault(false)) {
+                    requests.execute { resendRequest(host, invoke, frame) }
+                    return@intercept null
+                }
+                val rewritten = Native.rewriteHostCall(frame)
                 if (rewritten == null) chain.proceed() else chain.proceed(arrayOf<Any>(rewritten))
             }
         Log.info("Hooked GuestHost.invoke for host calls")
@@ -673,6 +696,31 @@ object PhoenixBridge {
     }
 
     private fun isDiscordLink(url: String) = url.startsWith("https://discord.com/channels/")
+
+    @JvmStatic
+    fun insertComposerText(text: String, replace: Boolean): Boolean {
+        mainHandler.post {
+            runCatching {
+                val activity = activeActivity() ?: return@runCatching
+                val field = (activity.currentFocus as? EditText) ?: findComposer(activity.window.decorView) ?: return@runCatching
+                field.requestFocus()
+                if (replace) field.text.replace(0, field.text.length, text) else field.text.insert(field.selectionStart.coerceAtLeast(0), text)
+            }.onFailure { Log.error("Failed to type into the chat input", it) }
+        }
+        return true
+    }
+
+    private fun findComposer(view: android.view.View): EditText? {
+        if (view is EditText && view.isShown) return view
+        val group = view as? android.view.ViewGroup ?: return null
+        for (index in 0 until group.childCount) findComposer(group.getChildAt(index))?.let { return it }
+        return null
+    }
+
+    @JvmStatic
+    fun renderImage(spec: String): ByteArray? = runCatching { ImageRenderer.render(spec) }
+        .onFailure { Log.error("Failed to render an image for a plugin", it) }
+        .getOrNull()
 
     @JvmStatic
     fun pressNode(identifier: String, prefix: Boolean): Boolean {

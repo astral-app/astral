@@ -6,6 +6,7 @@ extern "C" {
 
 void AstralInstallLuaComposer(void);
 void AstralRepaintLuaComposers(void);
+BOOL AstralInsertComposerText(NSString *_Nonnull text, BOOL replace);
 
 #ifdef __cplusplus
 }

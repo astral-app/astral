@@ -120,6 +120,13 @@ struct LuaHttpHook {
     int response = LUA_NOREF;
 };
 
+struct LuaCommand {
+    std::string name;
+    std::string description;
+    nlohmann::json options = nlohmann::json::array();
+    int reference = LUA_NOREF;
+};
+
 struct LuaTimer {
     int reference = LUA_NOREF;
     int64_t interval = 0;
@@ -156,6 +163,7 @@ struct LuaPlugin : astral::PluginPackage, astral::PluginHealth {
     std::vector<LuaHttpHook> httpHooks;
     std::vector<std::pair<std::string, int>> imageRewriters;
     std::vector<int> textTransforms;
+    std::vector<LuaCommand> commands;
 };
 
 static int Translate(lua_State *state);
@@ -974,6 +982,145 @@ static int RegisterTextTransform(lua_State *state)
     return 0;
 }
 
+static constexpr const char *kCommandApplication = "1000000000000000001";
+
+static int OptionType(const std::string &type)
+{
+    static const std::map<std::string, int> types = {{"string", 3},  {"integer", 4}, {"boolean", 5}, {"user", 6},
+                                                     {"channel", 7}, {"role", 8},    {"number", 10}};
+    auto found = types.find(type);
+    return found == types.end() ? 0 : found->second;
+}
+
+static bool CommandName(const std::string &name)
+{
+    if (name.empty() || name.size() > 32) return false;
+    for (char character : name)
+        if (!(islower(static_cast<unsigned char>(character)) || isdigit(static_cast<unsigned char>(character)) || character == '-' ||
+              character == '_'))
+            return false;
+    return true;
+}
+
+static int RegisterCommand(lua_State *state)
+{
+    LuaPlugin *plugin = Self(state);
+    RequirePermission(state, "commands");
+    luaL_checktype(state, 1, LUA_TTABLE);
+    if (plugin->commands.size() >= 16) return luaL_error(state, "astral.commands.register: at most 16 commands per plugin");
+    LuaCommand command;
+    lua_getfield(state, 1, "name");
+    command.name = lua_isstring(state, -1) ? lua_tostring(state, -1) : "";
+    lua_getfield(state, 1, "description");
+    command.description = lua_isstring(state, -1) ? lua_tostring(state, -1) : "";
+    lua_pop(state, 2);
+    if (!CommandName(command.name))
+        return luaL_error(state, "astral.commands.register: names are 1 to 32 lower-case letters, digits, - or _");
+    if (command.description.empty() || command.description.size() > 100)
+        return luaL_error(state, "astral.commands.register: descriptions are 1 to 100 characters");
+    lua_getfield(state, 1, "options");
+    if (lua_istable(state, -1)) {
+        lua_Integer count = luaL_len(state, -1);
+        if (count > 25) return luaL_error(state, "astral.commands.register: at most 25 options");
+        for (lua_Integer index = 1; index <= count; index++) {
+            lua_rawgeti(state, -1, index);
+            lua_getfield(state, -1, "name");
+            std::string name = lua_isstring(state, -1) ? lua_tostring(state, -1) : "";
+            lua_getfield(state, -2, "description");
+            std::string description = lua_isstring(state, -1) ? lua_tostring(state, -1) : name;
+            lua_getfield(state, -3, "type");
+            int type = OptionType(lua_isstring(state, -1) ? lua_tostring(state, -1) : "string");
+            lua_getfield(state, -4, "required");
+            bool required = lua_toboolean(state, -1);
+            lua_pop(state, 5);
+            if (!CommandName(name) || !type)
+                return luaL_error(state, "astral.commands.register: option %d needs a valid name and type", (int)index);
+            command.options.push_back(
+                {{"name", name}, {"description", description.substr(0, 100)}, {"type", type}, {"required", required}});
+        }
+    }
+    lua_pop(state, 1);
+    lua_getfield(state, 1, "execute");
+    if (!lua_isfunction(state, -1)) return luaL_error(state, "astral.commands.register: execute must be a function");
+    command.reference = luaL_ref(state, LUA_REGISTRYINDEX);
+    for (auto &existing : plugin->commands)
+        if (existing.name == command.name) {
+            luaL_unref(state, LUA_REGISTRYINDEX, existing.reference);
+            existing = std::move(command);
+            return 0;
+        }
+    plugin->commands.push_back(std::move(command));
+    return 0;
+}
+
+static std::string GatewayTimestamp(int64_t milliseconds);
+
+static int InsertComposerText(lua_State *state)
+{
+    RequirePermission(state, "ui.composer");
+    size_t length = 0;
+    const char *text = luaL_checklstring(state, 1, &length);
+    bool replace = false;
+    if (lua_istable(state, 2)) {
+        lua_getfield(state, 2, "replace");
+        replace = lua_toboolean(state, -1);
+        lua_pop(state, 1);
+    }
+    if ((length == 0 && !replace) || length > 4000) return luaL_error(state, "astral.ui.insert_text: text is 1 to 4000 bytes");
+    lua_pushboolean(state, gPlatform.insertComposerText && gPlatform.insertComposerText(std::string(text, length), replace));
+    return 1;
+}
+
+static int TimeISO(lua_State *state)
+{
+    int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+    int64_t milliseconds = lua_isinteger(state, 1) ? lua_tointeger(state, 1) : now;
+    std::string iso = GatewayTimestamp(milliseconds).substr(0, 16);
+    iso[10] = ' ';
+    iso += " UTC";
+    lua_pushstring(state, iso.c_str());
+    return 1;
+}
+
+static int RenderImage(lua_State *state)
+{
+    nlohmann::json spec;
+    if (!lua_istable(state, 1) || !astral::lua::toJSON(state, 1, spec) || !spec.is_object())
+        return luaL_error(state, "astral.image.render: give a layout table");
+    double width = spec.value("width", 0.0), height = spec.value("height", 0.0), scale = spec.value("scale", 2.0);
+    if (width < 1 || height < 1 || width > 2048 || height > 4096 || scale < 1 || scale > 3)
+        return luaL_error(state, "astral.image.render: width up to 2048, height up to 4096, scale 1 to 3");
+    if (!spec.contains("items") || !spec["items"].is_array() || spec["items"].size() > 2000)
+        return luaL_error(state, "astral.image.render: items must be a list of at most 2000 shapes");
+    if (!gPlatform.renderImage) return 0;
+    std::optional<std::string> png;
+    try {
+        png = gPlatform.renderImage(spec);
+    } catch (...) {
+    }
+    if (!png) return 0;
+    lua_pushlstring(state, png->data(), png->size());
+    return 1;
+}
+
+static int DiagnosticEnvironment(lua_State *state)
+{
+    RequirePermission(state, "diagnostics");
+    nlohmann::json environment = gPlatform.environment ? gPlatform.environment() : nlohmann::json::object();
+    if (!environment.is_object()) environment = nlohmann::json::object();
+    nlohmann::json plugins = nlohmann::json::array();
+    for (auto *plugin : gPlugins)
+        plugins.push_back({{"id", plugin->identifier},
+                           {"name", plugin->name},
+                           {"version", plugin->version},
+                           {"enabled", plugin->enabled},
+                           {"running", plugin->state != nullptr && !plugin->failed},
+                           {"failed", plugin->failed}});
+    environment["plugin_list"] = plugins;
+    astral::lua::pushJSON(state, environment);
+    return 1;
+}
+
 static int PasteText(lua_State *state)
 {
     RequirePermission(state, "ui.clipboard");
@@ -1369,6 +1516,8 @@ static std::string GatewayTimestamp(int64_t milliseconds)
     return text;
 }
 
+static std::optional<std::string> SendLocalMessageJSON(const std::string &channel, const nlohmann::json &message);
+
 static int SendLocalMessage(lua_State *state)
 {
     RequirePermission(state, "messages.local");
@@ -1379,6 +1528,14 @@ static int SendLocalMessage(lua_State *state)
         message["content"] = lua_tostring(state, 2);
     else if (!lua_istable(state, 2) || !astral::lua::toJSON(state, 2, message) || !message.is_object())
         return luaL_error(state, "astral.messages.send_local: give text or a message table");
+    auto id = SendLocalMessageJSON(channel, message);
+    if (!id) return 0;
+    lua_pushlstring(state, id->data(), id->size());
+    return 1;
+}
+
+static std::optional<std::string> SendLocalMessageJSON(const std::string &channel, const nlohmann::json &message)
+{
     int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
     static std::atomic<uint64_t> sequence{0};
     uint64_t snowflake = (static_cast<uint64_t>(now - 1420070400000LL) << 22) | (sequence.fetch_add(1) & 0xFFF);
@@ -1407,11 +1564,8 @@ static int SendLocalMessage(lua_State *state)
         if (key != "channel_id" && key != "id") data[key] = value;
     nlohmann::json envelope = {{"op", 0}, {"t", "MESSAGE_CREATE"}, {"s", nullptr}, {"d", data}};
     std::string text = envelope.dump();
-    if (text.size() > (1u << 20)) return luaL_error(state, "astral.messages.send_local: message exceeds 1 MB");
-    if (!gPlatform.dispatchGateway || !gPlatform.dispatchGateway(text)) return 0;
-    std::string id = data["id"].get<std::string>();
-    lua_pushlstring(state, id.data(), id.size());
-    return 1;
+    if (text.size() > (1u << 20) || !gPlatform.dispatchGateway || !gPlatform.dispatchGateway(text)) return std::nullopt;
+    return data["id"].get<std::string>();
 }
 
 static int RegisterOutgoingMessageTransform(lua_State *state)
@@ -2144,6 +2298,7 @@ static void InstallAPI(LuaPlugin *plugin)
     Function(state, plugin, "after", TimeAfter);
     Function(state, plugin, "every", TimeEvery);
     Function(state, plugin, "cancel", TimeCancel);
+    Function(state, plugin, "iso", TimeISO);
     lua_setfield(state, -2, "time");
 
     lua_newtable(state);
@@ -2158,6 +2313,7 @@ static void InstallAPI(LuaPlugin *plugin)
     Function(state, plugin, "scroll_to", ScrollToMessage);
     Function(state, plugin, "focus_composer", FocusComposer);
     Function(state, plugin, "press", PressNode);
+    Function(state, plugin, "insert_text", InsertComposerText);
     Function(state, plugin, "image_rewrite", RegisterImageRewrite);
     Function(state, plugin, "text_transform", RegisterTextTransform);
     Function(state, plugin, "notify", Notify);
@@ -2190,6 +2346,18 @@ static void InstallAPI(LuaPlugin *plugin)
     lua_newtable(state);
     Function(state, plugin, "dispatch", DispatchGatewayEvent);
     lua_setfield(state, -2, "gateway");
+
+    lua_newtable(state);
+    Function(state, plugin, "register", RegisterCommand);
+    lua_setfield(state, -2, "commands");
+
+    lua_newtable(state);
+    Function(state, plugin, "render", RenderImage);
+    lua_setfield(state, -2, "image");
+
+    lua_newtable(state);
+    Function(state, plugin, "environment", DiagnosticEnvironment);
+    lua_setfield(state, -2, "diagnostics");
 
     lua_newtable(state);
     Function(state, plugin, "decode", DecodeJSON);
@@ -2310,6 +2478,9 @@ static void Stop(LuaPlugin *plugin)
     for (const auto &[prefix, reference] : plugin->imageRewriters)
         if (plugin->state) luaL_unref(plugin->state, LUA_REGISTRYINDEX, reference);
     plugin->imageRewriters.clear();
+    for (const auto &command : plugin->commands)
+        if (plugin->state) luaL_unref(plugin->state, LUA_REGISTRYINDEX, command.reference);
+    plugin->commands.clear();
     for (int reference : plugin->textTransforms)
         if (plugin->state) luaL_unref(plugin->state, LUA_REGISTRYINDEX, reference);
     plugin->textTransforms.clear();
@@ -2482,7 +2653,7 @@ static void Scan(void)
             }
             plugin->bundled = bundled;
             gPlugins.push_back(plugin);
-            plugin->enabled = StoredBool(plugin->identifier + ".enabled", !bundled);
+            plugin->enabled = StoredBool(plugin->identifier + ".enabled", !bundled || plugin->enabledByDefault);
             if (plugin->enabled && gStartEnabled) Start(plugin);
         }
     }
@@ -2976,10 +3147,208 @@ bool needsGatewayEvents()
 
 static std::optional<std::string> processKnownGatewayEvents(nlohmann::json &envelope);
 
+static std::string CommandID(const std::string &plugin, const std::string &name)
+{
+    uint64_t hash = 1469598103934665603ull;
+    for (char character : plugin + "/" + name) hash = (hash ^ static_cast<uint8_t>(character)) * 1099511628211ull;
+    return std::to_string((hash >> 2) | (1ull << 60));
+}
+
+static bool HasCommands()
+{
+    for (auto *plugin : gPlugins)
+        if (plugin->state && !plugin->failed && !plugin->commands.empty()) return true;
+    return false;
+}
+
+static bool IsCommandIndex(const std::string &method, const std::string &path)
+{
+    static const std::string suffix = "/application-command-index";
+    return method == "GET" && path.size() > suffix.size() && path.compare(path.size() - suffix.size(), suffix.size(), suffix) == 0;
+}
+
+static bool IsInteraction(const std::string &method, const std::string &path)
+{
+    static const std::string suffix = "/interactions";
+    return method == "POST" && path.size() >= suffix.size() && path.compare(path.size() - suffix.size(), suffix.size(), suffix) == 0;
+}
+
+static bool InjectCommands(std::string &body)
+{
+    nlohmann::json index = nlohmann::json::parse(body, nullptr, false);
+    if (!index.is_object()) return false;
+    if (!index.contains("applications") || !index["applications"].is_array()) index["applications"] = nlohmann::json::array();
+    if (!index.contains("application_commands") || !index["application_commands"].is_array())
+        index["application_commands"] = nlohmann::json::array();
+    index["applications"].push_back({{"id", kCommandApplication},
+                                     {"name", "astral"},
+                                     {"description", "Commands from astral plugins"},
+                                     {"icon", nullptr},
+                                     {"bot_id", kCommandApplication},
+                                     {"flags", "0"}});
+    for (auto *plugin : gPlugins) {
+        if (!plugin->state || plugin->failed) continue;
+        for (const auto &command : plugin->commands)
+            index["application_commands"].push_back({{"id", CommandID(plugin->identifier, command.name)},
+                                                     {"application_id", kCommandApplication},
+                                                     {"version", "1"},
+                                                     {"type", 1},
+                                                     {"name", command.name},
+                                                     {"description", command.description},
+                                                     {"options", command.options},
+                                                     {"contexts", {0, 1, 2}},
+                                                     {"integration_types", {0, 1}},
+                                                     {"dm_permission", true}});
+    }
+    body = index.dump();
+    return true;
+}
+
+static std::optional<nlohmann::json> InteractionPayload(const HttpRequest &request)
+{
+    std::string contentType;
+    for (const auto &[name, value] : request.headers)
+        if (name == "content-type") contentType = value;
+    if (contentType.find("multipart/form-data") == std::string::npos) {
+        nlohmann::json payload = nlohmann::json::parse(request.body, nullptr, false);
+        if (payload.is_object()) return payload;
+        return std::nullopt;
+    }
+    size_t field = request.body.find("name=\"payload_json\"");
+    if (field == std::string::npos) return std::nullopt;
+    size_t start = request.body.find("\r\n\r\n", field);
+    if (start == std::string::npos) return std::nullopt;
+    start += 4;
+    size_t end = request.body.find("\r\n--", start);
+    nlohmann::json payload =
+        nlohmann::json::parse(request.body.substr(start, end == std::string::npos ? std::string::npos : end - start), nullptr, false);
+    if (payload.is_object()) return payload;
+    return std::nullopt;
+}
+
+static void PushOptionValues(lua_State *state, const nlohmann::json &options)
+{
+    lua_createtable(state, 0, 4);
+    if (!options.is_array()) return;
+    for (const auto &option : options) {
+        if (!option.is_object() || !option.contains("name") || !option["name"].is_string()) continue;
+        astral::lua::pushJSON(state, option.value("value", nlohmann::json()));
+        lua_setfield(state, -2, option["name"].get<std::string>().c_str());
+    }
+}
+
+static std::string MultipartMessage(const nlohmann::json &payload, const std::string &filename, const std::string &type,
+                                    const std::string &data, std::string &boundary)
+{
+    boundary = "astral" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+    std::string body = "--" + boundary +
+                       "\r\nContent-Disposition: form-data; name=\"payload_json\"\r\nContent-Type: application/json\r\n\r\n" +
+                       payload.dump() + "\r\n";
+    body += "--" + boundary + "\r\nContent-Disposition: form-data; name=\"files[0]\"; filename=\"" + filename +
+            "\"\r\nContent-Type: " + type + "\r\n\r\n" + data + "\r\n--" + boundary + "--\r\n";
+    return body;
+}
+
+static std::optional<HttpDecision> HandleInteraction(HttpRequest &request)
+{
+    auto payload = InteractionPayload(request);
+    if (!payload || payload->value("application_id", std::string()) != kCommandApplication) return std::nullopt;
+    const nlohmann::json data = payload->value("data", nlohmann::json::object());
+    std::string name = data.value("name", std::string());
+    std::string channel = payload->value("channel_id", std::string());
+    HttpDecision decision;
+    decision.response = HttpResponse{204, {}, ""};
+    for (auto *plugin : gPlugins) {
+        if (!plugin->state || plugin->failed) continue;
+        for (const auto &command : plugin->commands) {
+            if (command.name != name) continue;
+            lua_State *state = plugin->state;
+            int top = lua_gettop(state);
+            lua_rawgeti(state, LUA_REGISTRYINDEX, command.reference);
+            PushOptionValues(state, data.value("options", nlohmann::json::array()));
+            lua_createtable(state, 0, 2);
+            lua_pushstring(state, channel.c_str());
+            lua_setfield(state, -2, "channel_id");
+            if (payload->contains("guild_id") && (*payload)["guild_id"].is_string()) {
+                lua_pushstring(state, (*payload)["guild_id"].get<std::string>().c_str());
+                lua_setfield(state, -2, "guild_id");
+            }
+            if (!Call(plugin, 2, 1, "command")) {
+                lua_settop(state, top);
+                MarkFailed(plugin);
+                Stop(plugin);
+                return decision;
+            }
+            nlohmann::json reply;
+            bool hasReply = !lua_isnil(state, -1) && astral::lua::toJSON(state, -1, reply);
+            lua_settop(state, top);
+            if (!hasReply) return decision;
+            if (reply.is_string()) reply = {{"content", reply}};
+            std::string nonce = payload->value("nonce", std::string());
+            std::string interaction = CommandID("interaction", std::to_string(gNextRequest.fetch_add(1)));
+            if (gPlatform.dispatchGateway) {
+                nlohmann::json created = {
+                    {"op", 0}, {"t", "INTERACTION_CREATE"}, {"s", nullptr}, {"d", {{"id", interaction}, {"nonce", nonce}}}};
+                nlohmann::json succeeded = {
+                    {"op", 0}, {"t", "INTERACTION_SUCCESS"}, {"s", nullptr}, {"d", {{"id", interaction}, {"nonce", nonce}}}};
+                gPlatform.dispatchGateway(created.dump());
+                gPlatform.dispatchGateway(succeeded.dump());
+            }
+            if (reply.is_object() && reply.contains("send") && reply["send"].is_object() && SnowflakeText(channel)) {
+                nlohmann::json message = reply["send"];
+                nlohmann::json file = message.value("file", nlohmann::json());
+                message.erase("file");
+                if (!nonce.empty()) message["nonce"] = nonce;
+                request.method = "POST";
+                request.url = "https://discord.com/api/v9/channels/" + channel + "/messages";
+                request.path = UrlPath(request.url);
+                std::vector<std::pair<std::string, std::string>> headers;
+                for (const auto &[header, value] : request.headers)
+                    if (header != "content-type" && header != "content-length") headers.emplace_back(header, value);
+                if (file.is_object() && file.contains("data") && file["data"].is_string()) {
+                    std::string filename = file.value("name", std::string("file.png"));
+                    nlohmann::json attachment = {{"id", 0}, {"filename", filename}};
+                    if (file.contains("description") && file["description"].is_string())
+                        attachment["description"] = file["description"].get<std::string>().substr(0, 1024);
+                    message["attachments"] = nlohmann::json::array({attachment});
+                    std::string boundary;
+                    request.body = MultipartMessage(message, filename, file.value("content_type", std::string("image/png")),
+                                                    file["data"].get<std::string>(), boundary);
+                    headers.emplace_back("content-type", "multipart/form-data; boundary=" + boundary);
+                } else {
+                    request.body = message.dump();
+                    headers.emplace_back("content-type", "application/json");
+                }
+                request.headers = std::move(headers);
+                decision.response.reset();
+                decision.changed = true;
+                return decision;
+            }
+            if (reply.is_object() && SnowflakeText(channel)) {
+                nlohmann::json local = reply;
+                local.erase("send");
+                local["nonce"] = nonce;
+                local["type"] = 20;
+                local["application_id"] = kCommandApplication;
+                nlohmann::json user = {{"id", gCurrentUserID}};
+                if (gPlatform.user && !gCurrentUserID.empty()) {
+                    auto cached = gPlatform.user(gCurrentUserID);
+                    if (cached && cached->is_object()) user = *cached;
+                }
+                local["interaction_metadata"] = {{"id", interaction}, {"type", 2}, {"name", name}, {"user", user}};
+                SendLocalMessageJSON(channel, local);
+            }
+            return decision;
+        }
+    }
+    return decision;
+}
+
 bool wantsHttp(const std::string &method, const std::string &host, const std::string &path)
 {
     if (!astral::isDiscordHost(host)) return false;
     std::lock_guard<std::recursive_mutex> lock(gMutex);
+    if ((IsCommandIndex(method, path) || IsInteraction(method, path)) && HasCommands()) return true;
     for (auto *plugin : gPlugins) {
         if (!plugin->state || plugin->failed) continue;
         for (const auto &hook : plugin->httpHooks)
@@ -2993,6 +3362,10 @@ HttpDecision interceptHttpRequest(HttpRequest &request)
     HttpDecision decision;
     if (request.body.size() > kMaximumHttpBody) return decision;
     std::unique_lock<std::recursive_mutex> lock(gMutex);
+    if (IsInteraction(request.method, request.path) && HasCommands()) {
+        auto handled = HandleInteraction(request);
+        if (handled) return *handled;
+    }
     std::vector<LuaPlugin *> plugins(gPlugins.begin(), gPlugins.end());
     for (auto *plugin : plugins) {
         size_t hooks = plugin->httpHooks.size();
@@ -3056,6 +3429,7 @@ bool interceptHttpResponse(const HttpRequest &request, HttpResponse &response)
     if (response.body.size() > kMaximumHttpBody) return false;
     bool changed = false;
     std::lock_guard<std::recursive_mutex> lock(gMutex);
+    if (IsCommandIndex(request.method, request.path) && response.status == 200 && HasCommands()) changed = InjectCommands(response.body);
     for (auto *plugin : gPlugins) {
         for (size_t index = 0; index < plugin->httpHooks.size(); index++) {
             if (!plugin->state || plugin->failed) break;

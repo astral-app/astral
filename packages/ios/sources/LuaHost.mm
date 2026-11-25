@@ -19,6 +19,7 @@
 #import "ReactionReactors.h"
 #import "NetworkRequest.h"
 #import "NetworkFilter.h"
+#import "ImageRenderer.h"
 #import <UIKit/UIKit.h>
 #import <objc/message.h>
 #import <objc/runtime.h>
@@ -301,6 +302,33 @@ static astral::LuaHostPlatform Platform(void)
         AstralRecordPluginFailure(Native(identifier), Native(name), Native(error));
     };
     platform.developerLog = [](const std::string &line) { AstralDevAppendLog(Native(line)); };
+    platform.insertComposerText = [](const std::string &text, bool replace) {
+        NSString *value = Native(text);
+        dispatch_async(dispatch_get_main_queue(), ^{
+            AstralInsertComposerText(value, replace);
+        });
+        return true;
+    };
+    platform.renderImage = [](const nlohmann::json &spec) -> std::optional<std::string> {
+        NSData *json = [NSData dataWithBytes:spec.dump().data() length:spec.dump().size()];
+        NSDictionary *parsed = [NSJSONSerialization JSONObjectWithData:json options:0 error:nil];
+        if (![parsed isKindOfClass:NSDictionary.class]) return std::nullopt;
+        __block NSData *png = nil;
+        if (NSThread.isMainThread)
+            png = AstralRenderImage(parsed);
+        else
+            dispatch_sync(dispatch_get_main_queue(), ^{
+                png = AstralRenderImage(parsed);
+            });
+        if (!png) return std::nullopt;
+        return std::string((const char *)png.bytes, png.length);
+    };
+    platform.environment = [] {
+        NSData *data = [NSJSONSerialization dataWithJSONObject:AstralDiagnosticEnvironment() options:0 error:nil];
+        nlohmann::json environment =
+            data ? nlohmann::json::parse(std::string((const char *)data.bytes, data.length), nullptr, false) : nlohmann::json::object();
+        return environment.is_object() ? environment : nlohmann::json::object();
+    };
     platform.pressNode = [](const std::string &identifier, bool prefix) {
         NSString *wanted = Native(identifier);
         if ([NSThread isMainThread]) return (bool)PressIdentifiedView(wanted, prefix);

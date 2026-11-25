@@ -1,6 +1,7 @@
 #import "LuaComposer.h"
 
 #import "LuaHost.h"
+#import "DevServer.h"
 #import <objc/runtime.h>
 #import <UIKit/UIKit.h>
 
@@ -183,4 +184,36 @@ void AstralInstallLuaComposer(void)
                                                         }];
         }
     });
+}
+
+static UITextView *FindComposer(UIView *view)
+{
+    if ([view isKindOfClass:UITextView.class] && !view.hidden && IsComposer((UITextView *)view)) return (UITextView *)view;
+    for (UIView *child in view.subviews) {
+        UITextView *found = FindComposer(child);
+        if (found) return found;
+    }
+    return nil;
+}
+
+BOOL AstralInsertComposerText(NSString *text, BOOL replace)
+{
+    UITextView *composer = nil;
+    for (UITextView *textView in gComposerViews.allObjects)
+        if (textView.window && IsComposer(textView)) composer = textView;
+    for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
+        if (composer || ![scene isKindOfClass:UIWindowScene.class]) continue;
+        for (UIWindow *window in ((UIWindowScene *)scene).windows) {
+            composer = FindComposer(window);
+            if (composer) break;
+        }
+    }
+    if (!composer) return NO;
+    if (!composer.isFirstResponder) [composer becomeFirstResponder];
+    if (replace) composer.selectedRange = NSMakeRange(0, composer.text.length);
+    if (text.length)
+        [composer insertText:text];
+    else if (replace && composer.text.length)
+        [composer deleteBackward];
+    return YES;
 }

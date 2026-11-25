@@ -101,8 +101,8 @@ static NSDictionary *Environment(void)
 #endif
     NSString *resourceName = AstralResourceDirectory().lastPathComponent;
     NSMutableArray<NSString *> *plugins = [NSMutableArray array];
-    for (NSDictionary *plugin in (gRunningPlugins ? gRunningPlugins() : @[])) {
-        if ([plugin[@"running"] boolValue] && [plugin[@"id"] isKindOfClass:NSString.class]) [plugins addObject:plugin[@"id"]];
+    for (id plugin in (gRunningPlugins ? gRunningPlugins() : @[])) {
+        if ([plugin isKindOfClass:NSString.class]) [plugins addObject:plugin];
     }
     return @{
         @"schema" : @2,
@@ -118,6 +118,15 @@ static NSDictionary *Environment(void)
         @"locale" : NSLocale.preferredLanguages.firstObject ?: @"",
         @"plugins" : plugins,
     };
+}
+
+NSDictionary *AstralDiagnosticEnvironment(void)
+{
+    NSMutableDictionary *environment = [Environment() mutableCopy];
+    NSArray<NSDictionary *> *reports = AstralCrashReports();
+    environment[@"reports"] = @(reports.count);
+    if (reports.firstObject[@"title"]) environment[@"last_report"] = reports.firstObject[@"title"];
+    return environment;
 }
 
 static void AddReport(NSDictionary *report)
