@@ -422,10 +422,11 @@ function astral.snowflake.is_valid(id) end
 ---@param right string
 ---@return integer?
 function astral.snowflake.compare(left, right) end
----Formats a time, or now, as "YYYY-MM-DD HH:MM UTC".
+---Formats a time, or now, as "YYYY-MM-DD HH:MM UTC", or in the device's time zone without the suffix with `{ local_time = true }`.
 ---@param milliseconds? integer
+---@param options? { local_time: boolean? }
 ---@return string
-function astral.time.iso(milliseconds) end
+function astral.time.iso(milliseconds, options) end
 ---@param timer integer
 function astral.time.cancel(timer) end
 
@@ -531,6 +532,9 @@ function astral.ui.focus_composer(focus) end
 function astral.ui.notify(title, body, options) end
 function astral.ui.haptic(strength) end
 function astral.ui.composer(formatter) end
+---Closes the sheets and pages Discord shows over its main screen.
+---@return boolean dismissed
+function astral.ui.dismiss() end
 ---@param target astral.Target
 ---@param decorator fun(node: astral.Node): astral.Decoration
 function astral.ui.decorate(target, decorator) end
@@ -559,6 +563,9 @@ function astral.ui.message_color(colorizer) end
 ---@field author_id? string
 ---@field channel_id? string the open channel
 ---@field parent_id? string the accessibility id of an image selector's parent
+---@field node? integer the node's id; a new node means Discord drew it again
+---@field checked? boolean whether a checkbox or switch is on, as Discord drew it
+---@field label? string the node's accessibility label
 
 ---@class astral.NodePatch
 ---@field background? astral.Color|integer|string
@@ -592,6 +599,7 @@ function astral.ui.patch(selector, patcher) end
 ---@field height? number
 ---@field row? boolean lay children out in a row
 ---@field justify? "start"|"center"|"end" where children sit along the main axis
+---@field align? "start"|"center"|"end"|"stretch" where children sit across it
 ---@field fill? boolean take the full width of the parent
 ---@field bold? boolean
 ---@field weight? integer font weight from 100 to 900; bold is 600
@@ -772,6 +780,11 @@ function astral.media.picked(uri) end
 ---@param uri string
 ---@return string?
 function astral.media.picked_url(uri) end
+---Answers Discord's next photo picker, opened within 20 seconds, with this image instead of showing the picker.
+---@param bytes string the image file's bytes, up to 1 MiB
+---@param name string a png, gif, webp or jpg file name
+---@return boolean offered
+function astral.media.offer_pick(bytes, name) end
 
 astral.messages = {}
 function astral.messages.transform(callback) end
@@ -805,6 +818,16 @@ function astral.discord.channel_guild(channel) end
 ---@param channel? astral.Snowflake
 ---@return integer?
 function astral.discord.permissions(guild, user, channel) end
+---The signed-in account's user ID.
+---@return astral.Snowflake?
+function astral.discord.me() end
+---Every server in Discord's cache, as `{ id, name }`.
+---@return { id: astral.Snowflake, name: string }[]
+function astral.discord.guilds() end
+---A custom emoji's name and whether it is animated, found in cached messages and reactions.
+---@param id astral.Snowflake
+---@return { id: astral.Snowflake, name: string, animated: boolean }?
+function astral.discord.emoji(id) end
 ---@param channel astral.Snowflake
 ---@param message astral.Snowflake
 ---@return astral.Message?

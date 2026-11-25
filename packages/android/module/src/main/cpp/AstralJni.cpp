@@ -300,6 +300,9 @@ astral::LuaHostPlatform platform(const std::string &state, const std::string &re
 {
     astral::LuaHostPlatform platform;
     platform.guild = astral::discord::guild;
+    platform.guilds = astral::discord::guilds;
+    platform.emoji = astral::discord::emoji;
+    platform.currentUser = astral::discord::currentUser;
     platform.member = astral::discord::member;
     platform.memberNamed = astral::discord::memberNamed;
     platform.channelGuild = astral::discord::channelGuild;
@@ -1517,13 +1520,14 @@ ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_attachBridge
 
 ASTRAL_EXPORT JNIEXPORT void JNICALL Java_app_astral_android_Native_completeRequest(JNIEnv *env, jclass, jlong request, jint status,
                                                                                     jboolean ok, jstring url, jstring headers, jstring body,
-                                                                                    jstring error)
+                                                                                    jstring bodyBase64, jstring error)
 {
     if (request <= 0) return;
     nlohmann::json response = {{"status", std::clamp(static_cast<int>(status), 0, 999)},
                                {"ok", ok == JNI_TRUE},
                                {"url", fromJava(env, url)},
                                {"body", fromJava(env, body)}};
+    if (bodyBase64) response["body_base64"] = fromJava(env, bodyBase64);
     try {
         std::string encodedHeaders = fromJava(env, headers);
         if (encodedHeaders.size() <= (512u << 10)) {

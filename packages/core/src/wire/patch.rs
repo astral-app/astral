@@ -208,6 +208,9 @@ pub fn patch_target(prefix_length: usize, identifier: &CString, kind: &CString, 
         author_id: if message != 0 { wireMessageAuthor(message) } else { 0 },
         channel_id: current_channel(),
         parent: core::ptr::null(),
+        node,
+        checked: -1,
+        label: core::ptr::null(),
     }
 }
 

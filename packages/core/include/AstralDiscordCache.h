@@ -21,6 +21,9 @@ std::optional<std::string> messageChannel(const std::string &messageID);
 std::optional<nlohmann::json> message(const std::string &channelID, const std::string &messageID);
 std::optional<std::pair<std::string, std::string>> messageContaining(const std::string &text);
 std::optional<nlohmann::json> rawMessage(const std::string &channelID, const std::string &messageID);
+std::optional<nlohmann::json> emoji(const std::string &emojiID);
+nlohmann::json guilds();
+std::optional<std::string> currentUser();
 std::optional<uint64_t> permissions(const std::string &guildID, const std::string &userID, const std::optional<std::string> &channelID);
 
 } // namespace astral::discord

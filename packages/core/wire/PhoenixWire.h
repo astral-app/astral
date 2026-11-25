@@ -301,6 +301,9 @@ typedef struct {
     uint64_t author_id;
     uint64_t channel_id;
     const char *parent;
+    int32_t node;
+    int checked;
+    const char *label;
 } AstralPatchTarget;
 
 typedef int (*AstralNodePatcher)(const AstralPatchTarget *target, AstralNodePatch *patch);
@@ -327,7 +330,8 @@ typedef enum {
     AstralInsertJustify = 1 << 11,
     AstralInsertFill = 1 << 12,
     AstralInsertMuted = 1 << 13,
-    AstralInsertFillHeight = 1 << 14
+    AstralInsertFillHeight = 1 << 14,
+    AstralInsertAlign = 1 << 15
 } AstralInsertField;
 
 typedef struct {
@@ -347,9 +351,10 @@ typedef struct {
     float padding[4];
     float margin[4];
     char justify[8];
+    char align[8];
 } AstralInsertNode;
 
-enum { kAstralInsertCapacity = 8 };
+enum { kAstralInsertCapacity = 32 };
 
 typedef int (*AstralNodeInserter)(const AstralPatchTarget *target, AstralInsertNode *nodes, size_t capacity, int *atStart);
 void astral_wire_set_node_inserter(AstralNodeInserter inserter);

@@ -18,6 +18,7 @@
 #import "FoundationJSON.h"
 #import "PhoenixSettings.h"
 #import "PickedMedia.h"
+#import "PickOffer.h"
 #include "PhoenixWire.h"
 #import "PluginSignature.h"
 #import "ReactionReactors.h"
@@ -40,9 +41,9 @@ static UIView *IdentifiedView(UIView *view, NSString *identifier, BOOL prefix)
     return nil;
 }
 
-static BOOL FireTapRecognizer(UIView *view)
+static BOOL FireTapRecognizer(UIView *view, BOOL ancestors)
 {
-    for (UIView *current = view; current; current = current.superview) {
+    for (UIView *current = view; current; current = ancestors ? current.superview : nil) {
         for (UIGestureRecognizer *recognizer in current.gestureRecognizers) {
             if (![recognizer isKindOfClass:UITapGestureRecognizer.class] || !recognizer.enabled) continue;
             Ivar targetsIvar = class_getInstanceVariable(UIGestureRecognizer.class, "_targets");
@@ -80,7 +81,7 @@ static BOOL PressIdentifiedView(NSString *identifier, BOOL prefix)
         for (UIWindow *window in ((UIWindowScene *)scene).windows.reverseObjectEnumerator) {
             UIView *view = IdentifiedView(window, identifier, prefix);
             if (!view) continue;
-            if ([view accessibilityActivate] || FireTapRecognizer(view)) return YES;
+            if (FireTapRecognizer(view, NO) || [view accessibilityActivate] || FireTapRecognizer(view, YES)) return YES;
             if ([view isKindOfClass:UIControl.class]) {
                 [(UIControl *)view sendActionsForControlEvents:UIControlEventTouchUpInside];
                 return YES;
@@ -261,6 +262,9 @@ static astral::LuaHostPlatform Platform(void)
 {
     astral::LuaHostPlatform platform;
     platform.guild = [](const std::string &guild) { return JSON(AstralDiscordGuild(Native(guild))); };
+    platform.guilds = [] { return AstralDiscordGuildList(); };
+    platform.emoji = [](const std::string &emoji) { return AstralDiscordEmoji(emoji); };
+    platform.currentUser = [] { return AstralDiscordCurrentUser(); };
     platform.member = [](const std::string &guild, const std::string &user) {
         return JSON(AstralDiscordMember(Native(guild), Native(user)));
     };
@@ -409,6 +413,9 @@ static astral::LuaHostPlatform Platform(void)
         if (!url) return std::nullopt;
         return std::string(url.UTF8String);
     };
+    platform.offerPick = [](const std::string &data, const std::string &name) {
+        return (bool)AstralOfferPick([NSData dataWithBytes:data.data() length:data.size()], Native(name));
+    };
     platform.speak = [](const std::string &text, const std::string &language, double rate) {
         AVSpeechUtterance *utterance = [AVSpeechUtterance speechUtteranceWithString:Native(text)];
         utterance.rate =
@@ -525,6 +532,18 @@ static astral::LuaHostPlatform Platform(void)
     platform.focusComposer = [](bool focus) {
         if (!astral_wire_focus_composer(focus)) return false;
         AstralPhoenixRefreshDecorations();
+        return true;
+    };
+    platform.dismissSheets = [] {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
+                if (![scene isKindOfClass:UIWindowScene.class]) continue;
+                for (UIWindow *window in ((UIWindowScene *)scene).windows) {
+                    if (window.isKeyWindow && window.rootViewController.presentedViewController)
+                        [window.rootViewController dismissViewControllerAnimated:YES completion:nil];
+                }
+            }
+        });
         return true;
     };
     platform.refreshDecorations = [] {

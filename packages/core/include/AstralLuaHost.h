@@ -24,6 +24,9 @@ struct PickedMedia {
 
 struct LuaHostPlatform {
     std::function<std::optional<nlohmann::json>(const std::string &guild)> guild;
+    std::function<nlohmann::json()> guilds;
+    std::function<std::optional<std::string>()> currentUser;
+    std::function<std::optional<nlohmann::json>(const std::string &emoji)> emoji;
     std::function<std::optional<nlohmann::json>(const std::string &guild, const std::string &user)> member;
     std::function<std::optional<std::string>(const std::string &guild, const std::string &name)> memberNamed;
     std::function<std::optional<std::string>(const std::string &channel)> channelGuild;
@@ -51,6 +54,7 @@ struct LuaHostPlatform {
     std::function<bool(const std::string &url)> openURL;
     std::function<bool(uint64_t message, bool animated, const std::string &align)> scrollToMessage;
     std::function<bool(bool focus)> focusComposer;
+    std::function<bool()> dismissSheets;
     std::function<bool(const std::string &message)> dispatchGateway;
     std::function<bool(const std::string &identifier, bool prefix)> pressNode;
     std::function<std::optional<std::string>(const nlohmann::json &spec)> renderImage;
@@ -67,6 +71,7 @@ struct LuaHostPlatform {
     std::function<void(uint64_t request)> cancelFilePick;
     std::function<std::optional<PickedMedia>(const std::string &slot)> pickedMedia;
     std::function<std::optional<std::string>(const std::string &slot)> pickedVideoURL;
+    std::function<bool(const std::string &data, const std::string &name)> offerPick;
     std::function<std::optional<nlohmann::json>(const std::string &channel, const std::string &message, const std::string &emoji,
                                                 bool burst, uint64_t count, bool &fresh)>
         reactors;

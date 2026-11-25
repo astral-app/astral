@@ -97,3 +97,21 @@ NSNumber *AstralDiscordPermissions(NSString *guildID, NSString *userID, NSString
                                                     channelID ? std::optional<std::string>(Plain(channelID)) : std::nullopt);
     return permissions ? @(*permissions) : nil;
 }
+
+nlohmann::json AstralDiscordGuildList(void)
+{
+    UseDiscordData();
+    return astral::discord::guilds();
+}
+
+std::optional<nlohmann::json> AstralDiscordEmoji(const std::string &emojiID)
+{
+    UseDiscordData();
+    return astral::discord::emoji(emojiID);
+}
+
+std::optional<std::string> AstralDiscordCurrentUser(void)
+{
+    UseDiscordData();
+    return astral::discord::currentUser();
+}
