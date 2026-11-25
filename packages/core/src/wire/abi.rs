@@ -79,7 +79,37 @@ pub struct AstralNameContext {
     pub channel_id: u64,
 }
 
+pub const TRACK_AUTHOR: u8 = 1;
+
+#[repr(C)]
+pub struct Tracked {
+    pub id: i32,
+    pub kind: u8,
+    pub value: u64,
+}
+
+pub const LABEL_AUTHOR: c_int = 0;
+pub const LABEL_REPLY: c_int = 1;
+pub const LABEL_CHANNEL: c_int = 2;
+pub const LABEL_MEMBER: c_int = 3;
+pub const LABEL_COMPOSER: c_int = 4;
+pub const LABEL_PROFILE: c_int = 5;
+
+#[repr(C)]
+pub struct AstralLabelContext {
+    pub kind: c_int,
+    pub message_id: u64,
+    pub channel_id: u64,
+    pub target_id: u64,
+}
+
+pub fn tracked_author(id: i32) -> Option<u64> {
+    let slot = unsafe { wireTrackSlot(id, 0).as_ref() }?;
+    (slot.kind == TRACK_AUTHOR).then_some(slot.value)
+}
+
 unsafe extern "C" {
+    pub fn wireTrackSlot(id: i32, create: c_int) -> *mut Tracked;
     pub fn astral_wire_current_channel() -> u64;
     pub fn wirePrefixed(text: *const u8, length: usize, prefix: *const c_char, suffix: *mut u64) -> c_int;
     pub fn wireAvatarUser(text: *const u8, length: usize) -> u64;
