@@ -1,0 +1,15 @@
+id = "astral.gif-paste"
+name = "GIF Paste"
+description = "Makes GIF picker selections paste a link into the chat box instead of sending immediately."
+version = "0.0.1"
+icon = "GifIcon"
+main = "main.lua"
+permissions = ["net.discord", "messages.local", "ui.composer"]
+
+[[authors]]
+name = "V"
+id = "343383572805058560"
+
+[[authors]]
+name = "adrian"
+id = "224617799434108928"

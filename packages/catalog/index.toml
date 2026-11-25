@@ -5,6 +5,14 @@ version = "0.0.1"
 passive = []
 
 [[plugins]]
+id = "astral.gif-paste"
+name = "GIF Paste"
+version = "0.0.1"
+description = "Makes GIF picker selections paste a link into the chat box instead of sending immediately."
+icon = "GifIcon"
+base = "plugins/astral.gif-paste/"
+
+[[plugins]]
 id = "astral.reviewdb"
 name = "ReviewDB"
 version = "0.0.1"
