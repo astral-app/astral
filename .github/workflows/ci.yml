@@ -21,16 +21,19 @@ jobs:
         with:
           submodules: true
           persist-credentials: false
+
       - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
         with:
           go-version-file: packages/tools/go.mod
           cache-dependency-path: packages/tools/go.sum
+
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         id: tools
         with:
           path: |
             ~/.local/tools
           key: lint-tools-${{ runner.os }}-clang-format-23.1.5-stylua-2.6.0-taplo-0.10.0-luals-3.19.2-zizmor-1.33.1
+
       - name: Install tools
         env:
           CACHE_HIT: ${{ steps.tools.outputs.cache-hit }}
@@ -52,13 +55,18 @@ jobs:
           fi
           sudo apt-get update -qq
           sudo apt-get install -y -qq lua-check clang libclang-rt-dev libsqlite3-dev libssl-dev
+
       - run: go run ./packages/tools/cmd/astral lint
+
       - run: go run ./packages/tools/cmd/astral test
+
       - name: Verify IPA extension preservation fixtures
         run: go test ./cmd/astral -run 'TestAddGroupRemapPreservesAndWiresDiscordExtensions|TestAddOpenInAstralToIPAReplacesTheExistingExtension|TestAddURLSchemeToIPAIsIdempotent|TestValidateIPAExtensions'
         working-directory: packages/tools
+
       - name: Fuzz the rewriter
         run: go run ./packages/tools/cmd/astral fuzz --seconds 120
+
       - name: Benchmark the rewriter
         run: |
           {
@@ -77,11 +85,14 @@ jobs:
         with:
           submodules: true
           persist-credentials: false
+
       - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
         with:
           go-version-file: packages/tools/go.mod
           cache-dependency-path: packages/tools/go.sum
+
       - run: go run ./packages/tools/cmd/astral android-core --ndk "$ANDROID_NDK_LATEST_HOME"
+
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: astral-core-android
@@ -96,12 +107,15 @@ jobs:
         with:
           submodules: true
           persist-credentials: false
+
       - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
         with:
           go-version-file: packages/tools/go.mod
           cache-dependency-path: packages/tools/go.sum
+
       - name: Select Java 21
         run: echo "JAVA_HOME=$JAVA_HOME_21_X64" >> "$GITHUB_ENV"
+
       - name: Install Android build tools
         run: |
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
@@ -112,7 +126,9 @@ jobs:
           if [ ! -e "$ANDROID_HOME/platforms/android-37" ]; then
             ln -s android-37.0 "$ANDROID_HOME/platforms/android-37"
           fi
+
       - run: go run ./packages/tools/cmd/astral android build
+
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: astral-module-android
@@ -127,24 +143,29 @@ jobs:
         with:
           submodules: true
           persist-credentials: false
+
       - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
         with:
           go-version-file: packages/tools/go.mod
           cache-dependency-path: packages/tools/go.sum
+
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: ${{ github.workspace }}/theos
           key: theos-${{ runner.os }}-${{ github.run_id }}
           restore-keys: theos-${{ runner.os }}-
+
       - name: Prepare Theos
         run: |
           echo "THEOS=${{ github.workspace }}/theos" >> "$GITHUB_ENV"
           go run ./packages/tools/cmd/astral prepare-theos --theos "${{ github.workspace }}/theos"
+
       - name: Build
         run: |
           gnubin="$(brew --prefix make)/libexec/gnubin"
           export PATH="$gnubin:$PATH"
           make -C packages/ios package FINALPACKAGE=1
+
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: astral-deb
@@ -158,10 +179,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
+
       - name: Check extension JavaScript and locale data
         run: |
           find 'packages/ios/extensions/OpenInAstral/OpenInAstral Extension/Resources' -name '*.js' -print0 | xargs -0 -n1 node --check
           python3 -m json.tool 'packages/ios/extensions/OpenInAstral/OpenInAstral Extension/Resources/_locales/en/messages.json' > /dev/null
+
       - name: Build extension
         run: |-
           xcodebuild -quiet \

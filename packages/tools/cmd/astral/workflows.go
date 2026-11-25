@@ -49,7 +49,10 @@ func lintWorkflows(files []string) error {
 			return err
 		}
 	}
-	return yamlfmt(true, files)
+	if err := yamlfmt(true, files); err != nil {
+		return err
+	}
+	return spaceWorkflows(files, true)
 }
 
 func lintAllWorkflows() error {
@@ -65,5 +68,8 @@ func formatAllYAML() error {
 	if err != nil || len(files) == 0 {
 		return err
 	}
-	return yamlfmt(false, files)
+	if err := yamlfmt(false, files); err != nil {
+		return err
+	}
+	return spaceWorkflows(files, false)
 }
