@@ -89,6 +89,7 @@ Each plugin gets its own `lua_State` with `base`, `table`, `string`, `math`, `ut
 | `astral.ui.text_transform(fn)` | `fn(spans, {message_id, author_id})` gets a message's text as a list of spans (`text`, `color`, `weight`, `link`, `font`, `bg`, `bg_radius`, `scale`, `bold`, `strike`, `underline`) and returns a new list to show, for pills, highlighting and replacements; parts astral doesn't model, such as inline emoji, are kept as they were; needs `ui.text` |
 | `astral.ui.image_rewrite(prefix, fn)` | `fn(url)` returns a different `http(s)` URL for every image Discord draws whose URL starts with `prefix` (for example animated avatars); applies to images drawn after it is registered; needs `ui.images` |
 | `astral.ui.press(identifier)` | Presses the Discord control whose `accessibilityId` is `identifier` (or starts with it, when it ends in `*`), the way an accessibility tool would; needs `ui.press` |
+| `astral.ui.composer_text()` | The text in the chat input right now; needs `ui.composer` |
 | `astral.ui.refresh()` | Asks every decoration, patch, insert and text transform to run again on what is on screen, after a plugin's own state changed |
 | `astral.ui.insert_text(text, {replace?})` | Types text into the chat input at the cursor, as if the user typed it, or replaces everything in it with `replace = true`; needs `ui.composer` |
 | `astral.ui.focus_composer(focus?)` | Focuses the chat input, or hides the keyboard with `false`; needs `ui.navigate` |

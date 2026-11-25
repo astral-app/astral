@@ -436,6 +436,9 @@ function astral.ui.image_rewrite(prefix, rewrite) end
 ---@param identifier string
 ---@return boolean pressed
 function astral.ui.press(identifier) end
+---The text in the chat input right now.
+---@return string
+function astral.ui.composer_text() end
 ---Runs every decoration, patch, insert and text transform again on what is on screen.
 function astral.ui.refresh() end
 ---Types text into the chat input at the cursor, or replaces all of it.

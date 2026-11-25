@@ -155,3 +155,13 @@ int32_t wireComposerNode(void)
 {
     return gComposerNode;
 }
+
+size_t astral_wire_composer_text(char *text, size_t capacity)
+{
+    if (!text || !capacity) return 0;
+    size_t length = strlen(gComposerValue);
+    if (length >= capacity) length = capacity - 1;
+    memcpy(text, gComposerValue, length);
+    text[length] = 0;
+    return length;
+}
