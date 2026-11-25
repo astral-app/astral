@@ -1,5 +1,9 @@
+pub mod backdrop;
+pub mod children;
 pub mod commands;
+pub mod composer;
 pub mod cursor;
+pub mod emoji;
 pub mod events;
 pub mod format;
 pub mod host_calls;
