@@ -70,25 +70,47 @@ assert(command and command.name == "debug")
 local reply = command.execute({ message = "help" })
 assert(reply.send.content == "help" and reply.send.file.data == "PNG" and reply.send.file.name == "astral-debug.png")
 assert(reply.send.file.description == "discord=357.0 failed=Translate")
-assert(rendered.width == 432 and rendered.scale == 3 and #rendered.items > 30)
+assert(rendered.width == 480 and rendered.scale == 3 and #rendered.items > 30)
 local texts = {}
 for _, item in ipairs(rendered.items) do
 	if item.type == "text" then
 		texts[#texts + 1] = item.text
-		assert(item.x + utf8.len(item.text) * 13 * 0.6 <= 432 - 13, "text runs past the card: " .. item.text)
+		assert(item.width and item.x + item.width <= 480, "text box runs past the card: " .. item.text)
+		local glyph = (item.mono and 0.6 or 0.56) * item.size
+		assert(
+			item.align == "center" or utf8.len(item.text) * glyph <= item.width + 1,
+			"text is cut off: " .. item.text
+		)
 	end
 end
 local joined = table.concat(texts, "|")
 for _, expected in ipairs({
-	"astral /debug",
-	" @4bb262921",
+	"Issues found",
+	"@4bb262921",
 	"supported",
+	"alpha · 124376",
 	"iPhone SE (2nd generation)",
-	"Translate",
-	"● dopamine 2.4",
+	"2/2 enabled",
+	"1 failing: Translate",
+	"Dopamine 2.4",
+	"GTS Root R4",
+	"Developer Mode on",
+	"bc893919",
 	"2026-11-25 05:10 utc",
 }) do
 	assert(joined:find(expected, 1, true), "missing " .. expected)
 end
 assert(not joined:find("107 dylibs", 1, true))
+assert(not joined:find("Debug 0.0.1", 1, true) and not joined:find("Last problem", 1, true))
+local bottom = 0
+for _, item in ipairs(rendered.items) do
+	if item.type == "rect" and item.x > 12 and item.y + item.h > bottom then
+		bottom = item.y + item.h
+	end
+end
+for _, item in ipairs(rendered.items) do
+	if item.type == "rect" and item.x <= 12 and item.y > 0 then
+		assert(item.y + item.h < bottom - 20, "a left tile sits under the ALT badge")
+	end
+end
 print("debug ok")
