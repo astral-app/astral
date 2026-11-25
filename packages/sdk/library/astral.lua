@@ -477,6 +477,7 @@ function astral.ui.message_background(decorator) end
 function astral.ui.author_color(colorizer) end
 ---@class astral.MessageActionOptions
 ---@field icon? string
+---@field when? fun(node: astral.Node): boolean shows the action only for messages it returns true for
 ---@param label string
 ---@param callback fun(node: astral.Node)
 ---@param options? astral.MessageActionOptions

@@ -35,6 +35,7 @@ extern "C" {
     X(clip, 123)                                                                                                                           \
     X(changeText, 576)                                                                                                                     \
     X(color, 129)                                                                                                                          \
+    X(count, 136)                                                                                                                          \
     X(direction, 147)                                                                                                                      \
     X(fade, 187)                                                                                                                           \
     X(fadeMs, 189)                                                                                                                         \

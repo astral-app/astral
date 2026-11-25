@@ -13,6 +13,7 @@ typedef struct {
     double width;
     double inset;
     double started;
+    int fadeOnly;
 } Tween;
 
 static Tween gTweens[kMaxTweens];
@@ -21,7 +22,17 @@ void wireTweenIn(int32_t node, double width, double inset)
 {
     for (size_t index = 0; index < kMaxTweens; index++) {
         if (gTweens[index].node) continue;
-        gTweens[index] = (Tween){node, width, inset, -1};
+        gTweens[index] = (Tween){node, width, inset, -1, 0};
+        return;
+    }
+}
+
+void wireTweenFade(int32_t node)
+{
+    wireTweenForget(node);
+    for (size_t index = 0; index < kMaxTweens; index++) {
+        if (gTweens[index].node) continue;
+        gTweens[index] = (Tween){node, 0, 0, -1, 1};
         return;
     }
 }
@@ -50,6 +61,11 @@ static void putFrame(Out *out, const Tween *tween, double amount)
 {
     wirePut8(out, 2);
     wirePut32(out, (uint32_t)tween->node);
+    if (tween->fadeOnly) {
+        wirePropCount(out, 1);
+        wirePropNumber(out, P(opacity), amount);
+        return;
+    }
     wirePropCount(out, 3);
     wirePropNumber(out, P(opacity), amount);
     wirePropNumber(out, P(maxWidth), tween->width * amount);

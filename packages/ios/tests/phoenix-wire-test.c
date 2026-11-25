@@ -616,6 +616,21 @@ static void listRowTest(void)
     assert(astral_wire_message_for_row(1500, 1) == 0);
     assert(astral_wire_message_for_row(1500, 4) == 0);
     assert(astral_wire_message_for_node(1502) == 100000000000000009ull);
+
+    Batch scrolled = {.length = 0};
+    b8(&scrolled, 1);
+    b8(&scrolled, 2);
+    b32(&scrolled, 1500);
+    b16(&scrolled, 2);
+    b16(&scrolled, 194);
+    b8(&scrolled, 3);
+    b32(&scrolled, 9);
+    b16(&scrolled, 136);
+    b8(&scrolled, 3);
+    b32(&scrolled, 6);
+    if (astral_settings_rewrite(scrolled.bytes, scrolled.length, &out)) astral_wire_buffer_free(&out);
+    assert(astral_wire_message_for_row(1500, 5) == 100000000000000009ull);
+    assert(astral_wire_message_for_row(1500, 9) == 0);
 }
 
 static int cleanLinks(uint64_t channel, const char *text, char *rewritten, size_t capacity)

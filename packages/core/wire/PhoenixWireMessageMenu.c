@@ -25,6 +25,7 @@ typedef struct {
 typedef struct {
     int32_t list;
     int64_t first;
+    int64_t count;
     uint32_t rowCount;
     int32_t rows[kMaxListRows];
 } ListWindow;
@@ -135,6 +136,7 @@ static void trackListWindow(const uint8_t *bytes, const Span *span)
     if (!window) return;
     if (span->op != 3) {
         numberAt(bytes, span, P(first), &window->first);
+        numberAt(bytes, span, P(count), &window->count);
         return;
     }
     Cursor cursor = {bytes, span->end, span->children, 0};
@@ -142,11 +144,19 @@ static void trackListWindow(const uint8_t *bytes, const Span *span)
     for (uint32_t position = 0; position < window->rowCount; position++) window->rows[position] = (int32_t)wireRead32(&cursor);
 }
 
+static int64_t windowStart(const ListWindow *window)
+{
+    if (window->count > 0 && window->first + (int64_t)window->rowCount > window->count) return window->count - (int64_t)window->rowCount;
+    return window->first;
+}
+
 uint64_t astral_wire_message_for_row(int32_t list, int64_t index)
 {
     ListWindow *window = listWindow(list, 0);
-    if (!window || index < window->first || index - window->first >= window->rowCount) return 0;
-    return astral_wire_message_for_node(window->rows[index - window->first]);
+    if (!window) return 0;
+    int64_t start = windowStart(window);
+    if (index < start || index - start >= window->rowCount) return 0;
+    return astral_wire_message_for_node(window->rows[index - start]);
 }
 
 static size_t subtree(const uint8_t *bytes, const Span *spans, size_t count, int32_t root, int32_t *nodes, size_t capacity)

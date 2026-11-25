@@ -1,8 +1,8 @@
-signature = "PAMrfPcvPi/03Imk5qCoeSV25gfeGOUwyVp0x7VHAn0Zb/7f19tIlZkC+rObrVjGw9OHOkk/wgBPXG2VludCBA=="
+signature = "fQk03VAG4mn/fRuTaXdPzoqvPinBK6tlA+fYbKy5UOG16wHRxYZzXaGyFIEbDWeJXs5Cb9a3LCu1L7eq+mZMDg=="
 
 [files]
 "lib/languages.lua" = "a98ecc8fb7a597126a088c9d7f614d721bf3f50692a3f4611399df5a40a20e08"
 "lib/languages.luac" = "6292a6da81434b63ea8322d3243e67153e08a8f4d9fb53e27f76d8b356efbcd8"
-"main.lua" = "d882acdc880ea4b7335d144d63f89f6c297f7a8c17b2bde64d940a0baea423ae"
-"main.luac" = "91d9cf776c13f5bd0a8a0d5b9000c5d0cac007e7a2b263a1fc9f5b22e8810690"
-"manifest.toml" = "cadcb67fb1f911f03b4364901345e46b5d211e4f3534121d58be5dfbc61b2a88"
+"main.lua" = "2833ec21d5317fe53831820c461ca4095d7ea7db1c379235ddde3f4cbbbafcdc"
+"main.luac" = "ef5dfad12a8cbd7ba828fc09e4970031f365f0a2184a97d86e7d84acc442f0a8"
+"manifest.toml" = "786aa3eec2de4d9ad13a7f6217b3d467fbd57d99b7a148ecc62f8320653302f6"

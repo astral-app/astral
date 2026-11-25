@@ -577,9 +577,18 @@ function astral.ui.message_background(decorator)
 end
 
 function astral.ui.message_action(label, callback, options)
+	local wrapped = options
+	if options and options.when then
+		wrapped = {
+			icon = options.icon,
+			when = function(node)
+				return options.when(wrap_node(node)) == true
+			end,
+		}
+	end
 	return native.message_action(label, function(node)
 		return callback(wrap_node(node))
-	end, options)
+	end, wrapped)
 end
 
 function astral.ui.composer(formatter)
