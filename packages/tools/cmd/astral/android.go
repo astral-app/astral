@@ -133,6 +133,15 @@ func buildAndroidCore(toolchain string, triple string, sources []string, directo
 		}
 		built = append(built, object)
 	}
+	rustLibrary, err := rustTargetLibrary(triple)
+	if err != nil {
+		return "", err
+	}
+	rust, err := rustObjects(filepath.Join(toolchain, "llvm-ar"), rustLibrary, objects)
+	if err != nil {
+		return "", err
+	}
+	built = append(built, rust...)
 	library := filepath.Join(directory, "libastral-core.a")
 	os.Remove(library)
 	if err := run(repoPath(), filepath.Join(toolchain, "llvm-ar"), append([]string{"rcs", library}, built...)...); err != nil {

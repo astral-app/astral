@@ -19,7 +19,7 @@ func runTest(args []string) error {
 		return err
 	}
 	defer cleanup()
-	steps := []func(string) error{testTools, testWire, testCore, testLua, testSignatures, testReadme, testCatalog}
+	steps := []func(string) error{testTools, testRust, testWire, testCore, testLua, testSignatures, testReadme, testCatalog}
 	if *phoenix != "" {
 		steps = append(steps, func(work string) error { return testLocator(work, *phoenix) })
 	}
@@ -39,7 +39,11 @@ func testWire(work string) error {
 	ios := repoPath("packages", "ios")
 	binary := filepath.Join(work, "phoenix-wire-test")
 	arguments := []string{"-Wall", "-Wextra", "-Werror", "-g", "-fsanitize=address,undefined", "tests/phoenix-wire-test.c", "tests/support/wire-parser.c"}
-	arguments = append(append(arguments, wireSources()...), "-lm", "-o", binary)
+	sources, err := wireSources()
+	if err != nil {
+		return err
+	}
+	arguments = append(append(arguments, sources...), "-lm", "-o", binary)
 	if err := run(ios, "clang", arguments...); err != nil {
 		return err
 	}
@@ -55,12 +59,21 @@ func wireSourceFiles() []string {
 	return files
 }
 
-func wireSources() []string {
-	paths := []string{"-I" + repoPath("packages", "core", "wire")}
+func wireSourcePaths() []string {
+	var paths []string
 	for _, file := range wireSourceFiles() {
 		paths = append(paths, repoPath("packages", "core", "wire", file))
 	}
 	return paths
+}
+
+func wireSources() ([]string, error) {
+	paths := append([]string{"-I" + repoPath("packages", "core", "wire")}, wireSourcePaths()...)
+	library, err := rustHostLibrary()
+	if err != nil {
+		return nil, err
+	}
+	return append(paths, library), nil
 }
 
 func testCore(work string) error {
@@ -101,7 +114,11 @@ func testCore(work string) error {
 	if runtime.GOOS != "darwin" {
 		arguments = append(arguments, "-lcrypto")
 	}
-	arguments = append(arguments, object, "-lsqlite3", "-o", binary)
+	library, err := rustHostLibrary()
+	if err != nil {
+		return err
+	}
+	arguments = append(arguments, object, library, "-lsqlite3", "-o", binary)
 	if err := run(repoPath(), "clang++", arguments...); err != nil {
 		return err
 	}

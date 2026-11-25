@@ -50,6 +50,9 @@ jobs:
           key: theos-${{ runner.os }}-${{ github.run_id }}
           restore-keys: theos-${{ runner.os }}-
 
+      - name: Install the Rust iOS target
+        run: rustup target add aarch64-apple-ios
+
       - name: Prepare Theos
         run: |
           echo "THEOS=${{ github.workspace }}/theos" >> "$GITHUB_ENV"
@@ -150,6 +153,9 @@ jobs:
 
       - name: Download Discord for Android
         run: go run ./packages/tools/cmd/astral android download --channel "$CHANNEL" --output discord
+
+      - name: Install the Rust Android targets
+        run: rustup target add aarch64-linux-android x86_64-linux-android
 
       - name: Build
         run: go run ./packages/tools/cmd/astral android build --output astral-android --patcher "$LSPATCH_JAR" discord/base.apk discord/config.arm64_v8a.apk discord/config.xxhdpi.apk discord/config.en.apk
