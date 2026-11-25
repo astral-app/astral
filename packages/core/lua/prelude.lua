@@ -571,6 +571,7 @@ function astral.ui.message_background(decorator)
 			bubble = style.bubble == true,
 			reply = style.reply,
 			name = style.name,
+			time = style.time,
 		}
 	end)
 end
