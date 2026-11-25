@@ -1,5 +1,7 @@
 #import "SvgRaster.h"
 
+#include "AstralRust.h"
+
 typedef struct {
     BOOL fill;
     BOOL stroke;
@@ -47,187 +49,36 @@ static Paint Inherit(Paint parent, NSDictionary<NSString *, NSString *> *attribu
     return paint;
 }
 
-typedef struct {
-    const char *text;
-    size_t length;
-    size_t offset;
-} Scanner;
+enum { kSegmentMove, kSegmentLine, kSegmentCubic, kSegmentQuad, kSegmentArc, kSegmentClose };
 
-static void SkipSeparators(Scanner *scanner)
-{
-    while (scanner->offset < scanner->length) {
-        char character = scanner->text[scanner->offset];
-        if (character == ' ' || character == ',' || character == '\n' || character == '\t' || character == '\r')
-            scanner->offset++;
-        else
-            break;
-    }
-}
-
-static BOOL NextNumber(Scanner *scanner, CGFloat *value)
-{
-    SkipSeparators(scanner);
-    if (scanner->offset >= scanner->length) return NO;
-    const char *start = scanner->text + scanner->offset;
-    char *end = NULL;
-    double parsed = strtod(start, &end);
-    if (end == start) return NO;
-    scanner->offset += (size_t)(end - start);
-    *value = parsed;
-    return YES;
-}
-
-static BOOL NextFlag(Scanner *scanner, CGFloat *value)
-{
-    SkipSeparators(scanner);
-    if (scanner->offset >= scanner->length) return NO;
-    char character = scanner->text[scanner->offset];
-    if (character != '0' && character != '1') return NO;
-    scanner->offset++;
-    *value = character == '1';
-    return YES;
-}
-
-static void AddArc(CGMutablePathRef path, CGPoint from, CGFloat rx, CGFloat ry, CGFloat rotation, BOOL large, BOOL sweep, CGPoint to)
-{
-    if (rx == 0 || ry == 0) {
-        CGPathAddLineToPoint(path, NULL, to.x, to.y);
-        return;
-    }
-    rx = fabs(rx);
-    ry = fabs(ry);
-    CGFloat phi = rotation * M_PI / 180, cosPhi = cos(phi), sinPhi = sin(phi);
-    CGFloat dx = (from.x - to.x) / 2, dy = (from.y - to.y) / 2;
-    CGFloat x1 = cosPhi * dx + sinPhi * dy, y1 = -sinPhi * dx + cosPhi * dy;
-    CGFloat lambda = (x1 * x1) / (rx * rx) + (y1 * y1) / (ry * ry);
-    if (lambda > 1) {
-        rx *= sqrt(lambda);
-        ry *= sqrt(lambda);
-    }
-    CGFloat numerator = rx * rx * ry * ry - rx * rx * y1 * y1 - ry * ry * x1 * x1;
-    CGFloat denominator = rx * rx * y1 * y1 + ry * ry * x1 * x1;
-    CGFloat factor = denominator == 0 ? 0 : sqrt(fmax(0, numerator / denominator)) * (large == sweep ? -1 : 1);
-    CGFloat cx1 = factor * rx * y1 / ry, cy1 = -factor * ry * x1 / rx;
-    CGFloat cx = cosPhi * cx1 - sinPhi * cy1 + (from.x + to.x) / 2;
-    CGFloat cy = sinPhi * cx1 + cosPhi * cy1 + (from.y + to.y) / 2;
-    CGFloat start = atan2((y1 - cy1) / ry, (x1 - cx1) / rx);
-    CGFloat end = atan2((-y1 - cy1) / ry, (-x1 - cx1) / rx);
-    CGFloat delta = end - start;
-    if (sweep && delta < 0) delta += 2 * M_PI;
-    if (!sweep && delta > 0) delta -= 2 * M_PI;
-    CGAffineTransform transform = CGAffineTransformMakeTranslation(cx, cy);
-    transform = CGAffineTransformRotate(transform, phi);
-    transform = CGAffineTransformScale(transform, rx, ry);
-    CGPathAddRelativeArc(path, &transform, 0, 0, 1, start, delta);
-}
+AstralRustString astral_svg_path(const char *data, size_t length);
 
 static CGPathRef PathFromData(NSString *data)
 {
     CGMutablePathRef path = CGPathCreateMutable();
-    const char *text = data.UTF8String;
-    Scanner scanner = {text, strlen(text), 0};
-    CGPoint current = CGPointZero, start = CGPointZero, control = CGPointZero;
-    char command = 0, previous = 0;
-    while (YES) {
-        SkipSeparators(&scanner);
-        if (scanner.offset >= scanner.length) break;
-        char character = text[scanner.offset];
-        if ((character >= 'A' && character <= 'Z') || (character >= 'a' && character <= 'z')) {
-            command = character;
-            scanner.offset++;
-        } else if (!command) {
-            break;
+    const char *text = data.UTF8String ?: "";
+    AstralRustString segments = astral_svg_path(text, strlen(text));
+    const double *values = (const double *)segments.bytes;
+    size_t count = segments.length / sizeof(double);
+    for (size_t index = 0; index < count;) {
+        int kind = (int)values[index++];
+        size_t needed = kind == kSegmentCubic ? 6 : kind == kSegmentQuad ? 4 : kind == kSegmentArc ? 7 : kind == kSegmentClose ? 0 : 2;
+        if (index + needed > count) break;
+        const double *v = values + index;
+        if (kind == kSegmentMove) CGPathMoveToPoint(path, NULL, v[0], v[1]);
+        if (kind == kSegmentLine) CGPathAddLineToPoint(path, NULL, v[0], v[1]);
+        if (kind == kSegmentCubic) CGPathAddCurveToPoint(path, NULL, v[0], v[1], v[2], v[3], v[4], v[5]);
+        if (kind == kSegmentQuad) CGPathAddQuadCurveToPoint(path, NULL, v[0], v[1], v[2], v[3]);
+        if (kind == kSegmentClose) CGPathCloseSubpath(path);
+        if (kind == kSegmentArc) {
+            CGAffineTransform transform = CGAffineTransformMakeTranslation(v[0], v[1]);
+            transform = CGAffineTransformRotate(transform, v[4]);
+            transform = CGAffineTransformScale(transform, v[2], v[3]);
+            CGPathAddRelativeArc(path, &transform, 0, 0, 1, v[5], v[6]);
         }
-        BOOL relative = command >= 'a';
-        char upper = (char)(relative ? command - 32 : command);
-        CGFloat a, b, c, d, e, f, g;
-        size_t before = scanner.offset;
-        switch (upper) {
-        case 'Z':
-            CGPathCloseSubpath(path);
-            current = start;
-            previous = upper;
-            command = 0;
-            continue;
-        case 'M':
-            if (!NextNumber(&scanner, &a) || !NextNumber(&scanner, &b)) goto done;
-            current = relative ? CGPointMake(current.x + a, current.y + b) : CGPointMake(a, b);
-            CGPathMoveToPoint(path, NULL, current.x, current.y);
-            start = current;
-            command = relative ? 'l' : 'L';
-            break;
-        case 'L':
-            if (!NextNumber(&scanner, &a) || !NextNumber(&scanner, &b)) goto done;
-            current = relative ? CGPointMake(current.x + a, current.y + b) : CGPointMake(a, b);
-            CGPathAddLineToPoint(path, NULL, current.x, current.y);
-            break;
-        case 'H':
-            if (!NextNumber(&scanner, &a)) goto done;
-            current.x = relative ? current.x + a : a;
-            CGPathAddLineToPoint(path, NULL, current.x, current.y);
-            break;
-        case 'V':
-            if (!NextNumber(&scanner, &a)) goto done;
-            current.y = relative ? current.y + a : a;
-            CGPathAddLineToPoint(path, NULL, current.x, current.y);
-            break;
-        case 'C': {
-            if (!NextNumber(&scanner, &a) || !NextNumber(&scanner, &b) || !NextNumber(&scanner, &c) || !NextNumber(&scanner, &d) ||
-                !NextNumber(&scanner, &e) || !NextNumber(&scanner, &f))
-                goto done;
-            CGPoint origin = relative ? current : CGPointZero;
-            CGPoint first = CGPointMake(origin.x + a, origin.y + b);
-            control = CGPointMake(origin.x + c, origin.y + d);
-            current = CGPointMake(origin.x + e, origin.y + f);
-            CGPathAddCurveToPoint(path, NULL, first.x, first.y, control.x, control.y, current.x, current.y);
-            previous = 'C';
-            continue;
-        }
-        case 'S': {
-            if (!NextNumber(&scanner, &c) || !NextNumber(&scanner, &d) || !NextNumber(&scanner, &e) || !NextNumber(&scanner, &f)) goto done;
-            CGPoint origin = relative ? current : CGPointZero;
-            CGPoint first =
-                (previous == 'C' || previous == 'S') ? CGPointMake(2 * current.x - control.x, 2 * current.y - control.y) : current;
-            control = CGPointMake(origin.x + c, origin.y + d);
-            current = CGPointMake(origin.x + e, origin.y + f);
-            CGPathAddCurveToPoint(path, NULL, first.x, first.y, control.x, control.y, current.x, current.y);
-            previous = 'S';
-            continue;
-        }
-        case 'Q': {
-            if (!NextNumber(&scanner, &a) || !NextNumber(&scanner, &b) || !NextNumber(&scanner, &e) || !NextNumber(&scanner, &f)) goto done;
-            CGPoint origin = relative ? current : CGPointZero;
-            control = CGPointMake(origin.x + a, origin.y + b);
-            current = CGPointMake(origin.x + e, origin.y + f);
-            CGPathAddQuadCurveToPoint(path, NULL, control.x, control.y, current.x, current.y);
-            previous = 'Q';
-            continue;
-        }
-        case 'T': {
-            if (!NextNumber(&scanner, &e) || !NextNumber(&scanner, &f)) goto done;
-            CGPoint origin = relative ? current : CGPointZero;
-            control = (previous == 'Q' || previous == 'T') ? CGPointMake(2 * current.x - control.x, 2 * current.y - control.y) : current;
-            current = CGPointMake(origin.x + e, origin.y + f);
-            CGPathAddQuadCurveToPoint(path, NULL, control.x, control.y, current.x, current.y);
-            previous = 'T';
-            continue;
-        }
-        case 'A': {
-            if (!NextNumber(&scanner, &a) || !NextNumber(&scanner, &b) || !NextNumber(&scanner, &c) || !NextFlag(&scanner, &d) ||
-                !NextFlag(&scanner, &e) || !NextNumber(&scanner, &f) || !NextNumber(&scanner, &g))
-                goto done;
-            CGPoint target = relative ? CGPointMake(current.x + f, current.y + g) : CGPointMake(f, g);
-            AddArc(path, current, a, b, c, d != 0, e != 0, target);
-            current = target;
-            break;
-        }
-        default:
-            goto done;
-        }
-        previous = upper;
-        if (scanner.offset == before) break;
+        index += needed;
     }
-done:
+    astral_rust_string_free(segments);
     return path;
 }
 
@@ -258,18 +109,9 @@ static CGPathRef ShapePath(NSString *name, NSDictionary<NSString *, NSString *> 
         CGFloat rx = Number(attributes, @"rx"), ry = Number(attributes, @"ry");
         CGPathAddEllipseInRect(path, NULL, CGRectMake(Number(attributes, @"cx") - rx, Number(attributes, @"cy") - ry, 2 * rx, 2 * ry));
     } else if ([name isEqualToString:@"polyline"] || [name isEqualToString:@"polygon"]) {
-        const char *text = attributes[@"points"].UTF8String ?: "";
-        Scanner scanner = {text, strlen(text), 0};
-        CGFloat x, y;
-        BOOL first = YES;
-        while (NextNumber(&scanner, &x) && NextNumber(&scanner, &y)) {
-            if (first)
-                CGPathMoveToPoint(path, NULL, x, y);
-            else
-                CGPathAddLineToPoint(path, NULL, x, y);
-            first = NO;
-        }
-        if ([name isEqualToString:@"polygon"]) CGPathCloseSubpath(path);
+        CGPathRelease(path);
+        NSString *closing = [name isEqualToString:@"polygon"] ? @"z" : @"";
+        return PathFromData([NSString stringWithFormat:@"M%@%@", attributes[@"points"] ?: @"", closing]);
     } else {
         CGPathRelease(path);
         return NULL;
