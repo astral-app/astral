@@ -348,6 +348,7 @@ void astral_wire_set_insert_prefixes(const char *const *prefixes, size_t count);
 int astral_wire_refresh_node_inserts(AstralWireBuffer *buffer);
 uint64_t astral_wire_message_for_node(int32_t node);
 uint64_t astral_wire_message_author(uint64_t message);
+size_t astral_wire_composer_text(char *text, size_t capacity);
 uint64_t astral_wire_message_for_row(int32_t list, int64_t index);
 int astral_wire_scroll_to_message(uint64_t message, int animated, const char *align);
 int astral_wire_focus_composer(int focus);

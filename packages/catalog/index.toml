@@ -5,6 +5,46 @@ version = "0.0.1"
 passive = []
 
 [[plugins]]
+id = "astral.preview-message"
+name = "Preview Message"
+version = "0.0.1"
+description = "Adds a button to the chat input that shows how your message will look before you send it."
+icon = "ChatDotsIcon"
+base = "plugins/astral.preview-message/"
+
+[[plugins]]
+id = "astral.message-link-embeds"
+name = "Message Link Embeds"
+version = "0.0.1"
+description = "Adds a preview under messages that link to other Discord messages, and opens the linked message when tapped."
+icon = "LinkIcon"
+base = "plugins/astral.message-link-embeds/"
+
+[[plugins]]
+id = "astral.gif-provider-switcher"
+name = "GIF Provider Switcher"
+version = "0.0.1"
+description = "Searches GIFs from Tenor or Giphy instead of Klipy in Discord's own GIF picker."
+icon = "ReactionIcon"
+base = "plugins/astral.gif-provider-switcher/"
+
+[[plugins]]
+id = "astral.cross-mod-badges"
+name = "Cross Mod Badges"
+version = "0.0.1"
+description = "Shows the badges people have from other client mods, such as Vencord, Aliucord and BetterDiscord, on their profile."
+icon = "UserCircleIcon"
+base = "plugins/astral.cross-mod-badges/"
+
+[[plugins]]
+id = "astral.pronoundb"
+name = "PronounDB"
+version = "0.0.1"
+description = "Shows people's pronouns from PronounDB beside their name in messages."
+icon = "UserCircleIcon"
+base = "plugins/astral.pronoundb/"
+
+[[plugins]]
 id = "astral.declutter"
 name = "Declutter"
 version = "0.0.1"

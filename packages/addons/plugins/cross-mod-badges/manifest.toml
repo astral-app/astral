@@ -1,0 +1,11 @@
+id = "astral.cross-mod-badges"
+name = "Cross Mod Badges"
+description = "Shows the badges people have from other client mods, such as Vencord, Aliucord and BetterDiscord, on their profile."
+version = "0.0.1"
+icon = "UserCircleIcon"
+main = "main.lua"
+permissions = ["network", "net.discord", "ui.images"]
+
+[[authors]]
+name = "adrian"
+id = "224617799434108928"

@@ -1,0 +1,31 @@
+id = "astral.pronoundb"
+name = "PronounDB"
+description = "Shows people's pronouns from PronounDB beside their name in messages."
+version = "0.0.1"
+icon = "UserCircleIcon"
+main = "main.lua"
+permissions = ["network"]
+
+[[authors]]
+name = "Tyman"
+id = "487443883127472129"
+
+[[authors]]
+name = "TheKodeToad"
+id = "706152404072267788"
+
+[[authors]]
+name = "V"
+id = "343383572805058560"
+
+[[authors]]
+name = "Elvyra"
+id = "708275751816003615"
+
+[[authors]]
+name = "adrian"
+id = "224617799434108928"
+
+[[authors]]
+name = "eternal"
+id = "263689920210534400"

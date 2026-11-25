@@ -1071,6 +1071,15 @@ static int InsertComposerText(lua_State *state)
     return 1;
 }
 
+static int ComposerText(lua_State *state)
+{
+    RequirePermission(state, "ui.composer");
+    static char text[8192];
+    size_t length = astral_wire_composer_text(text, sizeof text);
+    lua_pushlstring(state, text, length);
+    return 1;
+}
+
 static int RefreshDecorationsNow(lua_State *)
 {
     if (gPlatform.refreshDecorations) gPlatform.refreshDecorations();
@@ -2321,6 +2330,7 @@ static void InstallAPI(LuaPlugin *plugin)
     Function(state, plugin, "press", PressNode);
     Function(state, plugin, "insert_text", InsertComposerText);
     Function(state, plugin, "refresh", RefreshDecorationsNow);
+    Function(state, plugin, "composer_text", ComposerText);
     Function(state, plugin, "image_rewrite", RegisterImageRewrite);
     Function(state, plugin, "text_transform", RegisterTextTransform);
     Function(state, plugin, "notify", Notify);
