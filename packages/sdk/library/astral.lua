@@ -756,6 +756,14 @@ astral.media = {}
 ---Runs when Discord saves media to Photos. Call `reply(url)` with an https URL to save that file instead, or `reply(nil)` to keep Discord's; needs `media.save`.
 ---@param callback fun(save: astral.MediaSave, reply: fun(url: string?))
 function astral.media.on_save(callback) end
+---@class astral.PickedMedia
+---@field size? integer bytes, when the photo library knows them
+---@field duration number seconds, 0 for photos
+---@field type "image"|"video"|"audio"|"unknown"
+---Describes a media picker item from its picked:// image URI.
+---@param uri string
+---@return astral.PickedMedia?
+function astral.media.picked(uri) end
 
 astral.messages = {}
 function astral.messages.transform(callback) end

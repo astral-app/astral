@@ -29,6 +29,7 @@ object Native {
     @JvmStatic external fun composerEvent(event: ByteArray): ByteArray?
     @JvmStatic external fun slide(node: Int, payload: ByteArray): Boolean
     @JvmStatic external fun back(): Boolean
+    @JvmStatic external fun refreshDecorations()
     @JvmStatic external fun pageOpen(): Boolean
 
     @JvmStatic external fun attachBridge(bridge: Class<*>)

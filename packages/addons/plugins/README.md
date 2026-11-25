@@ -1,6 +1,6 @@
 # Plugins
 
-40 first-party plugins for astral, each in its own folder here.
+41 first-party plugins for astral, each in its own folder here.
 
 <!-- Generated from each manifest.toml by `astral readme`. Do not edit by hand. -->
 
@@ -12,6 +12,7 @@
 - <img src="../../assets/readme-icons/bug-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Debug](debug/): Adds /debug, which posts a status card with astral's versions, device details and plugin states, for support.
 - <img src="../../assets/readme-icons/eye-slash-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Declutter](declutter/): Hides buttons, upsells and profile decorations you never use: the gift button, Server Boosts, call buttons, avatar decorations, nameplates, server tags and more.
 - <img src="../../assets/readme-icons/eye-slash-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Enhanced Blocking](enhanced-blocking/): Hides messages by user, keyword or reply author, including people you blocked, edits and messages already loaded.
+- <img src="../../assets/readme-icons/image-icon.svg" width="20" height="20" align="absmiddle" alt=""> [File Size On Picker](file-size-on-picker/): Shows file sizes on media picker thumbnails.
 - <img src="../../assets/readme-icons/gif-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Fix GIF Downloads](fix-gif-download/): Save Discord GIFs as GIF files instead of videos.
 - <img src="../../assets/readme-icons/crown-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Force Owner Crown](force-owner-crown/): Always show the owner crown on the server owner's messages.
 - <img src="../../assets/readme-icons/gif-icon.svg" width="20" height="20" align="absmiddle" alt=""> [GIF Paste](gif-paste/): Makes GIF picker selections paste a link into the chat box instead of sending immediately.

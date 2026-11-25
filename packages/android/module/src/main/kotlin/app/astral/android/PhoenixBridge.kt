@@ -678,6 +678,13 @@ object PhoenixBridge {
     }
 
     @JvmStatic
+    fun pickedMedia(slot: Long): String? =
+        PickedMedia.describe(activeActivity(), slot.toInt()) {
+            Native.refreshDecorations()
+            refreshEmoji()
+        }
+
+    @JvmStatic
     fun pasteText(): String? {
         val activity = activeActivity() ?: return null
         val clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return null

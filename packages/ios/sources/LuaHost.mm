@@ -17,6 +17,7 @@
 #import "FilePicker.h"
 #import "FoundationJSON.h"
 #import "PhoenixSettings.h"
+#import "PickedMedia.h"
 #include "PhoenixWire.h"
 #import "PluginSignature.h"
 #import "ReactionReactors.h"
@@ -388,6 +389,18 @@ static astral::LuaHostPlatform Platform(void)
         UNNotificationRequest *request = [UNNotificationRequest requestWithIdentifier:Native(identifier) content:content trigger:trigger];
         PostNotificationWhenAuthorized(request);
         return true;
+    };
+    platform.pickedMedia = [](const std::string &slot) -> std::optional<astral::PickedMedia> {
+        unsigned long long index = strtoull(slot.c_str() + 1, nullptr, 10);
+        if (index == 0) return std::nullopt;
+        int64_t size = -1;
+        double duration = 0;
+        NSString *type = nil;
+        if (!AstralPickedMediaInfo((NSUInteger)(index - 1), &size, &duration, &type, ^{
+                AstralPhoenixRefreshDecorations();
+            }))
+            return std::nullopt;
+        return astral::PickedMedia{size, duration, type.UTF8String ?: "unknown"};
     };
     platform.speak = [](const std::string &text, const std::string &language, double rate) {
         AVSpeechUtterance *utterance = [AVSpeechUtterance speechUtteranceWithString:Native(text)];
