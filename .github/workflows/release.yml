@@ -4,12 +4,14 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 jobs:
   release-please:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     outputs:
       created: ${{ steps.release.outputs.release_created }}
       tag: ${{ steps.release.outputs.tag_name }}
@@ -32,6 +34,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           submodules: true
+          persist-credentials: false
       - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
         with:
           go-version-file: packages/tools/go.mod
@@ -47,7 +50,8 @@ jobs:
           go run ./packages/tools/cmd/astral prepare-theos --theos "${{ github.workspace }}/theos"
       - name: Build
         run: |
-          export PATH="$(brew --prefix make)/libexec/gnubin:$PATH"
+          gnubin="$(brew --prefix make)/libexec/gnubin"
+          export PATH="$gnubin:$PATH"
           make -C packages/ios package FINALPACKAGE=1
       - name: Record provenance
         env:
@@ -55,7 +59,7 @@ jobs:
         run: |
           set -euo pipefail
           cd packages/ios/packages
-          shasum -a 256 *.deb > SHA256SUMS
+          shasum -a 256 -- *.deb > SHA256SUMS
           jq -n \
             --arg tag "$TAG" \
             --arg commit "$GITHUB_SHA" \
@@ -74,5 +78,6 @@ jobs:
       - name: Attach the package
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release upload "${{ needs.release-please.outputs.tag }}" packages/ios/packages/*.deb packages/ios/packages/SHA256SUMS packages/ios/packages/provenance.json --clobber
+          TAG: ${{ needs.release-please.outputs.tag }}
+        run: |-
+          gh release upload "$TAG" packages/ios/packages/*.deb packages/ios/packages/SHA256SUMS packages/ios/packages/provenance.json --clobber

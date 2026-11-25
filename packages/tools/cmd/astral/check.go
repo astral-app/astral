@@ -68,6 +68,18 @@ func checkRules() []checkRule {
 			}
 			return taplo(append([]string{"format", "--check"}, files...)...)
 		}},
+		{"workflows", isWorkflowYAML, func(files []string, _ string) error {
+			var existing []string
+			for _, file := range files {
+				if file != ".yamlfmt.yml" && fileExists(repoPath(file)) {
+					existing = append(existing, file)
+				}
+			}
+			if len(existing) == 0 {
+				return lintAllWorkflows()
+			}
+			return lintWorkflows(existing)
+		}},
 		{"wire tests", func(path string) bool {
 			return under(path, "packages/core/wire/", "packages/ios/tests/")
 		}, func(_ []string, work string) error { return testWire(work) }},
