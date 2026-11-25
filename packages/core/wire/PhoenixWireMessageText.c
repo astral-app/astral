@@ -16,6 +16,7 @@ typedef struct {
     uint8_t *original;
     size_t originalLength;
     uint64_t applied;
+    int overridden;
 } TrackedText;
 
 static TrackedText gTexts[kMaxTrackedTexts];
@@ -170,6 +171,15 @@ static void putOriginal(Out *out, const TrackedText *text)
     wirePut(out, text->original, text->originalLength);
 }
 
+static void startFade(Out *out, int32_t node)
+{
+    wirePut8(out, 2);
+    wirePut32(out, (uint32_t)node);
+    wirePropCount(out, 1);
+    wirePropNumber(out, P(opacity), 0);
+    wireTweenFade(node);
+}
+
 static int apply(Out *out, TrackedText *text, int force)
 {
     static char override[kMaxOverride];
@@ -184,16 +194,21 @@ static int apply(Out *out, TrackedText *text, int force)
         uint64_t hash = wanted ? hashOf(override, note) : 2;
         hash = (hash ^ hashOf(time, "")) | 1;
         if (!force && text->applied == hash) return 0;
+        int overrideChanged = wanted != text->overridden;
         if (wanted)
             putOverride(out, text->node, override, note, time);
         else if (!putOriginalWithTime(out, text, time))
             return 0;
+        if (!force && overrideChanged) startFade(out, text->node);
         text->applied = hash;
+        text->overridden = wanted;
         return 1;
     }
     if (!text->applied || !text->original) return 0;
     putOriginal(out, text);
+    if (!force && text->overridden) startFade(out, text->node);
     text->applied = 0;
+    text->overridden = 0;
     return 1;
 }
 

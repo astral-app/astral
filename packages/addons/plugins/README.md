@@ -20,5 +20,5 @@
 - <img src="../../assets/readme-icons/paint-palette-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Settings Theme](settings-theme/): Shows your theme behind User Settings and every page in it, which Discord leaves plain.
 - <img src="../../assets/readme-icons/show-me-your-name.svg" width="20" height="20" align="absmiddle" alt=""> [Show Me Your Name](show-me-your-name/): Display usernames next to display names, or show usernames only.
 - <img src="../../assets/readme-icons/text-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Text Replace](text-replace/): Rewrites outgoing message text with literal or Lua pattern rules.
-- <img src="../../assets/readme-icons/language-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Translate](translate/): Translates a message in place from its long-press menu with Unbound Translate, Google or MyMemory; tap again for the original.
+- <img src="../../assets/readme-icons/language-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Translate](translate/): Translates a message from its long-press menu with Unbound Translate, Google or MyMemory, into a toast or under the message.
 - <img src="../../assets/readme-icons/user-circle-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Typing Avatars](typing-avatars/): Shows the avatar of each person typing in front of their name.

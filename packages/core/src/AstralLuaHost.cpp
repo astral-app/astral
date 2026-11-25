@@ -107,6 +107,7 @@ struct LuaMessageAction {
     std::string label;
     std::string icon = {};
     int reference;
+    int when = LUA_NOREF;
 };
 
 struct LuaTimer {
@@ -1146,10 +1147,18 @@ static int MessageAction(lua_State *state)
         }
         lua_pop(state, 1);
     }
+    int when = LUA_NOREF;
+    if (lua_istable(state, 3)) {
+        lua_getfield(state, 3, "when");
+        if (lua_isfunction(state, -1))
+            when = luaL_ref(state, LUA_REGISTRYINDEX);
+        else
+            lua_pop(state, 1);
+    }
     uint64_t identifier = gNextMessageAction.fetch_add(1);
     if (!identifier) identifier = gNextMessageAction.fetch_add(1);
     lua_pushvalue(state, 2);
-    plugin->messageActions.push_back({identifier, std::string(label, length), icon, luaL_ref(state, LUA_REGISTRYINDEX)});
+    plugin->messageActions.push_back({identifier, std::string(label, length), icon, luaL_ref(state, LUA_REGISTRYINDEX), when});
     lua_pushinteger(state, static_cast<lua_Integer>(identifier));
     return 1;
 }
@@ -3698,6 +3707,31 @@ bool pressMessageAction(std::string_view identifier)
 
 }
 
+static bool ActionShows(LuaPlugin *plugin, const LuaMessageAction &action)
+{
+    if (action.when == LUA_NOREF) return true;
+    if (!gMenuMessage) return false;
+    std::string message = std::to_string(gMenuMessage);
+    std::optional<std::string> channel = gMenuChannel ? std::optional<std::string>(std::to_string(gMenuChannel)) : std::nullopt;
+    if (!channel && gPlatform.messageChannel) channel = gPlatform.messageChannel(message);
+    if (!channel || channel->empty()) return false;
+    lua_State *state = plugin->state;
+    int top = lua_gettop(state);
+    lua_rawgeti(state, LUA_REGISTRYINDEX, action.when);
+    lua_createtable(state, 0, 2);
+    lua_pushstring(state, message.c_str());
+    lua_setfield(state, -2, "message_id");
+    lua_pushstring(state, channel->c_str());
+    lua_setfield(state, -2, "channel_id");
+    if (!Call(plugin, 1, 1, "message.action when")) {
+        lua_settop(state, top);
+        return false;
+    }
+    bool shows = lua_toboolean(state, -1);
+    lua_settop(state, top);
+    return shows;
+}
+
 size_t AstralLuaMessageMenu(AstralMenuEntry *entries, size_t capacity)
 {
     std::unique_lock<std::recursive_mutex> lock(gMutex, std::try_to_lock);
@@ -3707,6 +3741,7 @@ size_t AstralLuaMessageMenu(AstralMenuEntry *entries, size_t capacity)
         if (!plugin->state || plugin->failed) continue;
         for (const auto &action : plugin->messageActions) {
             if (count >= capacity) return count;
+            if (!ActionShows(plugin, action)) continue;
             AstralMenuEntry *entry = &entries[count++];
             snprintf(entry->action_id, sizeof(entry->action_id), "astral.action.%llu", static_cast<unsigned long long>(action.identifier));
             snprintf(entry->label, sizeof(entry->label), "%s", action.label.c_str());

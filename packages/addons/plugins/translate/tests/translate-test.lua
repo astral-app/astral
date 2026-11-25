@@ -1,10 +1,12 @@
 local previous_path = package.path
 package.path = arg[1]:gsub("main.lua$", "?.lua;") .. previous_path
 
-local values = {}
+local values = { display = "inline" }
 local requests = {}
 local storage = {}
 local action
+local actions = {}
+local copied
 local web_auth
 local toast
 local displayed = {}
@@ -47,9 +49,14 @@ astral = {
 		end,
 	},
 	ui = {
-		message_action = function(label, callback)
-			assert(label == "Translate")
-			action = callback
+		message_action = function(label, callback, options)
+			actions[label] = { callback = callback, when = options and options.when }
+			if label == "Translate" then
+				action = callback
+			end
+		end,
+		copy = function(text)
+			copied = text
 		end,
 		toast = function(title, message)
 			toast = { title = title, message = message }
@@ -87,8 +94,9 @@ assert(#requests == 1)
 assert(requests[1].options.url:find("clients5.google.com/translate_a/t", 1, true))
 assert(requests[1].options.url:find("q=hello%20world", 1, true))
 requests[1].callback({ ok = true, json = { { "bonjour", "en" } } })
-assert(displayed["2"].text == "bonjour" and displayed["2"].note == "translated")
-action(node)
+assert(displayed["2"].text == "hello world\nbonjour" and displayed["2"].note == "en -> en")
+assert(actions["Show Original"].when(node) and not actions.Translate.when(node))
+actions["Show Original"].callback(node)
 assert(displayed["2"] == nil and #requests == 1)
 
 toast = nil
@@ -98,7 +106,7 @@ assert(#requests == 3)
 assert(requests[3].options.url:find("api.mymemory.translated.net/get", 1, true))
 assert(requests[3].options.url:find("langpair=autodetect%7Cen", 1, true))
 requests[3].callback({ ok = true, json = { responseStatus = 200, responseData = { translatedText = "hola" } } })
-assert(displayed["2"].text == "hola")
+assert(displayed["2"].text == "hello world\nhola")
 displayed = {}
 
 values.service = "mymemory"
@@ -178,7 +186,7 @@ requests[second_retry_index].callback({
 	ok = true,
 	json = { translations = { { translatedText = "guten tag", detectedSourceLanguage = "fr" } } },
 })
-assert(displayed["2"].text == "guten tag")
+assert(displayed["2"].text:find("guten tag", 1, true))
 
 displayed = {}
 action(node)
@@ -245,4 +253,13 @@ assert(#requests == disconnected_requests)
 assert(toast.title == "Translate Error")
 
 package.path = previous_path
+values.display = "toast"
+values.service = "google"
+message_content = "hello world"
+displayed = {}
+local before = #requests
+action(node)
+requests[before + 1].callback({ ok = true, json = { { "salut", "en" } } })
+assert(copied == "salut" and toast.title == "Translated" and toast.message == "salut" and displayed["2"] == nil)
+
 print("translate ok")

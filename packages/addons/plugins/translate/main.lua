@@ -23,6 +23,14 @@ settings:choice("service", "Translation service", {
 }, "auto")
 settings:choice("source", "Source language", source_options, "auto")
 settings:choice("target", "Target language", language_options, "en")
+settings:choice("display", "Show translations", {
+	astral.settings.option("toast", "Copy and show", "Copies the translation and shows it in a toast"),
+	astral.settings.option(
+		"inline",
+		"In the message",
+		"Shows the translation under the message's text with its languages"
+	),
+}, "toast")
 settings:choice("account_action", "Translate API account", {
 	astral.settings.option("connect", "Connect or reconnect"),
 	astral.settings.option("disconnect", "Disconnect"),
@@ -293,7 +301,15 @@ local function save_translation(translation, destination)
 		show_error("Translation service returned an empty result")
 		return
 	end
-	astral.messages.set_text(destination.channel_id, destination.message_id, translation.text, { note = "translated" })
+	if astral.settings.get("display", "toast") ~= "inline" then
+		pcall(astral.ui.copy, translation.text)
+		show_toast("Translated", translation.text)
+		return
+	end
+	local from = type(translation.detected) == "string" and translation.detected or destination.source
+	local note = from .. " -> " .. destination.target
+	local text = destination.content .. "\n" .. translation.text
+	astral.messages.set_text(destination.channel_id, destination.message_id, text, { note = note })
 end
 
 local function translate_anonymous(service_list, index, content, source, target, destination)
@@ -422,12 +438,23 @@ local function translate_unbound(content, source, target, destination)
 	end)
 end
 
-local function translate_message(node)
+local function show_original(node)
+	astral.messages.set_text(node.channel_id, node.message_id, nil)
+end
+
+local function translatable(node)
 	if astral.messages.get_text(node.message_id) then
-		astral.messages.set_text(node.channel_id, node.message_id, nil)
-		return
+		return false
 	end
-	local destination = { channel_id = node.channel_id, message_id = node.message_id }
+	local message = node:message()
+	return message ~= nil and type(message.content) == "string" and message.content ~= ""
+end
+
+local function translated(node)
+	return astral.messages.get_text(node.message_id) ~= nil
+end
+
+local function translate_message(node)
 	local message = node:message()
 	local content = message and message.content
 	if type(content) ~= "string" or content == "" then
@@ -450,6 +477,13 @@ local function translate_message(node)
 	if not language_codes[target] then
 		target = "en"
 	end
+	local destination = {
+		channel_id = node.channel_id,
+		message_id = node.message_id,
+		content = content,
+		source = source,
+		target = target,
+	}
 	if use_unbound then
 		translate_unbound(content, source, target, destination)
 		return
@@ -463,4 +497,5 @@ local function translate_message(node)
 	end
 end
 
-astral.ui.message_action("Translate", translate_message, { icon = "res://ic_mana_chat" })
+astral.ui.message_action("Translate", translate_message, { icon = "res://ic_mana_chat", when = translatable })
+astral.ui.message_action("Show Original", show_original, { icon = "res://ic_mana_refresh", when = translated })
