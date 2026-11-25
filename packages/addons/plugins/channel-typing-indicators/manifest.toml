@@ -1,0 +1,23 @@
+id = "astral.channel-typing-indicators"
+name = "Channel Typing Indicators"
+description = "Shows typing dots beside channels where people are typing."
+version = "0.0.1"
+icon = "ChatDotsIcon"
+main = "main.lua"
+permissions = ["events.gateway", "ui.insert", "discord.relationships"]
+
+[[authors]]
+name = "Nuckyz"
+id = "235834946571337729"
+
+[[authors]]
+name = "fawn"
+id = "336678828233588736"
+
+[[authors]]
+name = "Sqaaakoi"
+id = "259558259491340288"
+
+[[authors]]
+name = "adrian"
+id = "224617799434108928"

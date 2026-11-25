@@ -1,0 +1,6 @@
+signature = "ngVjFQ4GoYbAesARYWYntY6N3z5uKHCbf9apxE4231ekQHd9iQn1wzRJh2TQyLtSpHeOROpge64omfj2PUcnCA=="
+
+[files]
+"main.lua" = "f3ad995c953ec58cf78f202c4cb02c89b09d7774d81598af1dad961635f3485b"
+"main.luac" = "a43b893d413830fd2848e0dd4863f666bc8717b19e3748ecd8a8283f3af85339"
+"manifest.toml" = "dfcd39db443bd5fb218c24b9f93df86dc000dbff7e958b901bcdb34c2275dc55"

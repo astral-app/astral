@@ -1,12 +1,14 @@
 # Plugins
 
-24 first-party plugins for astral, each in its own folder here.
+28 first-party plugins for astral, each in its own folder here.
 
 <!-- Generated from each manifest.toml by `astral readme`. Do not edit by hand. -->
 
+- <img src="../../assets/readme-icons/chat-dots-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Channel Typing Indicators](channel-typing-indicators/): Shows typing dots beside channels where people are typing.
 - <img src="../../assets/readme-icons/chat-dots-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Chat Bubbles](chat-bubbles/): Draws a rounded bubble behind each message's text, media and embeds.
 - <img src="../../assets/readme-icons/link-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Clear URLs](clear-urls/): Removes common tracking parameters from links before messages are sent or edited.
 - <img src="../../assets/readme-icons/bug-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Debug](debug/): Adds /debug, which posts a status card with astral's versions, device details and plugin states, for support.
+- <img src="../../assets/readme-icons/eye-slash-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Declutter](declutter/): Hides buttons, upsells and profile decorations you never use: the gift button, Server Boosts, call buttons, avatar decorations, nameplates, server tags and more.
 - <img src="../../assets/readme-icons/eye-slash-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Enhanced Blocking](enhanced-blocking/): Hides messages by user, keyword or reply author, including people you blocked, edits and messages already loaded.
 - <img src="../../assets/readme-icons/crown-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Force Owner Crown](force-owner-crown/): Always show the owner crown on the server owner's messages.
 - <img src="../../assets/readme-icons/arrow-angle-left-up-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Highlight Replies](highlight-replies/): Tints the text of messages that reply to your messages.
@@ -14,6 +16,8 @@
 - <img src="../../assets/readme-icons/text-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Live Markdown](live-markdown/): Styles Discord markdown as you type in the message composer.
 - <img src="../../assets/readme-icons/user-circle-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Mention Avatars](mention-avatars/): Shows user avatars and role icons inside mentions.
 - <img src="../../assets/readme-icons/bell-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Mention Haptics](mention-haptics/): Taps your phone when a new message mentions you, your roles or everyone, or arrives in a direct message.
+- <img src="../../assets/readme-icons/bell-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Message Latency](message-latency/): Marks messages that took at least the selected time to send, beside their timestamp.
+- <img src="../../assets/readme-icons/eye-slash-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Message Logger](message-logger/): Keeps deleted messages in the chat in red and shows what edited messages said before.
 - <img src="../../assets/readme-icons/text-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Message Text Size](message-text-size/): Makes the text of chat messages bigger or smaller, leaving the rest of Discord as it is.
 - <img src="../../assets/readme-icons/more-user-tags.svg" width="20" height="20" align="absmiddle" alt=""> [More User Tags](more-user-tags/): Adds tags for webhooks and moderative roles, and can show each member's top coloured role.
 - <img src="../../assets/readme-icons/user-plus-icon.svg" width="20" height="20" align="absmiddle" alt=""> [New Member Sprout](new-member-sprout/): Shows desktop's new member sprout beside people who joined the server in the last week.

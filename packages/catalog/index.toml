@@ -5,6 +5,38 @@ version = "0.0.1"
 passive = []
 
 [[plugins]]
+id = "astral.declutter"
+name = "Declutter"
+version = "0.0.1"
+description = "Hides buttons, upsells and profile decorations you never use: the gift button, Server Boosts, call buttons, avatar decorations, nameplates, server tags and more."
+icon = "EyeSlashIcon"
+base = "plugins/astral.declutter/"
+
+[[plugins]]
+id = "astral.message-logger"
+name = "Message Logger"
+version = "0.0.1"
+description = "Keeps deleted messages in the chat in red and shows what edited messages said before."
+icon = "EyeSlashIcon"
+base = "plugins/astral.message-logger/"
+
+[[plugins]]
+id = "astral.channel-typing-indicators"
+name = "Channel Typing Indicators"
+version = "0.0.1"
+description = "Shows typing dots beside channels where people are typing."
+icon = "ChatDotsIcon"
+base = "plugins/astral.channel-typing-indicators/"
+
+[[plugins]]
+id = "astral.message-latency"
+name = "Message Latency"
+version = "0.0.1"
+description = "Marks messages that took at least the selected time to send, beside their timestamp."
+icon = "BellIcon"
+base = "plugins/astral.message-latency/"
+
+[[plugins]]
 id = "astral.new-member-sprout"
 name = "New Member Sprout"
 version = "0.0.1"
