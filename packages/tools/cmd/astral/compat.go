@@ -86,7 +86,11 @@ func imageUUID(path string) (string, error) {
 func buildProbe(work string) (string, error) {
 	sources := repoPath("packages", "ios")
 	binary := filepath.Join(work, "compat-probe")
-	return binary, run(sources, "cc", "-O1", "-Wall", "-Werror", "-o", binary, "tests/support/compat-probe.c", "sources/PhoenixLocate.c", "-I"+repoPath("packages", "core", "wire"), repoPath("packages", "core", "wire", "PhoenixProperties.c"))
+	library, err := rustHostLibrary()
+	if err != nil {
+		return "", err
+	}
+	return binary, run(sources, "cc", "-O1", "-Wall", "-Werror", "-o", binary, "tests/support/compat-probe.c", "sources/PhoenixLocate.c", "-I"+repoPath("packages", "core", "wire"), library)
 }
 
 func runProbe(probe string, phoenix string) (probeResult, error) {

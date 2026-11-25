@@ -113,3 +113,13 @@ fn bounds_deep_nesting() {
     let mut spans = vec![Span::default(); MAX_SPANS];
     assert!(scan(&bytes, &mut spans).is_none());
 }
+
+#[test]
+fn writes_gradients() {
+    let colors = [0xFF000000u32, 0xFFFFFFFF];
+    let bytes = batch(|out| unsafe { astral_core::wire::out::wirePropGradient(out, 91, 90.0, colors.as_ptr(), 2) });
+    assert_eq!(bytes[0], 1);
+    assert_eq!(u16::from_le_bytes([bytes[1], bytes[2]]), 91);
+    assert_eq!(bytes[3], 8);
+    assert_eq!(u32::from_le_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]), 3);
+}

@@ -228,7 +228,11 @@ func verifyWithMonocypher(work string, folders []string) error {
 func testLocator(work string, phoenix string) error {
 	binary := filepath.Join(work, "locate-test")
 	sources := repoPath("packages", "ios")
-	if err := run(sources, "clang", "-Wall", "-Wextra", "-Werror", "-O1", "tests/locate-test.c", "sources/PhoenixLocate.c", "-I"+repoPath("packages", "core", "wire"), repoPath("packages", "core", "wire", "PhoenixProperties.c"), "-o", binary); err != nil {
+	library, err := rustHostLibrary()
+	if err != nil {
+		return err
+	}
+	if err := run(sources, "clang", "-Wall", "-Wextra", "-Werror", "-O1", "tests/locate-test.c", "sources/PhoenixLocate.c", "-I"+repoPath("packages", "core", "wire"), library, "-o", binary); err != nil {
 		return err
 	}
 	return run(sources, binary, phoenix)
