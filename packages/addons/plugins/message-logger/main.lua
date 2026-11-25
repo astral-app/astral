@@ -2,12 +2,18 @@ local MAXIMUM_ENTRIES = 500
 local MAXIMUM_EDITS = 5
 local DELETED = 0xFFF23F43
 local EDITED = 0xFF949BA4
+local EPHEMERAL_FLAG = 64
 
 local settings = astral.settings.section("Logging")
 settings:switch("log_deletes", "Keep deleted messages", true, "Leaves deleted messages in the chat")
 settings:switch("log_edits", "Keep edit history", true, "Shows what an edited message said before")
 settings:switch("red_text", "Red text", true, "Draws deleted messages in red")
-settings:switch("marker", "Deleted marker", true, "Adds (deleted) after a deleted message")
+settings:switch(
+	"marker",
+	"Deleted marker",
+	true,
+	"Marks deleted messages as only visible to you, with Discord's Dismiss link"
+)
 settings:switch("ignore_bots", "Ignore bots", true, "Doesn't log messages from bots")
 settings:switch("ignore_self", "Ignore my messages", false, "Doesn't log your own messages")
 settings:switch("persist", "Keep the log after restarting", true, "Saves the log on this device")
@@ -73,6 +79,20 @@ local function on_delete(channel, id)
 	return true
 end
 
+local function mark_ephemeral(channel, id)
+	if not setting("marker", true) then
+		return
+	end
+	astral.time.after(0, function()
+		local message = astral.discord.raw_message(channel, id)
+		if type(message) ~= "table" then
+			return
+		end
+		message.flags = (tonumber(message.flags) or 0) | EPHEMERAL_FLAG
+		astral.gateway.dispatch("MESSAGE_UPDATE", message)
+	end)
+end
+
 local function on_update(data)
 	if type(data.content) ~= "string" then
 		return
@@ -112,13 +132,16 @@ astral.events.on("gateway", function(event)
 		if not on_delete(data.channel_id, data.id) then
 			return nil
 		end
+		mark_ephemeral(data.channel_id, data.id)
 		save()
 		astral.ui.refresh()
 		return false
 	end
 	local kept = astral.json.array()
 	for _, id in ipairs(data.ids or {}) do
-		if not on_delete(data.channel_id, id) then
+		if on_delete(data.channel_id, id) then
+			mark_ephemeral(data.channel_id, id)
+		else
 			kept[#kept + 1] = id
 		end
 	end
@@ -148,9 +171,6 @@ astral.ui.text_transform(function(spans, context)
 			span.color = DELETED
 		end
 		out[#out + 1] = span
-	end
-	if deleted and setting("marker", true) then
-		out[#out + 1] = { text = " (deleted)", color = DELETED, scale = 0.8 }
 	end
 	return out
 end)
