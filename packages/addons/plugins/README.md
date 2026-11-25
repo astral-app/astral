@@ -1,9 +1,10 @@
 # Plugins
 
-33 first-party plugins for astral, each in its own folder here.
+35 first-party plugins for astral, each in its own folder here.
 
 <!-- Generated from each manifest.toml by `astral readme`. Do not edit by hand. -->
 
+- <img src="../../assets/readme-icons/reaction-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Always Animate](always-animate/): Animates avatars, server icons, banners and emoji everywhere, not only when you tap them.
 - <img src="../../assets/readme-icons/chat-dots-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Channel Typing Indicators](channel-typing-indicators/): Shows typing dots beside channels where people are typing.
 - <img src="../../assets/readme-icons/chat-dots-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Chat Bubbles](chat-bubbles/): Draws a rounded bubble behind each message's text, media and embeds.
 - <img src="../../assets/readme-icons/link-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Clear URLs](clear-urls/): Removes common tracking parameters from links before messages are sent or edited.
@@ -16,6 +17,7 @@
 - <img src="../../assets/readme-icons/arrow-angle-left-up-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Highlight Replies](highlight-replies/): Tints the text of messages that reply to your messages.
 - <img src="../../assets/readme-icons/paint-palette-icon.svg" width="20" height="20" align="absmiddle" alt=""> [IRC Colors](irc-colors/): Gives everyone in chat their own username color, picked from their user id like in IRC clients.
 - <img src="../../assets/readme-icons/text-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Live Markdown](live-markdown/): Styles Discord markdown as you type in the message composer.
+- <img src="../../assets/readme-icons/bell-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Local Notifications](local-notifications/): Notifies you of mentions and DMs on installs where Discord's push notifications don't arrive, by keeping Discord connected in the background.
 - <img src="../../assets/readme-icons/user-circle-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Mention Avatars](mention-avatars/): Shows user avatars and role icons inside mentions.
 - <img src="../../assets/readme-icons/bell-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Mention Haptics](mention-haptics/): Taps your phone when a new message mentions you, your roles or everyone, or arrives in a direct message.
 - <img src="../../assets/readme-icons/bell-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Message Latency](message-latency/): Marks messages that took at least the selected time to send, beside their timestamp.

@@ -605,6 +605,12 @@ astral.image = {}
 ---@return string? png
 function astral.image.render(spec) end
 
+astral.background = {}
+---Keeps Discord connected while it is in the background. Returns false where that isn't available.
+---@param on boolean
+---@return boolean
+function astral.background.keep_alive(on) end
+
 astral.diagnostics = {}
 ---Returns astral's sanitized environment: versions, platform, install mode, device, report count and every plugin's state.
 ---@return table

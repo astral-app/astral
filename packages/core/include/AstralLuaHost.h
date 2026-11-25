@@ -44,6 +44,7 @@ struct LuaHostPlatform {
     std::function<std::optional<std::string>(const nlohmann::json &spec)> renderImage;
     std::function<nlohmann::json()> environment;
     std::function<bool(const std::string &text, bool replace)> insertComposerText;
+    std::function<bool(bool on)> keepAlive;
     std::function<bool(const std::string &text, const std::string &language, double rate)> speak;
     std::function<bool(const std::string &path, double volume)> playSound;
     std::function<void()> stopAudio;

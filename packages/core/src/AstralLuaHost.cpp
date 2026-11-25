@@ -1080,6 +1080,14 @@ static int ComposerText(lua_State *state)
     return 1;
 }
 
+static int KeepAlive(lua_State *state)
+{
+    RequirePermission(state, "background");
+    bool on = lua_toboolean(state, 1);
+    lua_pushboolean(state, gPlatform.keepAlive && gPlatform.keepAlive(on));
+    return 1;
+}
+
 static int RefreshDecorationsNow(lua_State *)
 {
     if (gPlatform.refreshDecorations) gPlatform.refreshDecorations();
@@ -2371,6 +2379,10 @@ static void InstallAPI(LuaPlugin *plugin)
     lua_newtable(state);
     Function(state, plugin, "render", RenderImage);
     lua_setfield(state, -2, "image");
+
+    lua_newtable(state);
+    Function(state, plugin, "keep_alive", KeepAlive);
+    lua_setfield(state, -2, "background");
 
     lua_newtable(state);
     Function(state, plugin, "environment", DiagnosticEnvironment);

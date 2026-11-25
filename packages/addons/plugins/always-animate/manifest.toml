@@ -1,0 +1,15 @@
+id = "astral.always-animate"
+name = "Always Animate"
+description = "Animates avatars, server icons, banners and emoji everywhere, not only when you tap them."
+version = "0.0.1"
+icon = "ReactionIcon"
+main = "main.lua"
+permissions = ["ui.images"]
+
+[[authors]]
+name = "Fiery"
+id = "890228870559698955"
+
+[[authors]]
+name = "adrian"
+id = "224617799434108928"
