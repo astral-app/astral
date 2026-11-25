@@ -76,6 +76,9 @@ static UIColor *ColorValue(id value, UIColor *fallback)
         NSString *text = value;
         if ([text isEqualToString:@"muted"]) return MutedText();
         if ([text isEqualToString:@"primary"]) return PrimaryText();
+        if ([text isEqualToString:@"link"]) return Themed(0x00A8FC, 0x006CE7);
+        if ([text isEqualToString:@"positive"]) return Themed(0x23A55A, 0x1F8B4C);
+        if ([text isEqualToString:@"danger"]) return Themed(0xF23F43, 0xDA373C);
         if ([text hasPrefix:@"#"]) text = [text substringFromIndex:1];
         unsigned int parsed = 0;
         if ((text.length == 6 || text.length == 8) && [[NSScanner scannerWithString:text] scanHexInt:&parsed])
@@ -113,6 +116,8 @@ static NSArray<NSDictionary *> *ItemList(id value)
 @property (nonatomic, copy) AstralSheetEvent event;
 @property (nonatomic) UIStackView *stack;
 @property (nonatomic) UILabel *titleLabel;
+@property (nonatomic) UILabel *subtitleLabel;
+@property (nonatomic) NSMutableDictionary<NSValue *, NSString *> *longActions;
 @property (nonatomic) NSMutableDictionary<NSValue *, NSString *> *actions;
 @property (nonatomic) NSMutableDictionary<NSValue *, UITextView *> *inputs;
 @property (nonatomic) BOOL finished;
@@ -130,6 +135,11 @@ static NSArray<NSDictionary *> *ItemList(id value)
     self.titleLabel.textAlignment = NSTextAlignmentCenter;
     self.titleLabel.numberOfLines = 2;
     self.titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    self.subtitleLabel = [UILabel new];
+    self.subtitleLabel.font = DiscordFont(13, UIFontWeightMedium);
+    self.subtitleLabel.textColor = MutedText();
+    self.subtitleLabel.textAlignment = NSTextAlignmentCenter;
+    self.subtitleLabel.translatesAutoresizingMaskIntoConstraints = NO;
     UIScrollView *scroll = [UIScrollView new];
     scroll.translatesAutoresizingMaskIntoConstraints = NO;
     scroll.alwaysBounceVertical = YES;
@@ -140,13 +150,17 @@ static NSArray<NSDictionary *> *ItemList(id value)
     self.stack.translatesAutoresizingMaskIntoConstraints = NO;
     [scroll addSubview:self.stack];
     [self.view addSubview:self.titleLabel];
+    [self.view addSubview:self.subtitleLabel];
     [self.view addSubview:scroll];
     UILayoutGuide *safe = self.view.safeAreaLayoutGuide;
     [NSLayoutConstraint activateConstraints:@[
         [self.titleLabel.topAnchor constraintEqualToAnchor:safe.topAnchor constant:22],
         [self.titleLabel.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:kInset],
         [self.titleLabel.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor constant:-kInset],
-        [scroll.topAnchor constraintEqualToAnchor:self.titleLabel.bottomAnchor constant:14],
+        [self.subtitleLabel.topAnchor constraintEqualToAnchor:self.titleLabel.bottomAnchor constant:2],
+        [self.subtitleLabel.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:kInset],
+        [self.subtitleLabel.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor constant:-kInset],
+        [scroll.topAnchor constraintEqualToAnchor:self.subtitleLabel.bottomAnchor constant:14],
         [scroll.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor],
         [scroll.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor],
         [scroll.bottomAnchor constraintEqualToAnchor:self.view.keyboardLayoutGuide.topAnchor],
@@ -162,7 +176,9 @@ static NSArray<NSDictionary *> *ItemList(id value)
 {
     self.actions = [NSMutableDictionary dictionary];
     self.inputs = [NSMutableDictionary dictionary];
+    self.longActions = [NSMutableDictionary dictionary];
     self.titleLabel.text = TextValue(self.spec, @"title");
+    self.subtitleLabel.text = TextValue(self.spec, @"subtitle");
     for (UIView *view in self.stack.arrangedSubviews) [view removeFromSuperview];
     for (NSDictionary *item in ItemList(self.spec[@"items"])) {
         UIView *view = [self viewForItem:item];
@@ -199,6 +215,12 @@ static NSArray<NSDictionary *> *ItemList(id value)
     [self send:self.actions[[NSValue valueWithNonretainedObject:recognizer.view]] value:@""];
 }
 
+- (void)held:(UILongPressGestureRecognizer *)recognizer
+{
+    if (recognizer.state != UIGestureRecognizerStateBegan) return;
+    [self send:self.longActions[[NSValue valueWithNonretainedObject:recognizer.view]] value:@""];
+}
+
 - (void)pressed:(UIButton *)button
 {
     [self send:self.actions[[NSValue valueWithNonretainedObject:button]] value:@""];
@@ -222,6 +244,14 @@ static NSArray<NSDictionary *> *ItemList(id value)
 
 - (void)attachAction:(NSDictionary *)item toView:(UIView *)view
 {
+    NSString *longAction = TextValue(item, @"long_action");
+    if (longAction.length) {
+        self.longActions[[NSValue valueWithNonretainedObject:view]] = longAction;
+        view.userInteractionEnabled = YES;
+        UILongPressGestureRecognizer *hold = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(held:)];
+        hold.minimumPressDuration = 0.35;
+        [view addGestureRecognizer:hold];
+    }
     NSString *action = TextValue(item, @"action");
     if (!action.length) return;
     self.actions[[NSValue valueWithNonretainedObject:view]] = action;
@@ -244,6 +274,8 @@ static NSArray<NSDictionary *> *ItemList(id value)
         view = [self code:item];
     else if ([type isEqualToString:@"image"])
         view = [self image:item];
+    else if ([type isEqualToString:@"icon"])
+        view = [self icon:item];
     else if ([type isEqualToString:@"row"] || [type isEqualToString:@"column"])
         view = [self group:item horizontal:[type isEqualToString:@"row"]];
     else if ([type isEqualToString:@"buttons"])
@@ -328,6 +360,35 @@ static NSArray<NSDictionary *> *ItemList(id value)
     return view;
 }
 
+- (UIView *)icon:(NSDictionary *)item
+{
+    static NSDictionary<NSString *, NSString *> *symbols;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        symbols = @{
+            @"thumbs_up" : @"hand.thumbsup.fill",
+            @"thumbs_down" : @"hand.thumbsdown.fill",
+            @"star" : @"star.fill",
+            @"chevron_right" : @"chevron.right",
+            @"flag" : @"flag.fill",
+            @"deny" : @"nosign",
+            @"trash" : @"trash.fill",
+            @"info" : @"info.circle.fill",
+            @"link" : @"link",
+        };
+    });
+    CGFloat size = NumberValue(item, @"size", 16);
+    UIImageSymbolConfiguration *configuration = [UIImageSymbolConfiguration configurationWithPointSize:size
+                                                                                                weight:UIImageSymbolWeightSemibold];
+    UIImageView *view = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:symbols[TextValue(item, @"name")] ?: @"questionmark"
+                                                                   withConfiguration:configuration]];
+    view.tintColor = ColorValue(item[@"color"], MutedText());
+    view.contentMode = UIViewContentModeCenter;
+    [view.widthAnchor constraintEqualToConstant:size + 4].active = YES;
+    [view.heightAnchor constraintEqualToConstant:size + 4].active = YES;
+    return view;
+}
+
 - (UIView *)group:(NSDictionary *)item horizontal:(BOOL)horizontal
 {
     UIStackView *stack = [UIStackView new];
@@ -336,9 +397,21 @@ static NSArray<NSDictionary *> *ItemList(id value)
     stack.alignment = horizontal
                           ? ([TextValue(item, @"align") isEqualToString:@"top"] ? UIStackViewAlignmentTop : UIStackViewAlignmentCenter)
                           : UIStackViewAlignmentFill;
+    BOOL stretches = NO;
     for (NSDictionary *child in ItemList(item[@"items"])) {
         UIView *view = [self viewForItem:child];
-        if (view) [stack addArrangedSubview:view];
+        if (!view) continue;
+        NSString *type = TextValue(child, @"type");
+        stretches |= [type isEqualToString:@"column"] || [child[@"grow"] boolValue];
+        if (horizontal && ![type isEqualToString:@"column"] && ![child[@"grow"] boolValue])
+            [view setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
+        [stack addArrangedSubview:view];
+    }
+    if (horizontal && !stretches) {
+        UIView *spacer = [UIView new];
+        [spacer setContentHuggingPriority:1 forAxis:UILayoutConstraintAxisHorizontal];
+        [spacer setContentCompressionResistancePriority:1 forAxis:UILayoutConstraintAxisHorizontal];
+        [stack addArrangedSubview:spacer];
     }
     return stack;
 }
@@ -377,8 +450,50 @@ static NSArray<NSDictionary *> *ItemList(id value)
     return stack;
 }
 
+- (UIView *)labelledInput:(NSDictionary *)item
+{
+    UITextView *text = [UITextView new];
+    text.font = DiscordFont(16, UIFontWeightRegular);
+    text.textColor = PrimaryText();
+    text.backgroundColor = SurfaceColor();
+    text.layer.cornerRadius = kCornerRadius;
+    text.textContainerInset = UIEdgeInsetsMake(12, 8, 12, 8);
+    text.scrollEnabled = NO;
+    text.delegate = self;
+    text.text = TextValue(item, @"value");
+    [text.heightAnchor constraintGreaterThanOrEqualToConstant:NumberValue(item, @"height", 96)].active = YES;
+    UILabel *placeholder = [UILabel new];
+    placeholder.text = TextValue(item, @"placeholder");
+    placeholder.font = text.font;
+    placeholder.textColor = MutedText();
+    placeholder.translatesAutoresizingMaskIntoConstraints = NO;
+    placeholder.hidden = text.text.length > 0;
+    [text addSubview:placeholder];
+    [NSLayoutConstraint activateConstraints:@[
+        [placeholder.leadingAnchor constraintEqualToAnchor:text.leadingAnchor constant:13],
+        [placeholder.topAnchor constraintEqualToAnchor:text.topAnchor constant:12],
+    ]];
+    [NSNotificationCenter.defaultCenter addObserverForName:UITextViewTextDidChangeNotification
+                                                    object:text
+                                                     queue:NSOperationQueue.mainQueue
+                                                usingBlock:^(__unused NSNotification *note) {
+                                                    placeholder.hidden = text.text.length > 0;
+                                                }];
+    UIButton *submit = [self button:@{@"label" : TextValue(item, @"submit_label"), @"style" : @"primary", @"action" : @""}];
+    [submit removeTarget:self action:@selector(pressed:) forControlEvents:UIControlEventTouchUpInside];
+    NSValue *key = [NSValue valueWithNonretainedObject:submit];
+    self.actions[key] = TextValue(item, @"action");
+    self.inputs[key] = text;
+    [submit addTarget:self action:@selector(submitted:) forControlEvents:UIControlEventTouchUpInside];
+    UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[ text, submit ]];
+    stack.axis = UILayoutConstraintAxisVertical;
+    stack.spacing = 8;
+    return stack;
+}
+
 - (UIView *)input:(NSDictionary *)item
 {
+    if (TextValue(item, @"submit_label").length) return [self labelledInput:item];
     UIView *container = [UIView new];
     container.backgroundColor = SurfaceColor();
     container.layer.cornerRadius = 20;

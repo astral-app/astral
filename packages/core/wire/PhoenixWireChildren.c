@@ -199,6 +199,17 @@ uint32_t wireDiscordChildren(int32_t parent, const int32_t **children)
     return list->count;
 }
 
+int32_t wireDiscordParent(int32_t child)
+{
+    for (size_t index = 0; index < gCapacity; index++) {
+        const ChildList *list = &gLists[index];
+        if (list->parent == kEmptySlot) continue;
+        for (uint32_t position = 0; position < list->count; position++)
+            if (list->children[position] == child) return list->parent;
+    }
+    return 0;
+}
+
 void wireResetChildLists(void)
 {
     for (size_t index = 0; index < gCapacity; index++) free(gLists[index].children);

@@ -101,6 +101,7 @@ void setSwitch(const std::string &identifier, const std::string &key, bool on);
 void setChoice(const std::string &identifier, const std::string &key, const std::string &value);
 void setNumber(const std::string &identifier, const std::string &key, double value);
 void setText(const std::string &identifier, const std::string &key, const std::string &value);
+void pressSettingsButton(const std::string &identifier, const std::string &key);
 void resetSettings(const std::string &identifier);
 void completeNetworkRequest(uint64_t request, const nlohmann::json &response);
 void completeConfirm(uint64_t request, bool accepted);

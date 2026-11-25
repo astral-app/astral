@@ -1,8 +1,57 @@
-local commands, actions, sent, requests, stored = {}, {}, {}, {}, {}
-local auth
+local buttons, switches, inserter, presser, gateway = {}, {}, nil, nil, nil
+local requests, stored, toasts, sheets, auth = {}, {}, {}, {}, nil
+local strings = {
+	REVIEWDB = "ReviewDB",
+	REVIEW_COUNT = "{count, plural, one {# review} other {# reviews}}",
+	REVIEWS_FOR = "Reviews for @{name}",
+	REVIEW_PLACEHOLDER = "Review @{name}",
+	VIEW_REVIEWS = "View reviews",
+	REVIEWS_TITLE = "Reviews",
+	SUBMIT_REVIEW = "Submit review",
+	LEAVE_A_REVIEW = "Leave a review",
+	SIGN_IN_TO_REVIEW = "Sign in to leave a review",
+	AUTHORIZE = "Authorize with ReviewDB",
+	REAUTHORIZE = "Reauthorize with ReviewDB",
+	LOGIN_SUCCESS = "Successfully authorized with ReviewDB.",
+}
+local function sheet_handle(spec, handler)
+	local handle = { spec = spec, handler = handler, closed = false }
+	function handle.update(_, next_spec)
+		handle.spec = next_spec
+	end
+	function handle.close()
+		handle.closed = true
+	end
+	sheets[#sheets + 1] = handle
+	return handle
+end
+local Section = {}
+Section.__index = Section
+function Section.switch(_, key, _, default)
+	switches[key] = default
+	return default
+end
+function Section.button(_, key, title, callback)
+	buttons[key] = { title = title, callback = callback }
+end
 astral = {
 	log = function() end,
-	settings = {},
+	i18n = {
+		t = function(key)
+			return strings[key] or key
+		end,
+	},
+	settings = {
+		section = function(title)
+			return setmetatable({ title = title }, Section)
+		end,
+		get = function(key, fallback)
+			if switches[key] ~= nil then
+				return switches[key]
+			end
+			return fallback
+		end,
+	},
 	storage = {
 		get = function(key)
 			return stored[key]
@@ -10,94 +59,105 @@ astral = {
 		set = function(key, value)
 			stored[key] = value
 		end,
-		remove = function(key)
-			stored[key] = nil
-		end,
 	},
 	net = {
 		request = function(options, callback)
 			requests[#requests + 1] = { options = options, callback = callback }
 		end,
 	},
-	commands = {
-		register = function(command)
-			commands[command.name] = command
-		end,
-	},
-	messages = {
-		send_local = function(channel, message)
-			sent[#sent + 1] = { channel = channel, message = message }
+	json = {
+		encode = function(value)
+			return "comment=" .. tostring(value.comment) .. ";vote=" .. tostring(value.isUpvote)
 		end,
 	},
 	ui = {
-		message_action = function(title, fn, options)
-			actions[title] = { fn = fn, options = options }
+		toast = function(_, text)
+			toasts[#toasts + 1] = text
 		end,
-		toast = function() end,
-		web_auth = function(url, callback_url, callback)
-			auth = { url = url, callback_url = callback_url, callback = callback }
-			return 1
+		sheet = sheet_handle,
+		insert = function(selector, build, on_press)
+			inserter = { selector = selector, build = build }
+			presser = on_press
 		end,
+		web_auth = function(url, callback, fn)
+			auth = { url = url, callback = callback, fn = fn }
+		end,
+		open = function() end,
+		confirm = function() end,
 	},
 	discord = {
 		user = function(id)
 			return id == "42" and { username = "friend" } or nil
 		end,
 	},
-	json = {
-		encode = function(value)
-			return "comment=" .. tostring(value.comment)
-		end,
-		array = function(value)
-			return value
-		end,
-	},
-	time = {
-		iso = function()
-			return "2026-11-25 05:00 UTC"
+	events = {
+		on = function(_, fn)
+			gateway = fn
 		end,
 	},
 }
 dofile(arg[1])
 
-assert(commands.reviews.execute({ user = "42" }, { channel_id = "9" }) == nil)
-assert(requests[1].options.url:find("/users/42/reviews", 1, true))
-requests[1].callback({
+assert(buttons.authorize.title == "Authorize with ReviewDB" and buttons.view_my_reviews and buttons.website)
+assert(switches.notify_reviews == true and switches.hide_blocked_users == true and switches.hide_timestamps == false)
+gateway({ type = "READY", data = { user = { id = "7" } } })
+
+assert(inserter.selector.id == "Note^>")
+assert(inserter.build({}) == nil)
+local section = inserter.build({ author_id = "42" })
+assert(section.children[1].text == "Reviews" and section.children[2].action == "open_42")
+
+presser({}, "open_42")
+local sheet = sheets[#sheets]
+assert(sheet.spec.title == "Reviews for @friend")
+local load = requests[#requests]
+assert(load.options.url:find("/users/42/reviews?offset=0&limit=50", 1, true))
+load.callback({
 	ok = true,
 	status = 200,
 	json = {
 		reviewCount = 2,
+		hasNextPage = false,
 		reviews = {
-			{ id = 0, type = 3, comment = "rules", sender = { username = "Warning" }, timestamp = 1 },
+			{ id = 0, type = 3, comment = "Be nice", sender = { username = "Warning" } },
 			{
-				id = 7,
+				id = 9,
 				type = 0,
 				comment = "great",
-				sender = { username = "pal", profilePhoto = "https://x/a.png" },
-				timestamp = 2,
+				score = 2,
+				timestamp = 1764028800,
+				sender = { username = "pal", discordID = "5" },
 			},
 		},
 	},
 })
-local shown = sent[1].message
-assert(sent[1].channel == "9" and shown.content:find("2 reviews of friend", 1, true))
-assert(#shown.embeds == 1 and shown.embeds[1].description == "great" and shown.embeds[1].author.name == "pal")
+sheet = sheets[#sheets]
+assert(sheet.spec.subtitle == "2 reviews")
+local items = sheet.spec.items
+assert(items[1].background and items[1].items[2].items[2].text == "Be nice")
+local review = items[2]
+assert(review.long_action == "actions:9" and review.items[1].round)
+assert(review.items[2].items[1].items[2].text == "Nov 25, 2025")
+assert(items[#items].buttons[1].label == "Sign in to leave a review")
 
-assert(commands.review.execute({ user = "42", text = "hi" }, { channel_id = "9" }):find("reviewdb-login", 1, true))
-commands["reviewdb-login"].execute({}, { channel_id = "9" })
-assert(auth.callback_url == "https://manti.vendicated.dev/api/reviewdb/auth")
-assert(auth.url:find("redirect_uri=https%3A%2F%2Fmanti.vendicated.dev%2Fapi%2Freviewdb%2Fauth", 1, true))
-auth.callback("https://manti.vendicated.dev/api/reviewdb/auth?code=abc", nil, nil)
-assert(requests[2].options.url == "https://manti.vendicated.dev/api/reviewdb/auth?code=abc&clientMod=enmity")
-requests[2].callback({ ok = true, status = 200, json = { token = "secret" } })
-assert(stored.token == "secret")
+sheet.handler("up:9", "")
+assert(toasts[#toasts] == "AUTHORIZE_TO_VOTE")
 
-assert(commands.review.execute({ user = "42", text = "nice" }, { channel_id = "9" }) == nil)
-assert(requests[3].options.method == "PUT" and requests[3].options.headers.Authorization == "secret")
-assert(requests[3].options.body == "comment=nice")
+sheet.handler("sign_in", "")
+assert(auth.callback == "https://manti.vendicated.dev/api/reviewdb/auth")
+auth.fn("https://manti.vendicated.dev/api/reviewdb/auth?code=abc")
+requests[#requests].callback({ ok = true, status = 200, json = { token = "secret" } })
+assert(stored.token == "secret" and buttons.authorize.title == "Reauthorize with ReviewDB")
+requests[#requests].callback({ ok = true, status = 200, json = { discordID = "7", type = 0, lastReviewID = 3 } })
 
-actions["View Reviews"].fn({ channel_id = "9", user_id = "42" })
-assert(requests[4].options.url:find("/users/42/reviews", 1, true))
+sheet.handler("up:9", "")
+local voted = requests[#requests]
+assert(voted.options.url:find("/reviews/9/vote", 1, true) and voted.options.method == "POST")
+assert(voted.options.headers.Authorization == "secret")
+voted.callback({ ok = true, status = 200, json = {} })
+assert(sheets[#sheets].spec.items[2].items[2].items[3].items[2].text == "3")
 
-assert(commands["reviewdb-logout"].execute() and stored.token == nil)
+sheet.handler("submit", "lovely person")
+local put = requests[#requests]
+assert(put.options.method == "PUT" and put.options.body == "comment=lovely person;vote=nil")
 print("reviewdb ok")

@@ -1,6 +1,7 @@
 local astral = astral
 local native = {
 	switch = astral.settings.switch,
+	button = astral.settings.button,
 	set = astral.settings.set,
 	choice = astral.settings.choice,
 	number = astral.settings.number,
@@ -468,6 +469,10 @@ function astral.settings.color(key, title, default, options)
 	return values[key]
 end
 
+function astral.settings.button(key, title, callback, options)
+	native.button(key, title, callback, options)
+end
+
 function astral.settings.set(key, value)
 	native.set(key, value)
 	if values[key] ~= nil and values[key] ~= value then
@@ -500,6 +505,10 @@ end
 
 function Section:switch(key, title, default, options)
 	return astral.settings.switch(key, title, default, self:options(options))
+end
+
+function Section:button(key, title, callback, options)
+	return astral.settings.button(key, title, callback, self:options(options))
 end
 
 function Section:choice(key, title, choices, default, options)

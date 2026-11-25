@@ -59,6 +59,7 @@ Each plugin gets its own `lua_State` with `base`, `table`, `string`, `math`, `ut
 | `astral.settings.option(value, title, subtitle)` | One choice option; a setting can contain up to 64 options |
 | `astral.settings.number(key, title, { min, max, step, default, subtitle, section })` | A number drawn as Phoenix's slider row; returns the current value |
 | `astral.settings.text(key, title, default, { max_length, subtitle, section })` | A multiline value edited in a native sheet; text length is limited to 16 KiB by default |
+| `astral.settings.button(key, title, fn, { subtitle, section, icon, detail })` | A tappable row on the plugin's settings page that calls `fn()`; sections created with `astral.settings.section` offer `:button` too |
 | `astral.settings.values` | Live values of every declared setting, kept current by astral |
 | `astral.settings.on_change(key, fn)`, `astral.settings.get/set` | Change listeners and persisted values |
 | `astral.audio.speak(text, { language, rate })` | Reads up to 4 KiB of text aloud with the system voice; `language` is a BCP 47 tag and `rate` runs from 0 (slowest) to 1. Requires `audio` |

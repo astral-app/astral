@@ -85,6 +85,17 @@ struct LuaTextSetting {
     size_t order = 0;
 };
 
+struct LuaSettingsButton {
+    std::string key;
+    std::string title;
+    std::string subtitle;
+    std::string section;
+    std::string icon;
+    std::string detail;
+    size_t order = 0;
+    int reference = LUA_NOREF;
+};
+
 struct LuaNodePatch {
     std::string prefix;
     std::string type;
@@ -139,6 +150,7 @@ struct LuaPlugin : astral::PluginPackage, astral::PluginHealth {
     std::unique_ptr<astral::lua::Sandbox> sandbox;
     lua_State *state = nullptr;
     std::vector<LuaSwitch> switches;
+    std::vector<LuaSettingsButton> settingsButtons;
     std::vector<LuaTextSetting> textSettings;
     size_t settingCount = 0;
     std::vector<std::pair<std::string, int>> decorators;
@@ -694,6 +706,37 @@ static std::string FieldString(lua_State *state, int index, const char *name)
     std::string value = lua_isstring(state, -1) ? lua_tostring(state, -1) : "";
     lua_pop(state, 1);
     return value;
+}
+
+static int SettingsButton(lua_State *state)
+{
+    LuaPlugin *plugin = Self(state);
+    std::string key = luaL_checkstring(state, 1);
+    std::string title = luaL_checkstring(state, 2);
+    luaL_checktype(state, 3, LUA_TFUNCTION);
+    if (key.empty() || key.size() > 48) return luaL_error(state, "astral.settings.button: invalid key");
+    LuaSettingsButton *button = nullptr;
+    for (auto &entry : plugin->settingsButtons)
+        if (entry.key == key) button = &entry;
+    if (!button) {
+        if (plugin->settingsButtons.size() >= 16) return luaL_error(state, "astral.settings.button: at most 16 buttons per plugin");
+        plugin->settingsButtons.push_back({});
+        button = &plugin->settingsButtons.back();
+        button->key = key;
+        button->order = plugin->settingCount++;
+    } else if (button->reference != LUA_NOREF) {
+        luaL_unref(state, LUA_REGISTRYINDEX, button->reference);
+    }
+    button->title = title.substr(0, 64);
+    if (lua_istable(state, 4)) {
+        button->subtitle = FieldString(state, 4, "subtitle").substr(0, 120);
+        button->section = FieldString(state, 4, "section").substr(0, 48);
+        button->icon = FieldString(state, 4, "icon").substr(0, 64);
+        button->detail = FieldString(state, 4, "detail").substr(0, 32);
+    }
+    lua_pushvalue(state, 3);
+    button->reference = luaL_ref(state, LUA_REGISTRYINDEX);
+    return 0;
 }
 
 static int SettingsChoice(lua_State *state)
@@ -2498,6 +2541,7 @@ static void InstallAPI(LuaPlugin *plugin)
 
     lua_newtable(state);
     Function(state, plugin, "switch", SettingsSwitch);
+    Function(state, plugin, "button", SettingsButton);
     Function(state, plugin, "choice", SettingsChoice);
     Function(state, plugin, "number", SettingsNumber);
     Function(state, plugin, "text", SettingsText);
@@ -2753,6 +2797,7 @@ static void Stop(LuaPlugin *plugin)
     plugin->state = nullptr;
     plugin->switches.clear();
     plugin->textSettings.clear();
+    plugin->settingsButtons.clear();
     plugin->settingCount = 0;
     plugin->decorators.clear();
     plugin->relabelers.clear();
@@ -2987,6 +3032,16 @@ nlohmann::json plugins()
                                     {"icon", entry.icon},
                                     {"order", entry.order}});
         }
+        nlohmann::json settingsButtons = nlohmann::json::array();
+        for (const auto &entry : plugin->settingsButtons)
+            settingsButtons.push_back({{"key", entry.key},
+                                       {"title", entry.title},
+                                       {"subtitle", entry.subtitle},
+                                       {"section", entry.section},
+                                       {"icon", entry.icon},
+                                       {"detail", entry.detail},
+                                       {"button", true},
+                                       {"order", entry.order}});
         nlohmann::json authors = nlohmann::json::array();
         for (auto &author : plugin->authors) authors.push_back({{"name", author.first}, {"id", author.second}});
         nlohmann::json permissions = nlohmann::json::array();
@@ -3001,6 +3056,7 @@ nlohmann::json plugins()
                            {"error", plugin->lastError},
                            {"switches", switches},
                            {"textSettings", textSettings},
+                           {"settingsButtons", settingsButtons},
                            {"description", plugin->description},
                            {"icon", plugin->icon},
                            {"iconSvg", plugin->iconSvg},
@@ -4125,6 +4181,22 @@ void setSwitch(const std::string &pluginID, const std::string &key, bool on)
     if (!plugin) return;
     Store(SettingKey(plugin, key), on);
     NotifySetting(plugin, key, [&](lua_State *state) { lua_pushboolean(state, on); });
+}
+
+void pressSettingsButton(const std::string &pluginID, const std::string &key)
+{
+    std::lock_guard<std::recursive_mutex> lock(gMutex);
+    LuaPlugin *plugin = Find(pluginID);
+    if (!plugin || !plugin->state || plugin->failed) return;
+    for (const auto &button : plugin->settingsButtons) {
+        if (button.key != key || button.reference == LUA_NOREF) continue;
+        lua_rawgeti(plugin->state, LUA_REGISTRYINDEX, button.reference);
+        if (!Call(plugin, 0, 0, "settings button")) {
+            MarkFailed(plugin);
+            Stop(plugin);
+        }
+        return;
+    }
 }
 
 void setText(const std::string &pluginID, const std::string &key, const std::string &value)

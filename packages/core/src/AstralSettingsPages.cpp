@@ -478,7 +478,10 @@ json numberRow(const json &entry)
 json settingRow(const json &entry, bool textSetting)
 {
     json result;
-    if (textSetting && flag(entry, "color"))
+    if (flag(entry, "button"))
+        result = with(row("button." + text(entry, "key"), text(entry, "title"), settingIcon(entry), kAstralRowLink),
+                      {{"detail", text(entry, "detail")}});
+    else if (textSetting && flag(entry, "color"))
         result = colorRow(entry);
     else if (textSetting)
         result = with(row("text." + text(entry, "key"), text(entry, "title"), settingIcon(entry), kAstralRowLink), {{"detail", "Edit"}});
@@ -511,6 +514,7 @@ json pluginSettingsPage(const std::string &identifier)
     std::vector<std::pair<const json *, bool>> entries;
     for (const auto &entry : plugin["switches"]) entries.push_back({&entry, false});
     for (const auto &entry : plugin["textSettings"]) entries.push_back({&entry, true});
+    for (const auto &entry : plugin.value("settingsButtons", json::array())) entries.push_back({&entry, false});
     std::stable_sort(entries.begin(), entries.end(),
                      [](const auto &left, const auto &right) { return number(*left.first, "order") < number(*right.first, "order"); });
     std::vector<std::string> order;
@@ -773,6 +777,9 @@ std::optional<std::string> pluginAction(const std::string &identifier, const std
         std::string settingKey = key.substr(15);
         for (const auto &entry : plugin.value("switches", json::array()))
             if (text(entry, "key") == settingKey) astral::luahost::setSwitch(identifier, settingKey, !flag(entry, "on"));
+    } else if (key.rfind("button.", 0) == 0) {
+        astral::luahost::pressSettingsButton(identifier, key.substr(7));
+        if (changed) changed();
     } else if (key.rfind("number.", 0) == 0) {
         std::string rest = key.substr(7);
         size_t equals = rest.rfind('=');
