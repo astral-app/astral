@@ -310,7 +310,10 @@ fn dex_entries(archive: &mut zip::ZipArchive<File>) -> Result<Vec<String>, Strin
         let entry = archive
             .by_index_raw(index)
             .map_err(|error| error.to_string())?;
-        let name = entry.name().to_owned();
+        let name = entry
+            .name()
+            .map_err(|error| error.to_string())?
+            .into_owned();
         if !is_dex_name(base_name(&name)) {
             continue;
         }

@@ -47,7 +47,7 @@ pub fn read_zip(path: &Path) -> std::collections::BTreeMap<String, Vec<u8>> {
         let mut entry = archive.by_index(index).expect("entry");
         let mut data = Vec::new();
         std::io::Read::read_to_end(&mut entry, &mut data).expect("read");
-        entries.insert(entry.name().to_owned(), data);
+        entries.insert(entry.name().expect("name").into_owned(), data);
     }
     entries
 }
