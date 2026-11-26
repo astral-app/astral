@@ -72,6 +72,7 @@ end
 
 local suppress, unsuppress = actions["Suppress Embeds"], actions["Unsuppress Embeds"]
 assert(suppress.options.icon == "res://ic_mana_eye_slash" and unsuppress.options.icon == "res://ic_mana_eye")
+assert(suppress.options.danger == true and not unsuppress.options.danger)
 
 assert(suppress.options.when(node("1")) and not unsuppress.options.when(node("1")))
 assert(unsuppress.options.when(node("2")) and not suppress.options.when(node("2")))

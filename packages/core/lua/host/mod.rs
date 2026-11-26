@@ -165,6 +165,7 @@ pub struct MessageAction {
     pub identifier: u64,
     pub label: String,
     pub icon: String,
+    pub danger: bool,
     pub reference: c_int,
     pub when: c_int,
 }

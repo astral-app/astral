@@ -247,6 +247,7 @@ typedef struct {
     char action_id[64];
     char label[64];
     char icon[160];
+    int danger;
 } AstralMenuEntry;
 
 typedef size_t (*AstralMessageMenuProvider)(AstralMenuEntry *entries, size_t capacity);
