@@ -21,6 +21,7 @@ pub mod leftover_mods;
 pub mod locate;
 pub mod log;
 pub mod lua_api;
+pub mod lua_host_api;
 pub mod lua_json;
 pub mod lua_sandbox;
 pub mod macho;

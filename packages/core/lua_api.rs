@@ -48,6 +48,8 @@ unsafe extern "C" {
     pub fn lua_next(state: *mut LuaState, index: c_int) -> c_int;
     pub fn lua_rawgeti(state: *mut LuaState, index: c_int, position: Integer) -> c_int;
     pub fn lua_rawseti(state: *mut LuaState, index: c_int, position: Integer);
+    pub fn lua_touserdata(state: *mut LuaState, index: c_int) -> *mut c_void;
+    pub fn lua_error(state: *mut LuaState) -> c_int;
     pub fn lua_pcallk(
         state: *mut LuaState,
         arguments: c_int,
