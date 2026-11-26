@@ -1,13 +1,13 @@
 use core::ffi::{c_char, c_int};
 
-use astral_core::wire::format::{MAX_SPANS, Span, wireScan};
+use astral_core::wire::format::{MAX_SPANS, Span, wire_scan};
 use astral_core::wire::host_calls::{astral_host_call_rewrite, astral_host_calls_set_image_rewriter};
 use astral_core::wire::identifiers::{astral_wire_identifier, astral_wire_note_identifiers};
-use astral_core::wire::image_rewrite::{astral_wire_set_image_rewriter, wireRewriteImages};
-use astral_core::wire::images::{astral_wire_refresh_images, wireTrackImages};
+use astral_core::wire::image_rewrite::{astral_wire_set_image_rewriter, wire_rewrite_images};
+use astral_core::wire::images::{astral_wire_refresh_images, wire_track_images};
 use astral_core::wire::out::{AstralWireBuffer, Out};
 use astral_core::wire::properties::current;
-use astral_core::wire::tween::{astral_wire_tween_frame, astral_wire_tweens_active, wireTweenIn};
+use astral_core::wire::tween::{astral_wire_tween_frame, astral_wire_tweens_active, wire_tween_in};
 
 unsafe extern "C" {
     fn free(pointer: *mut core::ffi::c_void);
@@ -96,9 +96,9 @@ fn rewrites_image_uris_and_rescans() {
     let bytes = bytes_of(out);
     let mut spans = vec![Span::default(); MAX_SPANS];
     let mut count = 0;
-    assert_eq!(unsafe { wireScan(bytes.as_ptr(), bytes.len(), spans.as_mut_ptr(), &mut count) }, 0);
+    assert_eq!(unsafe { wire_scan(bytes.as_ptr(), bytes.len(), spans.as_mut_ptr(), &mut count) }, 0);
     let mut length = 0;
-    let rewritten = unsafe { wireRewriteImages(bytes.as_ptr(), bytes.len(), spans.as_mut_ptr(), &mut count, &mut length) };
+    let rewritten = unsafe { wire_rewrite_images(bytes.as_ptr(), bytes.len(), spans.as_mut_ptr(), &mut count, &mut length) };
     assert!(!rewritten.is_null());
     let result = take(&AstralWireBuffer { bytes: rewritten, length });
     assert_eq!(count, 2);
@@ -108,7 +108,7 @@ fn rewrites_image_uris_and_rescans() {
 
 #[test]
 fn remembers_routable_identifiers() {
-    let id = current().accessibilityId;
+    let id = current().accessibility_id;
     let mut out = Out::batch();
     creation(&mut out, 51, b"view", &[(id, b"astral.settings.row")]);
     creation(&mut out, 52, b"view", &[(id, b"message.content:1")]);
@@ -128,8 +128,8 @@ fn refreshes_tracked_icons_with_a_generation() {
     let bytes = bytes_of(out);
     let mut spans = vec![Span::default(); MAX_SPANS];
     let mut count = 0;
-    assert_eq!(unsafe { wireScan(bytes.as_ptr(), bytes.len(), spans.as_mut_ptr(), &mut count) }, 0);
-    unsafe { wireTrackImages(bytes.as_ptr(), spans.as_ptr(), count) };
+    assert_eq!(unsafe { wire_scan(bytes.as_ptr(), bytes.len(), spans.as_mut_ptr(), &mut count) }, 0);
+    unsafe { wire_track_images(bytes.as_ptr(), spans.as_ptr(), count) };
     let mut buffer = AstralWireBuffer {
         bytes: core::ptr::null_mut(),
         length: 0,
@@ -140,7 +140,7 @@ fn refreshes_tracked_icons_with_a_generation() {
 
 #[test]
 fn eases_tweens_to_completion() {
-    wireTweenIn(71, 100.0, 8.0);
+    wire_tween_in(71, 100.0, 8.0);
     assert!(astral_wire_tweens_active() >= 1);
     let mut buffer = AstralWireBuffer {
         bytes: core::ptr::null_mut(),

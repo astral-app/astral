@@ -6,7 +6,8 @@ use std::sync::atomic::{AtomicI32, Ordering};
 use super::abi::{Callback, prefixed};
 use super::clone::{Change, clone_creation};
 use super::format::{
-    Span, batch_of, child, find_string, property_cursor, spans_of, type_is, wireChildList, wireCreation, wireFirstOfType, wireParentOf,
+    Span, batch_of, child, find_string, property_cursor, spans_of, type_is, wire_child_list, wire_creation, wire_first_of_type,
+    wire_parent_of,
 };
 use super::out::Out;
 use super::properties;
@@ -27,8 +28,8 @@ const MAX_SUBTREE: usize = 256;
 const MAX_GROUP_CHILDREN: u32 = 64;
 const MAX_LISTS: usize = 16;
 const MAX_LIST_ROWS: u32 = 512;
-const FIRST_MENU_ID: i32 = 0x7d000000;
-const MENU_ID_RANGE: i32 = 0x00f00000;
+const FIRST_MENU_ID: i32 = 0x7d00_0000;
+const MENU_ID_RANGE: i32 = 0x00f0_0000;
 const ACTION_PREFIX: &[u8] = b"message.actions.";
 const SKIPPED_ACTIONS: [&[u8]; 3] = [b"quick_reaction", b"add_reaction", b"root"];
 const MESSAGE_PREFIXES: [&CStr; 4] = [c"message.content:", c"message.author:", c"message.avatar:", c"message.timestamp:"];
@@ -79,7 +80,7 @@ pub extern "C" fn astral_wire_message_for_node(node: i32) -> u64 {
 }
 
 fn message_of(bytes: &[u8], span: &Span) -> u64 {
-    let Some(identifier) = find_string(bytes, span, properties::current().accessibilityId) else {
+    let Some(identifier) = find_string(bytes, span, properties::current().accessibility_id) else {
         return 0;
     };
     MESSAGE_PREFIXES.iter().find_map(|prefix| prefixed(identifier, prefix)).unwrap_or(0)
@@ -153,8 +154,8 @@ fn track_list_window(tracking: &mut Tracking, bytes: &[u8], span: &Span) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireRowOfMessage(message: u64, list: *mut i32, index: *mut i64) -> c_int {
+#[unsafe(export_name = "wireRowOfMessage")]
+pub unsafe extern "C" fn wire_row_of_message(message: u64, list: *mut i32, index: *mut i64) -> c_int {
     let found = with_tracking(|tracking| {
         tracking.lists.iter().filter(|window| window.list != 0).find_map(|window| {
             let position = window.rows.iter().position(|row| tracking.messages.get(row) == Some(&message))?;
@@ -215,7 +216,7 @@ struct Batch<'a> {
 
 impl Batch<'_> {
     fn list(&self, id: i32) -> Option<(&Span, &[u8])> {
-        let list = unsafe { wireChildList(self.bytes, self.spans.as_ptr(), self.spans.len(), id).as_ref() }?;
+        let list = unsafe { wire_child_list(self.bytes, self.spans.as_ptr(), self.spans.len(), id).as_ref() }?;
         Some((list, batch_of(self.bytes, list)))
     }
 
@@ -226,17 +227,17 @@ impl Batch<'_> {
     }
 
     fn creation(&self, id: i32) -> Option<(&Span, &[u8])> {
-        let creation = unsafe { wireCreation(self.spans.as_ptr(), self.spans.len(), id).as_ref() }?;
+        let creation = unsafe { wire_creation(self.spans.as_ptr(), self.spans.len(), id).as_ref() }?;
         Some((creation, batch_of(self.bytes, creation)))
     }
 
     fn parent(&self, id: i32) -> i32 {
-        unsafe { wireParentOf(self.bytes, self.spans.as_ptr(), self.spans.len(), id) }
+        unsafe { wire_parent_of(self.bytes, self.spans.as_ptr(), self.spans.len(), id) }
     }
 
     fn identifier(&self, id: i32) -> Option<&[u8]> {
         let (creation, data) = self.creation(id)?;
-        find_string(data, creation, properties::current().accessibilityId)
+        find_string(data, creation, properties::current().accessibility_id)
     }
 }
 
@@ -256,13 +257,13 @@ fn subtree(batch: &Batch, root: i32) -> Vec<i32> {
     nodes
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireTrackMessageNodes(bytes: *const u8, pointer: *const Span, count: usize) {
+#[unsafe(export_name = "wireTrackMessageNodes")]
+pub unsafe extern "C" fn wire_track_message_nodes(bytes: *const u8, pointer: *const Span, count: usize) {
     let batch = Batch {
         bytes,
         spans: spans_of(pointer, count),
     };
-    let accessibility = properties::current().accessibilityId;
+    let accessibility = properties::current().accessibility_id;
     with_tracking(|tracking| {
         for span in batch.spans {
             let data = batch_of(bytes, span);
@@ -300,7 +301,7 @@ fn is_action_row(bytes: &[u8], span: &Span) -> bool {
     if span.op != 1 {
         return false;
     }
-    let Some(identifier) = find_string(bytes, span, properties::current().accessibilityId) else {
+    let Some(identifier) = find_string(bytes, span, properties::current().accessibility_id) else {
         return false;
     };
     let Some(action) = identifier.strip_prefix(ACTION_PREFIX) else {
@@ -361,7 +362,7 @@ fn build_row(out: &mut Out, batch: &Batch, template: i32, entry: &AstralMenuEntr
     }
     let icon = parts[0];
     let label = unsafe {
-        wireFirstOfType(
+        wire_first_of_type(
             batch.bytes,
             batch.spans.as_ptr(),
             batch.spans.len(),
@@ -379,12 +380,12 @@ fn build_row(out: &mut Out, batch: &Batch, template: i32, entry: &AstralMenuEntr
         }
     };
     let row_changes = [
-        Change::text(properties.accessibilityId, &action),
-        Change::text(properties.accessibilityLabel, &title),
-        corner(properties.radiusTopLeft),
-        corner(properties.radiusTopRight),
-        Change::drop(properties.radiusBottomLeft),
-        Change::drop(properties.radiusBottomRight),
+        Change::text(properties.accessibility_id, &action),
+        Change::text(properties.accessibility_label, &title),
+        corner(properties.radius_top_left),
+        corner(properties.radius_top_right),
+        Change::drop(properties.radius_bottom_left),
+        Change::drop(properties.radius_bottom_right),
     ];
     let icon_changes = if image.is_empty() {
         Vec::new()
@@ -410,7 +411,7 @@ fn template_row(batch: &Batch) -> i32 {
         if !is_action_row(data, span) {
             continue;
         }
-        let identifier = find_string(data, span, properties::current().accessibilityId);
+        let identifier = find_string(data, span, properties::current().accessibility_id);
         if identifier == Some(b"message.actions.copy_text") {
             return span.id;
         }
@@ -445,8 +446,8 @@ fn menu_entries() -> Vec<AstralMenuEntry> {
     entries
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireMessageMenu(
+#[unsafe(export_name = "wireMessageMenu")]
+pub unsafe extern "C" fn wire_message_menu(
     bytes: *const u8,
     pointer: *const Span,
     count: usize,
@@ -507,8 +508,8 @@ pub unsafe extern "C" fn wireMessageMenu(
     if batch.identifier(first_original).is_some_and(|identifier| !identifier.is_empty()) {
         let properties = properties::current();
         update.update(first_original, 2);
-        update.prop_number(properties.radiusTopLeft, 0.0);
-        update.prop_number(properties.radiusTopRight, 0.0);
+        update.prop_number(properties.radius_top_left, 0.0);
+        update.prop_number(properties.radius_top_right, 0.0);
     }
     children.extend(group_children);
     put_children(&mut update, group, &children);

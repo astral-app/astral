@@ -3,7 +3,7 @@ use std::ffi::CString;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use super::cursor::Cursor;
-use super::format::{Span, batch_of, child, spans_of, type_is, wireChildList, wireCreation, wireScan};
+use super::format::{Span, batch_of, child, spans_of, type_is, wire_child_list, wire_creation, wire_scan};
 use super::out::Out;
 use super::properties;
 
@@ -155,8 +155,8 @@ fn copy_node(bytes: &[u8], span: &Span, out: &mut Out) -> bool {
     !cursor.failed() && replaced
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireEmojiBatch(
+#[unsafe(export_name = "wireEmojiBatch")]
+pub unsafe extern "C" fn wire_emoji_batch(
     bytes: *const u8,
     length: usize,
     spans: *mut Span,
@@ -189,10 +189,10 @@ pub unsafe extern "C" fn wireEmojiBatch(
     }
     out.put(&data[copied..]);
     let mut checked = 0;
-    if !replaced || out.failed != 0 || unsafe { wireScan(out.bytes, out.length, spans, &mut checked) } != 0 {
+    if !replaced || out.failed != 0 || unsafe { wire_scan(out.bytes, out.length, spans, &mut checked) } != 0 {
         out.discard();
         if replaced {
-            unsafe { wireScan(bytes, length, spans, count) };
+            unsafe { wire_scan(bytes, length, spans, count) };
         }
         return core::ptr::null_mut();
     }
@@ -204,7 +204,7 @@ pub unsafe extern "C" fn wireEmojiBatch(
 }
 
 fn reaction_codepoints<'a>(bytes: &'a [u8], span: &Span) -> Option<&'a [u8]> {
-    let identifier = super::format::find_string(bytes, span, properties::current().accessibilityId)?;
+    let identifier = super::format::find_string(bytes, span, properties::current().accessibility_id)?;
     let rest = identifier.strip_prefix(REACTION_PREFIX)?;
     if rest.is_empty() {
         return None;
@@ -218,14 +218,14 @@ fn glyph_text(bytes: *const u8, spans: &[Span], id: i32, depth: u32) -> i32 {
     if depth >= 3 {
         return 0;
     }
-    let Some(list) = (unsafe { wireChildList(bytes, spans.as_ptr(), spans.len(), id).as_ref() }) else {
+    let Some(list) = (unsafe { wire_child_list(bytes, spans.as_ptr(), spans.len(), id).as_ref() }) else {
         return 0;
     };
     if list.child_count == 0 {
         return 0;
     }
     let first = child(batch_of(bytes, list), list, 0);
-    if let Some(creation) = unsafe { wireCreation(spans.as_ptr(), spans.len(), first).as_ref() }
+    if let Some(creation) = unsafe { wire_creation(spans.as_ptr(), spans.len(), first).as_ref() }
         && type_is(batch_of(bytes, creation), creation, b"text")
     {
         return first;
@@ -261,8 +261,8 @@ pub fn glyph(codepoints: &[u8], capacity: usize) -> Vec<u8> {
     glyph
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireGlyphOf(codepoints: *const c_char, out: *mut c_char, capacity: usize) {
+#[unsafe(export_name = "wireGlyphOf")]
+pub unsafe extern "C" fn wire_glyph_of(codepoints: *const c_char, out: *mut c_char, capacity: usize) {
     if out.is_null() || capacity == 0 {
         return;
     }
@@ -295,8 +295,8 @@ fn put_reaction_image(out: &mut Out, text: i32, glyph: &[u8], url: &[u8]) {
     out.prop_number(properties.size, 20.0);
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireReactionEmoji(
+#[unsafe(export_name = "wireReactionEmoji")]
+pub unsafe extern "C" fn wire_reaction_emoji(
     bytes: *const u8,
     pointer: *const Span,
     count: usize,

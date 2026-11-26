@@ -234,8 +234,8 @@ fn c_bytes<'a>(text: *const c_char) -> &'a [u8] {
     unsafe { CStr::from_ptr(text) }.to_bytes()
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wirePut(pointer: *mut Out, bytes: *const c_void, length: usize) {
+#[unsafe(export_name = "wirePut")]
+pub unsafe extern "C" fn wire_put(pointer: *mut Out, bytes: *const c_void, length: usize) {
     let Some(out) = out(pointer) else { return };
     if length == 0 {
         return;
@@ -247,30 +247,30 @@ pub unsafe extern "C" fn wirePut(pointer: *mut Out, bytes: *const c_void, length
     out.put(unsafe { core::slice::from_raw_parts(bytes.cast::<u8>(), length) });
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wirePut8(pointer: *mut Out, value: u8) {
+#[unsafe(export_name = "wirePut8")]
+pub unsafe extern "C" fn wire_put8(pointer: *mut Out, value: u8) {
     if let Some(out) = out(pointer) {
         out.put8(value);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wirePut16(pointer: *mut Out, value: u16) {
+#[unsafe(export_name = "wirePut16")]
+pub unsafe extern "C" fn wire_put16(pointer: *mut Out, value: u16) {
     if let Some(out) = out(pointer) {
         out.put16(value);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wirePut32(pointer: *mut Out, value: u32) {
+#[unsafe(export_name = "wirePut32")]
+pub unsafe extern "C" fn wire_put32(pointer: *mut Out, value: u32) {
     if let Some(out) = out(pointer) {
         out.put32(value);
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wirePropCount(pointer: *mut Out, count: u16) {
-    unsafe { wirePut16(pointer, count) };
+#[unsafe(export_name = "wirePropCount")]
+pub unsafe extern "C" fn wire_prop_count(pointer: *mut Out, count: u16) {
+    unsafe { wire_put16(pointer, count) };
 }
 
 fn property(out: &mut Out, property: u16, tag: u8) {
@@ -278,51 +278,51 @@ fn property(out: &mut Out, property: u16, tag: u8) {
     out.put8(tag);
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wirePropString(pointer: *mut Out, id: u16, value: *const c_char) {
+#[unsafe(export_name = "wirePropString")]
+pub unsafe extern "C" fn wire_prop_string(pointer: *mut Out, id: u16, value: *const c_char) {
     let Some(out) = out(pointer) else { return };
     property(out, id, 6);
     out.put_string(c_bytes(value));
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wirePropNumber(pointer: *mut Out, id: u16, value: f64) {
+#[unsafe(export_name = "wirePropNumber")]
+pub unsafe extern "C" fn wire_prop_number(pointer: *mut Out, id: u16, value: f64) {
     let Some(out) = out(pointer) else { return };
     property(out, id, 5);
     out.put(&value.to_le_bytes());
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wirePropInt(pointer: *mut Out, id: u16, value: i32) {
+#[unsafe(export_name = "wirePropInt")]
+pub unsafe extern "C" fn wire_prop_int(pointer: *mut Out, id: u16, value: i32) {
     let Some(out) = out(pointer) else { return };
     property(out, id, 3);
     out.put(&value.to_le_bytes());
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wirePropLong(pointer: *mut Out, id: u16, value: i64) {
+#[unsafe(export_name = "wirePropLong")]
+pub unsafe extern "C" fn wire_prop_long(pointer: *mut Out, id: u16, value: i64) {
     let Some(out) = out(pointer) else { return };
     property(out, id, 4);
     out.put(&value.to_le_bytes());
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wirePropBool(pointer: *mut Out, id: u16, value: c_int) {
+#[unsafe(export_name = "wirePropBool")]
+pub unsafe extern "C" fn wire_prop_bool(pointer: *mut Out, id: u16, value: c_int) {
     let Some(out) = out(pointer) else { return };
     property(out, id, if value != 0 { 2 } else { 1 });
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wirePropQuad(pointer: *mut Out, id: u16, a: f32, b: f32, c: f32, d: f32) {
+#[unsafe(export_name = "wirePropQuad")]
+pub unsafe extern "C" fn wire_prop_quad(pointer: *mut Out, id: u16, first: f32, second: f32, third: f32, fourth: f32) {
     let Some(out) = out(pointer) else { return };
     property(out, id, 9);
-    for value in [a, b, c, d] {
+    for value in [first, second, third, fourth] {
         out.put(&value.to_le_bytes());
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wirePropEvents(pointer: *mut Out, id: u16, event: *const c_char) {
+#[unsafe(export_name = "wirePropEvents")]
+pub unsafe extern "C" fn wire_prop_events(pointer: *mut Out, id: u16, event: *const c_char) {
     let Some(out) = out(pointer) else { return };
     property(out, id, 7);
     out.put32(1);
@@ -330,8 +330,8 @@ pub unsafe extern "C" fn wirePropEvents(pointer: *mut Out, id: u16, event: *cons
     out.put_string(c_bytes(event));
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wirePutChildren(pointer: *mut Out, parent: i32, children: *const i32, count: u32) {
+#[unsafe(export_name = "wirePutChildren")]
+pub unsafe extern "C" fn wire_put_children(pointer: *mut Out, parent: i32, children: *const i32, count: u32) {
     let Some(out) = out(pointer) else { return };
     out.put8(3);
     out.put(&parent.to_le_bytes());
@@ -348,8 +348,8 @@ pub unsafe extern "C" fn wirePutChildren(pointer: *mut Out, parent: i32, childre
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wirePropGradient(pointer: *mut Out, id: u16, angle: f64, colors: *const u32, count: u32) {
+#[unsafe(export_name = "wirePropGradient")]
+pub unsafe extern "C" fn wire_prop_gradient(pointer: *mut Out, id: u16, angle: f64, colors: *const u32, count: u32) {
     let Some(out) = out(pointer) else { return };
     let colors = if colors.is_null() || count == 0 {
         &[][..]

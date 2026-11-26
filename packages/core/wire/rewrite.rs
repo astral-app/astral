@@ -2,26 +2,26 @@ use core::ffi::{c_int, c_uint, c_void};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicI32, AtomicU32, Ordering};
 
-use super::backdrop::wireSettingsBackdrop;
-use super::children::wireExpandChildEdits;
-use super::code_blocks::wireCodeBlocks;
-use super::composer::wireTrackComposer;
-use super::decorate::{wireDecorate, wireObserve, wireObserveRemovals};
-use super::emoji::{wireEmojiBatch, wireReactionEmoji};
-use super::format::{MAX_SPANS, Span, wireScan};
-use super::image_rewrite::wireRewriteImages;
-use super::images::wireTrackImages;
-use super::insert::wireInsertNodes;
-use super::labels::wireRelabel;
-use super::mentions::wireDecorateMentions;
-use super::message_menu::{wireMessageMenu, wireTrackMessageNodes};
-use super::message_text::wireMessageTexts;
-use super::names::wireColorNames;
+use super::backdrop::wire_settings_backdrop;
+use super::children::wire_expand_child_edits;
+use super::code_blocks::wire_code_blocks;
+use super::composer::wire_track_composer;
+use super::decorate::{wire_decorate, wire_observe, wire_observe_removals};
+use super::emoji::{wire_emoji_batch, wire_reaction_emoji};
+use super::format::{MAX_SPANS, Span, wire_scan};
+use super::image_rewrite::wire_rewrite_images;
+use super::images::wire_track_images;
+use super::insert::wire_insert_nodes;
+use super::labels::wire_relabel;
+use super::mentions::wire_decorate_mentions;
+use super::message_menu::{wire_message_menu, wire_track_message_nodes};
+use super::message_text::wire_message_texts;
+use super::names::wire_color_names;
 use super::out::{AstralWireBuffer, Out, WIRE_VERSION};
-use super::pages::{wireRewritePages, wireSetTemplateSource};
-use super::patch::wirePatchNodes;
-use super::reactions::wireReactionAvatars;
-use super::theme::{wirePatchColors, wireThemeActive, wireTrackColors};
+use super::pages::{wire_rewrite_pages, wire_set_template_source};
+use super::patch::wire_patch_nodes;
+use super::reactions::wire_reaction_avatars;
+use super::theme::{wire_patch_colors, wire_theme_active, wire_track_colors};
 
 unsafe extern "C" {
     fn free(pointer: *mut c_void);
@@ -31,18 +31,18 @@ type Stage = unsafe extern "C" fn(*const u8, *const Span, usize, *mut Out, *mut 
 type Expansion = unsafe extern "C" fn(*const u8, usize, *mut Span, *mut usize, *mut usize) -> *mut u8;
 
 const STAGES: [Stage; 12] = [
-    wireDecorate,
-    wirePatchNodes,
-    wireInsertNodes,
-    wireDecorateMentions,
-    wireMessageMenu,
-    wireColorNames,
-    wireReactionEmoji,
-    wireMessageTexts,
-    wireCodeBlocks,
-    wireReactionAvatars,
-    wireSettingsBackdrop,
-    wireObserveRemovals,
+    wire_decorate,
+    wire_patch_nodes,
+    wire_insert_nodes,
+    wire_decorate_mentions,
+    wire_message_menu,
+    wire_color_names,
+    wire_reaction_emoji,
+    wire_message_texts,
+    wire_code_blocks,
+    wire_reaction_avatars,
+    wire_settings_backdrop,
+    wire_observe_removals,
 ];
 
 static UNSUPPORTED_VERSION: AtomicI32 = AtomicI32::new(0);
@@ -75,7 +75,7 @@ fn empty(buffer: &mut AstralWireBuffer) {
 
 fn scans(bytes: *const u8, length: usize, spans: &mut [Span]) -> Option<usize> {
     let mut count = 0;
-    (unsafe { wireScan(bytes, length, spans.as_mut_ptr(), &mut count) } == 0).then_some(count)
+    (unsafe { wire_scan(bytes, length, spans.as_mut_ptr(), &mut count) } == 0).then_some(count)
 }
 
 struct Owned(Vec<*mut u8>);
@@ -113,7 +113,7 @@ fn rewrite(original: &[u8], spans: &mut [Span], buffer: &mut AstralWireBuffer) -
     let mut bytes = original.as_ptr();
     let mut length = original.len();
     let mut changed: c_int = 0;
-    let expansions: [Expansion; 2] = [wireExpandChildEdits, wireRewriteImages];
+    let expansions: [Expansion; 2] = [wire_expand_child_edits, wire_rewrite_images];
     for expand in expansions {
         let mut expanded_length = 0;
         let expanded = unsafe { expand(bytes, length, pointer, &mut count, &mut expanded_length) };
@@ -125,7 +125,7 @@ fn rewrite(original: &[u8], spans: &mut [Span], buffer: &mut AstralWireBuffer) -
         }
     }
     let mut relabelled_length = 0;
-    let relabelled = unsafe { wireRelabel(bytes, length, pointer, count, &mut relabelled_length) };
+    let relabelled = unsafe { wire_relabel(bytes, length, pointer, count, &mut relabelled_length) };
     if !relabelled.is_null() {
         owned.keep(relabelled);
         bytes = relabelled;
@@ -133,7 +133,7 @@ fn rewrite(original: &[u8], spans: &mut [Span], buffer: &mut AstralWireBuffer) -
         changed = 1;
     }
     let mut emoji_length = 0;
-    let emoji = unsafe { wireEmojiBatch(bytes, length, pointer, &mut count, &mut emoji_length) };
+    let emoji = unsafe { wire_emoji_batch(bytes, length, pointer, &mut count, &mut emoji_length) };
     if !emoji.is_null() {
         owned.keep(emoji);
         bytes = emoji;
@@ -141,14 +141,14 @@ fn rewrite(original: &[u8], spans: &mut [Span], buffer: &mut AstralWireBuffer) -
         changed = 1;
     }
     unsafe {
-        wireTrackColors(bytes, pointer, count);
-        wireTrackImages(bytes, pointer, count);
+        wire_track_colors(bytes, pointer, count);
+        wire_track_images(bytes, pointer, count);
     }
     let raw = bytes;
     let mut themed = Vec::new();
-    if wireThemeActive() != 0 {
+    if wire_theme_active() != 0 {
         themed = unsafe { core::slice::from_raw_parts(bytes, length) }.to_vec();
-        if unsafe { wirePatchColors(themed.as_mut_ptr(), pointer, count) } != 0 || changed != 0 {
+        if unsafe { wire_patch_colors(themed.as_mut_ptr(), pointer, count) } != 0 || changed != 0 {
             bytes = themed.as_ptr();
             changed = 1;
         }
@@ -158,12 +158,12 @@ fn rewrite(original: &[u8], spans: &mut [Span], buffer: &mut AstralWireBuffer) -
         out.put(unsafe { core::slice::from_raw_parts(bytes, length) });
     }
     unsafe {
-        wireObserve(bytes, pointer, count);
-        wireTrackMessageNodes(bytes, pointer, count);
-        wireTrackComposer(bytes, pointer, count);
-        wireSetTemplateSource(raw);
-        wireRewritePages(bytes, pointer, count, &mut out, &mut changed, length);
-        wireSetTemplateSource(core::ptr::null());
+        wire_observe(bytes, pointer, count);
+        wire_track_message_nodes(bytes, pointer, count);
+        wire_track_composer(bytes, pointer, count);
+        wire_set_template_source(raw);
+        wire_rewrite_pages(bytes, pointer, count, &mut out, &mut changed, length);
+        wire_set_template_source(core::ptr::null());
         for stage in STAGES {
             stage(bytes, pointer, count, &mut out, &mut changed, length);
         }
@@ -206,11 +206,11 @@ fn theme_page(buffer: &mut AstralWireBuffer, spans: &mut [Span]) -> c_int {
         return 0;
     };
     let pointer = spans.as_ptr();
-    unsafe { wireTrackColors(buffer.bytes, pointer, count) };
-    let changed = c_int::from(wireThemeActive() != 0 && unsafe { wirePatchColors(buffer.bytes, pointer, count) } != 0);
+    unsafe { wire_track_colors(buffer.bytes, pointer, count) };
+    let changed = c_int::from(wire_theme_active() != 0 && unsafe { wire_patch_colors(buffer.bytes, pointer, count) } != 0);
     let mut out = Out::default();
     let mut appended: c_int = 0;
-    unsafe { wireSettingsBackdrop(buffer.bytes, pointer, count, &mut out, &mut appended, buffer.length) };
+    unsafe { wire_settings_backdrop(buffer.bytes, pointer, count, &mut out, &mut appended, buffer.length) };
     if appended == 0 || out.failed != 0 || scans(out.bytes, out.length, spans).is_none() {
         out.discard();
         return changed;

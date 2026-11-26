@@ -2,11 +2,11 @@ use core::ffi::c_int;
 use std::sync::Mutex;
 
 use super::cursor::Cursor;
-use super::format::{Span, batch_of, child, property_cursor, spans_of, type_is, wireChildList, wireColorProperty, wireCreation};
-use super::out::{Out, wirePropGradient};
+use super::format::{Span, batch_of, child, property_cursor, spans_of, type_is, wire_child_list, wire_color_property, wire_creation};
+use super::out::{Out, wire_prop_gradient};
 use super::properties;
 
-use super::theme::{wireBackgroundStops, wireThemeActive};
+use super::theme::{wire_background_stops, wire_theme_active};
 
 const DEPTH: u32 = 4;
 const STOPS: usize = 8;
@@ -46,7 +46,7 @@ pub extern "C" fn astral_wire_settings_backdrop_enabled() -> c_int {
 fn dimmed(color: u32, dim: f64) -> u32 {
     let keep = 1.0 - dim;
     let channel = |shift: u32| (f64::from((color >> shift) & 0xFF) * keep).round() as u32;
-    0xFF000000 | channel(16) << 16 | channel(8) << 8 | channel(0)
+    0xFF00_0000 | channel(16) << 16 | channel(8) << 8 | channel(0)
 }
 
 fn read_gradient(bytes: &[u8], span: &Span) -> Option<(f64, Vec<u32>)> {
@@ -58,7 +58,7 @@ fn read_gradient(bytes: &[u8], span: &Span) -> Option<(f64, Vec<u32>)> {
         }
         let property = cursor.read16();
         let tag = cursor.read8();
-        if property != properties.backgroundGradient || tag != 8 {
+        if property != properties.background_gradient || tag != 8 {
             cursor.skip_value(tag, 0);
             continue;
         }
@@ -119,7 +119,7 @@ fn has_property(bytes: &[u8], span: &Span, wanted: u16) -> bool {
 }
 
 fn observe_app_gradient(backdrop: &mut Backdrop, bytes: *const u8, spans: &[Span]) {
-    let gradient = properties::current().backgroundGradient;
+    let gradient = properties::current().background_gradient;
     for span in spans {
         if span.op != 1 && span.op != 2 {
             continue;
@@ -160,7 +160,7 @@ fn dimmed_stops(backdrop: &Backdrop) -> Vec<u32> {
     let mut stops = backdrop.stops.clone();
     if stops.is_empty() {
         let mut theme = [0u32; STOPS];
-        let count = unsafe { wireBackgroundStops(theme.as_mut_ptr(), STOPS) }.min(STOPS);
+        let count = unsafe { wire_background_stops(theme.as_mut_ptr(), STOPS) }.min(STOPS);
         stops = theme[..count].to_vec();
     }
     stops.iter().map(|color| dimmed(*color, backdrop.dim)).collect()
@@ -170,7 +170,7 @@ fn collect_matching(bytes: *const u8, spans: &[Span], id: i32, background: u32, 
     if depth > DEPTH || targets.len() >= TARGETS {
         return;
     }
-    let Some(list) = (unsafe { wireChildList(bytes, spans.as_ptr(), spans.len(), id).as_ref() }) else {
+    let Some(list) = (unsafe { wire_child_list(bytes, spans.as_ptr(), spans.len(), id).as_ref() }) else {
         return;
     };
     let background_property = properties::current().background;
@@ -180,9 +180,11 @@ fn collect_matching(bytes: *const u8, spans: &[Span], id: i32, background: u32, 
             break;
         }
         let id = child(data, list, position);
-        let creation = unsafe { wireCreation(spans.as_ptr(), spans.len(), id) };
+        let creation = unsafe { wire_creation(spans.as_ptr(), spans.len(), id) };
         let mut color = 0;
-        if !creation.is_null() && unsafe { wireColorProperty(bytes, creation, background_property, &mut color) } != 0 && color == background
+        if !creation.is_null()
+            && unsafe { wire_color_property(bytes, creation, background_property, &mut color) } != 0
+            && color == background
         {
             targets.push(id);
         }
@@ -203,11 +205,11 @@ fn put_backdrop(out: &mut Out, id: i32, angle: f64, stops: &[u32]) {
     out.put16(properties.background);
     out.put8(4);
     out.put(&0i64.to_le_bytes());
-    unsafe { wirePropGradient(out, properties.backgroundGradient, angle, stops.as_ptr(), stops.len() as u32) };
+    unsafe { wire_prop_gradient(out, properties.background_gradient, angle, stops.as_ptr(), stops.len() as u32) };
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireSettingsBackdrop(
+#[unsafe(export_name = "wireSettingsBackdrop")]
+pub unsafe extern "C" fn wire_settings_backdrop(
     bytes: *const u8,
     pointer: *const Span,
     count: usize,
@@ -218,7 +220,7 @@ pub unsafe extern "C" fn wireSettingsBackdrop(
     let spans = spans_of(pointer, count);
     let Ok(mut backdrop) = BACKDROP.lock() else { return };
     observe_app_gradient(&mut backdrop, bytes, spans);
-    if !backdrop.enabled || (backdrop.stops.is_empty() && wireThemeActive() == 0) {
+    if !backdrop.enabled || (backdrop.stops.is_empty() && wire_theme_active() == 0) {
         return;
     }
     let mut stops = dimmed_stops(&backdrop);
@@ -239,8 +241,8 @@ pub unsafe extern "C" fn wireSettingsBackdrop(
         let mut background = 0;
         if span.op != 1
             || !type_is(data, span, b"view")
-            || super::format::find_string(data, span, properties.accessibilityId) != Some(b"settings-phone")
-            || unsafe { wireColorProperty(bytes, span, properties.background, &mut background) } == 0
+            || super::format::find_string(data, span, properties.accessibility_id) != Some(b"settings-phone")
+            || unsafe { wire_color_property(bytes, span, properties.background, &mut background) } == 0
         {
             continue;
         }

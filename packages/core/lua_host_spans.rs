@@ -110,7 +110,7 @@ fn fields() -> [(&'static str, u16, Kind); 12] {
         ("color", properties.color, Kind::Color),
         ("weight", properties.weight, Kind::Integer),
         ("bg", properties.bg, Kind::Integer),
-        ("bg_radius", properties.bgRadius, Kind::Number),
+        ("bg_radius", properties.bg_radius, Kind::Number),
         ("scale", properties.scale, Kind::Number),
         ("advance", properties.advance, Kind::Number),
         ("bold", properties.bold, Kind::Flag),
@@ -300,8 +300,8 @@ unsafe extern "C" {
     fn malloc(size: usize) -> *mut core::ffi::c_void;
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn AstralLuaSpanTransform(
+#[unsafe(export_name = "AstralLuaSpanTransform")]
+pub unsafe extern "C" fn astral_lua_span_transform(
     message_id: u64,
     spans: *const u8,
     length: usize,

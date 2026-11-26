@@ -50,8 +50,8 @@ fn c_bytes<'a>(text: *const c_char) -> &'a [u8] {
     unsafe { CStr::from_ptr(text) }.to_bytes()
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireSkipValue(pointer: *mut CCursor, tag: u8, depth: c_int) {
+#[unsafe(export_name = "wireSkipValue")]
+pub unsafe extern "C" fn wire_skip_value(pointer: *mut CCursor, tag: u8, depth: c_int) {
     let Some(state) = (unsafe { pointer.as_mut() }) else { return };
     if state.failed != 0 {
         return;
@@ -140,8 +140,8 @@ pub fn scan(bytes: &[u8], out: &mut [Span]) -> Option<usize> {
     if cursor.failed() { None } else { Some(used) }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireScan(bytes: *const u8, length: usize, pointer: *mut Span, count: *mut usize) -> c_int {
+#[unsafe(export_name = "wireScan")]
+pub unsafe extern "C" fn wire_scan(bytes: *const u8, length: usize, pointer: *mut Span, count: *mut usize) -> c_int {
     if pointer.is_null() || count.is_null() {
         return -1;
     }
@@ -168,19 +168,19 @@ pub fn child(bytes: &[u8], span: &Span, index: u32) -> i32 {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireChild(bytes: *const u8, span: *const Span, index: u32) -> i32 {
+#[unsafe(export_name = "wireChild")]
+pub unsafe extern "C" fn wire_child(bytes: *const u8, span: *const Span, index: u32) -> i32 {
     let Some(span) = (unsafe { span.as_ref() }) else { return 0 };
     child(span_bytes(bytes, span), span, index)
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireChildAt(bytes: *const u8, span: *const Span, index: u32) -> i32 {
-    unsafe { wireChild(bytes, span, index) }
+#[unsafe(export_name = "wireChildAt")]
+pub unsafe extern "C" fn wire_child_at(bytes: *const u8, span: *const Span, index: u32) -> i32 {
+    unsafe { wire_child(bytes, span, index) }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireChildList(_bytes: *const u8, pointer: *const Span, count: usize, id: i32) -> *const Span {
+#[unsafe(export_name = "wireChildList")]
+pub unsafe extern "C" fn wire_child_list(_bytes: *const u8, pointer: *const Span, count: usize, id: i32) -> *const Span {
     if let Some(found) = index::with_index(pointer, count, |index| index.child_list(id)) {
         return found.map_or(core::ptr::null(), |position| unsafe { pointer.add(position) });
     }
@@ -191,8 +191,8 @@ pub unsafe extern "C" fn wireChildList(_bytes: *const u8, pointer: *const Span, 
         .map_or(core::ptr::null(), |span| span as *const Span)
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireParentOf(bytes: *const u8, pointer: *const Span, count: usize, id: i32) -> i32 {
+#[unsafe(export_name = "wireParentOf")]
+pub unsafe extern "C" fn wire_parent_of(bytes: *const u8, pointer: *const Span, count: usize, id: i32) -> i32 {
     if let Some(parent) = index::with_index(pointer, count, |index| index.parent(id)) {
         return parent;
     }
@@ -208,8 +208,8 @@ pub unsafe extern "C" fn wireParentOf(bytes: *const u8, pointer: *const Span, co
     0
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireCreation(pointer: *const Span, count: usize, id: i32) -> *const Span {
+#[unsafe(export_name = "wireCreation")]
+pub unsafe extern "C" fn wire_creation(pointer: *const Span, count: usize, id: i32) -> *const Span {
     if let Some(found) = index::with_index(pointer, count, |index| index.creation(id)) {
         return found.map_or(core::ptr::null(), |position| unsafe { pointer.add(position) });
     }
@@ -301,16 +301,16 @@ fn matches_string(bytes: *const u8, span: *const Span, wanted: u16, value: *cons
         return 0;
     };
     let matched = if prefix { found.starts_with(expected) } else { found == expected };
-    matched as c_int
+    c_int::from(matched)
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireStringPropertyPrefix(bytes: *const u8, span: *const Span, wanted: u16, prefix: *const c_char) -> c_int {
+#[unsafe(export_name = "wireStringPropertyPrefix")]
+pub unsafe extern "C" fn wire_string_property_prefix(bytes: *const u8, span: *const Span, wanted: u16, prefix: *const c_char) -> c_int {
     matches_string(bytes, span, wanted, prefix, true)
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireStringProperty(bytes: *const u8, span: *const Span, wanted: u16, value: *const c_char) -> c_int {
+#[unsafe(export_name = "wireStringProperty")]
+pub unsafe extern "C" fn wire_string_property(bytes: *const u8, span: *const Span, wanted: u16, value: *const c_char) -> c_int {
     matches_string(bytes, span, wanted, value, false)
 }
 
@@ -320,14 +320,14 @@ pub fn type_is(bytes: &[u8], span: &Span, expected: &[u8]) -> bool {
     cursor.take(length).is_some_and(|name| name == expected)
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireTypeIs(bytes: *const u8, span: *const Span, expected: *const c_char) -> c_int {
+#[unsafe(export_name = "wireTypeIs")]
+pub unsafe extern "C" fn wire_type_is(bytes: *const u8, span: *const Span, expected: *const c_char) -> c_int {
     let Some(span) = (unsafe { span.as_ref() }) else { return 0 };
-    type_is(span_bytes(bytes, span), span, c_bytes(expected)) as c_int
+    c_int::from(type_is(span_bytes(bytes, span), span, c_bytes(expected)))
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireColorProperty(bytes: *const u8, span: *const Span, wanted: u16, color: *mut u32) -> c_int {
+#[unsafe(export_name = "wireColorProperty")]
+pub unsafe extern "C" fn wire_color_property(bytes: *const u8, span: *const Span, wanted: u16, color: *mut u32) -> c_int {
     let Some(span) = (unsafe { span.as_ref() }) else { return 0 };
     let (mut cursor, count) = properties(span_bytes(bytes, span), span);
     for _ in 0..count {
@@ -349,8 +349,8 @@ pub unsafe extern "C" fn wireColorProperty(bytes: *const u8, span: *const Span, 
     0
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireFirstOfType(
+#[unsafe(export_name = "wireFirstOfType")]
+pub unsafe extern "C" fn wire_first_of_type(
     bytes: *const u8,
     pointer: *const Span,
     count: usize,
@@ -361,21 +361,21 @@ pub unsafe extern "C" fn wireFirstOfType(
     if node == 0 {
         return 0;
     }
-    let Some(creation) = (unsafe { wireCreation(pointer, count, node).as_ref() }) else {
+    let Some(creation) = (unsafe { wire_creation(pointer, count, node).as_ref() }) else {
         return 0;
     };
-    if unsafe { wireTypeIs(bytes, creation, expected) } != 0 {
+    if unsafe { wire_type_is(bytes, creation, expected) } != 0 {
         return node;
     }
     if depth <= 0 {
         return 0;
     }
-    let Some(list) = (unsafe { wireChildList(bytes, pointer, count, node).as_ref() }) else {
+    let Some(list) = (unsafe { wire_child_list(bytes, pointer, count, node).as_ref() }) else {
         return 0;
     };
     let data = span_bytes(bytes, list);
     for position in 0..list.child_count {
-        let found = unsafe { wireFirstOfType(bytes, pointer, count, child(data, list, position), expected, depth - 1) };
+        let found = unsafe { wire_first_of_type(bytes, pointer, count, child(data, list, position), expected, depth - 1) };
         if found != 0 {
             return found;
         }

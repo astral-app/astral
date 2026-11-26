@@ -37,11 +37,11 @@ unsafe fn directory(state: *mut LuaState) -> String {
 
 use crate::lua_host::Platform;
 
-fn platform_call(method: &str, arguments: Value) -> Platform {
+fn platform_call(method: &str, arguments: &Value) -> Platform {
     crate::lua_host::platform(method, arguments)
 }
 
-fn platform_flag(method: &str, arguments: Value) -> bool {
+fn platform_flag(method: &str, arguments: &Value) -> bool {
     crate::lua_host::platform_flag(method, arguments)
 }
 
@@ -500,7 +500,7 @@ unsafe fn ui_toast(state: *mut LuaState) -> Outcome {
     if title.len() > 120 || message.len() > 2048 {
         return Err("astral.ui.toast: text exceeds its limit".into());
     }
-    match platform_call("showToast", serde_json::json!([title, message])) {
+    match platform_call("showToast", &serde_json::json!([title, message])) {
         Platform::Missing => Err("astral.ui.toast: notifications are unavailable on this build".into()),
         Platform::Threw => Err("astral.ui.toast: could not show the notification".into()),
         Platform::Value(_) => Ok(0),
@@ -513,7 +513,7 @@ unsafe fn ui_copy(state: *mut LuaState) -> Outcome {
     if text.len() > 16384 {
         return Err("astral.ui.copy: text exceeds 16384 bytes".into());
     }
-    match platform_call("writeClipboard", serde_json::json!([String::from_utf8_lossy(text)])) {
+    match platform_call("writeClipboard", &serde_json::json!([String::from_utf8_lossy(text)])) {
         Platform::Missing => Err("astral.ui.copy: clipboard is unavailable on this build".into()),
         reply => unsafe { push_flag(state, matches!(reply, Platform::Value(Value::Bool(true)))) },
     }
@@ -521,7 +521,7 @@ unsafe fn ui_copy(state: *mut LuaState) -> Outcome {
 
 unsafe fn ui_paste(state: *mut LuaState) -> Outcome {
     unsafe { require_permission(state, "ui.clipboard") }?;
-    match platform_call("readClipboard", serde_json::json!([])) {
+    match platform_call("readClipboard", &serde_json::json!([])) {
         Platform::Missing => Err("astral.ui.paste: clipboard is unavailable on this build".into()),
         Platform::Value(Value::String(text)) => {
             let end = text.len().min(16384);
@@ -537,7 +537,7 @@ unsafe fn ui_open(state: *mut LuaState) -> Outcome {
     if !openable_url(&url) {
         return Err("astral.ui.open: only https:// and discord:// links up to 2048 bytes".into());
     }
-    match platform_call("openURL", serde_json::json!([url])) {
+    match platform_call("openURL", &serde_json::json!([url])) {
         Platform::Missing => Err("astral.ui.open: opening links is unavailable on this build".into()),
         reply => unsafe { push_flag(state, matches!(reply, Platform::Value(Value::Bool(true)))) },
     }
@@ -549,7 +549,7 @@ unsafe fn ui_haptic(state: *mut LuaState) -> Outcome {
     if !matches!(strength.as_str(), "light" | "medium" | "heavy") {
         return Err("astral.ui.haptic: strength must be light, medium or heavy".into());
     }
-    match platform_call("triggerHaptic", serde_json::json!([strength])) {
+    match platform_call("triggerHaptic", &serde_json::json!([strength])) {
         Platform::Missing => Err("astral.ui.haptic: haptics are unavailable on this build".into()),
         reply => unsafe { push_flag(state, matches!(reply, Platform::Value(Value::Bool(true)))) },
     }
@@ -558,7 +558,7 @@ unsafe fn ui_haptic(state: *mut LuaState) -> Outcome {
 unsafe fn background_keep_alive(state: *mut LuaState) -> Outcome {
     unsafe { require_permission(state, "background") }?;
     let on = unsafe { lua::lua_toboolean(state, 1) } != 0;
-    unsafe { push_flag(state, platform_flag("keepAlive", serde_json::json!([on]))) }
+    unsafe { push_flag(state, platform_flag("keepAlive", &serde_json::json!([on]))) }
 }
 
 unsafe fn audio_speak(state: *mut LuaState) -> Outcome {
@@ -575,7 +575,7 @@ unsafe fn audio_speak(state: *mut LuaState) -> Outcome {
     if language.len() > 35 {
         return Err("astral.audio.speak: language is a BCP 47 tag".into());
     }
-    match platform_call("speak", serde_json::json!([text, language, rate])) {
+    match platform_call("speak", &serde_json::json!([text, language, rate])) {
         Platform::Missing => Err("astral.audio.speak: speech is unavailable on this build".into()),
         reply => unsafe { push_flag(state, matches!(reply, Platform::Value(Value::Bool(true)))) },
     }
@@ -606,7 +606,7 @@ unsafe fn audio_play(state: *mut LuaState) -> Outcome {
             "astral.audio.play: {file} is not an mp3, m4a, wav, caf or aac file in the plugin"
         ));
     };
-    match platform_call("playSound", serde_json::json!([path, volume])) {
+    match platform_call("playSound", &serde_json::json!([path, volume])) {
         Platform::Missing => Err("astral.audio.play: sound is unavailable on this build".into()),
         reply => unsafe { push_flag(state, matches!(reply, Platform::Value(Value::Bool(true)))) },
     }
@@ -614,7 +614,7 @@ unsafe fn audio_play(state: *mut LuaState) -> Outcome {
 
 unsafe fn audio_stop(state: *mut LuaState) -> Outcome {
     unsafe { require_permission(state, "audio") }?;
-    platform_call("stopAudio", serde_json::json!([]));
+    platform_call("stopAudio", &serde_json::json!([]));
     Ok(0)
 }
 
@@ -645,7 +645,7 @@ unsafe fn ui_notify(state: *mut LuaState) -> Outcome {
         unsafe { identifier(state) },
         NOTIFICATION.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     );
-    match platform_call("notify", serde_json::json!([identifier, title, body, delay, link])) {
+    match platform_call("notify", &serde_json::json!([identifier, title, body, delay, link])) {
         Platform::Missing => Err("astral.ui.notify: notifications are unavailable on this build".into()),
         reply => unsafe { push_flag(state, matches!(reply, Platform::Value(Value::Bool(true)))) },
     }
@@ -664,7 +664,7 @@ unsafe fn ui_open_channel(state: *mut LuaState) -> Outcome {
     unsafe {
         push_flag(
             state,
-            platform_flag("openURL", serde_json::json!([channel_link(&channel, &message)])),
+            platform_flag("openURL", &serde_json::json!([channel_link(&channel, &message)])),
         )
     }
 }
@@ -693,7 +693,7 @@ unsafe fn ui_scroll_to(state: *mut LuaState) -> Outcome {
     unsafe {
         push_flag(
             state,
-            platform_flag("scrollToMessage", serde_json::json!([message, animated, align])),
+            platform_flag("scrollToMessage", &serde_json::json!([message, animated, align])),
         )
     }
 }
@@ -702,12 +702,12 @@ unsafe fn ui_focus_composer(state: *mut LuaState) -> Outcome {
     unsafe { require_permission(state, "ui.navigate") }?;
     let kind = unsafe { lua::lua_type(state, 1) };
     let focus = kind == lua::TNIL || kind == -1 || unsafe { lua::lua_toboolean(state, 1) } != 0;
-    unsafe { push_flag(state, platform_flag("focusComposer", serde_json::json!([focus]))) }
+    unsafe { push_flag(state, platform_flag("focusComposer", &serde_json::json!([focus]))) }
 }
 
 unsafe fn ui_dismiss(state: *mut LuaState) -> Outcome {
     unsafe { require_permission(state, "ui.navigate") }?;
-    unsafe { push_flag(state, platform_flag("dismissSheets", serde_json::json!([]))) }
+    unsafe { push_flag(state, platform_flag("dismissSheets", &serde_json::json!([]))) }
 }
 
 unsafe fn ui_insert_text(state: *mut LuaState) -> Outcome {
@@ -718,7 +718,7 @@ unsafe fn ui_insert_text(state: *mut LuaState) -> Outcome {
         return Err("astral.ui.insert_text: text is 1 to 4000 bytes".into());
     }
     let text = String::from_utf8_lossy(text).into_owned();
-    unsafe { push_flag(state, platform_flag("insertComposerText", serde_json::json!([text, replace]))) }
+    unsafe { push_flag(state, platform_flag("insertComposerText", &serde_json::json!([text, replace]))) }
 }
 
 unsafe fn ui_composer_text(state: *mut LuaState) -> Outcome {
@@ -730,13 +730,13 @@ unsafe fn ui_composer_text(state: *mut LuaState) -> Outcome {
 }
 
 unsafe fn ui_refresh(_state: *mut LuaState) -> Outcome {
-    platform_call("refreshDecorations", serde_json::json!([]));
+    platform_call("refreshDecorations", &serde_json::json!([]));
     Ok(0)
 }
 
 unsafe fn diagnostics_environment(state: *mut LuaState) -> Outcome {
     unsafe { require_permission(state, "diagnostics") }?;
-    let mut environment = match platform_call("environment", serde_json::json!([])) {
+    let mut environment = match platform_call("environment", &serde_json::json!([])) {
         Platform::Value(value @ Value::Object(_)) => value,
         _ => serde_json::json!({}),
     };

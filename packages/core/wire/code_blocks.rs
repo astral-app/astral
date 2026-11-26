@@ -5,11 +5,11 @@ use std::sync::Mutex;
 use serde_json::Value;
 
 use super::abi::Callback;
-use super::decorate::wireAllocateNode;
-use super::format::{Span, batch_of, child, find_string, property_cursor, spans_of, type_is, wireCreation, wireParentOf};
+use super::decorate::wire_allocate_node;
+use super::format::{Span, batch_of, child, find_string, property_cursor, spans_of, type_is, wire_creation, wire_parent_of};
 use super::ids::current_channel;
 use super::out::{AstralWireBuffer, Out};
-use super::patch::wireMarkRefreshBusy;
+use super::patch::wire_mark_refresh_busy;
 use super::properties;
 use crate::bridge::AstralRustString;
 
@@ -105,7 +105,7 @@ pub fn is_code_block(bytes: &[u8], span: &Span) -> bool {
     let properties = properties::current();
     span.op == 1
         && type_is(bytes, span, b"text")
-        && find_string(bytes, span, properties.fontFamily) == Some(MONOSPACE)
+        && find_string(bytes, span, properties.font_family) == Some(MONOSPACE)
         && has_property(bytes, span, properties.background)
 }
 
@@ -126,19 +126,19 @@ fn has_property(bytes: &[u8], span: &Span, wanted: u16) -> bool {
 }
 
 fn message_of(bytes: *const u8, spans: &[Span], node: i32) -> (u64, i32) {
-    let parent = unsafe { wireParentOf(bytes, spans.as_ptr(), spans.len(), node) };
+    let parent = unsafe { wire_parent_of(bytes, spans.as_ptr(), spans.len(), node) };
     let mut current = parent;
     for _ in 0..MAX_ANCESTORS {
         if current == 0 {
             break;
         }
-        if let Some(creation) = unsafe { wireCreation(spans.as_ptr(), spans.len(), current).as_ref() }
-            && let Some(identifier) = find_string(batch_of(bytes, creation), creation, properties::current().accessibilityId)
+        if let Some(creation) = unsafe { wire_creation(spans.as_ptr(), spans.len(), current).as_ref() }
+            && let Some(identifier) = find_string(batch_of(bytes, creation), creation, properties::current().accessibility_id)
             && let Some(message) = super::ids::prefixed(identifier, CONTENT_PREFIX)
         {
             return (message, parent);
         }
-        current = unsafe { wireParentOf(bytes, spans.as_ptr(), spans.len(), current) };
+        current = unsafe { wire_parent_of(bytes, spans.as_ptr(), spans.len(), current) };
     }
     (0, parent)
 }
@@ -215,9 +215,9 @@ fn put_code_text(out: &mut Out, node: i32, runs: &[(Vec<u8>, i64, u64)], card: &
     for (text, color, flags) in runs {
         put_run(out, text, *color, *flags);
     }
-    out.prop_string(properties.fontFamily, MONOSPACE);
-    out.prop_number(properties.fontSize, number(card, "fontSize").unwrap_or(12.0));
-    out.prop_number(properties.lineHeight, number(card, "lineHeight").unwrap_or(14.5));
+    out.prop_string(properties.font_family, MONOSPACE);
+    out.prop_number(properties.font_size, number(card, "fontSize").unwrap_or(12.0));
+    out.prop_number(properties.line_height, number(card, "lineHeight").unwrap_or(14.5));
     put_long(out, properties.color, color(card, "foreground"));
     if grow {
         out.prop_number(properties.shrink, 1.0);
@@ -230,25 +230,25 @@ fn put_body(out: &mut Out, block: &mut Block, card: &Value) -> i32 {
     let numbers = color(card, "lineNumbers");
     let lines = card.get("lines").and_then(Value::as_array).cloned().unwrap_or_default();
     let width = lines.len().to_string().len().max(2);
-    let body = wireAllocateNode();
+    let body = wire_allocate_node();
     block.header.push(body);
     out.create(body, b"view", 6);
     out.prop_string(properties.direction, b"column");
     put_long(out, properties.background, color(card, "background"));
     out.prop_quad(properties.padding, [SIDE_PADDING, 8.0, SIDE_PADDING, 10.0]);
-    out.prop_number(properties.radiusBottomLeft, CORNER);
-    out.prop_number(properties.radiusBottomRight, CORNER);
+    out.prop_number(properties.radius_bottom_left, CORNER);
+    out.prop_number(properties.radius_bottom_right, CORNER);
     out.prop_string(properties.width, b"fill");
     let mut rows = Vec::with_capacity(lines.len());
     for (index, line) in lines.iter().enumerate() {
-        let row = wireAllocateNode();
+        let row = wire_allocate_node();
         block.header.push(row);
         out.create(row, b"view", 2);
         out.prop_string(properties.direction, b"row");
         out.prop_string(properties.align, b"start");
         let mut cells = Vec::with_capacity(2);
         if numbers != 0 {
-            let number_cell = wireAllocateNode();
+            let number_cell = wire_allocate_node();
             block.header.push(number_cell);
             put_code_text(
                 out,
@@ -259,7 +259,7 @@ fn put_body(out: &mut Out, block: &mut Block, card: &Value) -> i32 {
             );
             cells.push(number_cell);
         }
-        let code_cell = wireAllocateNode();
+        let code_cell = wire_allocate_node();
         block.header.push(code_cell);
         put_code_text(out, code_cell, &line_runs(line, foreground), card, true);
         cells.push(code_cell);
@@ -276,7 +276,7 @@ fn put_card(out: &mut Out, block: &mut Block, card: &Value) {
         out.remove(&block.header);
         block.header.clear();
     }
-    let root = wireAllocateNode();
+    let root = wire_allocate_node();
     block.header.push(root);
     out.create(root, b"view", 3);
     out.prop_string(properties.direction, b"column");
@@ -295,9 +295,9 @@ fn put_label(out: &mut Out, node: i32, label: &[u8], color: i64, weight: i32, gr
     out.create(node, b"text", if grow { 6 } else { 5 });
     out.prop_string(properties.text, label);
     put_long(out, properties.color, color);
-    out.prop_number(properties.fontSize, 11.0);
-    out.prop_int(properties.fontWeight, weight);
-    out.prop_int(properties.maxLines, 1);
+    out.prop_number(properties.font_size, 11.0);
+    out.prop_int(properties.font_weight, weight);
+    out.prop_int(properties.max_lines, 1);
     if grow {
         out.prop_number(properties.flex, 1.0);
     }
@@ -306,7 +306,7 @@ fn put_label(out: &mut Out, node: i32, label: &[u8], color: i64, weight: i32, gr
 fn put_header(out: &mut Out, block: &mut Block, card: &Value) -> Option<i32> {
     let properties = properties::current();
     let header = card.get("header").filter(|header| header.is_object())?;
-    let root = wireAllocateNode();
+    let root = wire_allocate_node();
     let foreground = color(header, "foreground");
     let tap = text(header, "tap");
     out.create(root, b"view", 7);
@@ -315,13 +315,13 @@ fn put_header(out: &mut Out, block: &mut Block, card: &Value) -> Option<i32> {
     out.prop_number(properties.height, HEADER_HEIGHT);
     out.prop_quad(properties.padding, [SIDE_PADDING, 0.0, SIDE_PADDING, 0.0]);
     put_long(out, properties.background, color(header, "background"));
-    out.prop_number(properties.radiusTopLeft, CORNER);
-    out.prop_number(properties.radiusTopRight, CORNER);
+    out.prop_number(properties.radius_top_left, CORNER);
+    out.prop_number(properties.radius_top_right, CORNER);
     block.header.push(root);
     let mut children = Vec::new();
     let uri = text(header, "icon");
     if !uri.is_empty() {
-        let icon = wireAllocateNode();
+        let icon = wire_allocate_node();
         let tint = color(header, "iconTint");
         out.create(icon, b"image", if tint != 0 { 6 } else { 5 });
         out.prop_string(properties.uri, uri);
@@ -334,14 +334,14 @@ fn put_header(out: &mut Out, block: &mut Block, card: &Value) -> Option<i32> {
         }
         children.push(icon);
     }
-    let label = wireAllocateNode();
+    let label = wire_allocate_node();
     put_label(out, label, text(header, "label"), foreground, 600, true);
     children.push(label);
     if !tap.is_empty() {
-        let copy = wireAllocateNode();
+        let copy = wire_allocate_node();
         put_label(out, copy, text(header, "copy"), foreground, 500, false);
         out.update(copy, 2);
-        out.prop_string(properties.accessibilityId, tap);
+        out.prop_string(properties.accessibility_id, tap);
         out.prop_events(properties.on, b"press");
         children.push(copy);
     }
@@ -381,7 +381,7 @@ fn decorate(block: &mut Block) -> Option<Value> {
     let produced = (!card.bytes.is_null()).then(|| unsafe { core::slice::from_raw_parts(card.bytes, card.length) }.to_vec());
     unsafe { crate::bridge::astral_rust_string_free(card) };
     if outcome < 0 {
-        wireMarkRefreshBusy();
+        wire_mark_refresh_busy();
         return block.card.clone();
     }
     if outcome == 0 {
@@ -440,8 +440,8 @@ fn forget(state: &mut State, node: i32) {
     state.parents.remove(&node);
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireCodeBlocks(
+#[unsafe(export_name = "wireCodeBlocks")]
+pub unsafe extern "C" fn wire_code_blocks(
     bytes: *const u8,
     pointer: *const Span,
     count: usize,

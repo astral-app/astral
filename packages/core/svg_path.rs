@@ -150,76 +150,90 @@ pub fn parse(data: &[u8]) -> Vec<f64> {
                 continue;
             }
             b'M' => {
-                let Some([a, b]) = scanner.numbers() else { break };
-                current = (origin.0 + a, origin.1 + b);
+                let Some([first_x, first_y]) = scanner.numbers() else { break };
+                current = (origin.0 + first_x, origin.1 + first_y);
                 out.extend([MOVE, current.0, current.1]);
                 start = current;
                 command = if relative { b'l' } else { b'L' };
             }
             b'L' => {
-                let Some([a, b]) = scanner.numbers() else { break };
-                current = (origin.0 + a, origin.1 + b);
+                let Some([first_x, first_y]) = scanner.numbers() else { break };
+                current = (origin.0 + first_x, origin.1 + first_y);
                 out.extend([LINE, current.0, current.1]);
             }
             b'H' => {
-                let Some(a) = scanner.number() else { break };
-                current.0 = origin.0 + a;
+                let Some(value) = scanner.number() else { break };
+                current.0 = origin.0 + value;
                 out.extend([LINE, current.0, current.1]);
             }
             b'V' => {
-                let Some(a) = scanner.number() else { break };
-                current.1 = origin.1 + a;
+                let Some(value) = scanner.number() else { break };
+                current.1 = origin.1 + value;
                 out.extend([LINE, current.0, current.1]);
             }
             b'C' => {
-                let Some([a, b, c, d, e, f]) = scanner.numbers() else { break };
-                control = (origin.0 + c, origin.1 + d);
-                current = (origin.0 + e, origin.1 + f);
-                out.extend([CUBIC, origin.0 + a, origin.1 + b, control.0, control.1, current.0, current.1]);
+                let Some([first_x, first_y, second_x, second_y, end_x, end_y]) = scanner.numbers() else {
+                    break;
+                };
+                control = (origin.0 + second_x, origin.1 + second_y);
+                current = (origin.0 + end_x, origin.1 + end_y);
+                out.extend([
+                    CUBIC,
+                    origin.0 + first_x,
+                    origin.1 + first_y,
+                    control.0,
+                    control.1,
+                    current.0,
+                    current.1,
+                ]);
                 previous = upper;
                 continue;
             }
             b'S' => {
-                let Some([c, d, e, f]) = scanner.numbers() else { break };
+                let Some([second_x, second_y, end_x, end_y]) = scanner.numbers() else {
+                    break;
+                };
                 let first = if matches!(previous, b'C' | b'S') {
                     (2.0 * current.0 - control.0, 2.0 * current.1 - control.1)
                 } else {
                     current
                 };
-                control = (origin.0 + c, origin.1 + d);
-                current = (origin.0 + e, origin.1 + f);
+                control = (origin.0 + second_x, origin.1 + second_y);
+                current = (origin.0 + end_x, origin.1 + end_y);
                 out.extend([CUBIC, first.0, first.1, control.0, control.1, current.0, current.1]);
                 previous = upper;
                 continue;
             }
             b'Q' => {
-                let Some([a, b, e, f]) = scanner.numbers() else { break };
-                control = (origin.0 + a, origin.1 + b);
-                current = (origin.0 + e, origin.1 + f);
+                let Some([first_x, first_y, end_x, end_y]) = scanner.numbers() else {
+                    break;
+                };
+                control = (origin.0 + first_x, origin.1 + first_y);
+                current = (origin.0 + end_x, origin.1 + end_y);
                 out.extend([QUAD, control.0, control.1, current.0, current.1]);
                 previous = upper;
                 continue;
             }
             b'T' => {
-                let Some([e, f]) = scanner.numbers() else { break };
+                let Some([end_x, end_y]) = scanner.numbers() else { break };
                 control = if matches!(previous, b'Q' | b'T') {
                     (2.0 * current.0 - control.0, 2.0 * current.1 - control.1)
                 } else {
                     current
                 };
-                current = (origin.0 + e, origin.1 + f);
+                current = (origin.0 + end_x, origin.1 + end_y);
                 out.extend([QUAD, control.0, control.1, current.0, current.1]);
                 previous = upper;
                 continue;
             }
             b'A' => {
-                let (Some([a, b, c]), Some(large), Some(sweep), Some([f, g])) =
+                let (Some([radius_x, radius_y, rotation]), Some(large), Some(sweep), Some([end_x, end_y])) =
                     (scanner.numbers(), scanner.flag(), scanner.flag(), scanner.numbers())
                 else {
                     break;
                 };
-                let target = (origin.0 + f, origin.1 + g);
-                arc(&mut out, current, (a, b), c, large, sweep, target);
+                let target = (origin.0 + end_x, origin.1 + end_y);
+                arc(&mut out, current, (radius_x, radius_y), rotation, large, sweep, target);
                 current = target;
             }
             _ => break,

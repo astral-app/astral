@@ -10,6 +10,13 @@ pub struct AstralRustString {
 }
 
 impl AstralRustString {
+    pub fn into_bytes(self) -> Vec<u8> {
+        if self.bytes.is_null() {
+            return Vec::new();
+        }
+        unsafe { Box::from_raw(core::ptr::slice_from_raw_parts_mut(self.bytes, self.length)) }.into_vec()
+    }
+
     pub fn new(bytes: Vec<u8>) -> Self {
         let boxed = bytes.into_boxed_slice();
         let length = boxed.len();
@@ -39,10 +46,7 @@ impl AstralRustString {
 }
 
 pub fn take(string: AstralRustString) -> Vec<u8> {
-    if string.bytes.is_null() {
-        return Vec::new();
-    }
-    unsafe { Box::from_raw(core::ptr::slice_from_raw_parts_mut(string.bytes, string.length)) }.into_vec()
+    string.into_bytes()
 }
 
 #[unsafe(no_mangle)]

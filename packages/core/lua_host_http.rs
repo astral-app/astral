@@ -406,7 +406,7 @@ unsafe fn push_option_values(state: *mut LuaState, options: &Value) {
 fn multipart_message(payload: &Value, filename: &str, content_type: &str, data: &[u8]) -> (Vec<u8>, String) {
     let boundary = format!(
         "astral{}",
-        std::time::Instant::now().elapsed().as_nanos() ^ host::next_request() as u128
+        std::time::Instant::now().elapsed().as_nanos() ^ u128::from(host::next_request())
     );
     let mut body = format!(
         "--{boundary}\r\nContent-Disposition: form-data; name=\"payload_json\"\r\nContent-Type: application/json\r\n\r\n{payload}\r\n--{boundary}\r\nContent-Disposition: form-data; name=\"files[0]\"; filename=\"{filename}\"\r\nContent-Type: {content_type}\r\n\r\n"
@@ -418,7 +418,7 @@ fn multipart_message(payload: &Value, filename: &str, content_type: &str, data: 
 }
 
 fn dispatch_gateway(message: &Value) -> bool {
-    host::platform_flag("dispatchGateway", json!([message.to_string()]))
+    host::platform_flag("dispatchGateway", &json!([message.to_string()]))
 }
 
 fn handle_interaction(request: &mut HttpRequest) -> Option<HttpDecision> {

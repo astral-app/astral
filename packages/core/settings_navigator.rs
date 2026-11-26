@@ -265,7 +265,7 @@ impl Navigator {
         made != 0
     }
 
-    fn deliver(&self, bytes: Vec<u8>) {
+    fn deliver(&self, bytes: &[u8]) {
         let Some(deliver) = self.deliver.filter(|_| !bytes.is_empty()) else {
             return;
         };
@@ -282,19 +282,19 @@ impl Navigator {
                 Self::build(*delivery, route, &mut merged);
             }
         });
-        self.deliver(merged);
+        self.deliver(&merged);
     }
 
-    fn push(&mut self, route: String) {
-        self.routes.push(route.clone());
+    fn push(&mut self, route: &str) {
+        self.routes.push(route.to_string());
         let depth = self.routes.len();
         let mut merged = Vec::new();
         let mut built = false;
-        self.with_wire(|| built = Self::build(Delivery::Push, &route, &mut merged));
+        self.with_wire(|| built = Self::build(Delivery::Push, route, &mut merged));
         if !built && self.routes.len() == depth {
             self.routes.pop();
         }
-        self.deliver(merged);
+        self.deliver(&merged);
     }
 
     fn refresh_top(&self) {
@@ -323,7 +323,7 @@ impl Navigator {
         let Some(route) = self.routes.last().cloned() else { return };
         match settings_pages::action(&route, key, Arc::new(refresh)).as_deref() {
             Some("..") => self.pop(),
-            Some(next) if !next.is_empty() => self.push(next.to_owned()),
+            Some(next) if !next.is_empty() => self.push(next),
             _ => self.refresh_top(),
         }
     }
@@ -348,7 +348,7 @@ pub fn tap(identifier: &str) {
     enter((), |navigator| {
         if identifier == OVERVIEW_ROW || starts(identifier, OVERVIEW_ROW_PREFIX) {
             if navigator.routes.is_empty() {
-                navigator.push(identifier.strip_prefix(OVERVIEW_ROW_PREFIX).unwrap_or_default().to_owned());
+                navigator.push(identifier.strip_prefix(OVERVIEW_ROW_PREFIX).unwrap_or_default());
             }
         } else if identifier == BACK {
             navigator.pop();

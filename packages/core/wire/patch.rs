@@ -6,10 +6,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use super::abi::{
     AstralNodePatch, AstralPatchTarget, Callback, PATCH_BACKGROUND, PATCH_BORDER, PATCH_HIDDEN, PATCH_MARGIN, PATCH_OPACITY, PATCH_PADDING,
-    PATCH_RADIUS, PATCH_TEXT_COLOR, PATCH_TEXT_SCALE, current_channel, wireMessageAuthor, wireRowMessage,
+    PATCH_RADIUS, PATCH_TEXT_COLOR, PATCH_TEXT_SCALE, current_channel, wire_message_author, wire_row_message,
 };
 use super::cursor::Cursor;
-use super::format::{Span, batch_of, child, spans_of, type_is, wireChildList, wireCreation};
+use super::format::{Span, batch_of, child, spans_of, type_is, wire_child_list, wire_creation};
 use super::ids::parse_id;
 use super::out::{AstralWireBuffer, Out};
 use super::properties::{self, AstralWireProperties};
@@ -70,8 +70,8 @@ fn patch_property(properties: &AstralWireProperties, slot: usize) -> u16 {
         properties.opacity,
         properties.padding,
         properties.margin,
-        properties.borderColor,
-        properties.borderWidth,
+        properties.border_color,
+        properties.border_width,
         properties.color,
         properties.width,
         properties.height,
@@ -79,8 +79,8 @@ fn patch_property(properties: &AstralWireProperties, slot: usize) -> u16 {
     ][slot]
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn wireMarkRefreshBusy() {
+#[unsafe(export_name = "wireMarkRefreshBusy")]
+pub extern "C" fn wire_mark_refresh_busy() {
     REFRESH_BUSY.store(true, Ordering::Relaxed);
 }
 
@@ -113,8 +113,8 @@ pub unsafe extern "C" fn astral_wire_set_patch_prefixes(prefixes: *const *const 
     with_state(|state| state.prefixes = prefixes);
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn wirePatchingActive() -> c_int {
+#[unsafe(export_name = "wirePatchingActive")]
+pub extern "C" fn wire_patching_active() -> c_int {
     let prefixes = with_state(|state| !state.prefixes.is_empty()).unwrap_or(false);
     c_int::from(PATCHER.get::<NodePatcher>().is_some() && prefixes)
 }
@@ -129,8 +129,8 @@ pub fn message_of_identifier(identifier: &[u8]) -> u64 {
         .map_or(0, |colon| parse_id(&identifier[colon + 1..]))
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireMessageOfIdentifier(identifier: *const c_char) -> u64 {
+#[unsafe(export_name = "wireMessageOfIdentifier")]
+pub unsafe extern "C" fn wire_message_of_identifier(identifier: *const c_char) -> u64 {
     if identifier.is_null() {
         return 0;
     }
@@ -139,11 +139,11 @@ pub unsafe extern "C" fn wireMessageOfIdentifier(identifier: *const c_char) -> u
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn astral_wire_message_of(identifier: *const c_char) -> u64 {
-    unsafe { wireMessageOfIdentifier(identifier) }
+    unsafe { wire_message_of_identifier(identifier) }
 }
 
 pub fn read_identifier<'a>(bytes: &'a [u8], span: &Span) -> Option<(&'a [u8], &'a [u8])> {
-    let accessibility = properties::current().accessibilityId;
+    let accessibility = properties::current().accessibility_id;
     let mut cursor = Cursor::new(bytes, span.start + 5);
     let type_length = cursor.read16() as usize;
     if type_length >= TYPE_LENGTH {
@@ -177,8 +177,8 @@ fn copy_c(text: &[u8], out: *mut c_char, capacity: usize) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireReadIdentifier(bytes: *const u8, span: *const Span, identifier: *mut c_char, kind: *mut c_char) -> c_int {
+#[unsafe(export_name = "wireReadIdentifier")]
+pub unsafe extern "C" fn wire_read_identifier(bytes: *const u8, span: *const Span, identifier: *mut c_char, kind: *mut c_char) -> c_int {
     let Some(span) = (unsafe { span.as_ref() }) else { return 0 };
     if identifier.is_null() || kind.is_null() {
         return 0;
@@ -198,14 +198,14 @@ fn key_offset(prefixes: &[Vec<u8>], identifier: &[u8]) -> Option<usize> {
 pub fn patch_target(prefix_length: usize, identifier: &CString, kind: &CString, node: i32) -> AstralPatchTarget {
     let mut message = message_of_identifier(identifier.as_bytes());
     if message == 0 && identifier.as_bytes() == b"message-row" {
-        message = wireRowMessage(node);
+        message = wire_row_message(node);
     }
     AstralPatchTarget {
         identifier: identifier.as_ptr(),
         kind: kind.as_ptr(),
         key: prefix_length,
         message_id: message,
-        author_id: if message != 0 { wireMessageAuthor(message) } else { 0 },
+        author_id: if message != 0 { wire_message_author(message) } else { 0 },
         channel_id: current_channel(),
         parent: core::ptr::null(),
         node,
@@ -329,7 +329,7 @@ fn write_patch(out: &mut Out, id: i32, patched: &mut Patched, patch: &AstralNode
 }
 
 fn write_scaled(out: &mut Out, scaled: &mut HashMap<i32, ScaledText>, owner: i32, patch: &AstralNodePatch) -> bool {
-    let font_size = properties::current().fontSize;
+    let font_size = properties::current().font_size;
     let scale = if patch.fields & PATCH_TEXT_SCALE != 0 {
         patch.text_scale
     } else {
@@ -349,7 +349,7 @@ fn write_scaled(out: &mut Out, scaled: &mut HashMap<i32, ScaledText>, owner: i32
 }
 
 fn font_size(bytes: &[u8], span: &Span) -> Option<f64> {
-    let wanted = properties::current().fontSize;
+    let wanted = properties::current().font_size;
     let mut cursor = Cursor::new(bytes, span.start + 5);
     let type_length = cursor.read16() as usize;
     cursor.skip(type_length);
@@ -374,7 +374,7 @@ fn collect_texts(scaled: &mut HashMap<i32, ScaledText>, bytes: *const u8, spans:
     while cursor < queue.len() {
         let (node, depth) = queue[cursor];
         cursor += 1;
-        if let Some(created) = unsafe { wireCreation(spans.as_ptr(), spans.len(), node).as_ref() } {
+        if let Some(created) = unsafe { wire_creation(spans.as_ptr(), spans.len(), node).as_ref() } {
             let data = batch_of(bytes, created);
             if type_is(data, created, b"text")
                 && let Some(base) = font_size(data, created)
@@ -393,7 +393,7 @@ fn collect_texts(scaled: &mut HashMap<i32, ScaledText>, bytes: *const u8, spans:
         if depth >= SCALE_DEPTH {
             continue;
         }
-        let Some(list) = (unsafe { wireChildList(bytes, spans.as_ptr(), spans.len(), node).as_ref() }) else {
+        let Some(list) = (unsafe { wire_child_list(bytes, spans.as_ptr(), spans.len(), node).as_ref() }) else {
             continue;
         };
         let data = batch_of(bytes, list);
@@ -406,8 +406,8 @@ fn collect_texts(scaled: &mut HashMap<i32, ScaledText>, bytes: *const u8, spans:
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wirePatchNodes(
+#[unsafe(export_name = "wirePatchNodes")]
+pub unsafe extern "C" fn wire_patch_nodes(
     bytes: *const u8,
     pointer: *const Span,
     count: usize,
@@ -459,7 +459,7 @@ pub unsafe extern "C" fn wirePatchNodes(
             let mut patch = AstralNodePatch::default();
             let result = call_patcher(prefix, span.id, identifier, kind, &mut patch);
             if result < 0 {
-                wireMarkRefreshBusy();
+                wire_mark_refresh_busy();
             }
             if result > 0 {
                 if *changed == 0 {
@@ -492,7 +492,7 @@ pub unsafe extern "C" fn astral_wire_refresh_node_patches(buffer: *mut AstralWir
             let mut patch = AstralNodePatch::default();
             let prefix = key_offset(&prefixes, &patched.identifier).unwrap_or(0);
             if call_patcher(prefix, *id, &patched.identifier, &patched.kind, &mut patch) < 0 {
-                wireMarkRefreshBusy();
+                wire_mark_refresh_busy();
                 continue;
             }
             let wrote = write_patch(&mut out, *id, patched, &patch);
@@ -505,5 +505,5 @@ pub unsafe extern "C" fn astral_wire_refresh_node_patches(buffer: *mut AstralWir
         out.discard();
         return 0;
     }
-    out.finish(buffer) as c_int
+    c_int::from(out.finish(buffer))
 }

@@ -1,9 +1,9 @@
 use core::ffi::CStr;
 
 use astral_core::wire::format::{
-    MAX_SPANS, Span, scan, type_is, wireChild, wireColorProperty, wireParentOf, wireStringProperty, wireStringPropertyPrefix,
+    MAX_SPANS, Span, scan, type_is, wire_child, wire_color_property, wire_parent_of, wire_string_property, wire_string_property_prefix,
 };
-use astral_core::wire::out::{Out, wirePropInt, wirePropString, wirePut8, wirePutChildren};
+use astral_core::wire::out::{Out, wire_prop_int, wire_prop_string, wire_put_children, wire_put8};
 
 unsafe extern "C" {
     fn free(pointer: *mut core::ffi::c_void);
@@ -20,7 +20,7 @@ fn empty() -> Out {
 
 fn batch(build: impl FnOnce(&mut Out)) -> Vec<u8> {
     let mut out = empty();
-    unsafe { wirePut8(&mut out, 1) };
+    unsafe { wire_put8(&mut out, 1) };
     build(&mut out);
     assert_eq!(out.failed, 0);
     let bytes = unsafe { core::slice::from_raw_parts(out.bytes, out.length) }.to_vec();
@@ -29,11 +29,11 @@ fn batch(build: impl FnOnce(&mut Out)) -> Vec<u8> {
 }
 
 fn string(out: &mut Out, id: u16, value: &CStr) {
-    unsafe { wirePropString(out, id, value.as_ptr()) };
+    unsafe { wire_prop_string(out, id, value.as_ptr()) };
 }
 
 fn create(out: &mut Out, id: i32, kind: &str, properties: impl FnOnce(&mut Out) -> u16) {
-    unsafe { wirePut8(out, 1) };
+    unsafe { wire_put8(out, 1) };
     out.put(&id.to_le_bytes());
     out.put16(kind.len() as u16);
     out.put(kind.as_bytes());
@@ -53,9 +53,9 @@ fn spans(bytes: &[u8]) -> Vec<Span> {
 fn has_string(bytes: &[u8], span: &Span, id: u16, value: &CStr, prefix: bool) -> bool {
     let found = unsafe {
         if prefix {
-            wireStringPropertyPrefix(bytes.as_ptr(), span, id, value.as_ptr())
+            wire_string_property_prefix(bytes.as_ptr(), span, id, value.as_ptr())
         } else {
-            wireStringProperty(bytes.as_ptr(), span, id, value.as_ptr())
+            wire_string_property(bytes.as_ptr(), span, id, value.as_ptr())
         }
     };
     found == 1
@@ -66,12 +66,12 @@ fn scans_creations_children_and_properties() {
     let bytes = batch(|out| {
         create(out, 7, "text", |out| {
             string(out, 9, c"message.content:42");
-            unsafe { wirePropInt(out, 90, 0x00ff00) };
+            unsafe { wire_prop_int(out, 90, 0x0000_ff00) };
             2
         });
         create(out, 8, "view", |_| 0);
         let children = [7, 9];
-        unsafe { wirePutChildren(out, 8, children.as_ptr(), 2) };
+        unsafe { wire_put_children(out, 8, children.as_ptr(), 2) };
     });
     let spans = spans(&bytes);
     assert_eq!(spans.len(), 3);
@@ -80,11 +80,11 @@ fn scans_creations_children_and_properties() {
     assert!(has_string(&bytes, &spans[0], 9, c"message.content:", true));
     assert!(!has_string(&bytes, &spans[0], 9, c"message.content:4", false));
     let mut color = 0;
-    assert_eq!(unsafe { wireColorProperty(bytes.as_ptr(), &spans[0], 90, &mut color) }, 1);
-    assert_eq!(color, 0x00ff00);
-    assert_eq!(unsafe { wireChild(bytes.as_ptr(), &spans[2], 1) }, 9);
-    assert_eq!(unsafe { wireChild(bytes.as_ptr(), &spans[2], 2) }, 0);
-    assert_eq!(unsafe { wireParentOf(bytes.as_ptr(), spans.as_ptr(), spans.len(), 9) }, 8);
+    assert_eq!(unsafe { wire_color_property(bytes.as_ptr(), &spans[0], 90, &mut color) }, 1);
+    assert_eq!(color, 0x0000_ff00);
+    assert_eq!(unsafe { wire_child(bytes.as_ptr(), &spans[2], 1) }, 9);
+    assert_eq!(unsafe { wire_child(bytes.as_ptr(), &spans[2], 2) }, 0);
+    assert_eq!(unsafe { wire_parent_of(bytes.as_ptr(), spans.as_ptr(), spans.len(), 9) }, 8);
 }
 
 #[test]
@@ -116,8 +116,8 @@ fn bounds_deep_nesting() {
 
 #[test]
 fn writes_gradients() {
-    let colors = [0xFF000000u32, 0xFFFFFFFF];
-    let bytes = batch(|out| unsafe { astral_core::wire::out::wirePropGradient(out, 91, 90.0, colors.as_ptr(), 2) });
+    let colors = [0xFF00_0000_u32, 0xFFFF_FFFF];
+    let bytes = batch(|out| unsafe { astral_core::wire::out::wire_prop_gradient(out, 91, 90.0, colors.as_ptr(), 2) });
     assert_eq!(bytes[0], 1);
     assert_eq!(u16::from_le_bytes([bytes[1], bytes[2]]), 91);
     assert_eq!(bytes[3], 8);

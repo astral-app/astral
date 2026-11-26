@@ -33,10 +33,10 @@ fn put_chunk(out: &mut Vec<u8>, kind: &[u8; 4], data: &[u8]) {
 
 fn stored_zlib(raw: &[u8]) -> Vec<u8> {
     let mut out = vec![0x78, 0x01];
-    let (mut a, mut b) = (1u32, 0u32);
+    let (mut low_sum, mut high_sum) = (1u32, 0u32);
     for byte in raw {
-        a = (a + u32::from(*byte)) % 65521;
-        b = (b + a) % 65521;
+        low_sum = (low_sum + u32::from(*byte)) % 65521;
+        high_sum = (high_sum + low_sum) % 65521;
     }
     let mut offset = 0;
     loop {
@@ -50,7 +50,7 @@ fn stored_zlib(raw: &[u8]) -> Vec<u8> {
             break;
         }
     }
-    out.extend_from_slice(&((b << 16) | a).to_be_bytes());
+    out.extend_from_slice(&((high_sum << 16) | low_sum).to_be_bytes());
     out
 }
 

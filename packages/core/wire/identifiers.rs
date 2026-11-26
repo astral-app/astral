@@ -17,7 +17,7 @@ fn routable(text: &[u8]) -> bool {
 }
 
 fn accessibility_id<'a>(bytes: &'a [u8], span: &Span) -> Option<&'a [u8]> {
-    let wanted = properties::current().accessibilityId;
+    let wanted = properties::current().accessibility_id;
     let mut cursor = Cursor::new(bytes, span.start + 5);
     if span.op == 1 {
         let length = cursor.read16() as usize;

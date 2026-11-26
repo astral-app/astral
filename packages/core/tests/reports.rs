@@ -17,8 +17,8 @@ fn reports_dedupe_cap_and_render() {
     assert_eq!(loaded.len(), 1);
     assert_eq!(loaded[0]["detail"], "token: [redacted]");
     let environment = json!({"platform": "ios", "device": "iPhone", "plugins": ["astral.a"]});
-    assert!(plugin_failure("astral.a", "A", "boom", environment.clone()));
-    assert!(!plugin_failure("astral.a", "A", "boom", environment.clone()));
+    assert!(plugin_failure("astral.a", "A", "boom", &environment.clone()));
+    assert!(!plugin_failure("astral.a", "A", "boom", &environment.clone()));
     assert!(unexpected_exit("astral.b", environment.clone(), json!(["astral.b"])));
     assert!(process_exit("hang", 100, 2, "stuck", environment.clone(), "astral.c", None));
     assert!(!process_exit("hang", 100, 2, "stuck", environment.clone(), "astral.c", None));

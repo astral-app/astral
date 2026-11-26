@@ -1,4 +1,4 @@
-#![allow(non_snake_case, clippy::missing_safety_doc)]
+#![allow(clippy::missing_safety_doc)]
 
 pub mod backup;
 pub mod bridge;

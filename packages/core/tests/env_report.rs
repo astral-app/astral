@@ -66,9 +66,9 @@ fn reports_https_and_install_and_crashes() {
         android_install_line(&json!({"signer": "abcdef0123456789ff", "patch": "LSPatch", "missingSplits": ["config.arm64"], "splits": 3})),
         "APK cert abcdef0123456789 · re-signed · LSPatch · missing config.arm64"
     );
-    let reports = json!([{"title": "Crash: x", "kind": "crash", "time": 200000.0}, {"kind": "hang", "time": 0.0}]);
+    let reports = json!([{"title": "Crash: x", "kind": "crash", "time": 200_000.0}, {"kind": "hang", "time": 0.0}]);
     assert_eq!(
-        crash_summary(&reports, 200000.0 + 3600.0),
+        crash_summary(&reports, 200_000.0 + 3600.0),
         json!({"reports": 2, "crashes_24h": 1, "last_report": "Crash: x"})
     );
     assert!(is_beta_build("23A5276f"));

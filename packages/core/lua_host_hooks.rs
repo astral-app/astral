@@ -5,9 +5,8 @@ use serde_json::Value;
 use crate::lua_api::{self as lua, LuaState};
 use crate::lua_host::{self as host, Plugin};
 use crate::wire::abi::{
-    AstralLabelContext, AstralMentionContext, AstralMentionDecoration, AstralNodePatch, AstralPatchTarget, LABEL_AUTHOR, LABEL_REPLY,
-    PATCH_BACKGROUND, PATCH_BORDER, PATCH_HIDDEN, PATCH_MARGIN, PATCH_OPACITY, PATCH_PADDING, PATCH_RADIUS, PATCH_TEXT_COLOR,
-    PATCH_TEXT_SCALE,
+    AstralLabelContext, AstralMentionContext, AstralMentionDecoration, AstralNodePatch, AstralPatchTarget, LABEL_REPLY, PATCH_BACKGROUND,
+    PATCH_BORDER, PATCH_HIDDEN, PATCH_MARGIN, PATCH_OPACITY, PATCH_PADDING, PATCH_RADIUS, PATCH_TEXT_COLOR, PATCH_TEXT_SCALE,
 };
 
 pub fn snowflake(value: u64) -> String {
@@ -132,13 +131,12 @@ fn label_kind_name(kind: c_int) -> &'static str {
         3 => "member",
         4 => "composer",
         5 => "profile",
-        LABEL_AUTHOR => "author",
         _ => "author",
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn AstralLuaRelabel(
+#[unsafe(export_name = "AstralLuaRelabel")]
+pub unsafe extern "C" fn astral_lua_relabel(
     context: *const AstralLabelContext,
     text: *const c_char,
     length: usize,
@@ -200,8 +198,8 @@ pub unsafe extern "C" fn AstralLuaRelabel(
     unsafe { write_raw(out, capacity, &current) }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn AstralLuaMention(context: *const AstralMentionContext, decoration: *mut AstralMentionDecoration) -> c_int {
+#[unsafe(export_name = "AstralLuaMention")]
+pub unsafe extern "C" fn astral_lua_mention(context: *const AstralMentionContext, decoration: *mut AstralMentionDecoration) -> c_int {
     let Some(_held) = host::try_lock() else { return busy(0) };
     let (Some(context), Some(decoration)) = (unsafe { context.as_ref() }, unsafe { decoration.as_mut() }) else {
         return 0;
@@ -305,8 +303,8 @@ fn replies_to_current_user(record: &Value, current_user: &str) -> bool {
         .unwrap_or(false)
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn AstralLuaMessageTextColor(message_id: u64, channel_id: u64, color: *mut u32) -> c_int {
+#[unsafe(export_name = "AstralLuaMessageTextColor")]
+pub unsafe extern "C" fn astral_lua_message_text_color(message_id: u64, channel_id: u64, color: *mut u32) -> c_int {
     let Some(_held) = host::try_lock() else { return busy(0) };
     let colorizing: Vec<*mut Plugin> = running_plugins()
         .into_iter()

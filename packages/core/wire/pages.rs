@@ -4,7 +4,9 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use super::clone::{Change, Edit, clone_creation};
-use super::format::{Span, batch_of, child, find_string, spans_of, type_is, wireChildList, wireCreation, wireFirstOfType, wireParentOf};
+use super::format::{
+    Span, batch_of, child, find_string, spans_of, type_is, wire_child_list, wire_creation, wire_first_of_type, wire_parent_of,
+};
 use super::out::{AstralWireBuffer, Out};
 use super::properties::{self, AstralWireProperties};
 
@@ -13,23 +15,23 @@ const ANCHOR: &[u8] = b"settings.row.account";
 const MAX_CATEGORY_NODES: usize = 128;
 const MAX_CATEGORY_ROWS: usize = 8;
 const CATEGORY_TEXT: usize = 96;
-const FIRST_ASTRAL_ID: i32 = 0x7a000000;
-const FIRST_PAGE_ID: i32 = 0x7a000100;
+const FIRST_ASTRAL_ID: i32 = 0x7a00_0000;
+const FIRST_PAGE_ID: i32 = 0x7a00_0100;
 const PAGE_ID_STRIDE: i32 = 0x40000;
 const MAX_NAVIGATOR_CHILDREN: usize = 64;
 const MAX_PAGE_NODES: usize = 1024;
 const MAX_NAVIGATORS: usize = 8;
 const MAX_PAGES: usize = 4;
 const MAX_CHILDREN: usize = 4096;
-const SWITCH_ON: u32 = 0xFF5865F2;
-const SWITCH_OFF: i32 = 0x1F000000;
-const THUMB: u32 = 0xFFFFFFFF;
-const SWITCH_BORDER: i32 = 530028447;
-const SLIDER_ACTIVE: u32 = 0xFF5865F2;
-const SLIDER_INACTIVE: u32 = 0xFF4E5058;
-const TRANSLUCENT_FILL: u32 = 0x1FFFFFFF;
-const SUBTLE_BORDER: u32 = 0x1F97979F;
-const CRITICAL_TEXT: u32 = 0xFFF23F43;
+const SWITCH_ON: u32 = 0xFF58_65F2;
+const SWITCH_OFF: i32 = 0x1F00_0000;
+const THUMB: u32 = 0xFFFF_FFFF;
+const SWITCH_BORDER: i32 = 530_028_447;
+const SLIDER_ACTIVE: u32 = 0xFF58_65F2;
+const SLIDER_INACTIVE: u32 = 0xFF4E_5058;
+const TRANSLUCENT_FILL: u32 = 0x1FFF_FFFF;
+const SUBTLE_BORDER: u32 = 0x1F97_979F;
+const CRITICAL_TEXT: u32 = 0xFFF2_3F43;
 
 const ROW_LINK: c_int = 0;
 const ROW_SWITCH: c_int = 1;
@@ -359,8 +361,8 @@ pub unsafe extern "C" fn astral_wire_set_category(title: *const c_char, rows: *c
     });
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn wireSetTemplateSource(raw: *const u8) {
+#[unsafe(export_name = "wireSetTemplateSource")]
+pub extern "C" fn wire_set_template_source(raw: *const u8) {
     TEMPLATE_SOURCE.store(raw as usize, Ordering::Relaxed);
 }
 
@@ -374,13 +376,13 @@ impl Batch<'_> {
         if id == 0 {
             0
         } else {
-            unsafe { wireParentOf(self.bytes, self.spans.as_ptr(), self.spans.len(), id) }
+            unsafe { wire_parent_of(self.bytes, self.spans.as_ptr(), self.spans.len(), id) }
         }
     }
 
     fn children(&self, id: i32) -> Vec<i32> {
         let Some(list) = (id != 0)
-            .then(|| unsafe { wireChildList(self.bytes, self.spans.as_ptr(), self.spans.len(), id).as_ref() })
+            .then(|| unsafe { wire_child_list(self.bytes, self.spans.as_ptr(), self.spans.len(), id).as_ref() })
             .flatten()
         else {
             return Vec::new();
@@ -395,12 +397,12 @@ impl Batch<'_> {
 
     fn creation(&self, id: i32) -> Option<&Span> {
         (id != 0)
-            .then(|| unsafe { wireCreation(self.spans.as_ptr(), self.spans.len(), id).as_ref() })
+            .then(|| unsafe { wire_creation(self.spans.as_ptr(), self.spans.len(), id).as_ref() })
             .flatten()
     }
 
     fn first_text(&self, id: i32) -> i32 {
-        unsafe { wireFirstOfType(self.bytes, self.spans.as_ptr(), self.spans.len(), id, c"text".as_ptr(), TITLE_DEPTH) }
+        unsafe { wire_first_of_type(self.bytes, self.spans.as_ptr(), self.spans.len(), id, c"text".as_ptr(), TITLE_DEPTH) }
     }
 }
 
@@ -475,12 +477,12 @@ fn category_row(
     let (title, icon) = (row.title.clone(), row.icon.clone());
     let (first, last) = (index == 0, index + 1 == state.category_rows.len());
     let row_changes = [
-        Change::text(properties.accessibilityId, &identifier),
-        Change::text(properties.accessibilityLabel, &title),
-        corner(properties.radiusBottomLeft, last),
-        corner(properties.radiusBottomRight, last),
-        corner(properties.radiusTopLeft, first),
-        corner(properties.radiusTopRight, first),
+        Change::text(properties.accessibility_id, &identifier),
+        Change::text(properties.accessibility_label, &title),
+        corner(properties.radius_bottom_left, last),
+        corner(properties.radius_bottom_right, last),
+        corner(properties.radius_top_left, first),
+        corner(properties.radius_top_right, first),
     ];
     let row_id = category_node(out, state, batch, source[0], &row_changes);
     let content = category_node(out, state, batch, source[1], &[]);
@@ -895,88 +897,88 @@ impl Builder<'_> {
     }
 
     fn switch(&mut self, key: &[u8], on: bool) -> i32 {
-        let p = self.properties;
+        let properties = self.properties;
         let identifier = [b"astral.switch.".as_slice(), key].concat();
         let track = self.node(b"view", 14);
-        self.flag(p.accessibilityHidden, true);
-        self.out.prop_string(p.accessibilityId, &identifier);
-        self.out.prop_string(p.align, b"stretch");
+        self.flag(properties.accessibility_hidden, true);
+        self.out.prop_string(properties.accessibility_id, &identifier);
+        self.out.prop_string(properties.align, b"stretch");
         if on {
-            self.long(p.background, SWITCH_ON);
+            self.long(properties.background, SWITCH_ON);
         } else {
-            self.out.prop_int(p.background, SWITCH_OFF);
+            self.out.prop_int(properties.background, SWITCH_OFF);
         }
-        self.out.prop_int(p.borderColor, SWITCH_BORDER);
-        self.out.prop_number(p.borderWidth, 1.0);
-        self.out.prop_string(p.direction, b"row");
-        self.out.prop_number(p.height, 28.0);
-        self.events(p.on, b"press");
-        self.out.prop_quad(p.padding, [4.0; 4]);
-        self.out.prop_string(p.pressFeedback, b"none");
-        self.out.prop_number(p.radius, 16.0);
-        self.out.prop_number(p.width, 56.0);
-        self.flag(p.exactHitArea, true);
+        self.out.prop_int(properties.border_color, SWITCH_BORDER);
+        self.out.prop_number(properties.border_width, 1.0);
+        self.out.prop_string(properties.direction, b"row");
+        self.out.prop_number(properties.height, 28.0);
+        self.events(properties.on, b"press");
+        self.out.prop_quad(properties.padding, [4.0; 4]);
+        self.out.prop_string(properties.press_feedback, b"none");
+        self.out.prop_number(properties.radius, 16.0);
+        self.out.prop_number(properties.width, 56.0);
+        self.flag(properties.exact_hit_area, true);
         let thumb = self.node(b"view", 8);
-        self.out.prop_string(p.align, b"center");
-        self.long(p.background, THUMB);
-        self.out.prop_string(p.direction, b"row");
-        self.out.prop_number(p.height, 20.0);
-        self.out.prop_string(p.justify, b"center");
-        self.out.prop_number(p.radius, 9999.0);
-        self.out.prop_number(p.translateX, if on { 28.0 } else { 0.0 });
-        self.out.prop_number(p.width, 20.0);
+        self.out.prop_string(properties.align, b"center");
+        self.long(properties.background, THUMB);
+        self.out.prop_string(properties.direction, b"row");
+        self.out.prop_number(properties.height, 20.0);
+        self.out.prop_string(properties.justify, b"center");
+        self.out.prop_number(properties.radius, 9999.0);
+        self.out.prop_number(properties.translate_x, if on { 28.0 } else { 0.0 });
+        self.out.prop_number(properties.width, 20.0);
         self.children(track, &[thumb]);
         track
     }
 
     fn slider(&mut self, row: &Row) -> i32 {
-        let p = self.properties;
+        let properties = self.properties;
         let steps = if row.steps > 0 { row.steps } else { 1 };
         let identifier = [format!("astral.slider.{steps}.").as_bytes(), &row.key].concat();
         let wrap = self.node(b"view", 3);
-        self.out.prop_string(p.align, b"stretch");
-        self.out.prop_quad(p.padding, [16.0, 0.0, 16.0, 12.0]);
-        self.out.prop_string(p.width, b"fill");
+        self.out.prop_string(properties.align, b"stretch");
+        self.out.prop_quad(properties.padding, [16.0, 0.0, 16.0, 12.0]);
+        self.out.prop_string(properties.width, b"fill");
         let slider = self.node(b"slider", 9);
-        self.out.prop_string(p.accessibilityId, &identifier);
-        self.out.prop_string(p.accessibilityLabel, &row.title);
-        self.out.prop_number(p.height, 40.0);
-        self.out.prop_string(p.width, b"fill");
-        self.out.prop_int(p.value, row.position);
-        self.out.prop_int(p.steps, steps);
-        self.long(p.minTrackTint, SLIDER_ACTIVE);
-        self.long(p.maxTrackTint, SLIDER_INACTIVE);
-        self.events(p.on, b"change");
+        self.out.prop_string(properties.accessibility_id, &identifier);
+        self.out.prop_string(properties.accessibility_label, &row.title);
+        self.out.prop_number(properties.height, 40.0);
+        self.out.prop_string(properties.width, b"fill");
+        self.out.prop_int(properties.value, row.position);
+        self.out.prop_int(properties.steps, steps);
+        self.long(properties.min_track_tint, SLIDER_ACTIVE);
+        self.long(properties.max_track_tint, SLIDER_INACTIVE);
+        self.events(properties.on, b"change");
         self.children(wrap, &[slider]);
         wrap
     }
 
     fn spec_row(&mut self, row: &Row, first: bool, last: bool) -> i32 {
-        let p = self.properties;
+        let properties = self.properties;
         let identifier = [b"astral.row.".as_slice(), &row.key].concat();
         let mut row_changes = vec![
-            Change::text(p.accessibilityId, &identifier),
-            Change::text(p.accessibilityLabel, &row.title),
-            corner(p.radiusTopLeft, first),
-            corner(p.radiusTopRight, first),
-            corner(p.radiusBottomLeft, last),
-            corner(p.radiusBottomRight, last),
+            Change::text(properties.accessibility_id, &identifier),
+            Change::text(properties.accessibility_label, &row.title),
+            corner(properties.radius_top_left, first),
+            corner(properties.radius_top_right, first),
+            corner(properties.radius_bottom_left, last),
+            corner(properties.radius_bottom_right, last),
         ];
         if row.kind == ROW_INFO || row.kind == ROW_NUMBER {
-            row_changes.push(Change::drop(p.on));
+            row_changes.push(Change::drop(properties.on));
         }
         if row.kind == ROW_SWITCH {
-            row_changes.push(Change::drop(p.on));
-            row_changes.push(Change::text(p.role, b"switch"));
+            row_changes.push(Change::drop(properties.on));
+            row_changes.push(Change::text(properties.role, b"switch"));
         }
         let row_id = self.clone_role(Role::Row, &row_changes);
         let content = self.clone_role(Role::RowContent, &[]);
         let has_icon = row.icon.as_ref().is_none_or(|icon| !icon.is_empty());
         let icon_source = row.icon.clone().unwrap_or_else(|| b"res://ic_mana_sparkles".to_vec());
         let image_icon = icon_source.starts_with(b"data:");
-        let mut icon_changes = vec![Change::text(p.uri, &icon_source)];
+        let mut icon_changes = vec![Change::text(properties.uri, &icon_source)];
         if image_icon {
-            icon_changes.push(Change::drop(p.tint));
+            icon_changes.push(Change::drop(properties.tint));
         }
         let icon = if has_icon {
             self.clone_role(Role::RowIcon, &icon_changes)
@@ -987,32 +989,32 @@ impl Builder<'_> {
         let mut title = self.clone_role(
             Role::RowTitle,
             &[
-                Change::text(p.text, &row.title),
+                Change::text(properties.text, &row.title),
                 if has_subtitle {
-                    Change::drop(p.flex)
+                    Change::drop(properties.flex)
                 } else {
-                    Change::number(p.flex, 1.0)
+                    Change::number(properties.flex, 1.0)
                 },
             ],
         );
         if has_subtitle {
             let column = self.node(b"view", 4);
-            self.out.prop_string(p.direction, b"column");
-            self.out.prop_number(p.flex, 1.0);
-            self.out.prop_number(p.gap, 2.0);
-            self.out.prop_quad(p.margin, [0.0, 0.0, 8.0, 0.0]);
+            self.out.prop_string(properties.direction, b"column");
+            self.out.prop_number(properties.flex, 1.0);
+            self.out.prop_number(properties.gap, 2.0);
+            self.out.prop_quad(properties.margin, [0.0, 0.0, 8.0, 0.0]);
             let subtitle = self.clone_role(
                 Role::RowTitle,
                 &[
-                    Change::text(p.text, &row.subtitle),
-                    Change::number(p.fontSize, 12.0),
-                    Change::number(p.lineHeight, 16.0),
-                    Change::number(p.opacity, 0.62),
+                    Change::text(properties.text, &row.subtitle),
+                    Change::number(properties.font_size, 12.0),
+                    Change::number(properties.line_height, 16.0),
+                    Change::number(properties.opacity, 0.62),
                     Change {
-                        property: p.maxLines,
+                        property: properties.max_lines,
                         edit: Edit::Integer(3),
                     },
-                    Change::drop(p.flex),
+                    Change::drop(properties.flex),
                 ],
             );
             self.children(column, &[title, subtitle]);
@@ -1023,10 +1025,10 @@ impl Builder<'_> {
             children.push(self.clone_role(
                 Role::RowTitle,
                 &[
-                    Change::text(p.text, &row.detail),
-                    Change::number(p.fontSize, 14.0),
-                    Change::number(p.opacity, 0.62),
-                    Change::drop(p.flex),
+                    Change::text(properties.text, &row.detail),
+                    Change::number(properties.font_size, 14.0),
+                    Change::number(properties.opacity, 0.62),
+                    Change::drop(properties.flex),
                 ],
             ));
         }
@@ -1039,14 +1041,17 @@ impl Builder<'_> {
             }
             ROW_SELECTED => {
                 let trailing = self.clone_role(Role::RowTrailing, &[]);
-                let check = self.clone_role(Role::RowChevron, &[Change::text(p.uri, b"res://ic_mana_checkmark_large_bold")]);
+                let check = self.clone_role(
+                    Role::RowChevron,
+                    &[Change::text(properties.uri, b"res://ic_mana_checkmark_large_bold")],
+                );
                 self.children(trailing, &[check]);
                 children.push(trailing);
             }
             ROW_SWITCH | ROW_SWITCH_LINK => {
                 let trailing = self.node(b"view", 2);
-                self.out.prop_string(p.align, b"stretch");
-                self.out.prop_quad(p.margin, [18.0, 0.0, 0.0, 0.0]);
+                self.out.prop_string(properties.align, b"stretch");
+                self.out.prop_quad(properties.margin, [18.0, 0.0, 0.0, 0.0]);
                 let switch = self.switch(&row.key, row.on);
                 self.children(trailing, &[switch]);
                 children.push(trailing);
@@ -1056,8 +1061,8 @@ impl Builder<'_> {
         self.children(content, &children);
         if row.kind == ROW_NUMBER {
             let column = self.node(b"view", 2);
-            self.out.prop_string(p.direction, b"column");
-            self.out.prop_number(p.flex, 1.0);
+            self.out.prop_string(properties.direction, b"column");
+            self.out.prop_number(properties.flex, 1.0);
             let slider = self.slider(row);
             self.children(column, &[content, slider]);
             self.children(row_id, &[column]);
@@ -1075,124 +1080,125 @@ impl Builder<'_> {
             lines,
             grow,
         } = style;
-        let p = self.properties;
+        let properties = self.properties;
         let node = self.node(b"text", 6 + u16::from(lines > 0) + u16::from(grow));
-        self.out.prop_string(p.text, text);
-        self.long(p.color, color);
-        self.out.prop_number(p.fontSize, size);
-        self.out.prop_int(p.fontWeight, weight);
-        self.out.prop_number(p.lineHeight, size + 4.0);
-        self.out.prop_number(p.opacity, opacity);
+        self.out.prop_string(properties.text, text);
+        self.long(properties.color, color);
+        self.out.prop_number(properties.font_size, size);
+        self.out.prop_int(properties.font_weight, weight);
+        self.out.prop_number(properties.line_height, size + 4.0);
+        self.out.prop_number(properties.opacity, opacity);
         if lines > 0 {
-            self.out.prop_int(p.maxLines, lines);
+            self.out.prop_int(properties.max_lines, lines);
         }
         if grow {
-            self.out.prop_number(p.flex, 1.0);
+            self.out.prop_number(properties.flex, 1.0);
         }
         node
     }
 
     fn text(&mut self, text: &[u8], style: Style) -> i32 {
-        let color = self.template_color(Role::RowTitle, self.properties.color, 0xFFFBFBFB);
+        let color = self.template_color(Role::RowTitle, self.properties.color, 0xFFFB_FBFB);
         self.colored_text(text, style, color)
     }
 
     fn icon(&mut self, source: &[u8], size: f64) -> i32 {
-        let p = self.properties;
+        let properties = self.properties;
         self.clone_role(
             Role::RowIcon,
             &[
-                Change::text(p.uri, source),
-                Change::number(p.width, size),
-                Change::number(p.height, size),
-                Change::drop(p.margin),
+                Change::text(properties.uri, source),
+                Change::number(properties.width, size),
+                Change::number(properties.height, size),
+                Change::drop(properties.margin),
             ],
         )
     }
 
     fn round_button(&mut self, key: &[u8], icon: &[u8], size: f64) -> i32 {
-        let p = self.properties;
+        let properties = self.properties;
         let identifier = [b"astral.row.".as_slice(), key].concat();
         let button = self.node(b"view", 10);
-        self.out.prop_string(p.accessibilityId, &identifier);
-        self.out.prop_string(p.align, b"center");
-        self.out.prop_string(p.justify, b"center");
-        self.long(p.background, TRANSLUCENT_FILL);
-        self.out.prop_number(p.width, size);
-        self.out.prop_number(p.height, size);
-        self.out.prop_number(p.radius, size / 2.0);
-        self.events(p.on, b"press");
-        self.out.prop_string(p.role, b"button");
-        self.out.prop_number(p.shrink, 0.0);
+        self.out.prop_string(properties.accessibility_id, &identifier);
+        self.out.prop_string(properties.align, b"center");
+        self.out.prop_string(properties.justify, b"center");
+        self.long(properties.background, TRANSLUCENT_FILL);
+        self.out.prop_number(properties.width, size);
+        self.out.prop_number(properties.height, size);
+        self.out.prop_number(properties.radius, size / 2.0);
+        self.events(properties.on, b"press");
+        self.out.prop_string(properties.role, b"button");
+        self.out.prop_number(properties.shrink, 0.0);
         let glyph = self.icon(icon, size * 0.55);
         self.children(button, &[glyph]);
         button
     }
 
     fn chip(&mut self, chip: &Chip) -> i32 {
-        let p = self.properties;
+        let properties = self.properties;
         let identifier = [b"astral.row.".as_slice(), &chip.key].concat();
         let node = self.node(b"view", 9);
-        self.out.prop_string(p.accessibilityId, &identifier);
-        self.out.prop_string(p.align, b"center");
-        self.out.prop_string(p.direction, b"row");
-        self.long(p.background, if chip.selected { SWITCH_ON } else { TRANSLUCENT_FILL });
-        self.out.prop_quad(p.padding, [14.0, 7.0, 14.0, 7.0]);
-        self.out.prop_number(p.radius, 16.0);
-        self.events(p.on, b"press");
-        self.out.prop_string(p.role, b"button");
-        self.out.prop_number(p.shrink, 0.0);
+        self.out.prop_string(properties.accessibility_id, &identifier);
+        self.out.prop_string(properties.align, b"center");
+        self.out.prop_string(properties.direction, b"row");
+        self.long(properties.background, if chip.selected { SWITCH_ON } else { TRANSLUCENT_FILL });
+        self.out.prop_quad(properties.padding, [14.0, 7.0, 14.0, 7.0]);
+        self.out.prop_number(properties.radius, 16.0);
+        self.events(properties.on, b"press");
+        self.out.prop_string(properties.role, b"button");
+        self.out.prop_number(properties.shrink, 0.0);
         let label = self.text(&chip.title, style(14.0, 600, 1.0, 1, false));
         self.children(node, &[label]);
         node
     }
 
     fn toolbar(&mut self, toolbar: &Toolbar) -> i32 {
-        let p = self.properties;
+        let properties = self.properties;
         let mut children: Vec<i32> = toolbar.chips.iter().take(8).map(|chip| self.chip(chip)).collect();
         let spacer = self.node(b"view", 1);
-        self.out.prop_number(p.flex, 1.0);
+        self.out.prop_number(properties.flex, 1.0);
         children.push(spacer);
         if let Some((key, icon)) = &toolbar.button {
             children.push(self.round_button(key, icon, 36.0));
         }
         let row = self.node(b"view", 5);
-        self.out.prop_string(p.direction, b"row");
-        self.out.prop_string(p.align, b"center");
-        self.out.prop_number(p.gap, 8.0);
-        self.out.prop_string(p.width, b"fill");
-        self.out.prop_quad(p.margin, [0.0, 0.0, 0.0, 4.0]);
+        self.out.prop_string(properties.direction, b"row");
+        self.out.prop_string(properties.align, b"center");
+        self.out.prop_number(properties.gap, 8.0);
+        self.out.prop_string(properties.width, b"fill");
+        self.out.prop_quad(properties.margin, [0.0, 0.0, 0.0, 4.0]);
         self.children(row, &children);
         row
     }
 
     fn version_tag(&mut self, text: &[u8]) -> i32 {
-        let p = self.properties;
+        let properties = self.properties;
         let tag = self.node(b"view", 4);
-        self.long(p.background, TRANSLUCENT_FILL);
-        self.out.prop_quad(p.padding, [6.0, 2.0, 6.0, 2.0]);
-        self.out.prop_number(p.radius, 6.0);
-        self.out.prop_number(p.shrink, 0.0);
+        self.long(properties.background, TRANSLUCENT_FILL);
+        self.out.prop_quad(properties.padding, [6.0, 2.0, 6.0, 2.0]);
+        self.out.prop_number(properties.radius, 6.0);
+        self.out.prop_number(properties.shrink, 0.0);
         let label = self.text(text, style(11.0, 600, 0.62, 1, false));
         self.children(tag, &[label]);
         tag
     }
 
     fn avatar(&mut self, source: &[u8], first: bool) -> i32 {
-        let p = self.properties;
+        let properties = self.properties;
         let avatar = self.node(b"image", 7);
-        self.out.prop_string(p.uri, source);
-        self.out.prop_number(p.width, 24.0);
-        self.out.prop_number(p.height, 24.0);
-        self.out.prop_number(p.radius, 12.0);
-        self.out.prop_string(p.scale, b"fill");
-        self.out.prop_quad(p.margin, [if first { 0.0 } else { -6.0 }, 0.0, 0.0, 0.0]);
-        self.out.prop_number(p.shrink, 0.0);
+        self.out.prop_string(properties.uri, source);
+        self.out.prop_number(properties.width, 24.0);
+        self.out.prop_number(properties.height, 24.0);
+        self.out.prop_number(properties.radius, 12.0);
+        self.out.prop_string(properties.scale, b"fill");
+        self.out
+            .prop_quad(properties.margin, [if first { 0.0 } else { -6.0 }, 0.0, 0.0, 0.0]);
+        self.out.prop_number(properties.shrink, 0.0);
         avatar
     }
 
     fn authors(&mut self, card: &Card) -> i32 {
-        let p = self.properties;
+        let properties = self.properties;
         let mut children = Vec::new();
         if !card.avatars.is_empty() {
             let avatars: Vec<i32> = card
@@ -1202,33 +1208,33 @@ impl Builder<'_> {
                 .map(|(index, avatar)| self.avatar(avatar, index == 0))
                 .collect();
             let pile = self.node(b"view", 3);
-            self.out.prop_string(p.direction, b"row");
-            self.out.prop_string(p.align, b"center");
-            self.out.prop_number(p.shrink, 0.0);
+            self.out.prop_string(properties.direction, b"row");
+            self.out.prop_string(properties.align, b"center");
+            self.out.prop_number(properties.shrink, 0.0);
             self.children(pile, &avatars);
             children.push(pile);
         }
         children.push(self.text(&card.authors, style(12.0, 500, 0.62, 1, false)));
         let row = self.node(b"view", 3);
-        self.out.prop_string(p.direction, b"row");
-        self.out.prop_string(p.align, b"center");
-        self.out.prop_number(p.gap, 6.0);
+        self.out.prop_string(properties.direction, b"row");
+        self.out.prop_string(properties.align, b"center");
+        self.out.prop_number(properties.gap, 6.0);
         self.children(row, &children);
         row
     }
 
     fn card(&mut self, card: &Card) -> i32 {
-        let p = self.properties;
+        let properties = self.properties;
         let settings_key = [b"settings.".as_slice(), &card.key].concat();
         let overflow_key = [b"more.".as_slice(), &card.key].concat();
         let tile = self.node(b"view", 7);
-        self.out.prop_string(p.align, b"center");
-        self.out.prop_string(p.justify, b"center");
-        self.long(p.background, TRANSLUCENT_FILL);
-        self.out.prop_number(p.width, 40.0);
-        self.out.prop_number(p.height, 40.0);
-        self.out.prop_number(p.radius, 12.0);
-        self.out.prop_number(p.shrink, 0.0);
+        self.out.prop_string(properties.align, b"center");
+        self.out.prop_string(properties.justify, b"center");
+        self.long(properties.background, TRANSLUCENT_FILL);
+        self.out.prop_number(properties.width, 40.0);
+        self.out.prop_number(properties.height, 40.0);
+        self.out.prop_number(properties.radius, 12.0);
+        self.out.prop_number(properties.shrink, 0.0);
         let glyph = self.icon(card.icon.as_deref().unwrap_or(b"res://astral_plug"), 22.0);
         self.children(tile, &[glyph]);
         let mut heading_children = vec![self.text(&card.title, style(16.0, 600, 1.0, 1, false))];
@@ -1236,10 +1242,10 @@ impl Builder<'_> {
             heading_children.push(self.authors(card));
         }
         let heading = self.node(b"view", 4);
-        self.out.prop_string(p.direction, b"column");
-        self.out.prop_number(p.flex, 1.0);
-        self.out.prop_number(p.gap, 2.0);
-        self.out.prop_number(p.minWidth, 0.0);
+        self.out.prop_string(properties.direction, b"column");
+        self.out.prop_number(properties.flex, 1.0);
+        self.out.prop_number(properties.gap, 2.0);
+        self.out.prop_number(properties.min_width, 0.0);
         self.children(heading, &heading_children);
         let mut actions_children = Vec::new();
         if card.has_settings {
@@ -1248,21 +1254,21 @@ impl Builder<'_> {
         actions_children.push(self.round_button(&overflow_key, b"res://ic_mana_more_horizontal", 32.0));
         actions_children.push(self.switch(&card.key, card.on));
         let actions = self.node(b"view", 4);
-        self.out.prop_string(p.direction, b"row");
-        self.out.prop_string(p.align, b"center");
-        self.out.prop_number(p.gap, 8.0);
-        self.out.prop_number(p.shrink, 0.0);
+        self.out.prop_string(properties.direction, b"row");
+        self.out.prop_string(properties.align, b"center");
+        self.out.prop_number(properties.gap, 8.0);
+        self.out.prop_number(properties.shrink, 0.0);
         self.children(actions, &actions_children);
         let top = self.node(b"view", 4);
-        self.out.prop_string(p.direction, b"row");
-        self.out.prop_string(p.align, b"start");
-        self.out.prop_number(p.gap, 12.0);
-        self.out.prop_string(p.width, b"fill");
+        self.out.prop_string(properties.direction, b"row");
+        self.out.prop_string(properties.align, b"start");
+        self.out.prop_number(properties.gap, 12.0);
+        self.out.prop_string(properties.width, b"fill");
         self.children(top, &[tile, heading, actions]);
         let mut bottom_children = Vec::new();
         if card.description.is_empty() {
             let spacer = self.node(b"view", 1);
-            self.out.prop_number(p.flex, 1.0);
+            self.out.prop_number(properties.flex, 1.0);
             bottom_children.push(spacer);
         } else {
             bottom_children.push(self.text(&card.description, style(14.0, 400, 1.0, 0, true)));
@@ -1271,31 +1277,31 @@ impl Builder<'_> {
             bottom_children.push(self.version_tag(&card.version));
         }
         let bottom = self.node(b"view", 3);
-        self.out.prop_string(p.direction, b"row");
-        self.out.prop_string(p.align, b"end");
-        self.out.prop_number(p.gap, 12.0);
+        self.out.prop_string(properties.direction, b"row");
+        self.out.prop_string(properties.align, b"end");
+        self.out.prop_number(properties.gap, 12.0);
         self.children(bottom, &bottom_children);
         let mut card_children = vec![top, bottom];
         if card.failed && !card.error.is_empty() {
             card_children.push(self.colored_text(&card.error, style(12.0, 500, 1.0, 3, false), CRITICAL_TEXT));
         }
-        let background = self.template_color(Role::Row, p.background, 0x1497979F);
+        let background = self.template_color(Role::Row, properties.background, 0x1497_979F);
         let node = self.node(b"view", 9);
-        self.out.prop_string(p.direction, b"column");
-        self.out.prop_number(p.gap, 6.0);
-        self.out.prop_quad(p.padding, [16.0; 4]);
-        self.long(p.background, background);
-        self.out.prop_number(p.radius, 16.0);
-        self.long(p.borderColor, SUBTLE_BORDER);
-        self.out.prop_number(p.borderWidth, 1.0);
-        self.out.prop_number(p.opacity, if card.failed { 0.5 } else { 1.0 });
-        self.out.prop_string(p.width, b"fill");
+        self.out.prop_string(properties.direction, b"column");
+        self.out.prop_number(properties.gap, 6.0);
+        self.out.prop_quad(properties.padding, [16.0; 4]);
+        self.long(properties.background, background);
+        self.out.prop_number(properties.radius, 16.0);
+        self.long(properties.border_color, SUBTLE_BORDER);
+        self.out.prop_number(properties.border_width, 1.0);
+        self.out.prop_number(properties.opacity, if card.failed { 0.5 } else { 1.0 });
+        self.out.prop_string(properties.width, b"fill");
         self.children(node, &card_children);
         node
     }
 
     fn card_list(&mut self, page: &PageSpec) -> i32 {
-        let p = self.properties;
+        let properties = self.properties;
         let mut children = Vec::new();
         if let Some(toolbar) = &page.toolbar {
             children.push(self.toolbar(toolbar));
@@ -1304,16 +1310,16 @@ impl Builder<'_> {
             children.push(self.card(card));
         }
         let list = self.node(b"view", 4);
-        self.out.prop_string(p.direction, b"column");
-        self.out.prop_number(p.gap, 12.0);
-        self.out.prop_string(p.width, b"fill");
-        self.out.prop_quad(p.margin, [0.0, 4.0, 0.0, 8.0]);
+        self.out.prop_string(properties.direction, b"column");
+        self.out.prop_number(properties.gap, 12.0);
+        self.out.prop_string(properties.width, b"fill");
+        self.out.prop_quad(properties.margin, [0.0, 4.0, 0.0, 8.0]);
         self.children(list, &children);
         list
     }
 
     fn sections(&mut self, page: &PageSpec) -> Vec<i32> {
-        let p = self.properties;
+        let properties = self.properties;
         let mut sections = Vec::new();
         if page.toolbar.is_some() || !page.cards.is_empty() {
             sections.push(self.card_list(page));
@@ -1323,7 +1329,7 @@ impl Builder<'_> {
                 break;
             }
             let group = self.clone_role(Role::Group, &[]);
-            let header = self.clone_role(Role::GroupHeader, &[Change::text(p.text, &section.title)]);
+            let header = self.clone_role(Role::GroupHeader, &[Change::text(properties.text, &section.title)]);
             let card = self.clone_role(Role::Card, &[]);
             let mut card_children = Vec::new();
             for (index, row) in section.rows.iter().enumerate() {
@@ -1382,7 +1388,7 @@ pub unsafe extern "C" fn astral_page_push(spec: *const AstralPageSpec, buffer: *
         {
             return 0;
         }
-        let p = properties::current();
+        let current = properties::current();
         let mut new_page = Page {
             first_id: FIRST_PAGE_ID + state.pages.len() as i32 * PAGE_ID_STRIDE,
             ..Page::default()
@@ -1391,18 +1397,18 @@ pub unsafe extern "C" fn astral_page_push(spec: *const AstralPageSpec, buffer: *
             out: Out::batch(),
             page: &mut new_page,
             templates: &state.templates,
-            properties: p,
+            properties: current,
         };
         let root = builder.clone_role(
             Role::Root,
             &[
-                Change::drop(p.presentation),
+                Change::drop(current.presentation),
                 Change {
-                    property: p.fullScreenBack,
+                    property: current.full_screen_back,
                     edit: Edit::Flag(true),
                 },
                 Change {
-                    property: p.uikitPush,
+                    property: current.uikit_push,
                     edit: Edit::Flag(true),
                 },
             ],
@@ -1425,10 +1431,10 @@ pub unsafe extern "C" fn astral_page_push(spec: *const AstralPageSpec, buffer: *
         } else {
             0
         };
-        let back = builder.clone_role(Role::Back, &[Change::text(p.accessibilityId, b"astral.back")]);
+        let back = builder.clone_role(Role::Back, &[Change::text(current.accessibility_id, b"astral.back")]);
         let back_stack = builder.clone_role(Role::BackStack, &[]);
         let back_stack_inner = builder.clone_role(Role::BackStackInner, &[]);
-        let back_icon = builder.clone_role(Role::BackIcon, &[Change::text(p.uri, b"res://ic_mana_arrow_large_left")]);
+        let back_icon = builder.clone_role(Role::BackIcon, &[Change::text(current.uri, b"res://ic_mana_arrow_large_left")]);
         let title_wrap = builder.clone_role(Role::TitleWrap, &[]);
         let title_inner = if state.title_has_inner {
             builder.clone_role(Role::TitleInner, &[])
@@ -1438,8 +1444,8 @@ pub unsafe extern "C" fn astral_page_push(spec: *const AstralPageSpec, buffer: *
         let title = builder.clone_role(
             Role::Title,
             &[
-                Change::text(p.accessibilityId, b"settings-astral-title"),
-                Change::text(p.text, &page.title),
+                Change::text(current.accessibility_id, b"settings-astral-title"),
+                Change::text(current.text, &page.title),
             ],
         );
         builder.children(root, &[phone]);
@@ -1484,7 +1490,7 @@ pub unsafe extern "C" fn astral_page_push(spec: *const AstralPageSpec, buffer: *
             live.children.push(root);
         }
         state.pages.push(new_page);
-        out.finish(buffer) as c_int
+        c_int::from(out.finish(buffer))
     })
     .unwrap_or(0)
 }
@@ -1527,7 +1533,7 @@ pub unsafe extern "C" fn astral_page_refresh(spec: *const AstralPageSpec, buffer
         }
         current.content_start = content_start;
         current.content_end = current.ids.len();
-        out.finish(buffer) as c_int
+        c_int::from(out.finish(buffer))
     })
     .unwrap_or(0)
 }
@@ -1554,7 +1560,7 @@ pub unsafe extern "C" fn astral_page_pop(buffer: *mut AstralWireBuffer) -> c_int
             navigator.children = page.previous_children.clone();
             navigator.index = page.previous_index;
         }
-        out.finish(buffer) as c_int
+        c_int::from(out.finish(buffer))
     })
     .unwrap_or(0)
 }
@@ -1564,8 +1570,8 @@ pub extern "C" fn astral_page_depth() -> c_int {
     with_state(|state| state.pages.len() as c_int).unwrap_or(0)
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireRewritePages(
+#[unsafe(export_name = "wireRewritePages")]
+pub unsafe extern "C" fn wire_rewrite_pages(
     bytes: *const u8,
     pointer: *const Span,
     count: usize,
@@ -1581,7 +1587,7 @@ pub unsafe extern "C" fn wireRewritePages(
         spans: spans_of(pointer, count),
     };
     let original = unsafe { core::slice::from_raw_parts(bytes, length) };
-    let accessibility = properties::current().accessibilityId;
+    let accessibility = properties::current().accessibility_id;
     with_state(|state| {
         state.batch_length = length;
         track_navigators(state, &batch, out, changed, original);
@@ -1604,7 +1610,7 @@ pub unsafe extern "C" fn wireRewritePages(
         }
         if state.category_active {
             let list = state.category_list;
-            if !unsafe { wireChildList(bytes, batch.spans.as_ptr(), batch.spans.len(), list) }.is_null() {
+            if !unsafe { wire_child_list(bytes, batch.spans.as_ptr(), batch.spans.len(), list) }.is_null() {
                 if *changed == 0 {
                     out.put(original);
                 }

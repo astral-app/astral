@@ -1,8 +1,8 @@
 use core::ffi::c_int;
 
 use astral_core::wire::abi::{AstralMentionContext, AstralMentionDecoration};
-use astral_core::wire::format::{MAX_SPANS, Span, wireScan};
-use astral_core::wire::mentions::{astral_wire_set_mention_decorator, astral_wire_set_message_text_colorizer, wireDecorateMentions};
+use astral_core::wire::format::{MAX_SPANS, Span, wire_scan};
+use astral_core::wire::mentions::{astral_wire_set_mention_decorator, astral_wire_set_message_text_colorizer, wire_decorate_mentions};
 use astral_core::wire::out::Out;
 use astral_core::wire::properties::current;
 
@@ -16,12 +16,12 @@ unsafe extern "C" fn decorate(context: *const AstralMentionContext, decoration: 
     for (index, byte) in image.iter().enumerate() {
         decoration.image[index] = *byte as core::ffi::c_char;
     }
-    decoration.color = 0xFFABCDEF;
+    decoration.color = 0xFFAB_CDEF;
     1
 }
 
 unsafe extern "C" fn tint(_: u64, _: u64, color: *mut u32) -> c_int {
-    unsafe { *color = 0x80FF0000 };
+    unsafe { *color = 0x80FF_0000 };
     1
 }
 
@@ -32,7 +32,7 @@ fn text_span(out: &mut Out, text: &[u8], chip: bool) {
     out.prop_string(properties.text, text);
     out.put16(properties.color);
     out.put8(4);
-    out.put(&0xFF112233i64.to_le_bytes());
+    out.put(&0xFF11_2233_i64.to_le_bytes());
     if chip {
         out.prop_int(properties.bg, 1);
         out.prop_string(properties.link, b"user");
@@ -47,7 +47,7 @@ fn message(spans: impl FnOnce(&mut Out) -> u32) -> Vec<u8> {
     out.put16(4);
     out.put(b"view");
     out.put16(1);
-    out.prop_string(properties.accessibilityId, b"message.content:100000000000000005");
+    out.prop_string(properties.accessibility_id, b"message.content:100000000000000005");
     out.put8(1);
     out.put(&11i32.to_le_bytes());
     out.put16(4);
@@ -71,10 +71,10 @@ fn message(spans: impl FnOnce(&mut Out) -> u32) -> Vec<u8> {
 fn decorated(bytes: &[u8]) -> Option<Vec<u8>> {
     let mut spans = vec![Span::default(); MAX_SPANS];
     let mut count = 0;
-    assert_eq!(unsafe { wireScan(bytes.as_ptr(), bytes.len(), spans.as_mut_ptr(), &mut count) }, 0);
+    assert_eq!(unsafe { wire_scan(bytes.as_ptr(), bytes.len(), spans.as_mut_ptr(), &mut count) }, 0);
     let mut out = Out::default();
     let mut changed = 0;
-    unsafe { wireDecorateMentions(bytes.as_ptr(), spans.as_ptr(), count, &mut out, &mut changed, bytes.len()) };
+    unsafe { wire_decorate_mentions(bytes.as_ptr(), spans.as_ptr(), count, &mut out, &mut changed, bytes.len()) };
     let result = (changed != 0).then(|| unsafe { core::slice::from_raw_parts(out.bytes, out.length) }.to_vec());
     out.discard();
     result

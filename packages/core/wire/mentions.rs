@@ -5,7 +5,7 @@ use std::sync::Mutex;
 
 use super::abi::{AstralMentionContext, AstralMentionDecoration, Callback, current_channel, prefixed};
 use super::cursor::Cursor;
-use super::format::{Span, batch_of, child, find_string, property_cursor, spans_of, type_is, wireCreation, wireParentOf};
+use super::format::{Span, batch_of, child, find_string, property_cursor, spans_of, type_is, wire_creation, wire_parent_of};
 use super::out::{AstralWireBuffer, Out};
 use super::properties::{self, AstralWireProperties};
 
@@ -112,7 +112,7 @@ fn blended(base: u32, tint: u32) -> u32 {
     if amount == 0xFF {
         return tint;
     }
-    (0..=16).step_by(8).fold(base & 0xFF000000, |result, shift| {
+    (0..=16).step_by(8).fold(base & 0xFF00_0000, |result, shift| {
         let from = (base >> shift) & 0xFF;
         let to = (tint >> shift) & 0xFF;
         result | ((from * (255 - amount) + to * amount + 127) / 255) << shift
@@ -178,7 +178,7 @@ fn chip_uri(image: &[u8], color: u32) -> Vec<u8> {
         return image.to_vec();
     };
     match text.find(CHIP_TINT) {
-        Some(at) if color != 0 => format!("{}_{:06X}_{}", &text[..at], color & 0xFFFFFF, &text[at + CHIP_TINT.len()..]).into_bytes(),
+        Some(at) if color != 0 => format!("{}_{:06X}_{}", &text[..at], color & 0x00FF_FFFF, &text[at + CHIP_TINT.len()..]).into_bytes(),
         _ => image.to_vec(),
     }
 }
@@ -197,8 +197,8 @@ fn put_avatar_span(
         }
         [
             properties.bg,
-            properties.bgRadius,
-            properties.bgFitText,
+            properties.bg_radius,
+            properties.bg_fit_text,
             properties.link,
             properties.color,
         ]
@@ -281,10 +281,10 @@ fn changes_for(items: &[Item], decorations: &[AstralMentionDecoration], text_col
         if chip_color == 0 {
             continue;
         }
-        let background = (chip_color & 0x00FFFFFF) | 0x26000000;
+        let background = (chip_color & 0x00FF_FFFF) | 0x2600_0000;
         for part in index.saturating_sub(1)..=(index + 1).min(items.len() - 1) {
             if items[part].chip_part {
-                changes[part].color = chip_color | 0xFF000000;
+                changes[part].color = chip_color | 0xFF00_0000;
                 changes[part].background = background;
             }
         }
@@ -344,12 +344,12 @@ fn decorate_text(bytes: &[u8], span: &Span, message: u64, out: &mut Out, unresol
 }
 
 fn content_message(bytes: *const u8, spans: &[Span], id: i32) -> Option<u64> {
-    let parent = unsafe { wireParentOf(bytes, spans.as_ptr(), spans.len(), id) };
+    let parent = unsafe { wire_parent_of(bytes, spans.as_ptr(), spans.len(), id) };
     if parent == 0 {
         return None;
     }
-    let creation = unsafe { wireCreation(spans.as_ptr(), spans.len(), parent).as_ref() }?;
-    let identifier = find_string(batch_of(bytes, creation), creation, properties::current().accessibilityId)?;
+    let creation = unsafe { wire_creation(spans.as_ptr(), spans.len(), parent).as_ref() }?;
+    let identifier = find_string(batch_of(bytes, creation), creation, properties::current().accessibility_id)?;
     prefixed(identifier, c"message.content:")
 }
 
@@ -415,11 +415,11 @@ pub unsafe extern "C" fn astral_wire_retry_mentions(buffer: *mut AstralWireBuffe
         out.discard();
         return 0;
     }
-    out.finish(buffer) as c_int
+    c_int::from(out.finish(buffer))
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireDecorateMentions(
+#[unsafe(export_name = "wireDecorateMentions")]
+pub unsafe extern "C" fn wire_decorate_mentions(
     bytes: *const u8,
     pointer: *const Span,
     count: usize,

@@ -15,7 +15,7 @@ const SURFACE_BACKGROUNDS: c_int = 0;
 const SURFACE_TEXT: c_int = 1;
 const SURFACE_ACCENTS: c_int = 2;
 const TRACKED_LIMIT: usize = 24576;
-const FIRST_ASTRAL_ID: i32 = 0x7a000000;
+const FIRST_ASTRAL_ID: i32 = 0x7a00_0000;
 const DEFAULT_SATURATION: f64 = 0.45;
 const DEFAULT_NEUTRAL: f64 = 0.3;
 const MAX_SCALED_VALUE: f64 = 9000.0;
@@ -85,8 +85,8 @@ pub unsafe extern "C" fn astral_wire_set_background_gradient(colors: *const u32,
     theme(|theme| theme.background_stops = stops);
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireBackgroundStops(colors: *mut u32, capacity: usize) -> usize {
+#[unsafe(export_name = "wireBackgroundStops")]
+pub unsafe extern "C" fn wire_background_stops(colors: *mut u32, capacity: usize) -> usize {
     theme(|theme| {
         let count = theme.background_stops.len().min(capacity);
         if count > 0 && !colors.is_null() {
@@ -308,16 +308,16 @@ fn apply(bytes: &mut [u8], writes: &[Write]) {
 fn radius_property(properties: &AstralWireProperties, property: u16) -> bool {
     [
         properties.radius,
-        properties.radiusBottomLeft,
-        properties.radiusBottomRight,
-        properties.radiusTopLeft,
-        properties.radiusTopRight,
+        properties.radius_bottom_left,
+        properties.radius_bottom_right,
+        properties.radius_top_left,
+        properties.radius_top_right,
     ]
     .contains(&property)
 }
 
 fn font_property(properties: &AstralWireProperties, property: u16) -> bool {
-    property == properties.fontSize || property == properties.lineHeight
+    property == properties.font_size || property == properties.line_height
 }
 
 fn scale_for(theme: &Theme, properties: &AstralWireProperties, property: u16) -> Option<f64> {
@@ -334,11 +334,11 @@ fn color_property(properties: &AstralWireProperties, property: u16) -> bool {
     [
         properties.background,
         properties.color,
-        properties.borderColor,
-        properties.activeBackground,
-        properties.activeBorderColor,
-        properties.focusBorderColor,
-        properties.placeholderColor,
+        properties.border_color,
+        properties.active_background,
+        properties.active_border_color,
+        properties.focus_border_color,
+        properties.placeholder_color,
         properties.tint,
     ]
     .contains(&property)
@@ -382,7 +382,7 @@ pub fn patch_colors(bytes: &mut [u8], spans: &[Span]) -> bool {
                     }
                     continue;
                 }
-                if property == properties.backgroundGradient && tag == 8 {
+                if property == properties.background_gradient && tag == 8 {
                     let replace_all = !theme.background_stops.is_empty() && span.id > 0 && span.id < FIRST_ASTRAL_ID;
                     if replace_all || !theme.palette.is_empty() || any_tint(theme) {
                         colors.extend(gradient_writes(theme, bytes, at, cursor.offset(), replace_all, properties.colors));
@@ -410,8 +410,8 @@ pub fn patch_colors(bytes: &mut [u8], spans: &[Span]) -> bool {
     patched
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wirePatchColors(bytes: *mut u8, pointer: *const Span, count: usize) -> c_int {
+#[unsafe(export_name = "wirePatchColors")]
+pub unsafe extern "C" fn wire_patch_colors(bytes: *mut u8, pointer: *const Span, count: usize) -> c_int {
     let spans = spans_of(pointer, count);
     let Some(end) = spans.iter().map(|span| span.end).max() else {
         return 0;
@@ -431,7 +431,7 @@ fn tracked_property(properties: &AstralWireProperties, property: u16, tag: u8) -
     match tag {
         3 | 4 => color_property(properties, property),
         5 => radius_property(properties, property) || font_property(properties, property),
-        8 => property == properties.backgroundGradient,
+        8 => property == properties.background_gradient,
         _ => false,
     }
 }
@@ -440,25 +440,25 @@ fn removed_properties(properties: &AstralWireProperties) -> [u16; 16] {
     [
         properties.background,
         properties.color,
-        properties.borderColor,
-        properties.activeBackground,
-        properties.activeBorderColor,
-        properties.focusBorderColor,
-        properties.placeholderColor,
+        properties.border_color,
+        properties.active_background,
+        properties.active_border_color,
+        properties.focus_border_color,
+        properties.placeholder_color,
         properties.tint,
         properties.radius,
-        properties.radiusBottomLeft,
-        properties.radiusBottomRight,
-        properties.radiusTopLeft,
-        properties.radiusTopRight,
-        properties.fontSize,
-        properties.lineHeight,
-        properties.backgroundGradient,
+        properties.radius_bottom_left,
+        properties.radius_bottom_right,
+        properties.radius_top_left,
+        properties.radius_top_right,
+        properties.font_size,
+        properties.line_height,
+        properties.background_gradient,
     ]
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireTrackColors(bytes: *const u8, pointer: *const Span, count: usize) {
+#[unsafe(export_name = "wireTrackColors")]
+pub unsafe extern "C" fn wire_track_colors(bytes: *const u8, pointer: *const Span, count: usize) {
     let spans = spans_of(pointer, count);
     let properties = properties::current();
     with_tracked(|tracked| {
@@ -582,8 +582,8 @@ pub extern "C" fn astral_wire_forget_colors() {
     DROPPED.store(0, Ordering::Relaxed);
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn wireThemeActive() -> c_int {
+#[unsafe(export_name = "wireThemeActive")]
+pub extern "C" fn wire_theme_active() -> c_int {
     theme(|theme| {
         c_int::from(
             !theme.palette.is_empty()

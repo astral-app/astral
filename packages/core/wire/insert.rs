@@ -3,12 +3,12 @@ use std::collections::HashMap;
 use std::ffi::CString;
 use std::sync::Mutex;
 
-use super::abi::{AstralPatchTarget, Callback, current_channel, wireMessageAuthor};
-use super::children::{wireDiscordChildren, wireDiscordParent};
-use super::decorate::{TRACK_AVATAR_IMAGE, tracked_value, wireAllocateNode, wireWriteHostLayout};
-use super::format::{Span, batch_of, child, find_flag, find_string, spans_of, wireChildList, wireCreation, wireParentOf};
+use super::abi::{AstralPatchTarget, Callback, current_channel, wire_message_author};
+use super::children::{wire_discord_children, wire_discord_parent};
+use super::decorate::{TRACK_AVATAR_IMAGE, tracked_value, wire_allocate_node, wire_write_host_layout};
+use super::format::{Span, batch_of, child, find_flag, find_string, spans_of, wire_child_list, wire_creation, wire_parent_of};
 use super::out::{AstralWireBuffer, Out};
-use super::patch::{c_strings, message_of_identifier, read_identifier, wireMarkRefreshBusy};
+use super::patch::{c_strings, message_of_identifier, read_identifier, wire_mark_refresh_busy};
 use super::properties;
 
 pub const INSERT_TEXT: c_int = 1;
@@ -180,14 +180,14 @@ fn remember_children(target: &mut Target, children: impl Iterator<Item = i32>) {
 }
 
 fn list_children(bytes: *const u8, spans: &[Span], id: i32) -> Option<Vec<i32>> {
-    let list = unsafe { wireChildList(bytes, spans.as_ptr(), spans.len(), id).as_ref() }?;
+    let list = unsafe { wire_child_list(bytes, spans.as_ptr(), spans.len(), id).as_ref() }?;
     let data = batch_of(bytes, list);
     Some((0..list.child_count).map(|position| child(data, list, position)).collect())
 }
 
 fn known_children(id: i32) -> Vec<i32> {
     let mut known: *const i32 = core::ptr::null();
-    let count = unsafe { wireDiscordChildren(id, &mut known) };
+    let count = unsafe { wire_discord_children(id, &mut known) };
     if known.is_null() || count == 0 {
         Vec::new()
     } else {
@@ -238,9 +238,9 @@ fn put_node(out: &mut Out, id: i32, node: &AstralInsertNode) {
         out.prop_string(properties.uri, uri);
         out.prop_bool(properties.playing, true);
         out.prop_bool(properties.looping, true);
-        out.prop_bool(properties.keepAwake, false);
-        out.prop_bool(properties.startAfterScroll, false);
-        out.prop_number(properties.visibleFraction, 0.0);
+        out.prop_bool(properties.keep_awake, false);
+        out.prop_bool(properties.start_after_scroll, false);
+        out.prop_number(properties.visible_fraction, 0.0);
     }
     let has = |field: u32| node.fields & field != 0;
     if has(COLOR) {
@@ -262,7 +262,7 @@ fn put_node(out: &mut Out, id: i32, node: &AstralInsertNode) {
         out.prop_quad(properties.margin, node.margin);
     }
     if has(FONT_SIZE) {
-        out.prop_number(properties.fontSize, node.font_size);
+        out.prop_number(properties.font_size, node.font_size);
     }
     if has(WIDTH) {
         out.prop_number(properties.width, node.width);
@@ -272,7 +272,7 @@ fn put_node(out: &mut Out, id: i32, node: &AstralInsertNode) {
     }
     if has(BOLD) {
         out.prop_int(
-            properties.fontWeight,
+            properties.font_weight,
             if node.font_weight > 0.0 { node.font_weight as i32 } else { 600 },
         );
     }
@@ -298,7 +298,7 @@ fn put_node(out: &mut Out, id: i32, node: &AstralInsertNode) {
         out.prop_string(properties.align, text_of(&node.align));
     }
     if !tap.is_empty() {
-        out.prop_string(properties.accessibilityId, tap);
+        out.prop_string(properties.accessibility_id, tap);
         out.put16(properties.on);
         out.put8(7);
         out.put32(1);
@@ -329,8 +329,8 @@ fn remove_inserted(out: &mut Out, target: &mut Target) {
     target.top_level = 0;
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireInsertedChildren(parent: i32, children: *mut i32, capacity: u32, at_start: *mut c_int) -> u32 {
+#[unsafe(export_name = "wireInsertedChildren")]
+pub unsafe extern "C" fn wire_inserted_children(parent: i32, children: *mut i32, capacity: u32, at_start: *mut c_int) -> u32 {
     let Ok(published) = PUBLISHED.lock() else { return 0 };
     let Some((top, start)) = published.as_ref().and_then(|published| published.get(&parent)) else {
         return 0;
@@ -347,7 +347,7 @@ pub unsafe extern "C" fn wireInsertedChildren(parent: i32, children: *mut i32, c
 
 fn put_target_children(out: &mut Out, id: i32, target: &Target) {
     publish(id, target);
-    if unsafe { wireWriteHostLayout(out, id) } != 0 {
+    if unsafe { wire_write_host_layout(out, id) } != 0 {
         return;
     }
     let top = &target.inserted[..target.top_level];
@@ -360,7 +360,7 @@ fn put_target_children(out: &mut Out, id: i32, target: &Target) {
 }
 
 fn build_nodes(out: &mut Out, target: &mut Target, nodes: &[AstralInsertNode]) {
-    let ids: Vec<i32> = nodes.iter().map(|_| wireAllocateNode()).collect();
+    let ids: Vec<i32> = nodes.iter().map(|_| wire_allocate_node()).collect();
     for (id, node) in ids.iter().zip(nodes) {
         put_node(out, *id, node);
     }
@@ -415,7 +415,7 @@ fn evaluate(out: &mut Out, prefixes: &[Vec<u8>], id: i32, target: &mut Target, k
         kind: kind.as_ptr(),
         key: prefix_length(prefixes, &target.identifier),
         message_id: message,
-        author_id: if message != 0 { wireMessageAuthor(message) } else { target.user },
+        author_id: if message != 0 { wire_message_author(message) } else { target.user },
         channel_id: current_channel(),
         parent: if target.parent.is_empty() {
             core::ptr::null()
@@ -434,7 +434,7 @@ fn evaluate(out: &mut Out, prefixes: &[Vec<u8>], id: i32, target: &mut Target, k
     let mut at_start = 0;
     let count = unsafe { inserter(&context, nodes.as_mut_ptr(), INSERT_CAPACITY, &mut at_start) };
     if count < 0 {
-        wireMarkRefreshBusy();
+        wire_mark_refresh_busy();
         return false;
     }
     if count == 0 && target.inserted.is_empty() {
@@ -466,8 +466,8 @@ fn follow_path(bytes: *const u8, spans: &[Span], mut node: i32, steps: &[u8]) ->
             break;
         }
         node = if *step == b'^' {
-            let parent = unsafe { wireParentOf(bytes, spans.as_ptr(), spans.len(), node) };
-            if parent > 0 { parent } else { wireDiscordParent(node) }
+            let parent = unsafe { wire_parent_of(bytes, spans.as_ptr(), spans.len(), node) };
+            if parent > 0 { parent } else { wire_discord_parent(node) }
         } else {
             list_children(bytes, spans, node)
                 .and_then(|children| children.first().copied())
@@ -514,7 +514,7 @@ fn insert_at_paths(state: &mut State, bytes: *const u8, spans: &[Span], base: &m
             user: if base.user != 0 { base.user } else { batch_avatar_user(spans) },
             ..Target::default()
         };
-        if let Some(creation) = unsafe { wireCreation(spans.as_ptr(), spans.len(), resolved).as_ref() } {
+        if let Some(creation) = unsafe { wire_creation(spans.as_ptr(), spans.len(), resolved).as_ref() } {
             remember_state(&mut target, batch_of(bytes, creation), creation);
         }
         match list_children(bytes, spans, resolved) {
@@ -532,8 +532,8 @@ fn insert_at_paths(state: &mut State, bytes: *const u8, spans: &[Span], base: &m
 
 fn remember_state(target: &mut Target, data: &[u8], span: &Span) {
     let properties = properties::current();
-    target.checked = find_flag(data, span, properties.accessibilityChecked);
-    target.label = find_string(data, span, properties.accessibilityLabel)
+    target.checked = find_flag(data, span, properties.accessibility_checked);
+    target.label = find_string(data, span, properties.accessibility_label)
         .map(<[u8]>::to_vec)
         .unwrap_or_default();
 }
@@ -554,12 +554,12 @@ fn insert_at_image(state: &mut State, bytes: *const u8, spans: &[Span], span: &S
     if !image_selector(&state.prefixes, uri) {
         return;
     }
-    let parent = unsafe { wireParentOf(bytes, spans.as_ptr(), spans.len(), span.id) };
-    let parent = if parent > 0 { parent } else { wireDiscordParent(span.id) };
+    let parent = unsafe { wire_parent_of(bytes, spans.as_ptr(), spans.len(), span.id) };
+    let parent = if parent > 0 { parent } else { wire_discord_parent(span.id) };
     if parent <= 0 || state.targets.contains_key(&parent) || state.targets.len() >= TARGET_CAPACITY {
         return;
     }
-    let creation = unsafe { wireCreation(spans.as_ptr(), spans.len(), parent).as_ref() };
+    let creation = unsafe { wire_creation(spans.as_ptr(), spans.len(), parent).as_ref() };
     let parent_identifier = creation
         .and_then(|creation| read_identifier(batch_of(bytes, creation), creation))
         .map(|(identifier, _)| identifier.to_vec())
@@ -615,8 +615,8 @@ fn note_bases(state: &mut State, bytes: *const u8, spans: &[Span]) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireInsertNodes(
+#[unsafe(export_name = "wireInsertNodes")]
+pub unsafe extern "C" fn wire_insert_nodes(
     bytes: *const u8,
     pointer: *const Span,
     count: usize,
@@ -652,7 +652,7 @@ pub unsafe extern "C" fn wireInsertNodes(
                     }
                 }
                 3 => {
-                    let created = !unsafe { wireCreation(spans.as_ptr(), spans.len(), span.id) }.is_null();
+                    let created = !unsafe { wire_creation(spans.as_ptr(), spans.len(), span.id) }.is_null();
                     let Some(target) = state.targets.get_mut(&span.id).filter(|_| !created) else {
                         continue;
                     };
@@ -730,5 +730,5 @@ pub unsafe extern "C" fn astral_wire_refresh_node_inserts(buffer: *mut AstralWir
         out.discard();
         return 0;
     }
-    out.finish(buffer) as c_int
+    c_int::from(out.finish(buffer))
 }
