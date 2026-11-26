@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::OnceLock;
 
 pub fn root() -> Result<PathBuf, String> {
     let mut directory = std::env::current_dir().map_err(|error| error.to_string())?;
@@ -44,6 +45,29 @@ pub fn strings<S: AsRef<str>>(arguments: &[S]) -> Vec<String> {
         .iter()
         .map(|argument| argument.as_ref().to_owned())
         .collect()
+}
+
+const BLAZE_SUBCOMMANDS: [&str; 3] = ["check", "run", "test"];
+
+fn blaze_opt_in() -> bool {
+    static AVAILABLE: OnceLock<bool> = OnceLock::new();
+    *AVAILABLE.get_or_init(|| {
+        std::env::var_os("ASTRAL_BLAZE").is_some()
+            && Command::new("blaze")
+                .arg("--version")
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .map(|status| status.success())
+                .unwrap_or(false)
+    })
+}
+
+pub fn rust(directory: &Path, subcommand: &str, cargo_arguments: &[&str]) -> Result<(), String> {
+    if blaze_opt_in() && BLAZE_SUBCOMMANDS.contains(&subcommand) {
+        return run(directory, "blaze", &strings(&[subcommand, "."]));
+    }
+    run(directory, "cargo", &strings(cargo_arguments))
 }
 
 pub fn run(directory: &Path, name: &str, arguments: &[String]) -> Result<(), String> {
