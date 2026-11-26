@@ -96,6 +96,7 @@ pub enum Request<'a> {
     RefreshEmoji,
     OpenReport {
         text: &'a str,
+        url: &'a str,
     },
     ExportBackup,
     ImportBackup,
@@ -114,6 +115,19 @@ pub enum Request<'a> {
     FetchWith {
         url: &'a str,
         headers: &'a str,
+    },
+    KeepAlive {
+        on: bool,
+    },
+    OfferPick {
+        name: &'a str,
+        data: &'a [u8],
+    },
+    DismissSheets,
+    RefreshDecorations,
+    RefreshSettings,
+    InjectGateway {
+        message: &'a str,
     },
 }
 

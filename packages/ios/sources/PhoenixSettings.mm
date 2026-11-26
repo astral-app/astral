@@ -11,15 +11,13 @@
 #import <sys/sysctl.h>
 #import <vector>
 
+#import "AstralCore.h"
 #import "AstralState.h"
-#include "AstralLuaHost.h"
-#import "DevServer.h"
 #import "PhoenixHostCall.h"
 #import "PhoenixImage.h"
 #import "PhoenixLocate.h"
 #import "PhoenixProperties.h"
 #import "PhoenixWire.h"
-#import "StopList.h"
 
 static const char kOpsArrivedNeedle[] = "ops batch dropped";
 
@@ -148,6 +146,9 @@ static void Log(NSString *line)
     AstralDevAppendLog(line);
 }
 
+static bool Live(void);
+static void Flush(void);
+
 NSString *AstralPhoenixRoute(void)
 {
     return gRoute;
@@ -250,21 +251,13 @@ static void ScheduleTween(void)
 static void ScheduleRetry(void)
 {
     ScheduleTween();
-    if (astral_wire_take_refresh_busy())
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC / 10), dispatch_get_main_queue(), ^{
-            AstralPhoenixRefreshDecorations();
-        });
-    if (!gQueue || !(astral_wire_pending_mentions() || astral_wire_pending_reactions()) || gRetryScheduled.exchange(true)) return;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC), gQueue, ^{
-        pthread_mutex_lock(&gLock);
-        AstralWireBuffer buffer = {};
-        bool live = gHostOriginal && gHostContext && !astral_wire_unsupported_version() && !gRewriteDisabled.load();
-        if (live && astral_wire_retry_mentions(&buffer)) Send(&buffer);
-        AstralWireBuffer reactions = {};
-        if (live && astral_wire_retry_reactions(&reactions)) Send(&reactions);
-        pthread_mutex_unlock(&gLock);
+    if (!gQueue) return;
+    bool soon = astral_ios_decorations_pending();
+    bool later = astral_wire_pending_mentions() || astral_wire_pending_reactions();
+    if ((!soon && !later) || gRetryScheduled.exchange(true)) return;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, soon ? NSEC_PER_SEC / 10 : NSEC_PER_SEC), gQueue, ^{
         gRetryScheduled = false;
-        ScheduleRetry();
+        Flush();
     });
 }
 
@@ -476,72 +469,60 @@ static void Deliver(Delivery delivery, NSDictionary *model, void (^failed)(void)
     });
 }
 
-void AstralPhoenixUpdateTheme(void (^apply)(void))
+static bool Live(void)
 {
-    pthread_mutex_lock(&gLock);
-    apply();
-    pthread_mutex_unlock(&gLock);
-    if (!gQueue) return;
+    return gHostOriginal && gHostContext && !astral_wire_unsupported_version() && !gRewriteDisabled.load();
+}
+
+static void SendBytes(const uint8_t *bytes, size_t length)
+{
+    std::vector<uint8_t> frame(4 + length, 0);
+    memcpy(frame.data() + 4, bytes, length);
+    gHostOriginal(gHostContext, frame.data(), frame.size(), NULL);
+}
+
+void AstralPhoenixDeliver(const uint8_t *bytes, size_t length)
+{
+    if (!gQueue || !bytes || !length) return;
+    NSData *batch = [NSData dataWithBytes:bytes length:length];
     dispatch_async(gQueue, ^{
         pthread_mutex_lock(&gLock);
-        AstralWireBuffer buffer = {};
-        bool live = gHostOriginal && gHostContext && !astral_wire_unsupported_version() && !gRewriteDisabled.load();
-        int updates = live ? astral_wire_recolor(&buffer) : 0;
-        RecordTiming(@"recolorUpdates", @(updates));
-        RecordTiming(@"recolorDropped", @(astral_wire_colors_dropped()));
-        if (updates) Send(&buffer);
+        if (Live()) SendBytes((const uint8_t *)batch.bytes, batch.length);
         pthread_mutex_unlock(&gLock);
         void (^changed)(void) = gRouteChanged;
         if (changed) dispatch_async(dispatch_get_main_queue(), changed);
     });
 }
 
-int AstralPhoenixRefreshImages(void)
+void AstralPhoenixLockWire(void)
 {
-    static unsigned generation;
-    __block int updates = 0;
-    if (!gQueue) return 0;
-    dispatch_sync(gQueue, ^{
-        pthread_mutex_lock(&gLock);
-        AstralWireBuffer buffer = {};
-        bool live = gHostOriginal && gHostContext && !astral_wire_unsupported_version() && !gRewriteDisabled.load();
-        updates = live ? astral_wire_refresh_images(&buffer, ++generation) : 0;
-        if (updates) Send(&buffer);
-        pthread_mutex_unlock(&gLock);
+    pthread_mutex_lock(&gLock);
+}
+
+void AstralPhoenixUnlockWire(void)
+{
+    pthread_mutex_unlock(&gLock);
+}
+
+static void Flush(void)
+{
+    if (!gQueue) return;
+    dispatch_async(gQueue, ^{
+        if (Live()) {
+            AstralOwned updates = astral_ios_pending_updates();
+            pthread_mutex_lock(&gLock);
+            if (updates.bytes && updates.length && Live()) SendBytes(updates.bytes, updates.length);
+            pthread_mutex_unlock(&gLock);
+            astral_ios_free(updates);
+        }
+        ScheduleRetry();
     });
-    return updates;
 }
 
 void AstralPhoenixRefreshDecorations(void)
 {
-    if (!gQueue) return;
-    dispatch_async(gQueue, ^{
-        pthread_mutex_lock(&gLock);
-        AstralWireBuffer buffer = {};
-        bool live = gHostOriginal && gHostContext && !astral_wire_unsupported_version() && !gRewriteDisabled.load();
-        if (live && astral_wire_refresh_reactions(&buffer)) Send(&buffer);
-        AstralWireBuffer texts = {};
-        if (live && astral_wire_refresh_message_texts(&texts)) Send(&texts);
-        AstralWireBuffer tags = {};
-        if (live && astral_wire_refresh_author_tags(&tags)) Send(&tags);
-        AstralWireBuffer backgrounds = {};
-        if (live && astral_wire_refresh_message_backgrounds(&backgrounds)) Send(&backgrounds);
-        AstralWireBuffer codeBlocks = {};
-        if (live && astral_wire_refresh_code_blocks(&codeBlocks)) Send(&codeBlocks);
-        AstralWireBuffer patches = {};
-        if (live && astral_wire_refresh_node_patches(&patches)) Send(&patches);
-        AstralWireBuffer inserts = {};
-        if (live && astral_wire_refresh_node_inserts(&inserts)) Send(&inserts);
-        AstralWireBuffer commands = {};
-        if (live && astral_wire_take_commands(&commands)) Send(&commands);
-        bool busy = astral_wire_take_refresh_busy();
-        pthread_mutex_unlock(&gLock);
-        ScheduleRetry();
-        if (busy)
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC / 10), dispatch_get_main_queue(), ^{
-                AstralPhoenixRefreshDecorations();
-            });
-    });
+    astral_ios_refresh_decorations();
+    Flush();
 }
 
 static void Push(NSString *route)
@@ -603,15 +584,15 @@ static void Pop(void)
     } else if ([identifier isEqualToString:kBack]) {
         Pop();
     } else if ([identifier hasPrefix:kTapPrefix]) {
-        std::string tap = identifier.UTF8String ?: "";
+        NSString *tap = [identifier copy];
         dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-            astral::luahost::pressInsertedNode(tap);
+            astral_ios_press_inserted_node(AstralTextOf(tap));
         });
     } else if ([identifier hasPrefix:kActionPrefix]) {
-        std::string action = identifier.UTF8String ?: "";
+        NSString *action = [identifier copy];
         AstralDismissMessageMenu();
         dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-            astral::luahost::pressMessageAction(action);
+            astral_ios_press_message_action(AstralTextOf(action));
         });
     } else {
         BOOL isSwitch = [identifier hasPrefix:kSwitchPrefix];
@@ -763,7 +744,7 @@ static NSString *StartRoute(void)
 {
     const struct mach_header *image = AstralPhoenixImage();
     if (!image) return @"unsupported-image";
-    NSString *stopped = AstralStopListReason(AstralPhoenixUUID());
+    NSString *stopped = AstralTakeString(astral_ios_stop_list_reason(AstralTextOf(AstralPhoenixUUID())));
     if (stopped) {
         SetRoute(@"stopped-by-catalog");
         return [@"stopped-by-catalog: " stringByAppendingString:stopped];

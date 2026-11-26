@@ -17,9 +17,10 @@ void AstralOnPhoenixRouteChange(void (^_Nonnull changed)(void));
 NSString *_Nullable AstralInstallPhoenixSettings(NSDictionary *_Nonnull category, AstralSettingsPage _Nonnull page,
                                                  AstralSettingsAction _Nonnull action);
 void AstralRefreshPhoenixSettings(void);
-void AstralPhoenixUpdateTheme(void (^_Nonnull apply)(void));
-int AstralPhoenixRefreshImages(void);
 void AstralPhoenixRefreshDecorations(void);
+void AstralPhoenixDeliver(const uint8_t *_Nullable bytes, size_t length);
+void AstralPhoenixLockWire(void);
+void AstralPhoenixUnlockWire(void);
 
 #ifdef __cplusplus
 }

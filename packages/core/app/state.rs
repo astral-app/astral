@@ -9,7 +9,7 @@ use crate::packs::{self, AstralPacksHandle};
 use crate::settings::{self, AstralSettingsHandle, Store};
 
 const SETTINGS_RECHECK_MS: u64 = 500;
-const DEFAULT_PACK: &str = "discord";
+pub const DEFAULT_PACK: &str = "discord";
 const SIGNING_KEY_FILE: &str = include_str!("../../../keys/plugin-signing.pub");
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -25,6 +25,20 @@ impl Platform {
             Platform::Ios => "ios",
         }
     }
+
+    pub const fn image_name(self) -> &'static str {
+        match self {
+            Platform::Android => "libastral.so",
+            Platform::Ios => "astral.dylib",
+        }
+    }
+
+    pub const fn install_mode(self) -> &'static str {
+        match self {
+            Platform::Android => "injected",
+            Platform::Ios => "package",
+        }
+    }
 }
 
 pub struct App {
@@ -33,7 +47,9 @@ pub struct App {
     pub commit: String,
     pub state: String,
     pub resources: String,
+    pub discord_directory: String,
     pub discord_version: String,
+    pub languages: Vec<String>,
     pub recovering: bool,
     pub environment: Mutex<Value>,
     settings: usize,
@@ -57,8 +73,33 @@ pub fn app() -> Option<&'static App> {
     APP.get()
 }
 
-pub fn wire() -> MutexGuard<'static, ()> {
-    WIRE.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+pub type WireLock = unsafe extern "C" fn();
+
+static EXTERNAL_WIRE_LOCK: OnceLock<(WireLock, WireLock)> = OnceLock::new();
+
+pub fn share_wire_lock(lock: WireLock, unlock: WireLock) {
+    let _ = EXTERNAL_WIRE_LOCK.set((lock, unlock));
+}
+
+pub enum WireGuard {
+    Internal(MutexGuard<'static, ()>),
+    External(WireLock),
+}
+
+impl Drop for WireGuard {
+    fn drop(&mut self) {
+        if let WireGuard::External(unlock) = self {
+            unsafe { unlock() };
+        }
+    }
+}
+
+pub fn wire() -> WireGuard {
+    if let Some((lock, unlock)) = EXTERNAL_WIRE_LOCK.get() {
+        unsafe { lock() };
+        return WireGuard::External(*unlock);
+    }
+    WireGuard::Internal(WIRE.lock().unwrap_or_else(|poisoned| poisoned.into_inner()))
 }
 
 pub struct Setup {
@@ -67,7 +108,9 @@ pub struct Setup {
     pub commit: String,
     pub state: String,
     pub resources: String,
+    pub discord_directory: String,
     pub discord_version: String,
+    pub languages: Vec<String>,
     pub recovering: bool,
     pub environment: Value,
 }
@@ -86,7 +129,9 @@ pub fn install(setup: Setup) -> &'static App {
             commit: setup.commit,
             state: setup.state,
             resources: setup.resources,
+            discord_directory: setup.discord_directory,
             discord_version: setup.discord_version,
+            languages: setup.languages,
             recovering: setup.recovering,
             environment: Mutex::new(setup.environment),
             settings: settings as usize,

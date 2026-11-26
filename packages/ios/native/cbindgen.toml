@@ -1,0 +1,12 @@
+language = "C"
+include_guard = "ASTRAL_H"
+sys_includes = ["stdbool.h", "stddef.h", "stdint.h"]
+no_includes = true
+cpp_compat = true
+usize_is_size_t = true
+
+[enum]
+prefix_with_name = true
+
+[export]
+prefix = ""

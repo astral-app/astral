@@ -21,7 +21,6 @@ const ENVIRONMENT_KEYS: [&str; 9] = [
     "engine",
 ];
 const ENVIRONMENT_SCHEMA: i64 = 2;
-const IMAGE_NAME: &str = "libastral.so";
 
 struct PreviousSession {
     started: i64,
@@ -48,11 +47,21 @@ fn adopt(session: AstralPreviousSession) -> PreviousSession {
     }
 }
 
-pub fn open_trace(state: &str, now: i64) {
+pub struct OpenedSession(Option<PreviousSession>);
+
+pub fn open_trace(state: &str, now: i64) -> OpenedSession {
     let (directory, length) = raw(state);
     let mut session = empty_session();
-    unsafe { crate::plugin_trace::astral_trace_open(directory, length, now, &raw mut session) };
-    adopt(session);
+    let found = unsafe { crate::plugin_trace::astral_trace_open(directory, length, now, &raw mut session) };
+    let adopted = adopt(session);
+    OpenedSession((found != 0).then_some(adopted))
+}
+
+pub fn record_unexpected_exit(opened: OpenedSession) {
+    let Some(session) = opened.0.filter(|session| !session.active.is_empty()) else {
+        return;
+    };
+    crate::reports::unexpected_exit(&session.active, report_environment(), session.running);
 }
 
 fn previous_session() -> Option<PreviousSession> {
@@ -76,18 +85,16 @@ pub fn report_environment() -> Value {
     let Some(current) = app() else { return json!({}) };
     let stored = current.environment.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).clone();
     let mut environment = json!({});
-    for key in ENVIRONMENT_KEYS {
+    for key in ENVIRONMENT_KEYS.iter().copied().chain(["install_mode"]) {
         if let Some(value) = stored.get(key).and_then(Value::as_str) {
             environment[key] = json!(sanitize(value.as_bytes()));
         }
     }
     environment["schema"] = json!(ENVIRONMENT_SCHEMA);
     environment["platform"] = json!(current.platform.name());
-    environment["install_mode"] = json!(if current.platform == Platform::Android {
-        "injected"
-    } else {
-        "package"
-    });
+    if environment.get("install_mode").is_none() {
+        environment["install_mode"] = json!(current.platform.install_mode());
+    }
     environment["plugins"] = Value::Array(running_plugins());
     environment
 }
@@ -160,7 +167,8 @@ pub fn open_report(index: usize) {
             content.push_str(&format!("\n{key}: {rendered}"));
         }
     }
-    host::request(Request::OpenReport { text: &content });
+    let url = crate::reports::issue_url(report);
+    host::request(Request::OpenReport { text: &content, url: &url });
 }
 
 fn text(object: &Value, key: &str) -> String {
@@ -206,7 +214,7 @@ fn android_facts(device: &Value) -> AndroidFacts {
     }
 }
 
-fn device_report() -> Value {
+fn device_report(platform: Platform) -> Value {
     let facts: Value = host::request(Request::EnvironmentFacts)
         .into_text()
         .and_then(|text| serde_json::from_str(&text).ok())
@@ -214,6 +222,9 @@ fn device_report() -> Value {
     let mut environment = json!({});
     if !facts.is_object() {
         return environment;
+    }
+    if platform == Platform::Ios {
+        return facts;
     }
     environment["install"] = json!(crate::env_report::android_install_line(
         facts.get("install").unwrap_or(&Value::Null)
@@ -233,11 +244,11 @@ fn device_report() -> Value {
 pub fn environment() -> Value {
     let Some(current) = app() else { return json!({}) };
     let mut environment = report_environment();
-    if let (Some(target), Value::Object(device)) = (environment.as_object_mut(), device_report()) {
+    if let (Some(target), Value::Object(device)) = (environment.as_object_mut(), device_report(current.platform)) {
         target.extend(device);
     }
     environment["commit"] = json!(current.commit);
-    environment["image"] = json!(IMAGE_NAME);
+    environment["image"] = json!(current.platform.image_name());
     let now = std::time::UNIX_EPOCH.elapsed().map_or(0.0, |elapsed| elapsed.as_secs_f64());
     if let (Some(target), Value::Object(summary)) = (environment.as_object_mut(), crate::env_report::crash_summary(&list(), now)) {
         target.extend(summary);

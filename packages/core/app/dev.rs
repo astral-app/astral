@@ -49,6 +49,9 @@ enum Route {
     IconPack,
     EmojiPack,
     Reload,
+    ExportBackup,
+    ImportBackup,
+    Gateway,
 }
 
 impl Route {
@@ -60,6 +63,9 @@ impl Route {
             ("POST", "/icon-pack") => Route::IconPack,
             ("POST", "/emoji-pack") => Route::EmojiPack,
             ("POST", "/reload") => Route::Reload,
+            ("GET", "/backup") => Route::ExportBackup,
+            ("POST", "/backup") => Route::ImportBackup,
+            ("POST", "/gateway") => Route::Gateway,
             _ => return None,
         })
     }
@@ -95,7 +101,7 @@ fn route(current: &App, request: &Value) -> Value {
                 return response(BAD_REQUEST, json!({ "error": error }));
             }
             theme::apply(current, &theme::active(current));
-            crate::settings_navigator::refresh();
+            super::refresh_settings();
             response(OK, json!({ "active": theme::active(current) }))
         }
         Route::Theme | Route::IconPack | Route::EmojiPack => {
@@ -112,7 +118,7 @@ fn route(current: &App, request: &Value) -> Value {
                 Route::Theme => theme::apply(current, &identifier),
                 _ => {}
             }
-            crate::settings_navigator::refresh();
+            super::refresh_settings();
             let active = if route == Route::Theme {
                 theme::active(current)
             } else {
@@ -125,8 +131,27 @@ fn route(current: &App, request: &Value) -> Value {
             current.invalidate_packs();
             super::refresh_images(current);
             theme::apply(current, &theme::active(current));
-            crate::settings_navigator::refresh();
+            super::refresh_settings();
             response(OK, json!({ "plugins": reloaded, "theme": theme::active(current) }))
+        }
+        Route::ExportBackup => response(OK, json!({ "backup": theme::export_backup(current) })),
+        Route::ImportBackup => {
+            let Some(backup) = parsed.get("backup").and_then(Value::as_str) else {
+                return response(BAD_REQUEST, json!({ "error": "backup is required" }));
+            };
+            if let Some(error) = theme::apply_backup(current, backup) {
+                return response(BAD_REQUEST, json!({ "error": error }));
+            }
+            super::refresh_settings();
+            response(OK, json!({ "imported": true }))
+        }
+        Route::Gateway => {
+            let queued = !body.is_empty() && host::request(host::Request::InjectGateway { message: &body }).flag();
+            let status = if queued { OK } else { BAD_REQUEST };
+            response(
+                status,
+                json!({ "queued": queued, "needs": "Staff DevTools on, for an uncompressed gateway" }),
+            )
         }
     }
 }

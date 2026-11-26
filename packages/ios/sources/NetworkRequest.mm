@@ -1,14 +1,17 @@
 #import "NetworkRequest.h"
 
-#import "AstralLuaHost.h"
-#import "FoundationJSON.h"
+#import "AstralCore.h"
 
-#include <algorithm>
-#include <cctype>
-
-static constexpr NSUInteger kMaximumResponseBytes = 1u << 20;
+static const NSUInteger kMaximumResponseBytes = 1u << 20;
+static const double kDefaultTimeoutMs = 15000;
 static NSLock *gRequestsLock;
 static NSMutableDictionary<NSNumber *, id> *gRequests;
+
+static void CompleteRequest(uint64_t identifier, NSDictionary *result)
+{
+    NSData *json = [NSJSONSerialization dataWithJSONObject:result options:0 error:nil];
+    astral_ios_complete_network_request(identifier, AstralTextOfData(json ?: [NSData data]));
+}
 
 static void PrepareRequestStorage(void)
 {
@@ -83,43 +86,46 @@ static void PrepareRequestStorage(void)
         result[@"error"] = @"response body exceeds 1 MiB";
     else if (error)
         result[@"error"] = @"request failed";
-    astral::luahost::completeNetworkRequest(self.identifier, AstralJSONFromObject(result));
+    CompleteRequest(self.identifier, result);
     [self.session finishTasksAndInvalidate];
 }
 
 @end
 
-void astral::startNetworkRequest(uint64_t requestID, const nlohmann::json &options)
+static NSString *TextOption(NSDictionary *options, NSString *key, NSString *fallback)
+{
+    id value = options[key];
+    return [value isKindOfClass:NSString.class] ? value : fallback;
+}
+
+void AstralStartNetworkRequest(uint64_t requestID, NSDictionary *options)
 {
     PrepareRequestStorage();
-    NSString *url = [NSString stringWithUTF8String:options.value("url", "").c_str()];
-    NSURL *target = [NSURL URLWithString:url];
+    NSURL *target = [NSURL URLWithString:TextOption(options, @"url", @"")];
     if (!target || target.host.length == 0 || ![target.scheme.lowercaseString isEqualToString:@"https"]) {
         dispatch_async(dispatch_get_global_queue(QOS_CLASS_DEFAULT, 0), ^{
-            luahost::completeNetworkRequest(requestID, {{"status", 0}, {"ok", false}, {"body", ""}, {"error", "invalid https URL"}});
+            CompleteRequest(requestID, @{@"status" : @0, @"ok" : @NO, @"body" : @"", @"error" : @"invalid https URL"});
         });
         return;
     }
+    id timeout = options[@"timeout_ms"];
+    double timeoutMs = [timeout isKindOfClass:NSNumber.class] ? [timeout doubleValue] : kDefaultTimeoutMs;
     NSMutableURLRequest *nativeRequest = [NSMutableURLRequest requestWithURL:target
                                                                  cachePolicy:NSURLRequestReloadIgnoringLocalCacheData
-                                                             timeoutInterval:options.value("timeout_ms", 15000) / 1000.0];
-    nativeRequest.HTTPMethod = [NSString stringWithUTF8String:options.value("method", "GET").c_str()];
+                                                             timeoutInterval:timeoutMs / 1000.0];
+    nativeRequest.HTTPMethod = TextOption(options, @"method", @"GET");
     nativeRequest.HTTPShouldHandleCookies = NO;
-    nlohmann::json headers = options.value("headers", nlohmann::json::object());
-    bool contentTypeProvided = false;
-    for (auto entry = headers.begin(); entry != headers.end(); ++entry) {
-        if (entry.value().is_string()) {
-            nativeRequest.allHTTPHeaderFields = nativeRequest.allHTTPHeaderFields ?: @{};
-            [nativeRequest setValue:[NSString stringWithUTF8String:entry.value().get<std::string>().c_str()]
-                 forHTTPHeaderField:[NSString stringWithUTF8String:entry.key().c_str()]];
-            std::string name = entry.key();
-            std::transform(name.begin(), name.end(), name.begin(), [](unsigned char character) { return (char)std::tolower(character); });
-            if (name == "content-type") contentTypeProvided = true;
-        }
+    NSDictionary *headers = [options[@"headers"] isKindOfClass:NSDictionary.class] ? options[@"headers"] : @{};
+    BOOL contentTypeProvided = NO;
+    for (NSString *name in headers) {
+        id value = headers[name];
+        if (![name isKindOfClass:NSString.class] || ![value isKindOfClass:NSString.class]) continue;
+        [nativeRequest setValue:value forHTTPHeaderField:name];
+        if ([name.lowercaseString isEqualToString:@"content-type"]) contentTypeProvided = YES;
     }
-    if (options.contains("body") && options["body"].is_string()) {
-        const std::string &body = options["body"].get_ref<const std::string &>();
-        nativeRequest.HTTPBody = [NSData dataWithBytes:body.data() length:body.size()];
+    id body = options[@"body"];
+    if ([body isKindOfClass:NSString.class]) {
+        nativeRequest.HTTPBody = [body dataUsingEncoding:NSUTF8StringEncoding];
         if (!contentTypeProvided) [nativeRequest setValue:@"application/octet-stream" forHTTPHeaderField:@"Content-Type"];
     }
     NSURLSessionConfiguration *configuration = [NSURLSessionConfiguration ephemeralSessionConfiguration];
@@ -137,7 +143,7 @@ void astral::startNetworkRequest(uint64_t requestID, const nlohmann::json &optio
     [delegate.task resume];
 }
 
-void astral::cancelNetworkRequest(uint64_t requestID)
+void AstralCancelNetworkRequest(uint64_t requestID)
 {
     if (!gRequestsLock) return;
     [gRequestsLock lock];

@@ -29,12 +29,15 @@ const SLIDE_PAYLOAD_LIMIT: usize = 4096;
 const SLIDER_PREFIX: &str = "astral.slider.";
 const ROW_LINK: core::ffi::c_int = 0;
 
+static STARTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 pub struct Launch {
     pub platform: Platform,
     pub version: String,
     pub commit: String,
     pub property_names: Vec<String>,
-    pub data_directory: String,
+    pub state_directory: String,
+    pub discord_directory: String,
     pub resource_directory: String,
     pub languages: Vec<String>,
     pub discord_version: String,
@@ -131,59 +134,88 @@ unsafe extern "C" fn resolve_emoji(codepoints: *const c_char, url: *mut c_char, 
     1
 }
 
-pub fn initialize(launch: Launch) -> usize {
-    let resolved = resolve_properties(&launch.property_names);
-    install_category();
-    let state = format!("{}/files/astral", launch.data_directory);
+fn launch_environment(launch: &Launch) -> Value {
     let mut environment = if launch.environment.is_object() {
-        launch.environment
+        launch.environment.clone()
     } else {
         json!({})
     };
     environment["astral"] = json!(launch.version);
     environment["discord"] = json!(launch.discord_version);
-    environment["phoenix"] = json!(launch.discord_version);
+    environment
+        .as_object_mut()
+        .map(|fields| fields.entry("phoenix").or_insert(json!(launch.discord_version)));
     environment["engine"] = json!("Phoenix");
+    environment
+}
+
+pub fn prepare(launch: Launch) -> &'static App {
+    if let Some(current) = app() {
+        return current;
+    }
+    install_category();
+    let state = launch.state_directory.clone();
+    let environment = launch_environment(&launch);
     let (directory, length) = raw(&state);
     unsafe { crate::reports::astral_reports_configure(directory, length) };
     let _ = std::fs::create_dir_all(format!("{state}/plugins"));
     let previous_exit = unsafe { crate::exit_record::astral_exit_record_take(directory, length, 0) };
-    reports::open_trace(&state, now_seconds());
+    let previous_session = reports::open_trace(&state, now_seconds());
     let verdict = crate::launch_guard::begin(std::path::Path::new(&state), previous_exit);
-    crate::discord_cache::set_data_directory(&format!("{}/files", launch.data_directory));
+    if !launch.discord_directory.is_empty() {
+        crate::discord_cache::set_data_directory(&launch.discord_directory);
+    }
     let current = state::install(Setup {
         platform: launch.platform,
         version: launch.version,
         commit: launch.commit,
-        state: state.clone(),
-        resources: launch.resource_directory.clone(),
+        state,
+        resources: launch.resource_directory,
+        discord_directory: launch.discord_directory,
         discord_version: launch.discord_version,
+        languages: launch.languages,
         recovering: verdict.enter_recovery != 0,
         environment,
     });
+    if current.platform == Platform::Ios && previous_exit == crate::exit_record::EXIT_UNKNOWN {
+        reports::record_unexpected_exit(previous_session);
+    }
     theme::configure_marketplace(current);
     theme::apply(current, &theme::active(current));
     crate::wire::emoji::astral_wire_set_emoji_resolver(Some(resolve_emoji));
-    let safe_mode = current.flag("astral", "safe-mode", false);
-    lua_host::start(
-        vec![format!("{state}/plugins"), format!("{}/plugins", launch.resource_directory)],
-        current.settings_handle(),
-        !safe_mode && !current.recovering,
-        Config {
-            preferred_languages: launch.languages,
-            storage_path: format!("{state}/plugin-storage.sqlite"),
-            discord_directory: String::new(),
-            bundled_directory: launch.resource_directory,
-        },
-    );
-    lua_host::set_platform(Some(platform::platform_call));
-    install_decorators();
-    pages::configure(current);
-    dev::start(current);
+    current
+}
+
+pub fn start() -> usize {
+    let Some(current) = app() else { return 0 };
+    if !STARTED.swap(true, Ordering::AcqRel) {
+        let safe_mode = current.flag("astral", "safe-mode", false);
+        lua_host::start(
+            vec![format!("{}/plugins", current.state), format!("{}/plugins", current.resources)],
+            current.settings_handle(),
+            !safe_mode && !current.recovering,
+            Config {
+                preferred_languages: current.languages.clone(),
+                storage_path: format!("{}/plugin-storage.sqlite", current.state),
+                discord_directory: current.discord_directory.clone(),
+                bundled_directory: current.resources.clone(),
+            },
+        );
+        lua_host::set_platform(Some(platform::platform_call));
+        install_decorators();
+        pages::configure(current);
+        dev::start(current);
+    }
+    lua_host::plugins().len()
+}
+
+pub fn initialize(launch: Launch) -> usize {
+    let resolved = resolve_properties(&launch.property_names);
+    let current = prepare(launch);
+    let plugins = start();
     host::log(&format!(
-        "astral {} resolved {resolved} Phoenix properties; {} plugins",
-        current.version,
-        lua_host::plugins().len()
+        "astral {} resolved {resolved} Phoenix properties; {plugins} plugins",
+        current.version
     ));
     resolved
 }
@@ -197,6 +229,9 @@ fn guard_file(update: unsafe extern "C" fn(*const c_char, usize) -> core::ffi::c
 
 pub fn mark_visible() {
     guard_file(crate::launch_guard::astral_launch_guard_mark_shown);
+    if STARTED.load(Ordering::Acquire) {
+        guard_file(crate::exit_record::astral_exit_record_clear);
+    }
 }
 
 pub fn mark_hidden() {
@@ -653,10 +688,10 @@ pub(crate) fn soft_restart_without_reload(current: &App) {
     refresh_images(current);
     theme::apply(current, &theme::active(current));
     refresh_emoji();
-    crate::settings_navigator::refresh();
+    refresh_settings();
 }
 
-fn soft_restart(current: &App) {
+pub(crate) fn soft_restart(current: &App) {
     current.invalidate_packs();
     refresh_images(current);
     theme::apply(current, &theme::active(current));
@@ -688,4 +723,79 @@ fn select_pack(current: &App, kind: PackKind, identifier: &str) -> bool {
         PackKind::Emoji => refresh_emoji(),
     }
     true
+}
+
+pub fn refresh_settings() {
+    crate::settings_navigator::refresh();
+    host::request(Request::RefreshSettings);
+}
+
+pub fn restart_softly() -> usize {
+    let Some(current) = app() else { return 0 };
+    current.invalidate_packs();
+    refresh_images(current);
+    theme::apply(current, &theme::active(current));
+    refresh_emoji();
+    let plugins = reload_enabled_plugins();
+    refresh_settings();
+    plugins
+}
+
+pub fn page_category() -> String {
+    host::json_text(&crate::settings_pages::category())
+}
+
+pub fn page_model(route: &str) -> String {
+    host::json_text(&crate::settings_pages::model(route))
+}
+
+pub fn page_action(route: &str, key: &str) -> Option<String> {
+    crate::settings_pages::action(route, key, std::sync::Arc::new(refresh_settings))
+}
+
+pub fn refresh_catalog(force: bool) {
+    pages::refresh_catalog_if_due(force);
+}
+
+pub fn stop_list_reason(phoenix: &str) -> Option<String> {
+    let (pointer, length) = raw(phoenix);
+    ffi::take_optional(unsafe { crate::marketplace::astral_marketplace_stop_list_reason(pointer, length) })
+}
+
+pub fn complete_network_request(request: u64, response: &str) {
+    if request == 0 {
+        return;
+    }
+    let parsed: Value = serde_json::from_str(response).unwrap_or_else(|_| json!({ "error": "unreadable response" }));
+    lua_host::complete_network_request(request, &parsed);
+}
+
+pub fn press_inserted_identifier(identifier: &str) -> bool {
+    crate::lua_host_nodes::press_inserted_node(identifier)
+}
+
+pub fn press_message_identifier(identifier: &str) -> bool {
+    crate::lua_host_nodes::press_message_action(identifier)
+}
+
+pub fn set_menu_message(channel: u64, message: u64) {
+    if message != 0 {
+        crate::lua_host_nodes::set_menu_message(channel, message);
+    }
+}
+
+pub fn emoji_animated() -> bool {
+    app().is_some_and(App::emoji_animated)
+}
+
+pub fn developer_log(line: &str) {
+    crate::dev_server::append_log(line);
+}
+
+pub fn decorations_pending() -> bool {
+    REFRESH_DECORATIONS.load(Ordering::Acquire)
+}
+
+pub fn custom_emoji_pack() -> bool {
+    app().is_some_and(|current| current.active_pack(PackKind::Emoji) != state::DEFAULT_PACK)
 }

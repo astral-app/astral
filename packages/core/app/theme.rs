@@ -301,7 +301,7 @@ impl PackageKind {
 pub type Changed = std::sync::Arc<dyn Fn() + Send + Sync>;
 
 pub fn refresh_navigator() -> Changed {
-    std::sync::Arc::new(crate::settings_navigator::refresh)
+    std::sync::Arc::new(super::refresh_settings)
 }
 
 unsafe extern "C" fn notify_changed(context: *mut c_void) {

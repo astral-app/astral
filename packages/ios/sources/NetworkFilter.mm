@@ -10,7 +10,7 @@
 #include "AstralReactors.h"
 #import "AstralNetworkPolicy.h"
 #include "PhoenixWire.h"
-#import "DevServer.h"
+#import "AstralCore.h"
 
 static NSString *const kHandledKey = @"app.astral.network-filter";
 

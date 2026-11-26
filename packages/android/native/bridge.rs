@@ -504,8 +504,10 @@ impl Bridge for JniBridge {
             Request::DispatchGateway { message } => {
                 succeeded(&self.locked(Method::DispatchGateway, &[Argument::Text(message)]))
             }
-            Request::RefreshEmoji => into_reply(self.locked(Method::RefreshEmoji, &[])),
-            Request::OpenReport { text } => {
+            Request::RefreshEmoji | Request::RefreshDecorations => {
+                into_reply(self.locked(Method::RefreshEmoji, &[]))
+            }
+            Request::OpenReport { text, .. } => {
                 into_reply(self.locked(Method::OpenReport, &[Argument::Text(text)]))
             }
             Request::ExportBackup => into_reply(self.locked(Method::ExportBackup, &[])),
@@ -535,6 +537,11 @@ impl Bridge for JniBridge {
                 Method::FetchWith,
                 &[Argument::Text(url), Argument::Text(headers)],
             )),
+            Request::KeepAlive { .. }
+            | Request::OfferPick { .. }
+            | Request::DismissSheets
+            | Request::RefreshSettings
+            | Request::InjectGateway { .. } => Reply::Unsupported,
         }
     }
 }
