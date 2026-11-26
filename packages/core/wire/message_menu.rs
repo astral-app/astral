@@ -22,6 +22,7 @@ pub struct AstralMenuEntry {
 }
 
 pub type MenuProvider = unsafe extern "C" fn(*mut AstralMenuEntry, usize) -> usize;
+pub type PopoverProvider = unsafe extern "C" fn(*const c_char, *mut AstralMenuEntry, usize) -> usize;
 
 const LABEL_DEPTH: c_int = 4;
 const MESSAGE_NODE_CAPACITY: usize = 32768;
@@ -33,6 +34,10 @@ const MAX_LIST_ROWS: u32 = 512;
 const FIRST_MENU_ID: i32 = 0x7d00_0000;
 const MENU_ID_RANGE: i32 = 0x00f0_0000;
 const ACTION_PREFIX: &[u8] = b"message.actions.";
+const POPOVER_TITLE: &[u8] = b"menu-title";
+const POPOVER_ROW_PREFIX: &[u8] = b"menu-row-";
+const POPOVER_FIRST_ROW: &[u8] = b"menu-row-0";
+const POPOVER_MIDDLE_ROW: &[u8] = b"menu-row-1";
 const SKIPPED_ACTIONS: [&[u8]; 3] = [b"quick_reaction", b"add_reaction", b"root"];
 const MESSAGE_PREFIXES: [&CStr; 4] = [c"message.content:", c"message.author:", c"message.avatar:", c"message.timestamp:"];
 
@@ -64,6 +69,7 @@ struct Tracking {
 
 static TRACKING: Mutex<Option<Tracking>> = Mutex::new(None);
 static PROVIDER: Callback = Callback::new();
+static POPOVER_PROVIDER: Callback = Callback::new();
 static NEXT_MENU_ID: AtomicI32 = AtomicI32::new(FIRST_MENU_ID);
 
 fn with_tracking<T>(work: impl FnOnce(&mut Tracking) -> T) -> Option<T> {
@@ -74,6 +80,11 @@ fn with_tracking<T>(work: impl FnOnce(&mut Tracking) -> T) -> Option<T> {
 #[unsafe(no_mangle)]
 pub extern "C" fn astral_wire_set_message_menu_provider(provider: Option<MenuProvider>) {
     PROVIDER.set(provider);
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn astral_wire_set_popover_menu_provider(provider: Option<PopoverProvider>) {
+    POPOVER_PROVIDER.set(provider);
 }
 
 #[unsafe(no_mangle)]
@@ -439,21 +450,136 @@ fn separator_in(batch: &Batch, children: &[i32]) -> i32 {
         .unwrap_or(0)
 }
 
-fn menu_entries() -> Vec<AstralMenuEntry> {
-    let Some(provider) = PROVIDER.get::<MenuProvider>() else {
-        return Vec::new();
-    };
-    let mut entries: Vec<AstralMenuEntry> = (0..MAX_ENTRIES)
+fn empty_entries() -> Vec<AstralMenuEntry> {
+    (0..MAX_ENTRIES)
         .map(|_| AstralMenuEntry {
             action_id: [0; 64],
             label: [0; 64],
             icon: [0; 160],
             danger: 0,
         })
-        .collect();
+        .collect()
+}
+
+fn menu_entries() -> Vec<AstralMenuEntry> {
+    let Some(provider) = PROVIDER.get::<MenuProvider>() else {
+        return Vec::new();
+    };
+    let mut entries = empty_entries();
     let count = unsafe { provider(entries.as_mut_ptr(), MAX_ENTRIES) }.min(MAX_ENTRIES);
     entries.truncate(count);
     entries
+}
+
+fn popover_entries(title: &[u8]) -> Vec<AstralMenuEntry> {
+    let Some(provider) = POPOVER_PROVIDER.get::<PopoverProvider>() else {
+        return Vec::new();
+    };
+    let Ok(title) = std::ffi::CString::new(title) else {
+        return Vec::new();
+    };
+    let mut entries = empty_entries();
+    let count = unsafe { provider(title.as_ptr(), entries.as_mut_ptr(), MAX_ENTRIES) }.min(MAX_ENTRIES);
+    entries.truncate(count);
+    entries
+}
+
+fn popover_row(out: &mut Out, batch: &Batch, template: i32, entry: &AstralMenuEntry) -> i32 {
+    let properties = properties::current();
+    let parts = batch.children(template);
+    let [icon, column] = parts.as_slice() else { return 0 };
+    let Some(label) = batch.children(*column).first().copied() else {
+        return 0;
+    };
+    let (action, title, image) = (entry_text(&entry.action_id), entry_text(&entry.label), entry_text(&entry.icon));
+    let row = clone_node(
+        out,
+        batch,
+        template,
+        &[
+            Change::text(properties.accessibility_id, &action),
+            Change::text(properties.accessibility_label, &title),
+        ],
+    );
+    let icon_changes = if image.is_empty() {
+        Vec::new()
+    } else {
+        vec![Change::text(properties.uri, &image)]
+    };
+    let row_icon = clone_node(out, batch, *icon, &icon_changes);
+    let row_column = clone_node(out, batch, *column, &[]);
+    let row_label = clone_node(out, batch, label, &[Change::text(properties.text, &title)]);
+    if row == 0 || row_icon == 0 || row_column == 0 || row_label == 0 {
+        return 0;
+    }
+    put_children(out, row_column, &[row_label]);
+    put_children(out, row, &[row_icon, row_column]);
+    row
+}
+
+#[unsafe(export_name = "wirePopoverMenu")]
+pub unsafe extern "C" fn wire_popover_menu(
+    bytes: *const u8,
+    pointer: *const Span,
+    count: usize,
+    out: *mut Out,
+    changed: *mut c_int,
+    length: usize,
+) {
+    if POPOVER_PROVIDER.get::<PopoverProvider>().is_none() {
+        return;
+    }
+    let (Some(out), Some(changed)) = (unsafe { out.as_mut() }, unsafe { changed.as_mut() }) else {
+        return;
+    };
+    let batch = Batch {
+        bytes,
+        spans: spans_of(pointer, count),
+    };
+    let properties = properties::current();
+    let Some(title_span) = batch.spans.iter().find(|span| {
+        let data = batch_of(bytes, span);
+        span.op == Op::Create && find_string(data, span, properties.accessibility_id) == Some(POPOVER_TITLE)
+    }) else {
+        return;
+    };
+    let title = find_string(batch_of(bytes, title_span), title_span, properties.text).unwrap_or_default();
+    let list = batch.parent(title_span.id);
+    let children = batch.children(list);
+    let template = [POPOVER_MIDDLE_ROW, POPOVER_FIRST_ROW]
+        .iter()
+        .find_map(|wanted| children.iter().copied().find(|id| batch.identifier(*id) == Some(*wanted)));
+    let Some(template) = template else { return };
+    let Some(first_row) = children
+        .iter()
+        .position(|id| batch.identifier(*id).is_some_and(|id| id.starts_with(POPOVER_ROW_PREFIX)))
+    else {
+        return;
+    };
+    let entries = popover_entries(title);
+    if entries.is_empty() {
+        return;
+    }
+    let mut update = Out::default();
+    let rows: Vec<i32> = entries
+        .iter()
+        .map(|entry| popover_row(&mut update, &batch, template, entry))
+        .take_while(|row| *row != 0)
+        .collect();
+    if update.failed != 0 || rows.is_empty() {
+        update.discard();
+        return;
+    }
+    let mut ordered = children[..first_row].to_vec();
+    ordered.extend(rows);
+    ordered.extend_from_slice(&children[first_row..]);
+    put_children(&mut update, list, &ordered);
+    if *changed == 0 {
+        out.put(unsafe { core::slice::from_raw_parts(bytes, length) });
+    }
+    *changed = 1;
+    out.put(unsafe { core::slice::from_raw_parts(update.bytes, update.length) });
+    update.discard();
 }
 
 #[unsafe(export_name = "wireMessageMenu")]

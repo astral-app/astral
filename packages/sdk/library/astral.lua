@@ -883,6 +883,18 @@ function astral.ui.code_block(render, press) end
 ---@param callback fun(node: astral.Node)
 ---@param options? astral.MessageActionOptions
 function astral.ui.message_action(label, callback, options) end
+---@class astral.Menu : astral.Node
+---@field title string the menu's title, such as a server or folder name
+---@field guild_id? astral.Snowflake the server the menu is for, when its title names exactly one cached server
+---@class astral.MenuActionOptions
+---@field icon? string
+---@field danger? boolean
+---@field when? fun(menu: astral.Menu): boolean shows the action only in menus it returns true for
+---Adds a row to Discord's popover menus, such as the one a long-pressed server opens. Needs `ui.message_actions`.
+---@param label string
+---@param callback fun(menu: astral.Menu)
+---@param options? astral.MenuActionOptions
+function astral.ui.menu_action(label, callback, options) end
 ---Discord's current app background gradient, or the active theme's, as ARGB colours.
 ---@return { angle: number, colors: integer[] }?
 function astral.ui.app_background() end

@@ -11,6 +11,7 @@ permissions = [
 	"ui.toasts",
 	"ui.dialogs",
 	"ui.insert",
+	"ui.message_actions",
 	"events.gateway",
 	"discord.users",
 ]

@@ -121,6 +121,7 @@ entries! {
     app_background => ui::app_background,
     style_text => ui::style_text,
     message_action => ui::message_action,
+    menu_action => ui::menu_action,
     pick_file => ui::pick_file,
     cancel_file_pick => ui::cancel_file_pick,
     subscribe => ui::subscribe_event,
@@ -270,6 +271,7 @@ pub(crate) fn install_api(plugin: *mut Plugin) {
                 ("app_background", app_background),
                 ("style_text", style_text),
                 ("message_action", message_action),
+                ("menu_action", menu_action),
             ],
         );
         group(state, plugin, "files", &[("pick", pick_file), ("cancel", cancel_file_pick)]);

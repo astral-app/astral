@@ -1399,15 +1399,27 @@ pub unsafe fn get_message_text(state: *mut LuaState) -> Outcome {
 }
 
 pub unsafe fn message_action(state: *mut LuaState) -> Outcome {
+    unsafe { register_action(state, "astral.ui.message_action", |plugin| &mut plugin.message_actions) }
+}
+
+pub unsafe fn menu_action(state: *mut LuaState) -> Outcome {
+    unsafe { register_action(state, "astral.ui.menu_action", |plugin| &mut plugin.menu_actions) }
+}
+
+unsafe fn register_action(
+    state: *mut LuaState,
+    name: &str,
+    actions: impl Fn(&mut Plugin) -> &mut Vec<crate::lua::host::MessageAction>,
+) -> Outcome {
     let plugin = me(state);
     unsafe { require_permission(state, Capability::UiMessageActions) }?;
     let label = unsafe { check_bytes(state, 1) }?.to_vec();
     unsafe { check_type(state, 2, lua::TFUNCTION) }?;
     if label.is_empty() || label.len() > MESSAGE_ACTION_LABEL_LIMIT {
-        return Err("astral.ui.message_action: label must be 1 to 63 bytes".into());
+        return Err(format!("{name}: label must be 1 to 63 bytes"));
     }
-    if plugin.message_actions.len() >= 4 {
-        return Err("astral.ui.message_action: at most 4 actions per plugin".into());
+    if actions(plugin).len() >= 4 {
+        return Err(format!("{name}: at most 4 actions per plugin"));
     }
     let mut icon = "res://ic_mana_puzzle_piece".to_owned();
     let mut when = NOREF;
@@ -1431,7 +1443,7 @@ pub unsafe fn message_action(state: *mut LuaState) -> Outcome {
         identifier = host::NEXT_MESSAGE_ACTION.fetch_add(1, Ordering::Relaxed);
     }
     let reference = unsafe { reference_at(state, 2) };
-    plugin.message_actions.push(crate::lua::host::MessageAction {
+    actions(plugin).push(crate::lua::host::MessageAction {
         identifier,
         label: String::from_utf8_lossy(&label).into_owned(),
         icon,

@@ -900,6 +900,110 @@ pub fn press_inserted_node(identifier: &str) -> bool {
     false
 }
 
+fn popover_guild(title: &str) -> String {
+    let guilds = crate::discord::cache::guilds();
+    let matches: Vec<&str> = guilds
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|guild| guild.get("name").and_then(Value::as_str) == Some(title))
+        .filter_map(|guild| guild.get("id").and_then(Value::as_str))
+        .collect();
+    if matches.len() == 1 { matches[0].to_owned() } else { String::new() }
+}
+
+unsafe fn push_popover(state: *mut LuaState) {
+    let host = host::host();
+    unsafe {
+        lua::lua_createtable(state, 0, 2);
+        set_text(state, "title", &host.popover_title);
+        set_optional(state, "guild_id", &host.popover_guild);
+    }
+}
+
+fn popover_action_shows(plugin: *mut Plugin, when: c_int) -> bool {
+    if when == NOREF {
+        return true;
+    }
+    let state = unsafe { (*plugin).state() };
+    let top = unsafe { lua::lua_gettop(state) };
+    unsafe {
+        lua::push_reference(state, when);
+        push_popover(state);
+    }
+    if !host::call(plugin, 1, 1, "menu.action when") {
+        unsafe { lua::lua_settop(state, top) };
+        return false;
+    }
+    let shows = unsafe { lua::lua_toboolean(state, -1) } != 0;
+    unsafe { lua::lua_settop(state, top) };
+    shows
+}
+
+#[unsafe(export_name = "AstralLuaPopoverMenu")]
+pub unsafe extern "C" fn astral_lua_popover_menu(title: *const c_char, entries: *mut AstralMenuEntry, capacity: usize) -> usize {
+    if entries.is_null() {
+        return 0;
+    }
+    let Some(_held) = host::try_lock() else { return busy(0) };
+    let title = unsafe { c_text(title) };
+    let guild = popover_guild(&title);
+    let host = host::host();
+    host.popover_title = title;
+    host.popover_guild = guild;
+    let entries = unsafe { core::slice::from_raw_parts_mut(entries, capacity) };
+    let mut count = 0;
+    for plugin in running_plugins() {
+        let actions: Vec<(u64, String, String, bool, c_int)> = unsafe { &*plugin }
+            .menu_actions
+            .iter()
+            .map(|action| {
+                (
+                    action.identifier,
+                    action.label.clone(),
+                    action.icon.clone(),
+                    action.danger,
+                    action.when,
+                )
+            })
+            .collect();
+        for (identifier, label, icon, danger, when) in actions {
+            if count >= capacity {
+                return count;
+            }
+            if !popover_action_shows(plugin, when) {
+                continue;
+            }
+            let entry = &mut entries[count];
+            count += 1;
+            write_text(&mut entry.action_id, &format!("astral.action.{identifier}"));
+            write_text(&mut entry.label, &label);
+            write_text(&mut entry.icon, &icon);
+            entry.danger = c_int::from(danger);
+        }
+    }
+    count
+}
+
+fn press_menu_action(action: u64) -> bool {
+    let Some((owner, reference)) = running_plugins().into_iter().find_map(|plugin| {
+        unsafe { &*plugin }
+            .menu_actions
+            .iter()
+            .find(|entry| entry.identifier == action)
+            .map(|entry| (plugin, entry.reference))
+    }) else {
+        return false;
+    };
+    let state = unsafe { (*owner).state() };
+    unsafe {
+        lua::push_reference(state, reference);
+        push_popover(state);
+    }
+    host::call_or_stop(owner, 1, 0, "menu.action");
+    true
+}
+
 pub fn press_message_action(identifier: &str) -> bool {
     let _held = host::lock();
     let Some(rest) = identifier.strip_prefix("astral.action.") else {
@@ -911,6 +1015,9 @@ pub fn press_message_action(identifier: &str) -> bool {
     let Ok(action) = rest.parse::<u64>() else { return false };
     if action == 0 {
         return false;
+    }
+    if press_menu_action(action) {
+        return true;
     }
     let (channel_id, message_id) = (host::host().menu_channel, host::host().menu_message);
     if channel_id == 0 || message_id == 0 {

@@ -764,6 +764,15 @@ end, function(_, action)
 	end
 end)
 
+astral.ui.menu_action(t("SERVER_REVIEWS"), function(menu)
+	open_reviews(menu.guild_id, menu.title, true)
+end, {
+	icon = "res://ic_mana_star",
+	when = function(menu)
+		return menu.guild_id ~= nil
+	end,
+})
+
 astral.events.on(astral.Event.Gateway, function(event)
 	if type(event.data) == "table" and type(event.data.user) == "table" then
 		my_id = event.data.user.id
