@@ -38,6 +38,13 @@ impl AstralRustString {
     }
 }
 
+pub fn take(string: AstralRustString) -> Vec<u8> {
+    if string.bytes.is_null() {
+        return Vec::new();
+    }
+    unsafe { Box::from_raw(core::ptr::slice_from_raw_parts_mut(string.bytes, string.length)) }.into_vec()
+}
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn astral_rust_string_free(string: AstralRustString) {
     if string.bytes.is_null() {

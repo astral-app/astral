@@ -3,6 +3,8 @@
 #ifdef __cplusplus
 #include <cstddef>
 #include <cstdint>
+#include <functional>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -17,6 +19,12 @@ typedef struct {
     char *bytes;
     size_t length;
 } AstralRustString;
+
+typedef struct {
+    void (*invoke)(void *context, const char *value, size_t length, int present);
+    void (*release)(void *context);
+    void *context;
+} AstralCallback;
 
 void astral_rust_string_free(AstralRustString string);
 AstralRustString astral_rust_string_from(const char *bytes, size_t length);
@@ -63,6 +71,51 @@ inline std::optional<std::string> takeIfPresent(AstralRustString string)
 {
     if (!string.bytes) return std::nullopt;
     return take(string);
+}
+
+using Reply = std::function<void(std::optional<std::string>)>;
+
+inline AstralRustString give(const std::string &text)
+{
+    return astral_rust_string_from(text.data(), text.size());
+}
+
+inline AstralCallback replyCallback(Reply reply)
+{
+    if (!reply) return {nullptr, nullptr, nullptr};
+    return {[](void *context, const char *value, size_t length, int present) {
+                (*static_cast<Reply *>(context))(present ? std::optional<std::string>(std::string(value ? value : "", length))
+                                                         : std::nullopt);
+            },
+            [](void *context) { delete static_cast<Reply *>(context); }, new Reply(std::move(reply))};
+}
+
+inline AstralCallback changedCallback(std::function<void()> changed)
+{
+    if (!changed) return {nullptr, nullptr, nullptr};
+    return replyCallback([changed = std::move(changed)](std::optional<std::string>) { changed(); });
+}
+
+inline Reply adoptReply(AstralCallback callback)
+{
+    if (!callback.invoke) {
+        if (callback.release) callback.release(callback.context);
+        return nullptr;
+    }
+    auto owned = std::shared_ptr<AstralCallback>(new AstralCallback(callback), [](AstralCallback *held) {
+        if (held->release) held->release(held->context);
+        delete held;
+    });
+    return [owned](std::optional<std::string> value) {
+        owned->invoke(owned->context, value ? value->data() : nullptr, value ? value->size() : 0, value ? 1 : 0);
+    };
+}
+
+inline std::function<void()> adoptChanged(AstralCallback callback)
+{
+    auto reply = adoptReply(callback);
+    if (!reply) return [] {};
+    return [reply] { reply(std::nullopt); };
 }
 
 template <typename Call> std::optional<std::string> takeOptional(Call call)
