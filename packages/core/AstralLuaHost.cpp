@@ -34,7 +34,7 @@
 #include "LuaLocale.h"
 #include "LuaSandbox.h"
 #include "PluginPackage.h"
-#include "PluginStorage.h"
+#include "AstralLuaHostApi.h"
 
 extern "C" {
 #include "lauxlib.h"
@@ -47,7 +47,6 @@ extern "C" {
 static const size_t kMemoryLimit = 8u << 20;
 static const size_t kSourceLimit = 256u << 10;
 static const size_t kModulesLimit = 1u << 20;
-static const size_t kStorageLimit = 512u << 10;
 static const int kBudgetSlices = 40;
 static const int kSliceInstructions = 5000;
 static const int kMaxErrors = 5;
@@ -276,6 +275,17 @@ static void Store(const std::string &key, const nlohmann::json &value)
 static LuaPlugin *Self(lua_State *state)
 {
     return static_cast<LuaPlugin *>(lua_touserdata(state, lua_upvalueindex(1)));
+}
+
+static void ConfigureRustAPI(void)
+{
+    AstralLuaPluginCalls calls = {
+        [](void *plugin, const char *name, size_t length) -> int {
+            return static_cast<LuaPlugin *>(plugin)->permissions.count(std::string(name, length)) > 0;
+        },
+        [](void *plugin) { return astral::rust::give(static_cast<LuaPlugin *>(plugin)->identifier); },
+    };
+    astral_lua_api_configure(calls, gPlatform.storagePath.data(), gPlatform.storagePath.size());
 }
 
 static void RecordFailure(LuaPlugin *plugin)
@@ -595,55 +605,12 @@ static int RespondToHeldRequest(lua_State *state)
     return 0;
 }
 
-static int DecodeJSON(lua_State *state)
-{
-    size_t length = 0;
-    const char *text = luaL_checklstring(state, 1, &length);
-    if (length > kMaximumHttpBody) return luaL_error(state, "astral.json.decode: text exceeds 4 MB");
-    nlohmann::json value = nlohmann::json::parse(std::string_view(text, length), nullptr, false);
-    if (value.is_discarded()) return 0;
-    astral::lua::pushJSON(state, value);
-    return 1;
-}
-
-static int MarkJSONArray(lua_State *state)
-{
-    if (lua_isnoneornil(state, 1)) lua_newtable(state);
-    luaL_checktype(state, 1, LUA_TTABLE);
-    lua_settop(state, 1);
-    astral::lua::pushArrayMetatable(state);
-    lua_setmetatable(state, 1);
-    return 1;
-}
-
-static int EncodeJSON(lua_State *state)
-{
-    nlohmann::json value;
-    if (!astral::lua::toJSON(state, 1, value)) return luaL_error(state, "astral.json.encode: value is not JSON-compatible");
-    int indent = -1;
-    if (lua_istable(state, 2)) {
-        lua_getfield(state, 2, "indent");
-        if (lua_isinteger(state, -1)) indent = static_cast<int>(std::clamp<lua_Integer>(lua_tointeger(state, -1), 0, 8));
-        lua_pop(state, 1);
-    }
-    std::string text = value.dump(indent, ' ', false, nlohmann::json::error_handler_t::replace);
-    lua_pushlstring(state, text.data(), text.size());
-    return 1;
-}
-
 static void ReleaseTimers(LuaPlugin *plugin)
 {
     auto timers = std::move(plugin->timers);
     plugin->timers.clear();
     for (const auto &[identifier, timer] : timers)
         if (plugin->state) luaL_unref(plugin->state, LUA_REGISTRYINDEX, timer.reference);
-}
-
-static int TimeNowMilliseconds(lua_State *state)
-{
-    auto now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-    lua_pushinteger(state, static_cast<lua_Integer>(now));
-    return 1;
 }
 
 static int AddTimer(lua_State *state, int64_t interval)
@@ -1289,31 +1256,6 @@ static int RefreshDecorationsNow(lua_State *)
 {
     if (gPlatform.refreshDecorations) gPlatform.refreshDecorations();
     return 0;
-}
-
-static int TimeISO(lua_State *state)
-{
-    int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-    int64_t milliseconds = lua_isinteger(state, 1) ? lua_tointeger(state, 1) : now;
-    bool local = false;
-    if (lua_istable(state, 2)) {
-        lua_getfield(state, 2, "local_time");
-        local = lua_toboolean(state, -1);
-        lua_pop(state, 1);
-    }
-    if (local) {
-        std::time_t seconds = static_cast<std::time_t>(milliseconds / 1000);
-        std::tm parts{};
-        char text[32] = {0};
-        if (!localtime_r(&seconds, &parts) || !std::strftime(text, sizeof(text), "%Y-%m-%d %H:%M", &parts)) return 0;
-        lua_pushstring(state, text);
-        return 1;
-    }
-    std::string iso = GatewayTimestamp(milliseconds).substr(0, 16);
-    iso[10] = ' ';
-    iso += " UTC";
-    lua_pushstring(state, iso.c_str());
-    return 1;
 }
 
 static int RenderImage(lua_State *state)
@@ -2315,67 +2257,6 @@ static void InstallRequire(LuaPlugin *plugin)
     lua_setglobal(plugin->state, "require");
 }
 
-static astral::PluginStorage &Storage(void)
-{
-    static astral::PluginStorage *storage = new astral::PluginStorage(gPlatform.storagePath, kStorageLimit);
-    return *storage;
-}
-
-static astral::PluginStorage &AvailableStorage(lua_State *state)
-{
-    RequirePermission(state, "storage");
-    if (!Storage().available()) luaL_error(state, "astral.storage is unavailable");
-    return Storage();
-}
-
-static int StorageGet(lua_State *state)
-{
-    auto value = AvailableStorage(state).get(Self(state)->identifier, luaL_checkstring(state, 1));
-    if (value)
-        astral::lua::pushJSON(state, *value);
-    else
-        lua_pushvalue(state, 2);
-    return 1;
-}
-
-static int StorageSet(lua_State *state)
-{
-    astral::PluginStorage &storage = AvailableStorage(state);
-    LuaPlugin *plugin = Self(state);
-    const char *key = luaL_checkstring(state, 1);
-    nlohmann::json value;
-    if (!astral::lua::toJSON(state, 2, value))
-        return luaL_error(state, "astral.storage.set: '%s' holds a value that cannot be stored", key);
-    switch (storage.set(plugin->identifier, key, value)) {
-    case astral::StorageResult::Saved:
-    case astral::StorageResult::Removed:
-        return 0;
-    case astral::StorageResult::OverLimit:
-        return luaL_error(state, "astral.storage: %s would exceed %d KB", plugin->identifier.c_str(), (int)(kStorageLimit >> 10));
-    case astral::StorageResult::Unavailable:
-    case astral::StorageResult::Failed:
-        return luaL_error(state, "astral.storage.set: could not save '%s'", key);
-    }
-}
-
-static int StorageRemove(lua_State *state)
-{
-    AvailableStorage(state).remove(Self(state)->identifier, luaL_checkstring(state, 1));
-    return 0;
-}
-
-static int StorageKeys(lua_State *state)
-{
-    auto keys = AvailableStorage(state).keys(Self(state)->identifier);
-    lua_createtable(state, (int)keys.size(), 0);
-    lua_Integer position = 1;
-    for (const auto &key : keys) {
-        lua_pushlstring(state, key.data(), key.size());
-        lua_rawseti(state, -2, position++);
-    }
-    return 1;
-}
-
 static std::string Argument(lua_State *state, int index)
 {
     return luaL_checkstring(state, index);
@@ -2735,11 +2616,11 @@ static void InstallAPI(LuaPlugin *plugin)
     lua_setfield(state, -2, "audio");
 
     lua_newtable(state);
-    Function(state, plugin, "now_ms", TimeNowMilliseconds);
+    Function(state, plugin, "now_ms", astral_lua_time_now_ms);
     Function(state, plugin, "after", TimeAfter);
     Function(state, plugin, "every", TimeEvery);
     Function(state, plugin, "cancel", TimeCancel);
-    Function(state, plugin, "iso", TimeISO);
+    Function(state, plugin, "iso", astral_lua_time_iso);
     lua_setfield(state, -2, "time");
 
     lua_newtable(state);
@@ -2817,9 +2698,9 @@ static void InstallAPI(LuaPlugin *plugin)
     lua_setfield(state, -2, "code");
 
     lua_newtable(state);
-    Function(state, plugin, "decode", DecodeJSON);
-    Function(state, plugin, "encode", EncodeJSON);
-    Function(state, plugin, "array", MarkJSONArray);
+    Function(state, plugin, "decode", astral_lua_json_decode);
+    Function(state, plugin, "encode", astral_lua_json_encode);
+    Function(state, plugin, "array", astral_lua_json_array);
     lua_setfield(state, -2, "json");
 
     lua_newtable(state);
@@ -2847,10 +2728,10 @@ static void InstallAPI(LuaPlugin *plugin)
     lua_setfield(state, -2, "net");
 
     lua_newtable(state);
-    Function(state, plugin, "get", StorageGet);
-    Function(state, plugin, "set", StorageSet);
-    Function(state, plugin, "remove", StorageRemove);
-    Function(state, plugin, "keys", StorageKeys);
+    Function(state, plugin, "get", astral_lua_storage_get);
+    Function(state, plugin, "set", astral_lua_storage_set);
+    Function(state, plugin, "remove", astral_lua_storage_remove);
+    Function(state, plugin, "keys", astral_lua_storage_keys);
     lua_setfield(state, -2, "storage");
 
     lua_newtable(state);
@@ -3159,6 +3040,7 @@ void start(const std::vector<std::string> &directories, SettingsStore *store, bo
     gDirectories = directories;
     gStartEnabled = startEnabled;
     gPlatform = std::move(platform);
+    ConfigureRustAPI();
     Scan();
     RefreshDecorations();
 }
@@ -3183,7 +3065,7 @@ void stop()
 
 void removeStorage(const std::string &identifier)
 {
-    Storage().removeAll(identifier);
+    astral_lua_storage_remove_all(identifier.data(), identifier.size());
 }
 
 nlohmann::json plugins()
