@@ -1,6 +1,6 @@
 <div align="center">
 
-<!-- TODO: add the logo here once it exists: <img src="./packages/assets/logo.png" width="120" alt="astral logo" /> -->
+<!-- TODO: add the logo here once it exists: <img src="./docs/assets/logo.png" width="120" alt="astral logo" /> -->
 
 <h1>astral</h1>
 
@@ -23,165 +23,98 @@ Lua plugins, themes, icon packs and emoji packs, drawn by Discord's own componen
 ## Contents
 
 - **For Users:** [What Is astral?](#what-is-astral) · [Features](#features) · [Installation](#installation)
-- **For Developers:** [Writing Plugins](#writing-plugins) · [Developing astral](#developing-astral) · [How It Works](#how-it-works) · [Layout](#layout)
+- **For Developers:** [Writing Plugins](#writing-plugins) · [Developing astral](#developing-astral) · [Architecture](#architecture)
 - **Project:** [Contributing](#contributing) · [Acknowledgements](#acknowledgements) · [Star History](#star-history)
 
 ## For Users
 
 ### What Is astral?
 
-astral mods Discord's Phoenix engine, the app where a Rust guest describes the UI and a native host draws it.
+astral mods Discord's Phoenix engine. It rewrites the UI batches Discord's Rust guest sends to the native host, so everything it adds is a real Discord component.
 
-The guest sends the UI to the host in ViewWire batches. astral rewrites those batches, so everything it adds is a real Discord component: an astral category in Settings, decorations in message headers, themes.
-
-It patches no code. Jailed and jailbroken installs run the same path, and no single Discord build is required.
-
-Plugins are sandboxed Lua 5.4 files. They run no native code, so a plugin cannot crash Discord.
+It patches no code: jailed and jailbroken installs run the same path. Plugins are sandboxed Lua, so a plugin cannot crash Discord.
 
 ### Features
 
-| Feature              | Description                                                                     |
-| -------------------- | ------------------------------------------------------------------------------- |
-| Plugins              | [40+ bundled Lua plugins](packages/addons/plugins/README.md), signed and verified on install. |
-| Native settings      | An astral category in Discord's Settings, built from Discord's own rows.        |
-| Themes               | Bundled themes, plus more in the marketplace catalog.                           |
-| Icon and emoji packs | Liquid Glass icons and Fluent emoji out of the box.                             |
-| Marketplace          | A signed default catalog of plugins and themes.                                 |
-| Cross-platform       | iOS and Android share one core: the rewriter, the Lua host and the settings pages. |
+| Feature              | Description                                                                         |
+| -------------------- | ----------------------------------------------------------------------------------- |
+| Plugins              | [40+ bundled Lua plugins](packages/addons/plugins/README.md), signed and verified. |
+| Native settings      | An astral category in Discord's Settings.                                           |
+| Themes and packs     | Themes, Liquid Glass icons and Fluent emoji.                                        |
+| Marketplace          | A signed catalog of plugins and themes.                                             |
+| Cross-platform       | iOS and Android share one core.                                                     |
 
 ### Installation
 
-There is no release yet. The [Release artifacts](https://github.com/astral-app/astral/actions/workflows/artifacts.yml) workflow builds every package weekly, with checksums and provenance.
+There is no release yet. The [Release artifacts](https://github.com/astral-app/astral/actions/workflows/artifacts.yml) workflow builds every package weekly.
 
-| Platform              | Method                                                                                         |
-| --------------------- | ---------------------------------------------------------------------------------------------- |
-| iOS, sideloaded       | Sideload IPA. It installs next to stock Discord: astral takes `astral://` and leaves `discord://`. |
-| iOS, jailbroken       | The `.deb` package.                                                                            |
-| Android, with Xposed  | The astral module, scoped to Discord in Vector.                                                |
-| Android, without root | An LSPatch-patched Discord APK.                                                                |
-
-The sideload IPA ships an Open in astral Safari extension for Discord links.
+| Platform              | Package                                                    |
+| --------------------- | ---------------------------------------------------------- |
+| iOS, sideloaded       | Sideload IPA. Installs next to stock Discord.              |
+| iOS, jailbroken       | `.deb` package.                                            |
+| Android, with Xposed  | astral module, scoped to Discord in Vector.                |
+| Android, without root | LSPatch-patched Discord APK.                               |
 
 ## For Developers
 
 ### Writing Plugins
 
-1. Scaffold a plugin with a test and translations:
+1. Scaffold a plugin: `astral create <id>`.
+2. Write it against the [`astral` API](docs/plugins.md).
+3. Turn on Developer mode, then hot reload on every save: `DEVICE=<udid> astral dev watch <plugin folder>`.
 
-    ```bash
-    astral create <id>
-    ```
-
-2. Write it against the `astral` API in [docs/plugins.md](docs/plugins.md). Manifests, themes and the catalog are TOML.
-3. Turn on Developer mode in astral, then push on every save:
-
-    ```bash
-    DEVICE=<udid> astral dev watch <plugin folder>
-    ```
-
-4. Run `astral readme` to update the [plugin list](packages/addons/plugins/README.md). The icon PNG goes in `packages/assets/plugin-icons/`; `astral test` fails when the list is stale.
-
-Working outside this repository? `astral sdk install` adds the API types to lua-language-server.
-
-`astral dev` forwards the device's development API (`127.0.0.1:9324`) over USB:
-
-| Command                         | What it does                    |
-| ------------------------------- | ------------------------------- |
-| `status`                        | Device and runtime status.      |
-| `push <plugin folder>`          | Install and hot reload.         |
-| `watch <plugin folder>`         | Push on every save.             |
-| `eval <plugin id> <lua>`        | Run Lua inside a plugin.        |
-| `logs [-f]`                     | Read or follow the logs.        |
-| `theme import`, `backup export\|import` | Move themes and backups. |
+Outside this repository, `astral sdk install` adds the API types to lua-language-server.
 
 ### Developing astral
 
-Requirements: Rust. For iOS, Theos and GNU make (`astral prepare-theos`); Xcode on macOS for IPAs. For Android, JDK 21 and the Android SDK.
+Requirements: Rust. Theos for iOS, JDK 21 and the Android SDK for Android.
 
 ```bash
 git submodule update --init
 git config core.hooksPath .githooks
-cargo astral lint
 cargo astral test
 make -C packages/ios package FINALPACKAGE=1
 ```
 
-`cargo astral <command>` builds and runs the CLI, leaving it at `packages/tools/target/release/astral`.
+`cargo astral` builds the `astral` CLI; run it with no arguments to list every command.
 
-| Command                                         | What it does                                                                                                   |
-| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `format`, `lint`                                | Format and check Lua (StyLua, luacheck, lua-language-server), TOML (Taplo), C and Objective-C (clang-format) and Rust (rustfmt, clippy). |
-| `test [--phoenix <PhoenixFatClient>]`           | The ViewWire host test under ASan and UBSan, the prelude and plugin tests, and every signature. `--phoenix` adds the locator test. |
-| `fuzz`, `bench`                                 | libFuzzer over the rewriter, and its cost per batch. CI runs both.                                             |
-| `sign`                                          | Sign the plugins and the catalog with the key in iCloud.                                                       |
-| `wire-dump`                                     | Pull and decode the batches a test device recorded while `Documents/astral/capture-wire` exists. Text is kept as length and hash. |
-| `compat --ipa <Discord.ipa>`                    | Check an iOS build for the hook points and view properties astral needs.                                       |
-| `android-compat --apk <apk> [--apk <split>...]` | Scan an Android APK and its splits for Phoenix host classes, hook signatures, ViewWire properties and events. `--channel <stable\|beta\|alpha>` downloads the latest arm64 APKs and checks Discord signed them. |
-| `deploy`                                        | Build and install the iOS package on a local test device.                                                      |
-| `build-ipa --ipa <decrypted Discord.ipa>`       | Build a sideload IPA. It keeps Discord's own extensions and checks the signed app still wires each one.        |
-| `sideload --ipa <IPA> --bundle-id <id> --device <udid>` | Build the IPA if needed, sign it with development profiles, validate it and install over USB.          |
-| `android build`, `android download --channel <c>` | Build the Android module, or fetch a channel's Discord APK and splits.                                       |
-| `android deploy --device <serial> --mode module\|sideload` | Install the module and scope it in Vector, or install a patched app. Both upgrade in place.           |
+### Architecture
 
-A scheduled workflow runs the compat checks on every new Discord build: iOS stable and beta, Android stable, beta and alpha. Alpha breakages are warnings, not issues.
+<a href="https://excalidraw.com/#json=i80fBPjWvrkRYb3DnAl7w,NYn7C2i784yPCK2yc9k8Pg">
+	<picture>
+		<source media="(prefers-color-scheme: dark)" srcset="./docs/assets/architecture-overview-dark.svg" />
+		<img src="./docs/assets/architecture-overview-light.svg" alt="astral's architecture: the build pipeline, the four layers on the phone, the catalog, and the developer tooling" />
+	</picture>
+</a>
 
-#### The vphone
+1. The platform layer finds Phoenix's host-call entry at runtime and swaps it for astral's own.
+2. astral core rewrites each UI batch on its way to the native host, and sends its own.
+3. Add-ons reach the core through the sandboxed `astral` Lua API.
+4. Plugins and the catalog are signed; astral verifies them against [`keys`](keys).
 
-`astral vphone` drives the iOS VM through its guest API:
+Click the diagram to open it on Excalidraw.
 
-1. `astral vphone boot` restarts the VM with the API on. The token lives in `~/.config/astral/vphone-token`.
-2. `astral vphone discord --ipa <Discord.ipa>` installs stock Discord.
-3. `astral vphone deploy` builds astral and deploys it through the VM's injection setup.
-
-`status`, `info`, `install`, `launch`, `push`, `pull` and `shell` cover the rest.
-
-> [!WARNING]
-> Keep test data inside the VM, never change live account state while validating, and never run the vphone and the Android emulator together.
-
-### How It Works
-
-On iOS, astral finds its hooks at runtime instead of patching code:
-
-1. It finds Phoenix's `opsArrived` as the one function that references the `ops batch dropped` diagnostic (via `LC_FUNCTION_STARTS`).
-2. It walks up to the host-call entry the Rust guest calls for every frame: the unique caller of the unique caller of the dispatcher that calls `opsArrived`.
-3. It caches both per Phoenix UUID in `Documents/astral/hooks.json`.
-4. The guest keeps that entry in a `{context, call, drop}` record on the heap. astral swaps `call` for its own function.
-5. That function rewrites ops frames (a zero `uint32`, then the batch) and sends astral's own batches through the original.
-
-At startup, astral alerts if an app extension it expects is missing. On Phoenix 356.0 (build 124376), Phoenix's native passkey module is present, so astral lets it finish passkey login itself; `browserLogin` in the runtime report shows these checks.
-
-### Layout
-
-| Path                                                        | Contents                                                                                     |
-| ----------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| [`packages/core`](packages/core)                            | Shared ViewWire rewriter, settings pages, Lua host, Discord cache, appearance services and Lua prelude. |
-| [`packages/ios`](packages/ios)                              | iOS integration and platform services.                                                       |
-| [`packages/android`](packages/android)                      | Android module, JNI bridge and platform services.                                            |
-| [`packages/addons/plugins`](packages/addons/plugins)        | Bundled Lua plugins and their tests.                                                         |
-| [`packages/addons/themes`](packages/addons/themes), [`packages/catalog`](packages/catalog) | Bundled themes, Discord's raw palette and the default marketplace catalog. |
-| [`packages/addons/icon-packs`](packages/addons/icon-packs), [`packages/addons/emoji-packs`](packages/addons/emoji-packs) | Icon packs (PNGs named after Phoenix's icons) and emoji packs (image URL templates and coverage lists). |
-| [`packages/sdk`](packages/sdk)                              | The plugin API as a lua-language-server addon (`config.json`, `library/`).                   |
-| [`packages/assets`](packages/assets)                        | Icon SVGs served as `res://astral_<name>`.                                                   |
-| [`packages/tools`](packages/tools)                          | The `astral` CLI, in Rust.                                                                   |
-| [`keys`](keys)                                              | The public key plugins and the catalog are verified against.                                 |
-| [`vendor`](vendor)                                          | Lua 5.4 (submodule). SQLite comes from the `libsqlite3-sys` crate.                           |
-| [`docs`](docs)                                              | How the Phoenix integration and plugins work.                                                |
+| Path                                         | Contents                                            |
+| -------------------------------------------- | --------------------------------------------------- |
+| [`packages/core`](packages/core)             | ViewWire rewriter, Lua host, settings pages.        |
+| [`packages/ios`](packages/ios), [`packages/android`](packages/android) | Platform layers.          |
+| [`packages/addons`](packages/addons)         | Bundled plugins, themes, icon and emoji packs.      |
+| [`packages/catalog`](packages/catalog)       | The default marketplace catalog.                    |
+| [`packages/sdk`](packages/sdk)               | Plugin API types for lua-language-server.           |
+| [`packages/tools`](packages/tools)           | The `astral` CLI, in Rust.                          |
 
 ## Project
 
 ### Contributing
 
-1. Run `git config core.hooksPath .githooks`. The pre-commit hook runs lint and tests.
-2. Run `cargo astral format`, `lint` and `test` before committing.
-3. Commit as `type(scope): subject`. Scopes: `ios`, `core`, `plugins`, `sdk`, `themes`, `catalog`, `tools`, `docs`.
-4. Write astral in lowercase, everywhere.
-5. Keep account data, screenshots, IPAs and decrypted binaries out of the repository.
-
-New capabilities go into the `astral` Lua API, never into native plugin code. Nothing may need a jailbreak.
+1. Run `cargo astral format`, `lint` and `test` before committing.
+2. Commit as `type(scope): subject`.
+3. Write astral in lowercase.
+4. Keep account data, IPAs and decrypted binaries out of the repository.
 
 ### Acknowledgements
 
-astral follows [Unbound](https://github.com/marioparaschiv/unbound) closely: its catalog, plugin icons, author cards and locales. [docs/unbound-parity.md](docs/unbound-parity.md) tracks the gap.
+astral follows [Unbound](https://github.com/marioparaschiv/unbound) closely. [docs/unbound-parity.md](docs/unbound-parity.md) tracks the gap.
 
 <div align="center">
 
