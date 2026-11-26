@@ -96,7 +96,7 @@ astral.ui.patch("message-row", function(node)
 	return nil
 end)
 
-astral.events.on("message.filter", function(message)
+astral.events.on(astral.Event.MessageFilter, function(message)
 	if not message or message.from_me then
 		return false
 	end

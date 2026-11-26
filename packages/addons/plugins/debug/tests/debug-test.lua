@@ -76,13 +76,13 @@ assert(reply.send.file.description == "discord=357.0 failed=Translate")
 assert(rendered.width == 432 and rendered.scale == 3 and #rendered.items > 30)
 local texts = {}
 for _, item in ipairs(rendered.items) do
-	if item.type == "text" then
+	if item.type == astral.ImageItemType.Text then
 		texts[#texts + 1] = item.text
 		local glyph = (item.mono and 0.6 or 0.56) * item.size
 		local right = item.width and (item.x + item.width) or (item.x + utf8.len(item.text) * glyph)
 		assert(right <= 432 - 8, "text runs past the card: " .. item.text)
 		assert(
-			not item.width or item.align == "center" or utf8.len(item.text) * glyph <= item.width + 1,
+			not item.width or item.align == astral.TextAlign.Center or utf8.len(item.text) * glyph <= item.width + 1,
 			"text is cut off: " .. item.text
 		)
 	end
@@ -111,12 +111,12 @@ for _, absent in ipairs({ "107 dylibs", "120 Hz", "1.1.3-2", "package", "Debug 0
 end
 local last_line = 0
 for _, item in ipairs(rendered.items) do
-	if item.type == "text" and item.y > last_line then
+	if item.type == astral.ImageItemType.Text and item.y > last_line then
 		last_line = item.y
 	end
 end
 for _, item in ipairs(rendered.items) do
-	if item.type == "text" and item.y == last_line and item.text ~= "" then
+	if item.type == astral.ImageItemType.Text and item.y == last_line and item.text ~= "" then
 		assert(item.x >= 12 + 64, "text sits under the ALT badge: " .. item.text)
 	end
 end

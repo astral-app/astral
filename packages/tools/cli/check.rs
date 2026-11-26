@@ -89,6 +89,18 @@ pub fn rules() -> Vec<Rule> {
             run: |files, _| crate::lua_casing::check(files),
         },
         Rule {
+            name: "lua enums",
+            affects: |path| lua(path) && under(path, &["packages/addons/plugins/"]),
+            run: |files, _| crate::lua_enums::check(files),
+        },
+        Rule {
+            name: "sdk enums",
+            affects: |path| {
+                path == "packages/core/lua_enums.rs" || path == "packages/sdk/library/astral.lua"
+            },
+            run: |_, _| crate::lua_enums::sync_sdk(true),
+        },
+        Rule {
             name: "lua types",
             affects: |path| lua(path) || path == ".luarc.json",
             run: |_, _| lint::typecheck_lua(),
@@ -167,7 +179,7 @@ pub fn rules() -> Vec<Rule> {
 fn file_scoped(name: &str) -> bool {
     matches!(
         name,
-        "clang-format" | "stylua" | "luacheck" | "lua casing" | "taplo"
+        "clang-format" | "stylua" | "luacheck" | "lua casing" | "lua enums" | "taplo"
     )
 }
 

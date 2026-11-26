@@ -22,17 +22,17 @@ local function sheet_for(message)
 	local type_name = t("TYPE_MESSAGE")
 	local items = {}
 	if content ~= "" then
-		items[#items + 1] = { type = "heading", text = t("MESSAGE_CONTENT") }
-		items[#items + 1] = { type = "code", text = content }
-		items[#items + 1] = { type = "heading", text = t("MESSAGE_DATA") }
+		items[#items + 1] = { type = astral.SheetItemType.Heading, text = t("MESSAGE_CONTENT") }
+		items[#items + 1] = { type = astral.SheetItemType.Code, text = content }
+		items[#items + 1] = { type = astral.SheetItemType.Heading, text = t("MESSAGE_DATA") }
 	end
-	items[#items + 1] = { type = "code", text = data, fill = true }
-	local buttons = { { label = t("COPY_DATA"), action = "copy_data", style = "primary" } }
+	items[#items + 1] = { type = astral.SheetItemType.Code, text = data, fill = true }
+	local buttons = { { label = t("COPY_DATA"), action = "copy_data", style = astral.ButtonStyle.Primary } }
 	if content ~= "" then
 		buttons[#buttons + 1] = { label = t("COPY_CONTENT"), action = "copy_content" }
 	end
 	buttons[#buttons + 1] = { label = t("CLOSE"), action = "close" }
-	items[#items + 1] = { type = "buttons", buttons = buttons }
+	items[#items + 1] = { type = astral.SheetItemType.Buttons, buttons = buttons }
 	return { title = t("RAW_TITLE", { type = type_name }), expanded = true, items = items }, data, content, type_name
 end
 

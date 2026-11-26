@@ -1,3 +1,4 @@
+use crate::lua_enums::TextStyle;
 use core::ffi::{c_char, c_int};
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -21,9 +22,9 @@ const HEADER_HEIGHT: f64 = 34.0;
 const SIDE_PADDING: f32 = 12.0;
 const ICON_SIZE: f64 = 16.0;
 const CORNER: f64 = 6.0;
-const BOLD: u64 = 1;
-const ITALIC: u64 = 2;
-const UNDERLINE: u64 = 4;
+const BOLD: u64 = TextStyle::Bold.value() as u64;
+const ITALIC: u64 = TextStyle::Italic.value() as u64;
+const UNDERLINE: u64 = TextStyle::Underline.value() as u64;
 
 #[repr(C)]
 pub struct AstralCodeBlockContext {

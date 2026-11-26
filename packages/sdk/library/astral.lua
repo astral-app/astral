@@ -89,7 +89,197 @@ local NodeKind = {
 }
 
 ---@enum astral.Shape
-local Shape = { Pill = "pill", Op = "op" }
+local Shape = {
+	Pill = "pill",
+	Op = "op",
+}
+
+---@enum astral.Event
+local Event = {
+	AppForeground = "app.foreground",
+	AppBackground = "app.background",
+	MessageCreate = "message.create",
+	MessageFilter = "message.filter",
+	Gateway = "gateway",
+}
+
+---@enum astral.SheetItemType
+local SheetItemType = {
+	Heading = "heading",
+	Text = "text",
+	Code = "code",
+	Image = "image",
+	Row = "row",
+	Column = "column",
+	Buttons = "buttons",
+	Input = "input",
+	Divider = "divider",
+	Spacer = "spacer",
+	Icon = "icon",
+}
+
+---@enum astral.SheetAlign
+local SheetAlign = {
+	Start = "start",
+	Center = "center",
+	End = "end",
+	Top = "top",
+}
+
+---@enum astral.SheetColor
+local SheetColor = {
+	Primary = "primary",
+	Muted = "muted",
+	Link = "link",
+	Positive = "positive",
+	Danger = "danger",
+}
+
+---@enum astral.Direction
+local Direction = {
+	Row = "row",
+	Column = "column",
+}
+
+---@enum astral.ButtonStyle
+local ButtonStyle = {
+	Primary = "primary",
+	Secondary = "secondary",
+	Danger = "danger",
+}
+
+---@enum astral.ScrollAlign
+local ScrollAlign = {
+	Start = "start",
+	End = "end",
+	Visible = "visible",
+}
+
+---@enum astral.PatchNodeType
+local PatchNodeType = {
+	View = "view",
+	Text = "text",
+	Image = "image",
+	Stack = "stack",
+}
+
+---@enum astral.InsertNodeType
+local InsertNodeType = {
+	View = "view",
+	Text = "text",
+	Image = "image",
+	Player = "player",
+}
+
+---@enum astral.InsertPosition
+local InsertPosition = {
+	Start = "start",
+	End = "end",
+}
+
+---@enum astral.Justify
+local Justify = {
+	Start = "start",
+	Center = "center",
+	End = "end",
+}
+
+---@enum astral.Align
+local Align = {
+	Start = "start",
+	Center = "center",
+	End = "end",
+	Stretch = "stretch",
+}
+
+---@enum astral.ReplyPlacement
+local ReplyPlacement = {
+	Above = "above",
+	Bubble = "bubble",
+	Inside = "inside",
+}
+
+---@enum astral.NamePlacement
+local NamePlacement = {
+	Above = "above",
+	Inside = "inside",
+}
+
+---@enum astral.TimePlacement
+local TimePlacement = {
+	Header = "header",
+	Inline = "inline",
+	Hidden = "hidden",
+}
+
+---@enum astral.NameColorKind
+local NameColorKind = {
+	Avatar = "avatar",
+	Header = "header",
+	Voter = "voter",
+	Typing = "typing",
+}
+
+---@enum astral.ImageItemType
+local ImageItemType = {
+	Rect = "rect",
+	Circle = "circle",
+	Text = "text",
+}
+
+---@enum astral.FontWeight
+local FontWeight = {
+	Regular = "regular",
+	Semibold = "semibold",
+	Bold = "bold",
+}
+
+---@enum astral.TextAlign
+local TextAlign = {
+	Left = "left",
+	Center = "center",
+	Right = "right",
+}
+
+---@enum astral.OptionType
+local OptionType = {
+	String = "string",
+	Integer = "integer",
+	Number = "number",
+	Boolean = "boolean",
+	User = "user",
+	Channel = "channel",
+	Role = "role",
+}
+
+---@enum astral.MediaKind
+local MediaKind = {
+	Video = "video",
+	Image = "image",
+}
+
+---@enum astral.PickedMediaType
+local PickedMediaType = {
+	Image = "image",
+	Video = "video",
+	Audio = "audio",
+	Unknown = "unknown",
+}
+
+---@enum astral.Relationship
+local Relationship = {
+	Friend = "friend",
+	Blocked = "blocked",
+	Incoming = "incoming",
+	Outgoing = "outgoing",
+}
+
+---@enum astral.TextStyle
+local TextStyle = {
+	Bold = 1,
+	Italic = 2,
+	Underline = 4,
+}
 
 ---@enum astral.MessageType
 local MessageType = {
@@ -284,6 +474,30 @@ astral = {}
 astral.Target = Target
 astral.NodeKind = NodeKind
 astral.Shape = Shape
+astral.Event = Event
+astral.SheetItemType = SheetItemType
+astral.SheetAlign = SheetAlign
+astral.SheetColor = SheetColor
+astral.Direction = Direction
+astral.ButtonStyle = ButtonStyle
+astral.ScrollAlign = ScrollAlign
+astral.PatchNodeType = PatchNodeType
+astral.InsertNodeType = InsertNodeType
+astral.InsertPosition = InsertPosition
+astral.Justify = Justify
+astral.Align = Align
+astral.ReplyPlacement = ReplyPlacement
+astral.NamePlacement = NamePlacement
+astral.TimePlacement = TimePlacement
+astral.NameColorKind = NameColorKind
+astral.ImageItemType = ImageItemType
+astral.FontWeight = FontWeight
+astral.TextAlign = TextAlign
+astral.OptionType = OptionType
+astral.MediaKind = MediaKind
+astral.PickedMediaType = PickedMediaType
+astral.Relationship = Relationship
+astral.TextStyle = TextStyle
 astral.MessageType = MessageType
 astral.Permission = Permission
 astral.Color = Color
@@ -445,11 +659,20 @@ function astral.ui.alert(title, message) end
 ---@return integer request
 function astral.ui.confirm(spec, callback) end
 ---@class astral.SheetItem
----@field type "heading"|"text"|"code"|"image"|"row"|"column"|"buttons"|"input"|"divider"|"spacer"
+---@field type astral.SheetItemType
 ---@field text? string
 ---@field url? string https image for `image`
 ---@field items? astral.SheetItem[] children of `row` and `column`
----@field buttons? { label: string, action: string, style: "primary"|"secondary"|"danger"? }[]
+---@field buttons? { label: string, action: string, style: astral.ButtonStyle? }[]
+---@field direction? astral.Direction how `buttons` are laid out
+---@field align? astral.SheetAlign where text sits, or `astral.SheetAlign.Top` to top-align a row's children
+---@field color? astral.SheetColor|astral.Argb|string text or icon colour
+---@field name? string Discord icon name for `icon`
+---@field size? number font, icon, image or spacer size
+---@field bold? boolean
+---@field round? boolean a circular `image`
+---@field spacing? number gap between the children of `row` and `column`
+---@field lines? integer at most this many lines of text
 ---@field action? string sent to the handler when the item is tapped or the input is submitted
 ---@field height? number fixed height of a scrolling `code` block, or its minimum with `fill`
 ---@field fill? boolean a `code` block grows into the sheet's free space and scrolls inside it
@@ -482,7 +705,7 @@ function astral.ui.open(url) end
 function astral.ui.open_channel(channel_id, message_id) end
 ---@class astral.ScrollOptions
 ---@field animated? boolean defaults to true
----@field align? "start"|"end"|"visible" defaults to "visible", the least scrolling that shows it
+---@field align? astral.ScrollAlign defaults to `astral.ScrollAlign.Visible`, the least scrolling that shows it
 ---Scrolls the open chat to a message that is loaded in it.
 ---@param message_id string
 ---@param options? astral.ScrollOptions
@@ -553,7 +776,7 @@ function astral.ui.mention(decorator) end
 function astral.ui.message_color(colorizer) end
 ---@class astral.PatchSelector
 ---@field id string accessibilityId prefix, such as "message.content:"
----@field type? "view"|"text"|"image"|"stack"
+---@field type? astral.PatchNodeType
 
 ---@class astral.PatchTarget
 ---@field id string
@@ -583,7 +806,7 @@ function astral.ui.message_color(colorizer) end
 ---@param patcher fun(node: astral.PatchTarget): astral.NodePatch?
 function astral.ui.patch(selector, patcher) end
 ---@class astral.InsertNode
----@field type? "view"|"text"|"image"|"player"
+---@field type? astral.InsertNodeType
 ---@field uri? string what a player plays: an https or content URL
 ---@field muted? boolean a player plays without sound
 ---@field fill_height? boolean take the full height of the parent
@@ -598,13 +821,13 @@ function astral.ui.patch(selector, patcher) end
 ---@field width? number
 ---@field height? number
 ---@field row? boolean lay children out in a row
----@field justify? "start"|"center"|"end" where children sit along the main axis
----@field align? "start"|"center"|"end"|"stretch" where children sit across it
+---@field justify? astral.Justify where children sit along the main axis
+---@field align? astral.Align where children sit across it
 ---@field fill? boolean take the full width of the parent
 ---@field bold? boolean
 ---@field weight? integer font weight from 100 to 900; bold is 600
 ---@field action? string passed to on_press when the node is tapped
----@field position? "start"|"end" where the nodes go among the target's children
+---@field position? astral.InsertPosition where the nodes go among the target's children
 ---@field children? astral.InsertNode[]
 
 ---@param selector string|astral.PatchSelector
@@ -615,9 +838,9 @@ function astral.ui.insert(selector, build, on_press) end
 ---@field color astral.Color|integer|string
 ---@field radius? number
 ---@field bubble? boolean
----@field reply? "above"|"bubble"|"inside"
----@field name? "above"|"inside" where the author line sits on the first message of a group
----@field time? "header"|"inline"|"hidden" where the time sits: in the author line, beside the text, or nowhere
+---@field reply? astral.ReplyPlacement
+---@field name? astral.NamePlacement where the author line sits on the first message of a group
+---@field time? astral.TimePlacement where the time sits: in the author line, beside the text, or nowhere
 ---@param decorator fun(node: astral.Node): astral.MessageBackgroundStyle?
 function astral.ui.message_background(decorator) end
 ---@class astral.CodeBlock
@@ -638,7 +861,7 @@ function astral.ui.message_background(decorator) end
 ---@field lineNumbers? integer colour of the line numbers; leave out to hide them
 ---@field fontSize? number
 ---@field lineHeight? number
----@field lines {[1]: string, [2]: integer, [3]: integer}[][] runs of text, ARGB colour and style flags (1 bold, 2 italic, 4 underline)
+---@field lines {[1]: string, [2]: integer, [3]: integer}[][] runs of text, ARGB colour and `astral.TextStyle` flags combined with `|`
 ---@field header? astral.CodeCardHeader
 ---@param render fun(block: astral.CodeBlock): astral.CodeCard?
 ---@param press? fun(block: astral.CodeBlock, action: string)
@@ -673,9 +896,9 @@ astral.events = {}
 ---@field type string the dispatch type, such as "MESSAGE_CREATE"
 ---@field seq? integer
 ---@field data any the event's payload
----Subscribes to an event. `"gateway"` sees every Discord gateway dispatch, or only the types listed in `types`;
+---Subscribes to an event. `astral.Event.Gateway` sees every Discord gateway dispatch, or only the types listed in `types`;
 ---return `false` to drop the event or a table to replace its data.
----@param event "app.foreground"|"app.background"|"message.create"|"message.filter"|"gateway"
+---@param event astral.Event
 ---@param callback fun(event: any): any
 ---@param types? string[] gateway event types to receive
 ---@return integer subscription
@@ -690,7 +913,7 @@ function astral.gateway.dispatch(type, data) end
 
 astral.image = {}
 ---@class astral.ImageItem
----@field type "rect"|"circle"|"text"
+---@field type astral.ImageItemType
 ---@field x number
 ---@field y number
 ---@field w? number rect width
@@ -702,10 +925,10 @@ astral.image = {}
 ---@field border_width? number
 ---@field text? string
 ---@field size? number
----@field weight? "regular"|"semibold"|"bold"
+---@field weight? astral.FontWeight
 ---@field mono? boolean
 ---@field width? number text width; longer text is cut with an ellipsis
----@field align? "left"|"center"|"right"
+---@field align? astral.TextAlign
 ---@class astral.ImageSpec
 ---@field width number points, up to 2048
 ---@field height number points, up to 4096
@@ -732,7 +955,7 @@ astral.commands = {}
 ---@class astral.CommandOption
 ---@field name string
 ---@field description? string
----@field type? "string"|"integer"|"number"|"boolean"|"user"|"channel"|"role"
+---@field type? astral.OptionType
 ---@field required? boolean
 ---@class astral.Command
 ---@field name string lower-case, up to 32 characters
@@ -762,7 +985,7 @@ function astral.events.off(subscription) end
 astral.media = {}
 ---@class astral.MediaSave
 ---@field url string the media Discord downloaded for the save
----@field kind "video"|"image"
+---@field kind astral.MediaKind
 ---@field channel_id? astral.Snowflake the cached message that holds the media
 ---@field message_id? astral.Snowflake
 ---Runs when Discord saves media to Photos. Call `reply(url)` with an https URL to save that file instead, or `reply(nil)` to keep Discord's; needs `media.save`.
@@ -771,7 +994,7 @@ function astral.media.on_save(callback) end
 ---@class astral.PickedMedia
 ---@field size? integer bytes, when the photo library knows them
 ---@field duration number seconds, 0 for photos
----@field type "image"|"video"|"audio"|"unknown"
+---@field type astral.PickedMediaType
 ---Describes a media picker item from its picked:// image URI.
 ---@param uri string
 ---@return astral.PickedMedia?
@@ -851,7 +1074,7 @@ function astral.discord.user(id) end
 ---@return string?
 function astral.discord.nickname(id) end
 ---@param id astral.Snowflake
----@return "friend"|"blocked"|"incoming"|"outgoing"|nil
+---@return astral.Relationship?
 function astral.discord.relationship(id) end
 
 astral.storage = {}

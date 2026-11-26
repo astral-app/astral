@@ -1,3 +1,4 @@
+use crate::capability::Capability;
 use core::ffi::{c_char, c_int};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, RwLock};
@@ -401,58 +402,8 @@ fn plugin_icon(plugin: &Value) -> String {
 }
 
 fn permission_description(permission: &str) -> (String, &'static str) {
-    let known = match permission {
-        "discord.guilds" => Some(("Reads servers and their roles", "res://ic_mana_server")),
-        "discord.members" => Some(("Reads server members", "res://ic_mana_group")),
-        "discord.permissions" => Some(("Reads member permissions", "res://ic_mana_shield")),
-        "discord.messages" => Some(("Reads messages in the cache", "res://ic_mana_chat")),
-        "discord.messages.content" => Some(("Reads cached message text", "res://ic_mana_chat")),
-        "discord.messages.send" => Some(("Transforms message text before sending", "res://ic_mana_chat")),
-        "messages.display" => Some(("Changes how message text is shown on this device", "res://ic_mana_chat")),
-        "events.messages" => Some(("Receives new message metadata while Discord is open", "res://ic_mana_chat")),
-        "events.messages.filter" => Some((
-            "Reads and filters incoming messages before Discord handles them",
-            "res://ic_mana_chat",
-        )),
-        "events.lifecycle" => Some(("Receives app foreground and background events", "res://ic_mana_calendar")),
-        "ui.clipboard" => Some(("Copies text to the system clipboard", "res://ic_mana_copy")),
-        "net.discord" => Some((
-            "Reads and changes Discord's own requests, without your token",
-            "res://ic_mana_shield",
-        )),
-        "events.gateway" => Some(("Reads and changes Discord's live events", "res://ic_mana_bell")),
-        "messages.local" => Some(("Shows local events and messages only you see", "res://ic_mana_chat")),
-        "background" => Some(("Keeps Discord running in the background", "res://ic_mana_moon")),
-        "diagnostics" => Some(("Reads astral's versions, device details and plugin states", "res://ic_mana_bug")),
-        "commands" => Some(("Adds slash commands", "res://ic_mana_slash")),
-        "ui.text" => Some(("Restyles the text of messages", "res://ic_mana_text")),
-        "ui.images" => Some(("Changes which images Discord shows", "res://ic_mana_image")),
-        "ui.press" => Some(("Presses Discord's own buttons", "res://ic_mana_touch")),
-        "ui.navigate" => Some(("Opens channels and scrolls the chat", "res://ic_mana_link")),
-        "ui.composer" => Some(("Reads and styles draft text in the message composer", "res://ic_mana_chat")),
-        "ui.message_background" => Some(("Styles message backgrounds", "res://ic_mana_chat")),
-        "ui.dialogs" => Some(("Shows dialogs and pickers", "res://ic_mana_chat")),
-        "ui.patch" => Some(("Restyles parts of Discord's screens", "res://ic_mana_paint_palette")),
-        "ui.insert" => Some(("Adds buttons and text to Discord's screens", "res://ic_mana_paint_palette")),
-        "ui.code_blocks" => Some(("Restyles code blocks in messages", "res://ic_mana_paint_palette")),
-        "files.read" => Some(("Reads files you pick", "res://ic_mana_image")),
-        "media.save" => Some(("Changes which file Discord saves to your photos", "res://ic_mana_download")),
-        "media.picker" => Some(("Reads the size and length of photos in the media picker", "res://ic_mana_image")),
-        "media.offer" => Some(("Answers Discord's next photo picker with an image", "res://ic_mana_image")),
-        "ui.haptics" => Some(("Triggers haptic feedback", "res://ic_mana_bell")),
-        "ui.toasts" => Some(("Shows brief notifications", "res://ic_mana_bell")),
-        "ui.notifications" => Some(("Posts system notifications", "res://ic_mana_bell")),
-        "audio" => Some(("Plays sounds and reads text aloud", "res://ic_mana_bell")),
-        "ui.message_actions" => Some(("Adds actions to the message menu", "res://ic_mana_chat")),
-        "ui.web_auth" => Some(("Opens a secure sign-in window", "res://ic_mana_link")),
-        "discord.users" => Some(("Reads user profiles", "res://ic_mana_user")),
-        "discord.relationships" => Some(("Reads your friends, blocks and their nicknames", "res://ic_mana_friends")),
-        "network" => Some(("Makes HTTPS requests", "res://ic_mana_link")),
-        "storage" => Some(("Keeps its own data on this device", "res://ic_mana_download")),
-        _ => None,
-    };
-    match known {
-        Some((description, icon)) => (description.to_owned(), icon),
+    match Capability::parse(permission) {
+        Some(capability) => (capability.description().to_owned(), capability.icon()),
         None => (format!("Unknown permission: {permission}"), "res://ic_mana_circle_information"),
     }
 }

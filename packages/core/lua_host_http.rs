@@ -1,3 +1,4 @@
+use crate::capability::Capability;
 use core::ffi::c_int;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Condvar, Mutex};
@@ -236,7 +237,7 @@ pub unsafe fn exchange_argument(state: *mut LuaState, index: c_int) -> Result<u6
 
 pub unsafe fn register_intercept(state: *mut LuaState) -> crate::lua_host_api::Outcome {
     let plugin = host::plugin_of(state);
-    unsafe { crate::lua_host_api::require_permission(state, "net.discord") }?;
+    unsafe { crate::lua_host_api::require_permission(state, Capability::NetDiscord) }?;
     unsafe { crate::lua_host_api::check_type(state, 1, lua::TTABLE) }?;
     if unsafe { (*plugin).http_hooks.len() } >= 16 {
         return Err("astral.net.intercept: at most 16 intercepts per plugin".into());
@@ -279,7 +280,7 @@ pub unsafe fn register_intercept(state: *mut LuaState) -> crate::lua_host_api::O
 }
 
 pub unsafe fn release_held(state: *mut LuaState) -> crate::lua_host_api::Outcome {
-    unsafe { crate::lua_host_api::require_permission(state, "net.discord") }?;
+    unsafe { crate::lua_host_api::require_permission(state, Capability::NetDiscord) }?;
     let exchange = unsafe { exchange_argument(state, 1) }?;
     let changes = if unsafe { lua::is_table(state, 2) } {
         unsafe { to_json(state, 2, 0) }.filter(Value::is_object)
@@ -291,7 +292,7 @@ pub unsafe fn release_held(state: *mut LuaState) -> crate::lua_host_api::Outcome
 }
 
 pub unsafe fn respond_held(state: *mut LuaState) -> crate::lua_host_api::Outcome {
-    unsafe { crate::lua_host_api::require_permission(state, "net.discord") }?;
+    unsafe { crate::lua_host_api::require_permission(state, Capability::NetDiscord) }?;
     let exchange = unsafe { exchange_argument(state, 1) }?;
     let Some(value) = (unsafe { to_json(state, 2, 0) }).filter(Value::is_object) else {
         return Err("astral.net.respond: give a response table".into());

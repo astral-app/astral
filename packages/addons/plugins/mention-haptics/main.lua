@@ -35,7 +35,7 @@ local function pings_me(message, values)
 		or (message.role_mentioned and values.roles)
 end
 
-astral.events.on("message.create", function(message)
+astral.events.on(astral.Event.MessageCreate, function(message)
 	local values = astral.settings.values
 	if not message or message.from_me or (message.open and not values.open_channel) then
 		return

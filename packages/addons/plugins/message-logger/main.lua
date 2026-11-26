@@ -93,7 +93,7 @@ local function on_update(data)
 	log.edits[data.id] = edits
 end
 
-astral.events.on("gateway", function(event)
+astral.events.on(astral.Event.Gateway, function(event)
 	local data = event.data
 	if event.type == "READY" then
 		current_user = type(data.user) == "table" and data.user.id or nil

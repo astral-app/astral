@@ -11,22 +11,34 @@ settings:number("radius", "Corner radius", { min = 0, max = 32, step = 1, defaul
 local layout = astral.settings.section("Name, time and replies")
 layout:choice("name", "Name", {
 	astral.settings.option(
-		"inside",
+		astral.NamePlacement.Inside,
 		"Inside the bubble",
 		"The author line sits at the top of the group's first bubble"
 	),
-	astral.settings.option("above", "Above the bubble", "The author line sits above the bubbles"),
-}, "inside")
+	astral.settings.option(astral.NamePlacement.Above, "Above the bubble", "The author line sits above the bubbles"),
+}, astral.NamePlacement.Inside)
 layout:choice("time", "Time", {
-	astral.settings.option("header", "With the name", "The time sits in the author line"),
-	astral.settings.option("inline", "Beside the text", "The time sits after the text, in small type"),
-	astral.settings.option("hidden", "Hidden", "Bubbles show no time"),
-}, "header")
+	astral.settings.option(astral.TimePlacement.Header, "With the name", "The time sits in the author line"),
+	astral.settings.option(
+		astral.TimePlacement.Inline,
+		"Beside the text",
+		"The time sits after the text, in small type"
+	),
+	astral.settings.option(astral.TimePlacement.Hidden, "Hidden", "Bubbles show no time"),
+}, astral.TimePlacement.Header)
 layout:choice("reply", "Replies", {
-	astral.settings.option("inside", "Inside", "The message being replied to shows in a box inside the bubble"),
-	astral.settings.option("above", "Above", "The message being replied to sits above the bubble"),
-	astral.settings.option("bubble", "Bubble", "The message being replied to gets its own small bubble"),
-}, "inside")
+	astral.settings.option(
+		astral.ReplyPlacement.Inside,
+		"Inside",
+		"The message being replied to shows in a box inside the bubble"
+	),
+	astral.settings.option(astral.ReplyPlacement.Above, "Above", "The message being replied to sits above the bubble"),
+	astral.settings.option(
+		astral.ReplyPlacement.Bubble,
+		"Bubble",
+		"The message being replied to gets its own small bubble"
+	),
+}, astral.ReplyPlacement.Inside)
 
 local AUTOMATIC = 0x33000000
 

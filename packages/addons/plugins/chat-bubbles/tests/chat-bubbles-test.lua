@@ -50,9 +50,9 @@ assert(
 	automatic.color == 0x33000000
 		and automatic.radius == 16
 		and automatic.bubble
-		and automatic.reply == "inside"
-		and automatic.name == "inside"
-		and automatic.time == "header"
+		and automatic.reply == astral.ReplyPlacement.Inside
+		and automatic.name == astral.NamePlacement.Inside
+		and automatic.time == astral.TimePlacement.Header
 )
 values.color = "#5865F2"
 values.radius = 24
@@ -60,7 +60,7 @@ local picked = callback({ message_id = "m2" })
 assert(picked.color.value == 0xFF5865F2 and picked.radius == 24)
 values.opacity = 40
 assert(callback({ message_id = "m3" }).color.value == 0x665865F2)
-values.reply = "bubble"
-assert(callback({ message_id = "m4" }).reply == "bubble")
+values.reply = astral.ReplyPlacement.Bubble
+assert(callback({ message_id = "m4" }).reply == astral.ReplyPlacement.Bubble)
 
 print("chat-bubbles ok")

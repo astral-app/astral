@@ -1,12 +1,15 @@
 use core::ffi::{CStr, c_char, c_int};
 
+use crate::capability::Capability;
+use crate::lua_enums::{NodeKind, Target};
 use serde_json::Value;
 
 use crate::lua_api::{self as lua, LuaState};
 use crate::lua_host::{self as host, Plugin};
 use crate::wire::abi::{
-    AstralLabelContext, AstralMentionContext, AstralMentionDecoration, AstralNodePatch, AstralPatchTarget, LABEL_REPLY, PATCH_BACKGROUND,
-    PATCH_BORDER, PATCH_HIDDEN, PATCH_MARGIN, PATCH_OPACITY, PATCH_PADDING, PATCH_RADIUS, PATCH_TEXT_COLOR, PATCH_TEXT_SCALE,
+    AstralLabelContext, AstralMentionContext, AstralMentionDecoration, AstralNodePatch, AstralPatchTarget, LABEL_CHANNEL, LABEL_COMPOSER,
+    LABEL_MEMBER, LABEL_PROFILE, LABEL_REPLY, PATCH_BACKGROUND, PATCH_BORDER, PATCH_HIDDEN, PATCH_MARGIN, PATCH_OPACITY, PATCH_PADDING,
+    PATCH_RADIUS, PATCH_TEXT_COLOR, PATCH_TEXT_SCALE,
 };
 
 pub fn snowflake(value: u64) -> String {
@@ -114,24 +117,24 @@ pub fn busy<T>(fallback: T) -> T {
     fallback
 }
 
-fn label_target(kind: c_int) -> &'static str {
+fn label_node_kind(kind: c_int) -> NodeKind {
     match kind {
-        2 => "channel.name",
-        3 => "member.name",
-        4 => "composer.placeholder",
-        5 => "profile.name",
-        _ => "message.author",
+        LABEL_REPLY => NodeKind::Reply,
+        LABEL_CHANNEL => NodeKind::Channel,
+        LABEL_MEMBER => NodeKind::Member,
+        LABEL_COMPOSER => NodeKind::Composer,
+        LABEL_PROFILE => NodeKind::Profile,
+        _ => NodeKind::Author,
     }
 }
 
-fn label_kind_name(kind: c_int) -> &'static str {
+const fn label_target(kind: NodeKind) -> Target {
     match kind {
-        LABEL_REPLY => "reply",
-        2 => "channel",
-        3 => "member",
-        4 => "composer",
-        5 => "profile",
-        _ => "author",
+        NodeKind::Channel => Target::ChannelName,
+        NodeKind::Member => Target::MemberName,
+        NodeKind::Composer => Target::ComposerPlaceholder,
+        NodeKind::Profile => Target::ProfileName,
+        NodeKind::Author | NodeKind::Reply => Target::MessageAuthor,
     }
 }
 
@@ -149,14 +152,14 @@ pub unsafe extern "C" fn astral_lua_relabel(
     let channel = resolve_channel(context.channel_id, &message);
     let target = snowflake(context.target_id);
     let guild = guild_of(&channel);
-    let wanted = label_target(context.kind);
+    let wanted = label_target(label_node_kind(context.kind));
     let mut current = String::from_utf8_lossy(crate::bridge::bytes(text, length)).into_owned();
     let mut changed = false;
     for plugin in running_plugins() {
         let relabelers: Vec<c_int> = unsafe { &*plugin }
             .relabelers
             .iter()
-            .filter(|(target, _)| target == wanted)
+            .filter(|(target, _)| *target == wanted)
             .map(|(_, reference)| *reference)
             .collect();
         for reference in relabelers {
@@ -164,7 +167,7 @@ pub unsafe extern "C" fn astral_lua_relabel(
             unsafe {
                 lua::push_reference(state, reference);
                 lua::lua_createtable(state, 0, 6);
-                set_text(state, "kind", label_kind_name(context.kind));
+                set_text(state, "kind", label_node_kind(context.kind).value());
                 set_text(state, "text", &current);
                 set_optional(state, "message_id", &message);
                 set_optional(state, "channel_id", &channel);
@@ -315,7 +318,7 @@ pub unsafe extern "C" fn astral_lua_message_text_color(message_id: u64, channel_
     }
     let wants_reply_context = colorizing
         .iter()
-        .any(|plugin| unsafe { (**plugin).permissions.contains("discord.messages") });
+        .any(|plugin| unsafe { (**plugin).permissions.contains(&Capability::DiscordMessages) });
     let message = snowflake(message_id);
     let channel = resolve_channel(channel_id, &message);
     if channel.is_empty() {
@@ -336,7 +339,7 @@ pub unsafe extern "C" fn astral_lua_message_text_color(message_id: u64, channel_
                 lua::lua_createtable(state, 0, 4);
                 set_text(state, "message_id", &message);
                 set_text(state, "channel_id", &channel);
-                if (*plugin).permissions.contains("discord.messages") {
+                if (*plugin).permissions.contains(&Capability::DiscordMessages) {
                     lua::lua_pushboolean(state, c_int::from(replies));
                     lua::set_field(state, -2, "reply_to_me");
                 }

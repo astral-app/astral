@@ -76,7 +76,7 @@ const COMMANDS: &[(&str, &str, Run)] = &[
     ),
     ("readme", "readme [--check]", readme::run),
     ("replay", "replay <plugin>... <capture>", fuzz::replay),
-    ("sdk", "sdk install", create::sdk),
+    ("sdk", "sdk <install|enums [--check]>", create::sdk),
     (
         "sideload",
         "sideload --ipa <IPA> --bundle-id <id> [--device <udid>] [--profile <mobileprovision>]",

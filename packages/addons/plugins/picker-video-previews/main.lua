@@ -11,7 +11,7 @@ astral.ui.insert("image:" .. PICKED, function(node)
 	end
 	local uri = PICKED .. node.key
 	local media = astral.media.picked(uri)
-	if not media or media.type ~= "video" then
+	if not media or media.type ~= astral.PickedMediaType.Video then
 		return nil
 	end
 	local url = astral.media.picked_url(uri)
@@ -19,7 +19,7 @@ astral.ui.insert("image:" .. PICKED, function(node)
 		return nil
 	end
 	return {
-		type = "player",
+		type = astral.InsertNodeType.Player,
 		uri = url,
 		fill = true,
 		fill_height = true,

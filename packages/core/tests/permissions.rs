@@ -1,34 +1,33 @@
-use std::collections::BTreeSet;
+use astral_core::capability::Capability;
 
-fn source(name: &str) -> String {
-    std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(name)).unwrap()
-}
-
-fn quoted_after(text: &str, marker: &str) -> BTreeSet<String> {
-    text.match_indices(marker)
-        .filter_map(|(index, _)| {
-            let rest = &text[index + marker.len()..];
-            let rest = rest.strip_prefix('"')?;
-            let end = rest.find('"')?;
-            Some(rest[..end].to_owned()).filter(|name| name.bytes().all(|byte| byte.is_ascii_lowercase() || byte == b'.' || byte == b'_'))
-        })
-        .collect()
+#[test]
+fn every_capability_round_trips_and_is_described() {
+    for capability in Capability::ALL {
+        assert_eq!(Capability::parse(capability.value()), Some(*capability));
+        assert!(!capability.description().is_empty(), "{capability:?} has no description");
+        assert!(capability.icon().starts_with("res://"), "{capability:?} has no icon");
+    }
 }
 
 #[test]
-fn every_required_permission_has_a_description() {
-    let pages = source("settings_pages.rs");
-    let described = quoted_after(&pages, "\n        ");
-    let mut required = BTreeSet::new();
-    for file in ["lua_host_api.rs", "lua_host_ui.rs", "lua_host_http.rs"] {
-        required.extend(quoted_after(&source(file), "require_permission(state, "));
-        required.extend(quoted_after(&source(file), "has_permission(state, "));
+fn every_plugin_permission_is_a_capability() {
+    let plugins = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../addons/plugins");
+    for entry in std::fs::read_dir(plugins).expect("plugins").flatten() {
+        let Ok(manifest) = std::fs::read_to_string(entry.path().join("manifest.toml")) else {
+            continue;
+        };
+        let parsed: toml::Table = manifest.parse().expect("manifest");
+        let permissions = parsed
+            .get("permissions")
+            .and_then(toml::Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        for permission in permissions.iter().filter_map(toml::Value::as_str) {
+            assert!(
+                Capability::parse(permission).is_some(),
+                "{}: unknown permission {permission}",
+                entry.path().display()
+            );
+        }
     }
-    required.extend(quoted_after(&source("lua_host_ui.rs"), "=> Some("));
-    assert!(required.len() > 20, "found too few permission checks: {required:?}");
-    let missing: Vec<&String> = required.iter().filter(|permission| !described.contains(*permission)).collect();
-    assert!(
-        missing.is_empty(),
-        "permissions without a description in settings_pages.rs: {missing:?}"
-    );
 }

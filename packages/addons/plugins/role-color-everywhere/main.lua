@@ -121,7 +121,7 @@ local function header_role(guild, text)
 end
 
 astral.ui.name_color(function(node)
-	if node.kind == "header" then
+	if node.kind == astral.NameColorKind.Header then
 		if not astral.settings.values.memberList then
 			return nil
 		end

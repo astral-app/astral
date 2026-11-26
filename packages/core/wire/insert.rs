@@ -1,3 +1,4 @@
+use crate::lua_enums::{Align, Justify};
 use core::ffi::{c_char, c_int};
 use std::collections::HashMap;
 use std::ffi::CString;
@@ -59,8 +60,8 @@ pub struct AstralInsertNode {
     pub height: f64,
     pub padding: [f32; 4],
     pub margin: [f32; 4],
-    pub justify: [c_char; 8],
-    pub align: [c_char; 8],
+    pub justify: Justify,
+    pub align: Align,
 }
 
 impl AstralInsertNode {
@@ -81,8 +82,8 @@ impl AstralInsertNode {
             height: 0.0,
             padding: [0.0; 4],
             margin: [0.0; 4],
-            justify: [0; 8],
-            align: [0; 8],
+            justify: Justify::Start,
+            align: Align::Start,
         }
     }
 }
@@ -277,7 +278,7 @@ fn put_node(out: &mut Out, id: i32, node: &AstralInsertNode) {
         );
     }
     if has(JUSTIFY) {
-        out.prop_string(properties.justify, text_of(&node.justify));
+        out.prop_string(properties.justify, node.justify.value().as_bytes());
     }
     if has(FILL) {
         out.prop_string(properties.width, b"fill");
@@ -291,11 +292,11 @@ fn put_node(out: &mut Out, id: i32, node: &AstralInsertNode) {
     if has(ROW) {
         out.prop_string(properties.direction, b"row");
         if !has(ALIGN) {
-            out.prop_string(properties.align, b"center");
+            out.prop_string(properties.align, Align::Center.value().as_bytes());
         }
     }
     if has(ALIGN) {
-        out.prop_string(properties.align, text_of(&node.align));
+        out.prop_string(properties.align, node.align.value().as_bytes());
     }
     if !tap.is_empty() {
         out.prop_string(properties.accessibility_id, tap);

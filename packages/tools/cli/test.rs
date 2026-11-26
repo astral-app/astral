@@ -106,14 +106,45 @@ pub fn build_lua(work: &Path) -> Result<String, String> {
     Ok(binary)
 }
 
+pub fn enum_table() -> String {
+    let mut out = String::from("{\n");
+    for (name, members) in astral_core::lua_enums::ALL {
+        out.push_str(&format!("\t{name} = {{\n"));
+        for (member, value) in *members {
+            out.push_str(&format!("\t\t{member} = {value:?},\n"));
+        }
+        out.push_str("\t},\n");
+    }
+    for (name, members) in astral_core::lua_enums::ALL_NUMBERS {
+        out.push_str(&format!("\t{name} = {{\n"));
+        for (member, value) in *members {
+            out.push_str(&format!("\t\t{member} = {value},\n"));
+        }
+        out.push_str("\t},\n");
+    }
+    out.push('}');
+    out
+}
+
+fn enum_arguments(work: &Path) -> Result<[String; 2], String> {
+    let path = work.join("enums.lua");
+    std::fs::write(&path, format!("return {}\n", enum_table()))
+        .map_err(|error| format!("Failed to write {}: {error}", path.display()))?;
+    let preamble = repo::path(&["packages", "tools", "support", "enum-preamble.lua"]);
+    Ok([repo::text(&preamble), repo::text(&path)])
+}
+
 pub fn test_lua(work: &Path) -> Result<(), String> {
     let root = repo::path(&[]);
     let lua = build_lua(work)?;
+    let [preamble, enums] = enum_arguments(work)?;
     let prelude = repo::text(&repo::path(&["packages", "core", "lua", "prelude.lua"]));
     repo::run(
         &root,
         &lua,
         &[
+            preamble.clone(),
+            enums.clone(),
             repo::text(&repo::path(&[
                 "packages",
                 "core",
@@ -139,6 +170,8 @@ pub fn test_lua(work: &Path) -> Result<(), String> {
                 &root,
                 &lua,
                 &[
+                    preamble.clone(),
+                    enums.clone(),
                     repo::text(&test),
                     repo::text(&folder.join(&manifest.main)),
                     prelude.clone(),

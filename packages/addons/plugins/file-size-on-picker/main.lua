@@ -20,7 +20,7 @@ local function format_bytes(bytes)
 	return format_number(bytes / 1024 ^ index) .. " " .. UNITS[index]
 end
 
-astral.ui.insert({ id = "media-tile-", type = "stack" }, function(node)
+astral.ui.insert({ id = "media-tile-", type = astral.PatchNodeType.Stack }, function(node)
 	if not node.key:match("^%d+$") then
 		return nil
 	end
@@ -29,14 +29,20 @@ astral.ui.insert({ id = "media-tile-", type = "stack" }, function(node)
 		return nil
 	end
 	return {
-		type = "view",
+		type = astral.InsertNodeType.View,
 		background = SCRIM,
 		radius = 4,
 		padding = { 4, 2, 4, 2 },
 		margin = { INSET, INSET, 0, 0 },
-		position = "end",
+		position = astral.InsertPosition.End,
 		children = {
-			{ type = "text", text = format_bytes(media.size), size = 10, weight = 600, color = 0xFFFFFFFF },
+			{
+				type = astral.InsertNodeType.Text,
+				text = format_bytes(media.size),
+				size = 10,
+				weight = 600,
+				color = 0xFFFFFFFF,
+			},
 		},
 	}
 end)

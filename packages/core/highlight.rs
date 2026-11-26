@@ -1,3 +1,4 @@
+use crate::lua_enums::TextStyle;
 use core::ffi::c_char;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -14,9 +15,9 @@ use crate::bridge::{AstralRustString, bytes};
 const MAX_CODE: usize = 6000;
 const BUDGET: Duration = Duration::from_millis(500);
 const THEME_CACHE: usize = 8;
-const BOLD: u32 = 1;
-const ITALIC: u32 = 2;
-const UNDERLINE: u32 = 4;
+const BOLD: u32 = TextStyle::Bold.value() as u32;
+const ITALIC: u32 = TextStyle::Italic.value() as u32;
+const UNDERLINE: u32 = TextStyle::Underline.value() as u32;
 
 static SYNTAXES: OnceLock<SyntaxSet> = OnceLock::new();
 static THEMES: Mutex<Vec<(u64, Arc<ParsedTheme>)>> = Mutex::new(Vec::new());

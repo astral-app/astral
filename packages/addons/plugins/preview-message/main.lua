@@ -38,23 +38,29 @@ astral.ui.insert({ id = "composer.expressions" }, function()
 		return nil
 	end
 	return {
-		type = "view",
+		type = astral.InsertNodeType.View,
 		row = true,
-		justify = "center",
+		justify = astral.Justify.Center,
 		width = 32,
 		height = 32,
 		radius = 8,
-		position = "start",
+		position = astral.InsertPosition.Start,
 		action = "preview",
 		children = {
-			{ type = "image", icon = "res://ic_mana_eye", width = 20, height = 20, color = COMPOSER_ICON },
+			{
+				type = astral.InsertNodeType.Image,
+				icon = "res://ic_mana_eye",
+				width = 20,
+				height = 20,
+				color = COMPOSER_ICON,
+			},
 		},
 	}
 end, function(node)
 	preview(node)
 end)
 
-astral.events.on("gateway", function(event)
+astral.events.on(astral.Event.Gateway, function(event)
 	if type(event.data.user) == "table" then
 		current_user = event.data.user.id
 	end

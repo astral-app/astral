@@ -138,24 +138,29 @@ astral.ui.insert({ id = "composer.attachments^^^^^^^^" }, function(node)
 	local previews = {}
 	for index, id in ipairs(stickers) do
 		previews[#previews + 1] = {
-			type = "view",
+			type = astral.InsertNodeType.View,
 			background = "#2B2D31",
 			radius = 16,
 			padding = 8,
 			margin = { 8, 0, 0, 0 },
 			action = "remove_" .. index,
 			children = {
-				{ type = "image", icon = string.format(STICKER_URL, id), width = PREVIEW_SIZE, height = PREVIEW_SIZE },
+				{
+					type = astral.InsertNodeType.Image,
+					icon = string.format(STICKER_URL, id),
+					width = PREVIEW_SIZE,
+					height = PREVIEW_SIZE,
+				},
 			},
 		}
 	end
 	return {
-		type = "view",
+		type = astral.InsertNodeType.View,
 		row = true,
 		fill = true,
-		justify = "end",
+		justify = astral.Justify.End,
 		padding = { 16, 0, 16, 8 },
-		position = "start",
+		position = astral.InsertPosition.Start,
 		children = previews,
 	}
 end, function(node, action)
