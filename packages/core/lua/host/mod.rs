@@ -304,7 +304,6 @@ pub struct Host {
     pub menu_channel: u64,
     pub menu_message: u64,
     pub current_user_id: String,
-    pub reactors_stale: bool,
     pub code_block_code: HashMap<String, String>,
 }
 

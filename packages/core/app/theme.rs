@@ -173,7 +173,6 @@ pub fn configure_marketplace(current: &App) {
             core::ptr::null_mut(),
         );
     }
-    crate::discord::reactors::set_fetcher(super::discord::get);
 }
 
 pub fn export_backup(current: &App) -> String {

@@ -46,7 +46,6 @@ enum Method {
     DispatchGateway,
     PickedMedia,
     PickedVideoUrl,
-    Reactors,
     KeepAlive,
     OfferPick,
     DismissSheets,
@@ -90,7 +89,6 @@ impl Method {
             "dispatchGateway" => Method::DispatchGateway,
             "pickedMedia" => Method::PickedMedia,
             "pickedVideoURL" => Method::PickedVideoUrl,
-            "reactors" => Method::Reactors,
             "keepAlive" => Method::KeepAlive,
             "offerPick" => Method::OfferPick,
             "dismissSheets" => Method::DismissSheets,
@@ -215,17 +213,6 @@ fn verify_signature(directory: &str, main: &str) -> bool {
     crate::plugins::signatures::verify_directory(signing_key().as_bytes(), directory.as_bytes(), main, |contents| {
         crate::support::crypto::hex(&crate::support::crypto::sha256(contents)).into_bytes()
     })
-}
-
-fn reactors(arguments: &Arguments) -> Value {
-    let (users, fresh) = crate::discord::reactors::lookup(
-        arguments.text(0),
-        arguments.text(1),
-        arguments.text(2),
-        arguments.flag(3),
-        arguments.identifier(4),
-    );
-    value(json!({ "users": users.unwrap_or(Value::Null), "fresh": fresh }))
 }
 
 fn render_image(spec: &Value) -> Value {
@@ -412,7 +399,6 @@ fn dispatch(method: Method, arguments: &Arguments) -> Value {
         })),
         Method::PickedMedia => picked_media(arguments.text(0)),
         Method::PickedVideoUrl => picked_video(arguments.text(0)),
-        Method::Reactors => reactors(arguments),
         Method::KeepAlive => flag(&host::request(Request::KeepAlive { on: arguments.flag(0) })),
         Method::OfferPick => offer_pick(arguments),
         Method::DismissSheets => flag(&host::request(Request::DismissSheets)),

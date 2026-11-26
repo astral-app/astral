@@ -671,7 +671,6 @@ pub unsafe extern "C" fn astral_lua_reaction(context: *const AstralReactionConte
         let decorators = unsafe { &*plugin }.reaction_decorators.clone();
         for reference in decorators {
             let state = unsafe { (*plugin).state() };
-            host::host().reactors_stale = false;
             unsafe {
                 lua::push_reference(state, reference);
                 lua::lua_createtable(state, 0, 6);
@@ -691,7 +690,7 @@ pub unsafe extern "C" fn astral_lua_reaction(context: *const AstralReactionConte
                     unsafe { read_reaction_images(state, decoration) };
                 }
                 unsafe { lua::pop(state, 1) };
-                decoration.stale = c_int::from(host::host().reactors_stale);
+                decoration.stale = 0;
                 if decoration.image_count != 0 {
                     return 1;
                 }
