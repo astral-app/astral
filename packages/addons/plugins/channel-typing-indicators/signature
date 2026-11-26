@@ -1,4 +1,4 @@
-signature = "yO9bOs2WIUwWo7fGGXF9kYd1MLvj/hyPlGfEEZY9ryPMyYURgPe4VeAOgAagQAjzm+yWsPiuBkL+QhyVxRUnDg=="
+signature = "ny/MNYMJftVSWyE+EPSr35LMUDT7/fTKdtKyhzvBpcyzByOzuAIvW5KNcKbTYtA/N8X48AGctZZaoDM55EDdBg=="
 
 [files]
 "i18n/bg.toml" = "5b2f204e97fb05d7ddb232467a4dd54ca4335353881f0aab8ad1519301207485"
@@ -33,6 +33,6 @@ signature = "yO9bOs2WIUwWo7fGGXF9kYd1MLvj/hyPlGfEEZY9ryPMyYURgPe4VeAOgAagQAjzm+y
 "i18n/vi.toml" = "e15a18f83b9bcb441f48fe5a81be33e69c99c1726b1907bdc2c4d5b52f6e8c73"
 "i18n/zh-CN.toml" = "06a4b1a98bccaa33ae073196e87c73525c0c03fd84722e92b104e9b81909e88e"
 "i18n/zh-TW.toml" = "a80d5b8644f594430e7c2af04aa70fdaca83c3688f5a9c0744172fd4058518d6"
-"main.lua" = "de9cb093e1be79db2a433329edcfa3660cf9f2d06ebcb5aac225cfb69ba38506"
-"main.luac" = "9264b652b4ea170c505e35e72586e6d8f4eb2a293d9d5fce69b3a84a1c5ab4e1"
-"manifest.toml" = "c5924812e8c22dac9b8fa6976f29f3db62d6e153b2fb4f0711da4f485f2603af"
+"main.lua" = "6135d4894931a6536237d12d7fb2419cdee799d7a4e4b4a186b5c3f8d3e4f619"
+"main.luac" = "647e2f57aefb625509a8dd3cad3dbaef19d28c46ee455e3c065e5f84be5c1e38"
+"manifest.toml" = "53c86008ee9e4183c5977aefa410d6a654285d7d4e3fd85481a17568d5d0dc06"

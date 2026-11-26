@@ -117,10 +117,9 @@ local function indicator(users)
 			size = 13,
 			bold = true,
 			margin = #children > 0 and { 4, 0, 0, 0 } or 0,
-			action = "typing",
 		}
 	end
-	return { type = astral.InsertNodeType.View, row = true, children = children }
+	return { type = astral.InsertNodeType.View, row = true, action = "typing", children = children }
 end
 
 astral.events.on(astral.Event.Gateway, function(event)
@@ -149,7 +148,7 @@ local function visible(channel, node)
 	return astral.settings.get("muted", false) or not astral.discord.muted(channel)
 end
 
-astral.ui.insert({ id = "navigation.channel:" }, function(node)
+astral.ui.insert({ id = "navigation.channel:", path = ">" }, function(node)
 	local channel = node.key
 	if not visible(channel, node) then
 		return nil

@@ -1,10 +1,10 @@
 id = "astral.channel-typing-indicators"
 name = "Channel Typing Indicators"
 description = "Shows typing dots beside channels where people are typing."
-version = "0.1.0"
+version = "0.1.1"
 icon = "ChatDotsIcon"
 main = "main.lua"
-permissions = ["events.gateway", "ui.insert", "discord.relationships", "discord.users", "discord.guilds"]
+permissions = ["events.gateway", "ui.insert", "ui.toasts", "discord.relationships", "discord.users", "discord.guilds"]
 
 [[authors]]
 name = "Nuckyz"

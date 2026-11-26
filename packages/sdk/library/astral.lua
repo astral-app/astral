@@ -783,6 +783,7 @@ function astral.ui.style_text(styler) end
 ---@class astral.PatchSelector
 ---@field id string accessibilityId prefix, such as "message.content:"
 ---@field type? astral.PatchNodeType
+---@field path? string inserts only: steps from each matching node to the one that gets the nodes, ">" for its first child and "^" for its parent
 
 ---@class astral.PatchTarget
 ---@field id string

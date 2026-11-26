@@ -45,7 +45,8 @@ const MAX_PREFIX_LENGTH: usize = 96;
 const TARGET_CAPACITY: usize = 256;
 const SEEN_CAPACITY: usize = 8192;
 const TARGET_CHILDREN: usize = 48;
-const PATH_BASES: usize = 32;
+const PATH_BASES: usize = 256;
+const PATH_SEPARATOR: u8 = 0x1f;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -170,6 +171,15 @@ impl State {
     }
 
     fn adopt_seen(&mut self) {
+        let based: Vec<(i32, Vec<u8>)> = self
+            .seen
+            .iter()
+            .filter(|(_, identifier)| self.prefixes.iter().any(|prefix| path_steps(prefix, identifier).is_some()))
+            .map(|(id, identifier)| (*id, identifier.clone()))
+            .collect();
+        for (id, identifier) in based {
+            note_base(self, id, &identifier, 0);
+        }
         let matching: Vec<(i32, Vec<u8>)> = self
             .seen
             .iter()
@@ -542,9 +552,21 @@ fn evaluate(out: &mut Out, prefixes: &[Vec<u8>], id: i32, target: &mut Target, k
     true
 }
 
+fn valid_steps(steps: &[u8]) -> bool {
+    !steps.is_empty() && steps.iter().all(|step| *step == b'>' || *step == b'^')
+}
+
+fn split_path(prefix: &[u8]) -> Option<(&[u8], &[u8])> {
+    let separator = prefix.iter().position(|byte| *byte == PATH_SEPARATOR)?;
+    Some((&prefix[..separator], &prefix[separator + 1..]))
+}
+
 fn path_steps<'a>(prefix: &'a [u8], identifier: &[u8]) -> Option<&'a [u8]> {
+    if let Some((head, steps)) = split_path(prefix) {
+        return (identifier.starts_with(head) && valid_steps(steps)).then_some(steps);
+    }
     let steps = prefix.strip_prefix(identifier)?;
-    (!steps.is_empty() && steps.iter().all(|step| *step == b'>' || *step == b'^')).then_some(steps)
+    valid_steps(steps).then_some(steps)
 }
 
 fn follow_path(bytes: *const u8, spans: &[Span], mut node: i32, steps: &[u8]) -> i32 {
@@ -595,9 +617,10 @@ fn insert_at_paths(state: &mut State, bytes: *const u8, spans: &[Span], base: &m
         if state.targets.contains_key(&resolved) || !state.has_room_for(resolved) {
             continue;
         }
+        let wildcard = split_path(prefix).is_some();
         let mut target = Target {
-            identifier: prefix.clone(),
-            kind: b"view".to_vec(),
+            identifier: if wildcard { base.identifier.clone() } else { prefix.clone() },
+            kind: if wildcard { steps.to_vec() } else { b"view".to_vec() },
             user: if base.user != 0 { base.user } else { batch_avatar_user(spans) },
             ..Target::default()
         };
@@ -679,26 +702,41 @@ fn note_bases(state: &mut State, bytes: *const u8, spans: &[Span]) {
             state.bases.retain(|base| !removed.contains(&base.node));
             continue;
         }
-        if span.op != Op::Create {
+        if span.op != Op::Create && span.op != Op::Update {
             continue;
         }
-        let Some((identifier, _)) = read_identifier(data, span) else {
+        let Some(identifier) = super::identifiers::accessibility_id(data, span) else {
             continue;
         };
         if !state.prefixes.iter().any(|prefix| path_steps(prefix, identifier).is_some()) {
             continue;
         }
-        let base = PathBase {
-            node: span.id,
-            identifier: identifier.to_vec(),
-            resolved: 0,
-            user: batch_avatar_user(spans),
-        };
-        match state.bases.iter().position(|existing| existing.node == span.id) {
-            Some(index) => state.bases[index] = base,
-            None if state.bases.len() < PATH_BASES => state.bases.push(base),
-            None => state.bases[span.id.unsigned_abs() as usize % PATH_BASES] = base,
-        }
+        note_base(state, span.id, identifier, batch_avatar_user(spans));
+    }
+}
+
+fn note_base(state: &mut State, node: i32, identifier: &[u8], user: u64) {
+    if let Some(existing) = state.bases.iter().find(|base| base.node == node)
+        && existing.identifier == identifier
+    {
+        return;
+    }
+    if let Some(stale) = state.bases.iter().find(|base| base.node == node).map(|base| base.resolved)
+        && stale > 0
+    {
+        state.targets.remove(&stale);
+        unpublish(stale);
+    }
+    let base = PathBase {
+        node,
+        identifier: identifier.to_vec(),
+        resolved: 0,
+        user,
+    };
+    match state.bases.iter().position(|existing| existing.node == node) {
+        Some(index) => state.bases[index] = base,
+        None if state.bases.len() < PATH_BASES => state.bases.push(base),
+        None => state.bases[node.unsigned_abs() as usize % PATH_BASES] = base,
     }
 }
 

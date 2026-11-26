@@ -26,6 +26,7 @@ use crate::lua::sandbox::{Sandbox, astral_lua_sandbox_free, astral_lua_sandbox_n
 use crate::plugins::package::{self as plugin_package, Limits, Package};
 use crate::settings::store::{AstralSettingsHandle, Store};
 
+const INSERT_PATH_SEPARATOR: char = '\u{1f}';
 pub const MEMORY_LIMIT: usize = 8 << 20;
 pub const SOURCE_LIMIT: usize = 256 << 10;
 pub const MODULES_LIMIT: usize = 1 << 20;
@@ -631,9 +632,18 @@ pub fn sync_patch_prefixes() {
     );
 }
 
+fn wire_insert_prefix(insert: &NodeInsert) -> String {
+    let is_path = !insert.kind.is_empty() && insert.kind.bytes().all(|step| step == b'>' || step == b'^');
+    if is_path {
+        format!("{}{INSERT_PATH_SEPARATOR}{}", insert.prefix, insert.kind)
+    } else {
+        insert.prefix.clone()
+    }
+}
+
 pub fn sync_insert_prefixes() {
     sync_prefixes(
-        |plugin| plugin.node_inserts.iter().map(|insert| insert.prefix.clone()).collect(),
+        |plugin| plugin.node_inserts.iter().map(wire_insert_prefix).collect(),
         crate::wire::insert::astral_wire_set_insert_prefixes,
     );
 }
