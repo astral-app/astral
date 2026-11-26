@@ -312,13 +312,11 @@ fn dispatch(method: Method, arguments: &Arguments) -> Value {
         }
         Method::VerifySignature => value(json!(verify_signature(arguments.text(0), arguments.text(1)))),
         Method::NetworkRequest => {
-            let options = host::json_text(arguments.at(1));
-            match host::request(Request::NetworkRequest {
-                request: arguments.identifier(0),
-                options: &options,
-            }) {
-                Reply::Done | Reply::Flag(true) => done(),
-                _ => threw(),
+            let complete: fn(u64, &Value) = crate::lua::host::complete_network_request;
+            if crate::network::http::start(arguments.identifier(0), arguments.at(1).clone(), complete) {
+                done()
+            } else {
+                threw()
             }
         }
         Method::DiscordRequest => {
@@ -330,12 +328,10 @@ fn dispatch(method: Method, arguments: &Arguments) -> Value {
                 threw()
             }
         }
-        Method::CancelNetworkRequest => match host::request(Request::CancelNetworkRequest {
-            request: arguments.identifier(0),
-        }) {
-            Reply::Done | Reply::Flag(true) => done(),
-            _ => threw(),
-        },
+        Method::CancelNetworkRequest => {
+            crate::network::http::cancel(arguments.identifier(0));
+            done()
+        }
         Method::Confirm => {
             let spec = host::json_text(arguments.at(1));
             flag(&host::request(Request::Confirm {
