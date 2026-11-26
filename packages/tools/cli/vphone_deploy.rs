@@ -52,6 +52,69 @@ fn tweak_files(tweaks: &str, resources: &str) -> Vec<(PathBuf, String)> {
     files
 }
 
+const NATIVE_INPUTS: [&[&str]; 6] = [
+    &["packages", "core"],
+    &["packages", "ios", "sources"],
+    &["packages", "ios", "native"],
+    &["packages", "ios", "Makefile"],
+    &["Cargo.toml"],
+    &["Cargo.lock"],
+];
+
+fn native_fingerprint() -> String {
+    let mut digest = Sha256::new();
+    for parts in NATIVE_INPUTS {
+        let root = repo::path(parts);
+        let mut entries = Vec::new();
+        files::walk(
+            &root,
+            &|path| path.ends_with("target") || path.ends_with("tests"),
+            &mut |file| {
+                if let Ok(metadata) = std::fs::metadata(file) {
+                    let modified = metadata
+                        .modified()
+                        .ok()
+                        .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+                        .map_or(0, |time| time.as_nanos());
+                    entries.push(format!("{}:{}:{modified}", file.display(), metadata.len()));
+                }
+            },
+        );
+        if root.is_file()
+            && let Ok(metadata) = std::fs::metadata(&root)
+        {
+            entries.push(format!("{}:{}", root.display(), metadata.len()));
+            entries.push(std::fs::read_to_string(&root).unwrap_or_default());
+        }
+        entries.sort();
+        for entry in entries {
+            digest.update(entry.as_bytes());
+        }
+    }
+    digest
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+fn fingerprint_path() -> PathBuf {
+    PathBuf::from(environment("HOME")).join(".cache/astral/vphone-native.txt")
+}
+
+fn last_native_fingerprint() -> Option<String> {
+    std::fs::read_to_string(fingerprint_path())
+        .ok()
+        .map(|text| text.trim().to_owned())
+}
+
+fn remember_native_fingerprint(fingerprint: &str) {
+    if let Some(parent) = fingerprint_path().parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let _ = std::fs::write(fingerprint_path(), fingerprint);
+}
+
 fn cache_path() -> PathBuf {
     PathBuf::from(environment("HOME")).join(".cache/astral/vphone-deploy.json")
 }
@@ -165,7 +228,15 @@ pub fn deploy(client: &Client) -> Result<(), String> {
     if client.exists(&format!("{bundle}/Frameworks"), "astral.dylib") {
         return Err("the installed Discord has astral built in; reinstall it stock with astral vphone discord --ipa <decrypted Discord.ipa>".into());
     }
-    device::build_package()?;
+    let fingerprint = native_fingerprint();
+    let built = staged().join("Library/MobileSubstrate/DynamicLibraries/astral.dylib");
+    if built.exists() && last_native_fingerprint() == Some(fingerprint.clone()) {
+        crate::stage::stage_resources(&staged().join("usr/lib/astral"))?;
+        println!("native code unchanged; restaged resources only");
+    } else {
+        device::build_package()?;
+        remember_native_fingerprint(&fingerprint);
+    }
     let files = tweak_files(&tweaks, &resources);
     let (pushed, removed, binary_changed) = sync(client, &files, &resources, &tweaks)?;
     let seconds = || started.elapsed().as_secs_f64();
