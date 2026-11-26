@@ -135,6 +135,6 @@ NSDictionary<NSString *, NSNumber *> *AstralBrowserLoginStatus(void)
         @"nativeModule" : @(capabilities.nativeModule),
         @"authorizationDelegate" : @(capabilities.authorizationDelegate),
         @"failureDelegate" : @(capabilities.failureDelegate),
-        @"nativePasskeys" : @(capabilities.authorizationDelegate && capabilities.failureDelegate)
+        @"nativePasskeys" : @((BOOL)(capabilities.authorizationDelegate && capabilities.failureDelegate))
     };
 }

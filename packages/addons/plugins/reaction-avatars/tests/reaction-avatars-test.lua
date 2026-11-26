@@ -99,6 +99,8 @@ assert(#timers == 1 and timers[1].delay == 1500)
 timers[1].callback()
 assert(requests[3].options.path == "/channels/1/messages/2/reactions/name%3A3?limit=5&type=0")
 assert(build({ channel_id = "1", key = "nonsense" }) == nil)
+requests[3].callback({ ok = false, status = 0, error = "Discord has not called its API yet" })
+assert(#timers == 2 and timers[2].delay == 3000)
 
 assert(gateway.types[1] == "MESSAGE_REACTION_ADD")
 gateway.callback({ type = "MESSAGE_REACTION_ADD" })
