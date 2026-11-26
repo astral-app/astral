@@ -80,7 +80,7 @@ static NSDictionary<NSString *, id> *Unlock(const struct mach_header *image)
     }
     result[@"diagnostics"] = diags;
     result[@"patched"] = @(patched);
-    result[@"applied"] = @(patched == evaluatorCount);
+    result[@"applied"] = @((BOOL)(patched == evaluatorCount));
     if (patched != evaluatorCount) {
         result[@"skipped"] = @"patch-refused";
     }

@@ -223,7 +223,7 @@ static NSDictionary *DiscordResult(NSData *data, NSURLResponse *response, NSErro
     NSString *body = data ? [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] : nil;
     NSMutableDictionary *result = [@{
         @"status" : @(http.statusCode),
-        @"ok" : @(!error && http.statusCode >= 200 && http.statusCode < 300),
+        @"ok" : @((BOOL)(!error && http.statusCode >= 200 && http.statusCode < 300)),
         @"url" : http.URL.absoluteString ?: @"",
         @"headers" : headers,
         @"body" : body ?: @""

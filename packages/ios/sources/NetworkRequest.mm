@@ -76,7 +76,7 @@ static void PrepareRequestStorage(void)
     NSString *body = text ?: @"";
     NSMutableDictionary *result = [@{
         @"status" : @(self.response.statusCode),
-        @"ok" : @(self.response.statusCode >= 200 && self.response.statusCode < 300 && !self.bodyTooLarge && !error),
+        @"ok" : @((BOOL)(self.response.statusCode >= 200 && self.response.statusCode < 300 && !self.bodyTooLarge && !error)),
         @"url" : self.response.URL.absoluteString ?: @"",
         @"headers" : headers,
         @"body" : self.bodyTooLarge ? @"" : body

@@ -73,6 +73,8 @@ local function finish(job, response)
 	})
 	if users then
 		astral.ui.refresh()
+	elseif (response.status or 0) == 0 then
+		astral.time.after(RETRY_AFTER_MS, astral.ui.refresh)
 	end
 	local wait = response.status == TOO_MANY_REQUESTS and rate_limit_wait(response.body) or 0
 	if wait > 0 then

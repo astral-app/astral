@@ -177,7 +177,7 @@ static void RecordFirstFrame(const uint8_t *batch, size_t length)
     int32_t identifier = 0;
     if (length >= 6) memcpy(&identifier, batch + 2, 4);
     RecordTiming(@"firstFrameMs", @(Rounded(MillisecondsSinceLaunch())));
-    RecordTiming(@"firstFrameCreatesRoot", @(length >= 6 && batch[1] == 1 && identifier == 1));
+    RecordTiming(@"firstFrameCreatesRoot", @((BOOL)(length >= 6 && batch[1] == 1 && identifier == 1)));
     void (^changed)(void) = gRouteChanged;
     if (changed) dispatch_async(dispatch_get_main_queue(), changed);
 }
