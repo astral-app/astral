@@ -36,6 +36,8 @@ pub struct CompatResult {
     #[serde(rename = "phoenixUUID")]
     pub phoenix_uuid: String,
     pub probe: Probe,
+    #[serde(default)]
+    pub access_gate: usize,
     pub supported: bool,
 }
 
@@ -128,6 +130,67 @@ fn read_baseline(path: &str) -> Option<CompatResult> {
     serde_json::from_slice(&std::fs::read(path).ok()?).ok()
 }
 
+fn access_gate_text(evaluators: usize) -> String {
+    match evaluators {
+        0 => "**not found**: the non-tester unlock would not apply".to_owned(),
+        count => format!("{count} evaluators patched"),
+    }
+}
+
+fn names(properties: &BTreeMap<String, u16>, other: &BTreeMap<String, u16>) -> Vec<String> {
+    properties
+        .keys()
+        .filter(|name| !other.contains_key(*name))
+        .map(|name| format!("`{name}`"))
+        .collect()
+}
+
+pub fn seam_diff(result: &CompatResult, baseline: &CompatResult) -> String {
+    let mut changes = Vec::new();
+    let added = names(&result.probe.properties, &baseline.probe.properties);
+    if !added.is_empty() {
+        changes.push(format!("View properties added: {}", added.join(", ")));
+    }
+    let removed = names(&baseline.probe.properties, &result.probe.properties);
+    if !removed.is_empty() {
+        changes.push(format!("View properties removed: {}", removed.join(", ")));
+    }
+    for (seam, before, now) in [
+        (
+            "`opsArrived`",
+            baseline.probe.ops_arrived != 0,
+            result.probe.ops_arrived != 0,
+        ),
+        (
+            "Host-call entry",
+            baseline.probe.host_call != 0,
+            result.probe.host_call != 0,
+        ),
+    ] {
+        if before != now {
+            changes.push(format!(
+                "{seam} {}",
+                if now { "found again" } else { "is gone" }
+            ));
+        }
+    }
+    if baseline.access_gate != result.access_gate {
+        changes.push(format!(
+            "Access gate evaluators {} → {}",
+            baseline.access_gate, result.access_gate
+        ));
+    }
+    if changes.is_empty() {
+        return String::new();
+    }
+    format!(
+        "\nSeams that changed since Discord {} ({}):\n\n- {}\n",
+        baseline.version,
+        baseline.build,
+        changes.join("\n- ")
+    )
+}
+
 pub fn report(result: &CompatResult, baseline: Option<&CompatResult>) -> String {
     let status = if result.supported {
         "supported"
@@ -140,7 +203,7 @@ pub fn report(result: &CompatResult, baseline: Option<&CompatResult>) -> String 
         .as_ref()
         .map_or_else(|| "none".to_owned(), |missing| format!("`{missing}`"));
     let mut report = format!(
-        "## astral on Discord {} ({}, {})\n\nPhoenix `{}` is {status}.\n\n| Check | Result |\n| --- | --- |\n| `opsArrived` | `0x{:x}` |\n| Host-call entry | `0x{:x}` |\n| View properties | {} in Phoenix, {} resolved, missing {missing} |\n",
+        "## astral on Discord {} ({}, {})\n\nPhoenix `{}` is {status}.\n\n| Check | Result |\n| --- | --- |\n| `opsArrived` | `0x{:x}` |\n| Host-call entry | `0x{:x}` |\n| View properties | {} in Phoenix, {} resolved, missing {missing} |\n| Access gate | {} |\n",
         result.version,
         result.build,
         result.channel,
@@ -149,10 +212,12 @@ pub fn report(result: &CompatResult, baseline: Option<&CompatResult>) -> String 
         result.probe.host_call,
         result.probe.property_count,
         result.probe.resolved,
+        access_gate_text(result.access_gate),
     );
     let Some(baseline) = baseline else {
         return report;
     };
+    report.push_str(&seam_diff(result, baseline));
     let changes: Vec<String> = result
         .probe
         .properties
@@ -245,6 +310,7 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
     result.phoenix = true;
     result.phoenix_uuid = image_uuid(&phoenix)?;
     result.probe = run_probe(&build_probe(&work.0)?, &phoenix_path)?;
+    result.access_gate = crate::phoenix::access_gate_evaluators(&phoenix);
     result.supported = result.probe.ops_arrived != 0
         && result.probe.host_call != 0
         && result.probe.missing.is_none();
