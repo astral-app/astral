@@ -216,10 +216,7 @@ fn verify_signature(directory: &str, main: &str) -> bool {
 }
 
 fn render_image(spec: &Value) -> Value {
-    let png = host::request(Request::RenderImage {
-        spec: &host::json_text(spec),
-    })
-    .into_bytes();
+    let png = crate::render::image::render(spec);
     value(png.map_or(Value::Null, |png| json!(crate::lua::host::install::encode_base64(&png))))
 }
 

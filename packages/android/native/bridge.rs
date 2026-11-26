@@ -4,9 +4,7 @@ use std::sync::Mutex;
 
 use astral_core::app::host::{Bridge, Reply, Request};
 use jni::JavaVM;
-use jni::objects::{
-    GlobalRef, JByteArray, JClass, JObject, JStaticMethodID, JString, JValue, JValueOwned,
-};
+use jni::objects::{GlobalRef, JClass, JObject, JStaticMethodID, JString, JValue, JValueOwned};
 use jni::signature::{Primitive, ReturnType};
 use jni::sys::jvalue;
 
@@ -57,7 +55,6 @@ pub enum Method {
     PickedVideo,
     DispatchGateway,
     PressNode,
-    RenderImage,
     InsertComposerText,
     ShowConfirm,
     EnvironmentFacts,
@@ -71,11 +68,10 @@ enum Returns {
     Nothing,
     Flag,
     Text,
-    Bytes,
 }
 
 impl Method {
-    const ALL: [Method; 33] = [
+    const ALL: [Method; 32] = [
         Method::Deliver,
         Method::DiscordRequest,
         Method::ExportBackup,
@@ -102,7 +98,6 @@ impl Method {
         Method::PickedVideo,
         Method::DispatchGateway,
         Method::PressNode,
-        Method::RenderImage,
         Method::InsertComposerText,
         Method::ShowConfirm,
         Method::EnvironmentFacts,
@@ -139,7 +134,6 @@ impl Method {
             Method::PickedVideo => "pickedVideo",
             Method::DispatchGateway => "dispatchGateway",
             Method::PressNode => "pressNode",
-            Method::RenderImage => "renderImage",
             Method::InsertComposerText => "insertComposerText",
             Method::ShowConfirm => "showConfirm",
             Method::EnvironmentFacts => "environmentFacts",
@@ -175,7 +169,6 @@ impl Method {
             Method::PasteText | Method::EnvironmentFacts => "()Ljava/lang/String;",
             Method::PickedMedia | Method::PickedVideo => "(J)Ljava/lang/String;",
             Method::PressNode | Method::InsertComposerText => "(Ljava/lang/String;Z)Z",
-            Method::RenderImage => "(Ljava/lang/String;)[B",
         }
     }
 
@@ -184,7 +177,6 @@ impl Method {
             self,
             Method::DispatchGateway
                 | Method::PressNode
-                | Method::RenderImage
                 | Method::InsertComposerText
                 | Method::ShowConfirm
                 | Method::EnvironmentFacts
@@ -201,7 +193,6 @@ impl Method {
             | Method::EnvironmentFacts
             | Method::PickedMedia
             | Method::PickedVideo => Returns::Text,
-            Method::RenderImage => Returns::Bytes,
             _ => Returns::Nothing,
         }
     }
@@ -220,7 +211,6 @@ enum Returned {
     Nothing,
     Flag(bool),
     Text(Option<String>),
-    Bytes(Option<Vec<u8>>),
 }
 
 pub struct JniBridge {
@@ -298,7 +288,7 @@ impl JniBridge {
             let kind = match returns {
                 Returns::Nothing => ReturnType::Primitive(Primitive::Void),
                 Returns::Flag => ReturnType::Primitive(Primitive::Boolean),
-                Returns::Text | Returns::Bytes => ReturnType::Object,
+                Returns::Text => ReturnType::Object,
             };
             let result = unsafe { env.call_static_method_unchecked(&class, id, kind, &values) };
             if env.exception_check().unwrap_or(false) {
@@ -334,13 +324,6 @@ fn convert(env: &mut jni::JNIEnv, returns: Returns, result: JValueOwned) -> Retu
             let text = JString::from(object);
             Returned::Text(env.get_string(&text).ok().map(String::from))
         }
-        Returns::Bytes => {
-            let object = result.l().unwrap_or_else(|_| JObject::null());
-            if object.is_null() {
-                return Returned::Bytes(None);
-            }
-            Returned::Bytes(env.convert_byte_array(JByteArray::from(object)).ok())
-        }
     }
 }
 
@@ -354,7 +337,6 @@ fn into_reply(returned: Returned) -> Reply {
         Returned::Nothing => Reply::Done,
         Returned::Flag(flag) => Reply::Flag(flag),
         Returned::Text(text) => Reply::Text(text),
-        Returned::Bytes(bytes) => Reply::Bytes(bytes),
     }
 }
 
@@ -477,9 +459,6 @@ impl Bridge for JniBridge {
                 Method::InsertComposerText,
                 &[Argument::Text(text), Argument::Flag(replace)],
             )),
-            Request::RenderImage { spec } => {
-                into_reply(self.call(Method::RenderImage, &[Argument::Text(spec)]))
-            }
             Request::DispatchGateway { message } => {
                 succeeded(&self.locked(Method::DispatchGateway, &[Argument::Text(message)]))
             }

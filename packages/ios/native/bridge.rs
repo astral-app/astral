@@ -29,7 +29,6 @@ pub enum AstralRequestKind {
     PickedVideo,
     PressNode,
     InsertComposerText,
-    RenderImage,
     DispatchGateway,
     RefreshEmoji,
     OpenReport,
@@ -224,7 +223,6 @@ fn outgoing<'a>(request: &Request<'a>) -> Outgoing<'a> {
         Request::InsertComposerText { text, replace } => Outgoing::new(Kind::InsertComposerText)
             .flag(replace)
             .texts(&[text]),
-        Request::RenderImage { spec } => Outgoing::new(Kind::RenderImage).texts(&[spec]),
         Request::DispatchGateway { message } => {
             Outgoing::new(Kind::DispatchGateway).texts(&[message])
         }

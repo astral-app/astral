@@ -1,4 +1,4 @@
-mod debug;
+pub mod debug;
 mod dev;
 mod discord;
 mod ffi;

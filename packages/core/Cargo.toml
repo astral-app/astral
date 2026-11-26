@@ -22,6 +22,7 @@ plist = { version = "1", default-features = false }
 libsqlite3-sys = { version = "0.40", features = ["bundled"] }
 zip = { version = "9.0.5", default-features = false, features = ["deflate"] }
 resvg = { version = "0.45", default-features = false }
+ttf-parser = { version = "0.25", default-features = false, features = ["std", "variable-fonts", "gvar-alloc"] }
 ureq = { version = "3", default-features = false, features = ["rustls"] }
 
 [lints.rust]

@@ -12,7 +12,6 @@
 #import "EmojiComposer.h"
 #import "EnvironmentReport.h"
 #import "FilePicker.h"
-#import "ImageRenderer.h"
 #import "LuaComposer.h"
 #import "NetworkFilter.h"
 #import "NotificationTaps.h"
@@ -268,11 +267,6 @@ static AstralReply Text(NSString *text)
     return Reply(AstralReplyKind_Text, NO, [text dataUsingEncoding:NSUTF8StringEncoding]);
 }
 
-static AstralReply Bytes(NSData *data)
-{
-    return Reply(AstralReplyKind_Bytes, NO, data);
-}
-
 static AstralReply Unsupported(void)
 {
     return Reply(AstralReplyKind_Unsupported, NO, nil);
@@ -475,15 +469,6 @@ static AstralReply InsertComposerText(const AstralRequest *request)
     return Flag(YES);
 }
 
-static AstralReply RenderImage(const AstralRequest *request)
-{
-    NSDictionary *spec = DictionaryOf(request->first);
-    if (!spec) return Bytes(nil);
-    return Bytes(OnMain(^id {
-        return AstralRenderImage(spec);
-    }));
-}
-
 static AstralReply OpenReport(const AstralRequest *request)
 {
     NSString *text = AstralStringOfText(request->first);
@@ -632,8 +617,6 @@ static AstralReply Answer(const AstralRequest *request)
         return PressNode(request);
     case AstralRequestKind_InsertComposerText:
         return InsertComposerText(request);
-    case AstralRequestKind_RenderImage:
-        return RenderImage(request);
     case AstralRequestKind_DispatchGateway:
         return Flag(AstralDispatchLocalGatewayEvent(AstralStringOfText(request->first)));
     case AstralRequestKind_RefreshEmoji:
