@@ -1,0 +1,22 @@
+[workspace]
+resolver = "3"
+members = ["packages/core", "packages/tools", "packages/ios/native", "packages/android/native"]
+
+[profile.dev]
+panic = "abort"
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.release]
+panic = "abort"
+opt-level = 3
+lto = true
+codegen-units = 1
+debug = false
+
+[profile.device]
+inherits = "release"
+lto = "thin"
+codegen-units = 16
+incremental = true

@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use crate::repo::{self, strings};
 use crate::workflows;
 
@@ -16,13 +14,6 @@ const NATIVE_PATTERNS: [&str; 5] = [
     "packages/*.mm",
     "packages/*.cpp",
 ];
-const RUST_CRATES: [&[&str]; 4] = [
-    &["packages", "core"],
-    &["packages", "tools"],
-    &["packages", "android", "native"],
-    &["packages", "ios", "native"],
-];
-
 pub fn taplo(arguments: &[String]) -> Result<(), String> {
     repo::run_with_env(
         &repo::path(&[]),
@@ -42,27 +33,41 @@ fn clang_format(arguments: &[&str]) -> Result<(), String> {
     repo::run(&repo::path(&[]), "clang-format", &all)
 }
 
-fn crates() -> Vec<PathBuf> {
-    RUST_CRATES.iter().map(|parts| repo::path(parts)).collect()
-}
-
 pub fn lint_rust() -> Result<(), String> {
-    for directory in crates() {
-        repo::run(&directory, "cargo", &strings(&["fmt", "--check"]))?;
-        repo::run(
-            &directory,
-            "cargo",
-            &strings(&["clippy", "--quiet", "--all-targets", "--", "-D", "warnings"]),
-        )?;
-    }
-    Ok(())
+    let root = repo::path(&[]);
+    repo::run(&root, "cargo", &strings(&["fmt", "--all", "--check"]))?;
+    repo::run(
+        &root,
+        "cargo",
+        &strings(&[
+            "clippy",
+            "--quiet",
+            "--workspace",
+            "--all-targets",
+            "--",
+            "-D",
+            "warnings",
+        ]),
+    )
 }
 
 pub fn test_rust() -> Result<(), String> {
-    for directory in crates() {
-        repo::rust(&directory, "test", &["test", "--quiet"])?;
+    let root = repo::path(&[]);
+    if repo::has_command("cargo-nextest") {
+        return repo::run(
+            &root,
+            "cargo",
+            &strings(&[
+                "nextest",
+                "run",
+                "--workspace",
+                "--no-fail-fast",
+                "--status-level",
+                "fail",
+            ]),
+        );
     }
-    Ok(())
+    repo::rust(&root, "test", &["test", "--quiet", "--workspace"])
 }
 
 pub fn typecheck_lua() -> Result<(), String> {
@@ -128,8 +133,6 @@ pub fn format(_: &[String]) -> Result<(), String> {
     repo::run(&root, "stylua", &strings(&LUA_PATHS))?;
     taplo(&strings(&["format"]))?;
     clang_format(&["-i"])?;
-    for directory in crates() {
-        repo::run(&directory, "cargo", &strings(&["fmt"]))?;
-    }
+    repo::run(&repo::path(&[]), "cargo", &strings(&["fmt", "--all"]))?;
     workflows::format_all()
 }

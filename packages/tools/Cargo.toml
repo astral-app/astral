@@ -28,9 +28,6 @@ tungstenite = { version = "0.24", default-features = false, features = ["handsha
 ureq = { version = "2", default-features = false, features = ["tls"] }
 zip = { version = "9.0.5", default-features = false, features = ["deflate"] }
 
-[profile.release]
-strip = true
-
 [lints.rust]
 nonstandard_style = "deny"
 unsafe_op_in_unsafe_fn = "deny"

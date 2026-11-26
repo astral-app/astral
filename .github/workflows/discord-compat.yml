@@ -42,8 +42,8 @@ jobs:
 
       - name: Build the astral CLI
         run: |
-          cargo build --quiet --release --manifest-path packages/tools/Cargo.toml
-          echo "$GITHUB_WORKSPACE/packages/tools/target/release" >> "$GITHUB_PATH"
+          cargo build --quiet -p astral-tools
+          echo "$GITHUB_WORKSPACE/target/debug" >> "$GITHUB_PATH"
 
       - name: Download Discord for iOS
         timeout-minutes: 42
@@ -127,8 +127,8 @@ jobs:
 
       - name: Build the astral CLI
         run: |
-          cargo build --quiet --release --manifest-path packages/tools/Cargo.toml
-          echo "$GITHUB_WORKSPACE/packages/tools/target/release" >> "$GITHUB_PATH"
+          cargo build --quiet -p astral-tools
+          echo "$GITHUB_WORKSPACE/target/debug" >> "$GITHUB_PATH"
 
       - name: Select Java 21
         run: echo "JAVA_HOME=$JAVA_HOME_21_X64" >> "$GITHUB_ENV"

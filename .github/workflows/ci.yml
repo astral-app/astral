@@ -24,8 +24,8 @@ jobs:
 
       - name: Build the astral CLI
         run: |
-          cargo build --quiet --release --manifest-path packages/tools/Cargo.toml
-          echo "$GITHUB_WORKSPACE/packages/tools/target/release" >> "$GITHUB_PATH"
+          cargo build --quiet -p astral-tools
+          echo "$GITHUB_WORKSPACE/target/debug" >> "$GITHUB_PATH"
 
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         id: tools
@@ -89,8 +89,8 @@ jobs:
 
       - name: Build the astral CLI
         run: |
-          cargo build --quiet --release --manifest-path packages/tools/Cargo.toml
-          echo "$GITHUB_WORKSPACE/packages/tools/target/release" >> "$GITHUB_PATH"
+          cargo build --quiet -p astral-tools
+          echo "$GITHUB_WORKSPACE/target/debug" >> "$GITHUB_PATH"
 
       - name: Install the Rust Android targets
         run: rustup target add aarch64-linux-android x86_64-linux-android
@@ -114,8 +114,8 @@ jobs:
 
       - name: Build the astral CLI
         run: |
-          cargo build --quiet --release --manifest-path packages/tools/Cargo.toml
-          echo "$GITHUB_WORKSPACE/packages/tools/target/release" >> "$GITHUB_PATH"
+          cargo build --quiet -p astral-tools
+          echo "$GITHUB_WORKSPACE/target/debug" >> "$GITHUB_PATH"
 
       - name: Select Java 21
         run: echo "JAVA_HOME=$JAVA_HOME_21_X64" >> "$GITHUB_ENV"
@@ -153,8 +153,8 @@ jobs:
 
       - name: Build the astral CLI
         run: |
-          cargo build --quiet --release --manifest-path packages/tools/Cargo.toml
-          echo "$GITHUB_WORKSPACE/packages/tools/target/release" >> "$GITHUB_PATH"
+          cargo build --quiet -p astral-tools
+          echo "$GITHUB_WORKSPACE/target/debug" >> "$GITHUB_PATH"
 
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:

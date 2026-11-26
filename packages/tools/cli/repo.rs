@@ -63,6 +63,21 @@ fn blaze_opt_in() -> bool {
     })
 }
 
+pub fn has_command(name: &str) -> bool {
+    Command::new(name)
+        .arg("--version")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .is_ok_and(|status| status.success())
+}
+
+pub fn rust_profile() -> String {
+    Some(std::env::var("ASTRAL_RUST_PROFILE").unwrap_or_default())
+        .filter(|profile| !profile.is_empty())
+        .unwrap_or_else(|| "device".to_owned())
+}
+
 pub fn rust(directory: &Path, subcommand: &str, cargo_arguments: &[&str]) -> Result<(), String> {
     if blaze_opt_in() && BLAZE_SUBCOMMANDS.contains(&subcommand) {
         return run(directory, "blaze", &strings(&[subcommand, "."]));

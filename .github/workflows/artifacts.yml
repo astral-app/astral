@@ -24,6 +24,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  ASTRAL_RUST_PROFILE: release
   LSPATCH_VERSION: v1.2
   LSPATCH_JAR: lspatch-v1.2-487-release.jar
   LSPATCH_SHA256: d238fdc414d121b7fa454d8b4ccf420df3a8c97d563761861ff92bd9c5da2165
@@ -41,8 +42,8 @@ jobs:
 
       - name: Build the astral CLI
         run: |
-          cargo build --quiet --release --manifest-path packages/tools/Cargo.toml
-          echo "$GITHUB_WORKSPACE/packages/tools/target/release" >> "$GITHUB_PATH"
+          cargo build --quiet -p astral-tools
+          echo "$GITHUB_WORKSPACE/target/debug" >> "$GITHUB_PATH"
 
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
@@ -82,8 +83,8 @@ jobs:
 
       - name: Build the astral CLI
         run: |
-          cargo build --quiet --release --manifest-path packages/tools/Cargo.toml
-          echo "$GITHUB_WORKSPACE/packages/tools/target/release" >> "$GITHUB_PATH"
+          cargo build --quiet -p astral-tools
+          echo "$GITHUB_WORKSPACE/target/debug" >> "$GITHUB_PATH"
 
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
@@ -127,8 +128,8 @@ jobs:
 
       - name: Build the astral CLI
         run: |
-          cargo build --quiet --release --manifest-path packages/tools/Cargo.toml
-          echo "$GITHUB_WORKSPACE/packages/tools/target/release" >> "$GITHUB_PATH"
+          cargo build --quiet -p astral-tools
+          echo "$GITHUB_WORKSPACE/target/debug" >> "$GITHUB_PATH"
 
       - name: Select Java 21
         run: echo "JAVA_HOME=$JAVA_HOME_21_X64" >> "$GITHUB_ENV"
