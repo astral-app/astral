@@ -111,6 +111,9 @@ pub const PATCH_BORDER: u32 = 1 << 5;
 pub const PATCH_TEXT_COLOR: u32 = 1 << 6;
 pub const PATCH_HIDDEN: u32 = 1 << 7;
 pub const PATCH_TEXT_SCALE: u32 = 1 << 8;
+pub const PATCH_GRADIENT: u32 = 1 << 9;
+pub const PATCH_SEE_THROUGH: u32 = 1 << 10;
+pub const PATCH_GRADIENT_STOPS: usize = 8;
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
@@ -125,6 +128,9 @@ pub struct AstralNodePatch {
     pub border_width: f64,
     pub text_color: u32,
     pub text_scale: f64,
+    pub gradient_angle: f64,
+    pub gradient_stops: [u32; PATCH_GRADIENT_STOPS],
+    pub gradient_count: u32,
 }
 
 #[repr(C)]

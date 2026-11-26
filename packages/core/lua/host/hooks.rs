@@ -13,9 +13,11 @@ const EDGE_COUNT: i64 = 4;
 
 use crate::wire::abi::{
     AstralLabelContext, AstralMentionContext, AstralMentionDecoration, AstralNodePatch, AstralPatchTarget, LABEL_CHANNEL, LABEL_COMPOSER,
-    LABEL_MEMBER, LABEL_PROFILE, LABEL_REPLY, PATCH_BACKGROUND, PATCH_BORDER, PATCH_HIDDEN, PATCH_MARGIN, PATCH_OPACITY, PATCH_PADDING,
-    PATCH_RADIUS, PATCH_TEXT_COLOR, PATCH_TEXT_SCALE,
+    LABEL_MEMBER, LABEL_PROFILE, LABEL_REPLY, PATCH_BACKGROUND, PATCH_BORDER, PATCH_GRADIENT, PATCH_GRADIENT_STOPS, PATCH_HIDDEN,
+    PATCH_MARGIN, PATCH_OPACITY, PATCH_PADDING, PATCH_RADIUS, PATCH_SEE_THROUGH, PATCH_TEXT_COLOR, PATCH_TEXT_SCALE,
 };
+
+const GRADIENT_ANGLE: f64 = 180.0;
 
 pub fn snowflake(value: u64) -> String {
     if value == 0 { String::new() } else { value.to_string() }
@@ -390,6 +392,42 @@ pub unsafe fn read_node_patch(state: *mut LuaState, patch: &mut AstralNodePatch)
             patch.fields |= PATCH_HIDDEN;
         }
         lua::pop(state, 1);
+        lua::get_field(state, -1, "see_through");
+        if lua::lua_toboolean(state, -1) != 0 {
+            patch.fields |= PATCH_SEE_THROUGH;
+        }
+        lua::pop(state, 1);
+        lua::get_field(state, -1, "gradient");
+        if lua::is_table(state, -1) {
+            read_gradient(state, patch);
+        }
+        lua::pop(state, 1);
+    }
+}
+
+unsafe fn read_gradient(state: *mut LuaState, patch: &mut AstralNodePatch) {
+    let angle = unsafe { patch_number(state, "angle", -360.0, 360.0) }.unwrap_or(GRADIENT_ANGLE);
+    unsafe { lua::get_field(state, -1, "colors") };
+    if unsafe { lua::is_table(state, -1) } {
+        let length = (unsafe { lua::luaL_len(state, -1) }).clamp(0, PATCH_GRADIENT_STOPS as i64);
+        for index in 1..=length {
+            unsafe { lua::lua_rawgeti(state, -1, index) };
+            let value = unsafe { lua::to_integer(state, -1) };
+            if unsafe { lua::lua_isinteger(state, -1) } != 0 && (0..=i64::from(u32::MAX)).contains(&value) {
+                patch.gradient_stops[patch.gradient_count as usize] = value as u32;
+                patch.gradient_count += 1;
+            }
+            unsafe { lua::pop(state, 1) };
+        }
+    }
+    unsafe { lua::pop(state, 1) };
+    if patch.gradient_count == 1 {
+        patch.gradient_stops[1] = patch.gradient_stops[0];
+        patch.gradient_count = 2;
+    }
+    if patch.gradient_count >= 2 {
+        patch.gradient_angle = angle;
+        patch.fields |= PATCH_GRADIENT;
     }
 }
 

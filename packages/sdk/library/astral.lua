@@ -805,6 +805,8 @@ function astral.ui.style_text(styler) end
 ---@field text_color? astral.Color|integer|string
 ---@field hidden? boolean
 ---@field text_scale? number 0.5 to 3, scales every text inside the node
+---@field gradient? { angle?: number, colors: (astral.Color|integer|string)[] } a background gradient of up to 8 colours
+---@field see_through? boolean children painted with this node's own background turn transparent, so a new background shows through
 
 ---@param selector string|astral.PatchSelector
 ---@param patcher fun(node: astral.PatchTarget): astral.NodePatch?
@@ -882,8 +884,9 @@ function astral.ui.message_action(label, callback, options) end
 ---@field total? integer
 ---@param decorator fun(node: astral.Node): astral.ReactionDecoration?
 function astral.ui.reaction(decorator) end
----@param options? { dim: number }
-function astral.ui.settings_backdrop(options) end
+---Discord's current app background gradient, or the active theme's, as ARGB colours.
+---@return { angle: number, colors: integer[] }?
+function astral.ui.app_background() end
 
 astral.files = {}
 function astral.files.pick(extensions, callback) end

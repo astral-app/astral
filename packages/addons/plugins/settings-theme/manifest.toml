@@ -4,6 +4,7 @@ description = "Shows your theme behind User Settings and every page in it, which
 version = "0.0.1"
 icon = "PaintPaletteIcon"
 main = "main.lua"
+permissions = ["ui.patch"]
 
 [[authors]]
 name = "adrian"

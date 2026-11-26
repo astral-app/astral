@@ -6,8 +6,9 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use super::abi::{
-    AstralNodePatch, AstralPatchTarget, Callback, PATCH_BACKGROUND, PATCH_BORDER, PATCH_HIDDEN, PATCH_MARGIN, PATCH_OPACITY, PATCH_PADDING,
-    PATCH_RADIUS, PATCH_TEXT_COLOR, PATCH_TEXT_SCALE, current_channel, wire_message_author, wire_row_message,
+    AstralNodePatch, AstralPatchTarget, Callback, PATCH_BACKGROUND, PATCH_BORDER, PATCH_GRADIENT, PATCH_HIDDEN, PATCH_MARGIN,
+    PATCH_OPACITY, PATCH_PADDING, PATCH_RADIUS, PATCH_SEE_THROUGH, PATCH_TEXT_COLOR, PATCH_TEXT_SCALE, current_channel,
+    wire_message_author, wire_row_message,
 };
 use super::cursor::Cursor;
 use super::format::{Span, batch_of, child, spans_of, type_is, wire_child_list, wire_creation};
@@ -36,10 +37,11 @@ enum Slot {
     Width,
     Height,
     Clip,
+    Gradient,
 }
 
 impl Slot {
-    const ALL: [Slot; 11] = [
+    const ALL: [Slot; 12] = [
         Slot::Background,
         Slot::Radius,
         Slot::Opacity,
@@ -51,6 +53,7 @@ impl Slot {
         Slot::Width,
         Slot::Height,
         Slot::Clip,
+        Slot::Gradient,
     ];
 
     const fn index(self) -> usize {
@@ -74,6 +77,7 @@ impl Slot {
             Slot::Width => properties.width,
             Slot::Height => properties.height,
             Slot::Clip => properties.clip,
+            Slot::Gradient => properties.background_gradient,
         }
     }
 }
@@ -95,6 +99,9 @@ struct Patched {
     kind: Vec<u8>,
     applied: u32,
     originals: [Option<RawProp>; PATCH_PROPS],
+    see_through: Vec<i32>,
+    background: u32,
+    cleared: bool,
 }
 
 struct ScaledText {
@@ -306,6 +313,7 @@ fn slot_mask(fields: u32) -> u32 {
         (PATCH_BORDER, Slot::BorderColor.bit() | Slot::BorderWidth.bit()),
         (PATCH_TEXT_COLOR, Slot::TextColor.bit()),
         (PATCH_HIDDEN, Slot::Width.bit() | Slot::Height.bit() | Slot::Clip.bit()),
+        (PATCH_GRADIENT, Slot::Gradient.bit()),
     ]
     .iter()
     .filter(|(field, _)| fields & field != 0)
@@ -335,6 +343,15 @@ fn put_patched(out: &mut Out, slot: Slot, patch: &AstralNodePatch, properties: &
             out.put16(property);
             out.put_tag(Tag::True);
         }
+        Slot::Gradient => unsafe {
+            super::out::wire_prop_gradient(
+                out,
+                property,
+                patch.gradient_angle,
+                patch.gradient_stops.as_ptr(),
+                patch.gradient_count.min(patch.gradient_stops.len() as u32),
+            )
+        },
     }
 }
 
@@ -365,7 +382,50 @@ fn write_patch(out: &mut Out, id: i32, patched: &mut Patched, patch: &AstralNode
         }
     }
     patched.applied = wanted;
+    write_see_through(out, patched, patch.fields & PATCH_SEE_THROUGH != 0);
     true
+}
+
+fn write_see_through(out: &mut Out, patched: &mut Patched, wanted: bool) {
+    if wanted == patched.cleared || patched.see_through.is_empty() {
+        return;
+    }
+    let background = properties::current().background;
+    let color = if wanted { 0 } else { patched.background };
+    for id in &patched.see_through {
+        out.update(*id, 1);
+        put_long(out, background, color);
+    }
+    patched.cleared = wanted;
+}
+
+const SEE_THROUGH_DEPTH: u32 = 4;
+const SEE_THROUGH_NODES: usize = 64;
+
+fn collect_see_through(bytes: *const u8, spans: &[Span], id: i32, background: u32, depth: u32, found: &mut Vec<i32>) {
+    if depth > SEE_THROUGH_DEPTH || found.len() >= SEE_THROUGH_NODES {
+        return;
+    }
+    let Some(list) = (unsafe { wire_child_list(bytes, spans.as_ptr(), spans.len(), id).as_ref() }) else {
+        return;
+    };
+    let background_property = properties::current().background;
+    let data = batch_of(bytes, list);
+    for position in 0..list.child_count {
+        if found.len() >= SEE_THROUGH_NODES {
+            break;
+        }
+        let child_id = child(data, list, position);
+        let creation = unsafe { wire_creation(spans.as_ptr(), spans.len(), child_id) };
+        let mut color = 0;
+        if !creation.is_null()
+            && unsafe { super::format::wire_color_property(bytes, creation, background_property, &mut color) } != 0
+            && color == background
+        {
+            found.push(child_id);
+        }
+        collect_see_through(bytes, spans, child_id, background, depth + 1, found);
+    }
 }
 
 fn write_scaled(out: &mut Out, scaled: &mut HashMap<i32, ScaledText>, owner: i32, patch: &AstralNodePatch) -> bool {
@@ -495,6 +555,11 @@ pub unsafe extern "C" fn wire_patch_nodes(
                 ..Patched::default()
             };
             capture_originals(data, span, &mut patched, &properties);
+            if unsafe { super::format::wire_color_property(bytes, span, properties.background, &mut patched.background) } != 0
+                && patched.background != 0
+            {
+                collect_see_through(bytes, spans, span.id, patched.background, 1, &mut patched.see_through);
+            }
             collect_texts(&mut state.scaled, bytes, spans, span.id);
             let mut patch = AstralNodePatch::default();
             let result = call_patcher(prefix, span.id, identifier, kind, &mut patch);

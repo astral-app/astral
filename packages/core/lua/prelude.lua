@@ -697,6 +697,12 @@ function astral.ui.patch(selector, patcher)
 		for field, value in pairs(result) do
 			if field:find("color$") or field == "background" then
 				patch[field] = astral.Color.from(value).value
+			elseif field == "gradient" and type(value) == "table" then
+				local colors = {}
+				for index, color in ipairs(value.colors or {}) do
+					colors[index] = astral.Color.from(color).value
+				end
+				patch.gradient = { angle = value.angle, colors = colors }
 			else
 				patch[field] = value
 			end

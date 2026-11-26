@@ -132,7 +132,7 @@ void wireReactionAvatars(const uint8_t *bytes, const Span *spans, size_t count, 
 uint8_t *wireEmojiBatch(const uint8_t *bytes, size_t length, Span *spans, size_t *count, size_t *newLength);
 void wireColorNames(const uint8_t *bytes, const Span *spans, size_t count, Out *out, int *changed, size_t length);
 void wireDecorateMentions(const uint8_t *bytes, const Span *spans, size_t count, Out *out, int *changed, size_t length);
-void wireSettingsBackdrop(const uint8_t *bytes, const Span *spans, size_t count, Out *out, int *changed, size_t length);
+void wireObserveAppGradient(const uint8_t *bytes, const Span *spans, size_t count, Out *out, int *changed, size_t length);
 void wirePutChildren(Out *out, int32_t parent, const int32_t *children, uint32_t count);
 int wireTypeIs(const uint8_t *bytes, const Span *span, const char *type);
 void wireSetTemplateSource(const uint8_t *raw);

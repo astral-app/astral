@@ -207,7 +207,6 @@ pub struct Plugin {
     pub setting_count: usize,
     pub decorators: Vec<(crate::lua::enums::Target, c_int)>,
     pub relabelers: Vec<(crate::lua::enums::Target, c_int)>,
-    pub settings_backdrop: Option<f64>,
     pub text_stylers: Vec<c_int>,
     pub reaction_decorators: Vec<c_int>,
     pub outgoing_message_transforms: Vec<c_int>,
@@ -589,7 +588,6 @@ pub(crate) fn stop_plugin(plugin: *mut Plugin) {
     plugin_ref.setting_count = 0;
     plugin_ref.decorators.clear();
     plugin_ref.relabelers.clear();
-    plugin_ref.settings_backdrop = None;
     plugin_ref.text_stylers.clear();
     plugin_ref.reaction_decorators.clear();
     plugin_ref.composer_decorators.clear();
@@ -600,7 +598,6 @@ pub(crate) fn stop_plugin(plugin: *mut Plugin) {
     plugin_ref.node_inserts.clear();
     plugin_ref.code_blocks.clear();
     sync_insert_prefixes();
-    apply_settings_backdrop();
     trace_running();
 }
 
@@ -637,17 +634,6 @@ pub fn sync_insert_prefixes() {
         |plugin| plugin.node_inserts.iter().map(|insert| insert.prefix.clone()).collect(),
         crate::wire::insert::astral_wire_set_insert_prefixes,
     );
-}
-
-pub fn apply_settings_backdrop() {
-    let mut dim: Option<f64> = None;
-    for plugin in plugins() {
-        let plugin = unsafe { &*plugin };
-        if let (Some(_), Some(backdrop)) = (plugin.state, plugin.settings_backdrop) {
-            dim = Some(dim.unwrap_or(0.0).max(backdrop));
-        }
-    }
-    crate::wire::backdrop::astral_wire_set_settings_backdrop(c_int::from(dim.is_some()), dim.unwrap_or(0.0));
 }
 
 fn runnable(plugin: &Plugin) -> bool {
