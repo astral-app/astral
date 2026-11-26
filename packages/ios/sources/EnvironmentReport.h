@@ -4,7 +4,8 @@
 extern "C" {
 #endif
 
-NSDictionary<NSString *, id> *_Nonnull AstralEnvironmentReport(void);
+NSMutableDictionary<NSString *, id> *_Nonnull AstralEnvironmentFacts(void);
+NSArray<NSString *> *_Nonnull AstralLoadedImages(void);
 void AstralStartHttpsCheck(void);
 
 #ifdef __cplusplus

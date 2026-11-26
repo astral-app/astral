@@ -402,6 +402,18 @@ pub unsafe extern "C" fn astral_env_crash_summary(reports: *const c_char, length
     AstralRustString::new(crash_summary(&reports, now).to_string().into_bytes())
 }
 
+pub fn record_https_check(check: Value) {
+    *LATEST_HTTPS.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(check);
+}
+
+pub fn current_https_check() -> Value {
+    LATEST_HTTPS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clone()
+        .unwrap_or_else(|| json!({}))
+}
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn astral_env_record_https_check(check: *const c_char, length: usize) {
     let check: Value = serde_json::from_slice(bytes(check, length)).unwrap_or(Value::Null);

@@ -195,15 +195,6 @@ static BOOL InstallSettings(void)
     return YES;
 }
 
-static NSArray<NSString *> *RunningPlugins(void)
-{
-    NSMutableArray *running = [NSMutableArray array];
-    for (NSDictionary *plugin in AstralPlugins()) {
-        if ([plugin[@"running"] boolValue]) [running addObject:[NSString stringWithFormat:@"%@@%@", plugin[@"id"], plugin[@"version"]]];
-    }
-    return running;
-}
-
 static void StartPlugins(void)
 {
     if (started) return;
@@ -213,9 +204,7 @@ static void StartPlugins(void)
     AstralInstallMessageMenu();
     AstralInstallEmojiComposer();
     AstralInstallLuaComposer();
-    AstralStartCrashReports(^NSArray<NSString *> * {
-        return RunningPlugins();
-    });
+    AstralStartCrashReports();
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, kLaunchSuccessNs), dispatch_get_main_queue(), ^{
         astral_ios_mark_ready();
     });

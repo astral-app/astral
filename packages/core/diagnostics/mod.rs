@@ -1,3 +1,4 @@
+pub mod apple;
 pub mod disk_full;
 pub mod env_report;
 pub mod environment;
