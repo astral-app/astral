@@ -11,6 +11,13 @@ use crate::lua_api::{self as lua, LuaState};
 use crate::lua_host::{self as host, Plugin};
 use crate::lua_json::{push_json, to_json};
 
+const UTF8_CONTINUATION_MASK: u8 = 0xc0;
+const UTF8_CONTINUATION: u8 = 0x80;
+
+const fn is_utf8_continuation(byte: u8) -> bool {
+    byte & UTF8_CONTINUATION_MASK == UTF8_CONTINUATION
+}
+
 fn is_snowflake(value: &str) -> bool {
     (15..=20).contains(&value.len()) && value.bytes().all(|byte| byte.is_ascii_digit())
 }
@@ -599,7 +606,7 @@ pub fn composer_styles(text: &[u8]) -> Value {
                     }
                     let first = (start - 1) as usize;
                     let end = first + length as usize;
-                    if (first > 0 && text[first] & 0xc0 == 0x80) || (end < text.len() && text[end] & 0xc0 == 0x80) {
+                    if (first > 0 && is_utf8_continuation(text[first])) || (end < text.len() && is_utf8_continuation(text[end])) {
                         continue;
                     }
                     result.push(json!({"start": start, "length": length, "style": style}));

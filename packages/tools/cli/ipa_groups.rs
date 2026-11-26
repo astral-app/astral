@@ -301,13 +301,10 @@ pub fn extension_names(entries: &[String]) -> BTreeSet<String> {
         .iter()
         .filter_map(|entry| {
             let parts: Vec<&str> = entry.split('/').collect();
-            (parts.len() == 5
-                && parts[0] == "Payload"
-                && parts[1].ends_with(".app")
-                && parts[2] == "PlugIns"
-                && parts[3].ends_with(".appex")
-                && parts[4] == "Info.plist")
-                .then(|| parts[3].to_owned())
+            let ["Payload", app, "PlugIns", appex, "Info.plist"] = parts.as_slice() else {
+                return None;
+            };
+            (app.ends_with(".app") && appex.ends_with(".appex")).then(|| (*appex).to_owned())
         })
         .collect()
 }

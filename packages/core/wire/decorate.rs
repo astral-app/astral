@@ -1,3 +1,4 @@
+use super::tag::{Op, Tag};
 use crate::lua_enums::{ReplyPlacement, TimePlacement};
 use core::ffi::{c_char, c_int};
 use std::collections::{HashMap, HashSet};
@@ -15,6 +16,13 @@ use super::message_text::wire_apply_message_text;
 use super::out::{AstralWireBuffer, Out};
 use super::patch::{message_of_identifier, read_identifier, wire_mark_refresh_busy, wire_patching_active};
 use super::properties;
+
+const OPAQUE_ALPHA: u32 = 0xFF;
+const LUMA_RED: u32 = 299;
+const LUMA_GREEN: u32 = 587;
+const LUMA_BLUE: u32 = 114;
+const LUMA_SCALE: u32 = 1000;
+const DARK_LUMA: u32 = 64;
 
 pub const TRACK_NONE: u8 = 0;
 pub const TRACK_AUTHOR: u8 = 1;
@@ -400,7 +408,7 @@ impl<'a> Batch<'a> {
     fn was_removed(&self, id: i32) -> bool {
         self.spans
             .iter()
-            .filter(|span| span.op == 4)
+            .filter(|span| span.op == Op::Remove)
             .any(|span| (0..span.child_count).any(|position| self.child(span, position) == id))
     }
 }
@@ -422,12 +430,12 @@ fn property_value<'a>(bytes: &'a [u8], span: &Span, wanted: u16, accepts: impl F
 }
 
 fn number_property(bytes: &[u8], span: &Span, wanted: u16) -> Option<f64> {
-    let mut cursor = property_value(bytes, span, wanted, |tag| tag == 5)?;
+    let mut cursor = property_value(bytes, span, wanted, |tag| tag == Tag::Double)?;
     Some(f64::from_le_bytes(cursor.take(8)?.try_into().ok()?))
 }
 
 fn quad_property(bytes: &[u8], span: &Span, wanted: u16) -> Option<[f32; 4]> {
-    let mut cursor = property_value(bytes, span, wanted, |tag| tag == 9)?;
+    let mut cursor = property_value(bytes, span, wanted, |tag| tag == Tag::Quad)?;
     let data = cursor.take(16)?;
     let mut quad = [0.0; 4];
     let (chunks, _) = data.as_chunks::<4>();
@@ -438,7 +446,7 @@ fn quad_property(bytes: &[u8], span: &Span, wanted: u16) -> Option<[f32; 4]> {
 }
 
 fn color_property(bytes: &[u8], span: &Span, wanted: u16) -> Option<u32> {
-    let mut cursor = property_value(bytes, span, wanted, |tag| tag == 3 || tag == 4)?;
+    let mut cursor = property_value(bytes, span, wanted, |tag| tag == Tag::Int || tag == Tag::Long)?;
     let value = cursor.read32();
     (!cursor.failed()).then_some(value)
 }
@@ -457,7 +465,7 @@ fn observe_properties(bytes: &[u8], span: &Span) {
         }
         let property = cursor.read16();
         let tag = cursor.read8();
-        if tag == 6 && (property == properties.accessibility_id || property == properties.uri) {
+        if tag == Tag::String && (property == properties.accessibility_id || property == properties.uri) {
             let length = cursor.read32() as usize;
             let Some(text) = cursor.take(length) else { return };
             if let Some((kind, value)) = observed_kind(property == properties.accessibility_id, text) {
@@ -465,8 +473,8 @@ fn observe_properties(bytes: &[u8], span: &Span) {
             }
             continue;
         }
-        if property == properties.accessibility_selected && (tag == 1 || tag == 2) {
-            selected = Some(tag == 2);
+        if property == properties.accessibility_selected && (tag == Tag::False || tag == Tag::True) {
+            selected = Some(tag == Tag::True);
             continue;
         }
         cursor.skip_value(tag, 0);
@@ -501,7 +509,7 @@ fn propagate_avatars(batch: &Batch) {
     with_tracked(|tracked| {
         for _ in 0..3 {
             for span in batch.spans {
-                if span.op != 3 || span.child_count == 0 || span.child_count > 4 {
+                if span.op != Op::SetChildren || span.child_count == 0 || span.child_count > 4 {
                     continue;
                 }
                 for position in 0..span.child_count {
@@ -672,7 +680,7 @@ fn capture_original(batch: &Batch, creation: Option<&Span>, state: &mut Row) {
 
 fn is_media_block(batch: &Batch, span: &Span) -> bool {
     let properties = properties::current();
-    span.op == 1
+    span.op == Op::Create
         && type_is(batch.bytes, span, b"view")
         && string_is(batch.bytes, span, properties.width, b"fill")
         && quad_property(batch.bytes, span, properties.padding)
@@ -699,7 +707,7 @@ fn is_dark_opaque(color: u32) -> bool {
     let red = (color >> 16) & 0xFF;
     let green = (color >> 8) & 0xFF;
     let blue = color & 0xFF;
-    color >> 24 == 0xFF && red * 299 + green * 587 + blue * 114 < 64 * 1000
+    color >> 24 == OPAQUE_ALPHA && red * LUMA_RED + green * LUMA_GREEN + blue * LUMA_BLUE < DARK_LUMA * LUMA_SCALE
 }
 
 fn remember_default_accent(batch: &Batch, block: &mut Block) {
@@ -1057,7 +1065,7 @@ fn read_time_text(bytes: &[u8], span: &Span) -> Vec<u8> {
 }
 
 fn remember_timestamp(batch: &Batch, links: &HashMap<i32, i32>, state: &mut Row) {
-    for span in batch.spans.iter().filter(|span| span.op == 1) {
+    for span in batch.spans.iter().filter(|span| span.op == Op::Create) {
         if tracked_value(span.id, TRACK_TIMESTAMP).is_none() {
             continue;
         }
@@ -1086,7 +1094,7 @@ fn remember_avatar(batch: &Batch, links: &HashMap<i32, i32>, rows: &HashSet<i32>
     let found = batch
         .spans
         .iter()
-        .filter(|span| span.op == 1)
+        .filter(|span| span.op == Op::Create)
         .find(|span| tracked_value(span.id, TRACK_AVATAR).is_some() && row_for_node(links, rows, span.id) == state.id);
     if let Some(span) = found {
         state.avatar = span.id;
@@ -1390,7 +1398,7 @@ pub unsafe extern "C" fn astral_wire_refresh_message_backgrounds(buffer: *mut As
 }
 
 fn forget_removed_rows(batch: &Batch, backgrounds: &mut Backgrounds) {
-    for span in batch.spans.iter().filter(|span| span.op == 4) {
+    for span in batch.spans.iter().filter(|span| span.op == Op::Remove) {
         for position in 0..span.child_count {
             let id = batch.child(span, position);
             if backgrounds.rows.remove(&id).is_some() {
@@ -1407,7 +1415,11 @@ fn bubbled_header(rows: &HashMap<i32, Row>, id: i32) -> Option<i32> {
 }
 
 fn group_rows(batch: &Batch, rows: &mut HashMap<i32, Row>, out: &mut Out, changed: &mut c_int) {
-    for span in batch.spans.iter().filter(|span| span.op == 3 && span.child_count >= 2) {
+    for span in batch
+        .spans
+        .iter()
+        .filter(|span| span.op == Op::SetChildren && span.child_count >= 2)
+    {
         let mut previous = false;
         for position in 0..span.child_count {
             let id = batch.child(span, position);
@@ -1473,19 +1485,22 @@ fn message_backgrounds(batch: &Batch, out: &mut Out, changed: &mut c_int) {
     let mut media: Vec<i32> = Vec::new();
     let mut authors: Vec<i32> = Vec::new();
     for span in batch.spans {
-        if span.op == 3 {
+        if span.op == Op::SetChildren {
             for position in 0..span.child_count {
                 let node = batch.child(span, position);
                 if node != 0 {
                     links.insert(node, span.id);
                 }
             }
-        } else if span.op == 1
+        } else if span.op == Op::Create
             && contents.len() < ROW_CAPACITY
             && find_string(batch.bytes, span, properties.accessibility_id).is_some_and(|text| text.starts_with(CONTENT_PREFIX))
         {
             contents.push(span.id);
-        } else if span.op == 1 && listed.len() < ROW_CAPACITY && string_is(batch.bytes, span, properties.accessibility_id, b"message-row") {
+        } else if span.op == Op::Create
+            && listed.len() < ROW_CAPACITY
+            && string_is(batch.bytes, span, properties.accessibility_id, b"message-row")
+        {
             listed.push(ListedRow {
                 id: span.id,
                 ..ListedRow::default()
@@ -1521,7 +1536,7 @@ fn message_backgrounds(batch: &Batch, out: &mut Out, changed: &mut c_int) {
             finish_backgrounds(batch, backgrounds, &links, &contents, &media, out, changed);
             return;
         }
-        for span in batch.spans.iter().filter(|span| span.op == 1 || span.op == 2) {
+        for span in batch.spans.iter().filter(|span| span.op == Op::Create || span.op == Op::Update) {
             let Some(message) = tracked_value(span.id, TRACK_AUTHOR) else {
                 continue;
             };
@@ -1806,7 +1821,7 @@ fn author_in(children: &[i32]) -> Option<u64> {
 
 fn decorate_tags(batch: &Batch, decorator: AstralDecorator, out: &mut Out, changed: &mut c_int) {
     for span in batch.spans {
-        if span.op != 3 || span.child_count == 0 || span.child_count as usize > MAX_TAGGED_CHILDREN {
+        if span.op != Op::SetChildren || span.child_count == 0 || span.child_count as usize > MAX_TAGGED_CHILDREN {
             continue;
         }
         let children = batch.children(span, MAX_TAGGED_CHILDREN);
@@ -1932,7 +1947,7 @@ pub unsafe extern "C" fn wire_observe_removals(
         return;
     };
     let batch = batch_of_length(bytes, pointer, count, length);
-    for span in batch.spans.iter().filter(|span| span.op == 4) {
+    for span in batch.spans.iter().filter(|span| span.op == Op::Remove) {
         for position in 0..span.child_count {
             let id = batch.child(span, position);
             if let Some(channel) = tracked_value(id, TRACK_CHANNEL)
@@ -1962,7 +1977,7 @@ pub unsafe extern "C" fn wire_observe_removals(
 #[unsafe(export_name = "wireObserve")]
 pub unsafe extern "C" fn wire_observe(bytes: *const u8, pointer: *const Span, count: usize) {
     for span in spans_of(pointer, count) {
-        if span.op == 1 || span.op == 2 {
+        if span.op == Op::Create || span.op == Op::Update {
             observe_properties(super::format::batch_of(bytes, span), span);
         }
     }

@@ -1,3 +1,4 @@
+use super::tag::{Op, Tag};
 use core::ffi::CStr;
 use core::ffi::{c_char, c_int, c_void};
 
@@ -62,25 +63,25 @@ impl Out {
 
     pub fn prop_number(&mut self, id: u16, value: f64) {
         self.put16(id);
-        self.put8(5);
+        self.put_tag(Tag::Double);
         self.put(&value.to_le_bytes());
     }
 
     pub fn prop_int(&mut self, id: u16, value: i32) {
         self.put16(id);
-        self.put8(3);
+        self.put_tag(Tag::Int);
         self.put(&value.to_le_bytes());
     }
 
     pub fn prop_string(&mut self, id: u16, value: &[u8]) {
         self.put16(id);
-        self.put8(6);
+        self.put_tag(Tag::String);
         self.put_string(value);
     }
 
     pub fn prop_quad(&mut self, id: u16, quad: [f32; 4]) {
         self.put16(id);
-        self.put8(9);
+        self.put_tag(Tag::Quad);
         for value in quad {
             self.put(&value.to_le_bytes());
         }
@@ -88,7 +89,7 @@ impl Out {
 
     pub fn prop_long(&mut self, id: u16, value: i64) {
         self.put16(id);
-        self.put8(4);
+        self.put_tag(Tag::Long);
         self.put(&value.to_le_bytes());
     }
 
@@ -99,35 +100,35 @@ impl Out {
 
     pub fn prop_unset(&mut self, id: u16) {
         self.put16(id);
-        self.put8(0);
+        self.put_tag(Tag::Null);
     }
 
     pub fn prop_events(&mut self, id: u16, event: &[u8]) {
         self.put16(id);
-        self.put8(7);
+        self.put_tag(Tag::Array);
         self.put32(1);
-        self.put8(6);
+        self.put_tag(Tag::String);
         self.put_string(event);
     }
 
     pub fn prop_gradient(&mut self, id: u16, angle: f64, colors: &[u32]) {
         let properties = super::properties::current();
         self.put16(id);
-        self.put8(8);
+        self.put_tag(Tag::Map);
         self.put32(3);
         self.prop_number(properties.angle, angle);
         self.put16(properties.colors);
-        self.put8(7);
+        self.put_tag(Tag::Array);
         self.put32(colors.len() as u32);
         for color in colors {
-            self.put8(4);
+            self.put_tag(Tag::Long);
             self.put(&i64::from(*color).to_le_bytes());
         }
         self.put16(properties.positions);
-        self.put8(7);
+        self.put_tag(Tag::Array);
         self.put32(colors.len() as u32);
         for index in 0..colors.len() {
-            self.put8(5);
+            self.put_tag(Tag::Double);
             let position = if colors.len() > 1 {
                 index as f64 / (colors.len() - 1) as f64
             } else {
@@ -138,7 +139,7 @@ impl Out {
     }
 
     pub fn put_children(&mut self, parent: i32, children: &[i32]) {
-        self.put8(3);
+        self.put_op(Op::SetChildren);
         self.put(&parent.to_le_bytes());
         self.put32(children.len() as u32);
         for child in children {
@@ -147,7 +148,7 @@ impl Out {
     }
 
     pub fn remove(&mut self, nodes: &[i32]) {
-        self.put8(4);
+        self.put_op(Op::Remove);
         self.put32(nodes.len() as u32);
         for node in nodes {
             self.put(&node.to_le_bytes());
@@ -155,7 +156,7 @@ impl Out {
     }
 
     pub fn create(&mut self, node: i32, kind: &[u8], count: u16) {
-        self.put8(1);
+        self.put_op(Op::Create);
         self.put(&node.to_le_bytes());
         self.put16(kind.len() as u16);
         self.put(kind);
@@ -163,7 +164,7 @@ impl Out {
     }
 
     pub fn update(&mut self, node: i32, count: u16) {
-        self.put8(2);
+        self.put_op(Op::Update);
         self.put(&node.to_le_bytes());
         self.prop_count(count);
     }
@@ -207,6 +208,14 @@ impl Out {
 
     pub fn put8(&mut self, value: u8) {
         self.put(&[value]);
+    }
+
+    pub fn put_tag(&mut self, tag: Tag) {
+        self.put8(tag as u8);
+    }
+
+    pub fn put_op(&mut self, op: Op) {
+        self.put8(op as u8);
     }
 
     pub fn put16(&mut self, value: u16) {
@@ -273,49 +282,49 @@ pub unsafe extern "C" fn wire_prop_count(pointer: *mut Out, count: u16) {
     unsafe { wire_put16(pointer, count) };
 }
 
-fn property(out: &mut Out, property: u16, tag: u8) {
+fn property(out: &mut Out, property: u16, tag: Tag) {
     out.put16(property);
-    out.put8(tag);
+    out.put_tag(tag);
 }
 
 #[unsafe(export_name = "wirePropString")]
 pub unsafe extern "C" fn wire_prop_string(pointer: *mut Out, id: u16, value: *const c_char) {
     let Some(out) = out(pointer) else { return };
-    property(out, id, 6);
+    property(out, id, Tag::String);
     out.put_string(c_bytes(value));
 }
 
 #[unsafe(export_name = "wirePropNumber")]
 pub unsafe extern "C" fn wire_prop_number(pointer: *mut Out, id: u16, value: f64) {
     let Some(out) = out(pointer) else { return };
-    property(out, id, 5);
+    property(out, id, Tag::Double);
     out.put(&value.to_le_bytes());
 }
 
 #[unsafe(export_name = "wirePropInt")]
 pub unsafe extern "C" fn wire_prop_int(pointer: *mut Out, id: u16, value: i32) {
     let Some(out) = out(pointer) else { return };
-    property(out, id, 3);
+    property(out, id, Tag::Int);
     out.put(&value.to_le_bytes());
 }
 
 #[unsafe(export_name = "wirePropLong")]
 pub unsafe extern "C" fn wire_prop_long(pointer: *mut Out, id: u16, value: i64) {
     let Some(out) = out(pointer) else { return };
-    property(out, id, 4);
+    property(out, id, Tag::Long);
     out.put(&value.to_le_bytes());
 }
 
 #[unsafe(export_name = "wirePropBool")]
 pub unsafe extern "C" fn wire_prop_bool(pointer: *mut Out, id: u16, value: c_int) {
     let Some(out) = out(pointer) else { return };
-    property(out, id, if value != 0 { 2 } else { 1 });
+    property(out, id, Tag::flag(value != 0));
 }
 
 #[unsafe(export_name = "wirePropQuad")]
 pub unsafe extern "C" fn wire_prop_quad(pointer: *mut Out, id: u16, first: f32, second: f32, third: f32, fourth: f32) {
     let Some(out) = out(pointer) else { return };
-    property(out, id, 9);
+    property(out, id, Tag::Quad);
     for value in [first, second, third, fourth] {
         out.put(&value.to_le_bytes());
     }
@@ -324,16 +333,16 @@ pub unsafe extern "C" fn wire_prop_quad(pointer: *mut Out, id: u16, first: f32, 
 #[unsafe(export_name = "wirePropEvents")]
 pub unsafe extern "C" fn wire_prop_events(pointer: *mut Out, id: u16, event: *const c_char) {
     let Some(out) = out(pointer) else { return };
-    property(out, id, 7);
+    property(out, id, Tag::Array);
     out.put32(1);
-    out.put8(6);
+    out.put_tag(Tag::String);
     out.put_string(c_bytes(event));
 }
 
 #[unsafe(export_name = "wirePutChildren")]
 pub unsafe extern "C" fn wire_put_children(pointer: *mut Out, parent: i32, children: *const i32, count: u32) {
     let Some(out) = out(pointer) else { return };
-    out.put8(3);
+    out.put_op(Op::SetChildren);
     out.put(&parent.to_le_bytes());
     out.put32(count);
     if count == 0 {

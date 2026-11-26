@@ -1,3 +1,4 @@
+use super::tag::{Op, Tag};
 use core::ffi::{CStr, c_char, c_int};
 
 use super::cursor::Cursor;
@@ -5,6 +6,7 @@ use super::index;
 
 pub const MAX_SPANS: usize = 8192;
 const SPAN_HEADER: usize = 1 + 4;
+pub const BATCH_VERSION: u8 = 1;
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
@@ -66,40 +68,40 @@ pub unsafe extern "C" fn wire_skip_value(pointer: *mut CCursor, tag: u8, depth: 
 
 fn scan_span(cursor: &mut Cursor, span: &mut Span) -> bool {
     span.op = cursor.read8();
-    match span.op {
-        1 => {
+    match Op::parse(span.op) {
+        Some(Op::Create) => {
             span.id = cursor.read32() as i32;
             let type_length = cursor.read16() as usize;
             cursor.skip(type_length);
             cursor.skip_properties();
         }
-        2 => {
+        Some(Op::Update) => {
             span.id = cursor.read32() as i32;
             cursor.skip_properties();
         }
-        3 => {
+        Some(Op::SetChildren) => {
             span.id = cursor.read32() as i32;
             span.child_count = cursor.read32();
             span.children = cursor.offset();
             cursor.skip((span.child_count as usize).saturating_mul(4));
         }
-        4 | 9 => {
+        Some(Op::Remove | Op::SharedValues) => {
             span.child_count = cursor.read32();
             span.children = cursor.offset();
             cursor.skip((span.child_count as usize).saturating_mul(4));
         }
-        5 => cursor.skip(4),
-        6 => {
+        Some(Op::SetRoot) => cursor.skip(4),
+        Some(Op::SetFocus) => {
             if cursor.read8() != 0 {
                 cursor.skip(4);
             }
         }
-        7 => {
+        Some(Op::Command) => {
             cursor.skip(4);
             cursor.skip_tagged(0);
         }
-        8 => {}
-        10 => {
+        Some(Op::Commit) => {}
+        Some(Op::EditChildren) => {
             span.id = cursor.read32() as i32;
             let edits = cursor.read32();
             for _ in 0..edits {
@@ -118,7 +120,7 @@ fn scan_span(cursor: &mut Cursor, span: &mut Span) -> bool {
 
 pub fn scan(bytes: &[u8], out: &mut [Span]) -> Option<usize> {
     let mut cursor = Cursor::new(bytes, 0);
-    if cursor.read8() != 1 {
+    if cursor.read8() != BATCH_VERSION {
         return None;
     }
     let mut used = 0;
@@ -187,7 +189,7 @@ pub unsafe extern "C" fn wire_child_list(_bytes: *const u8, pointer: *const Span
     spans(pointer, count)
         .iter()
         .rev()
-        .find(|span| span.op == 3 && span.id == id)
+        .find(|span| span.op == Op::SetChildren && span.id == id)
         .map_or(core::ptr::null(), |span| span as *const Span)
 }
 
@@ -197,7 +199,7 @@ pub unsafe extern "C" fn wire_parent_of(bytes: *const u8, pointer: *const Span, 
         return parent;
     }
     for span in spans(pointer, count).iter().rev() {
-        if span.op != 3 {
+        if span.op != Op::SetChildren {
             continue;
         }
         let data = span_bytes(bytes, span);
@@ -215,7 +217,7 @@ pub unsafe extern "C" fn wire_creation(pointer: *const Span, count: usize, id: i
     }
     spans(pointer, count)
         .iter()
-        .find(|span| span.op == 1 && span.id == id)
+        .find(|span| span.op == Op::Create && span.id == id)
         .map_or(core::ptr::null(), |span| span as *const Span)
 }
 
@@ -228,7 +230,7 @@ fn properties<'a>(bytes: &'a [u8], span: &Span) -> (Cursor<'a>, u16) {
 }
 
 pub fn property_cursor<'a>(bytes: &'a [u8], span: &Span) -> (Cursor<'a>, u16) {
-    if span.op == 1 {
+    if span.op == Op::Create {
         return properties(bytes, span);
     }
     let mut cursor = Cursor::new(bytes, span.start + SPAN_HEADER);
@@ -244,7 +246,7 @@ pub fn find_string<'a>(bytes: &'a [u8], span: &Span, wanted: u16) -> Option<&'a 
         }
         let property = cursor.read16();
         let tag = cursor.read8();
-        if property == wanted && tag == 6 {
+        if property == wanted && tag == Tag::String {
             let length = cursor.read32() as usize;
             return cursor.take(length);
         }
@@ -261,8 +263,8 @@ pub fn find_flag(bytes: &[u8], span: &Span, wanted: u16) -> Option<bool> {
         }
         let property = cursor.read16();
         let tag = cursor.read8();
-        if property == wanted && (tag == 1 || tag == 2) {
-            return Some(tag == 2);
+        if property == wanted && (tag == Tag::False || tag == Tag::True) {
+            return Some(tag == Tag::True);
         }
         cursor.skip_value(tag, 0);
     }
@@ -285,7 +287,7 @@ fn string_property<'a>(bytes: &'a [u8], span: &Span, wanted: u16) -> Option<&'a 
         }
         let property = cursor.read16();
         let tag = cursor.read8();
-        if property == wanted && tag == 6 {
+        if property == wanted && tag == Tag::String {
             let length = cursor.read32() as usize;
             return cursor.take(length);
         }
@@ -336,7 +338,7 @@ pub unsafe extern "C" fn wire_color_property(bytes: *const u8, span: *const Span
         }
         let property = cursor.read16();
         let tag = cursor.read8();
-        if property == wanted && (tag == 3 || tag == 4) {
+        if property == wanted && (tag == Tag::Int || tag == Tag::Long) {
             let value = cursor.read32();
             if cursor.failed() || color.is_null() {
                 return 0;

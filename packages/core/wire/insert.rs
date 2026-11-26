@@ -1,3 +1,4 @@
+use super::tag::{Op, Tag};
 use crate::lua_enums::{Align, Justify};
 use core::ffi::{c_char, c_int};
 use std::collections::HashMap;
@@ -170,7 +171,7 @@ fn prefix_length(prefixes: &[Vec<u8>], identifier: &[u8]) -> usize {
 fn batch_avatar_user(spans: &[Span]) -> u64 {
     spans
         .iter()
-        .filter(|span| span.op == 1)
+        .filter(|span| span.op == Op::Create)
         .find_map(|span| tracked_value(span.id, TRACK_AVATAR_IMAGE).filter(|user| *user != 0))
         .unwrap_or(0)
 }
@@ -211,7 +212,7 @@ fn property_count(node: &AstralInsertNode) -> u16 {
 
 fn put_long(out: &mut Out, property: u16, value: u32) {
     out.put16(property);
-    out.put8(4);
+    out.put_tag(Tag::Long);
     out.put(&i64::from(value).to_le_bytes());
 }
 
@@ -223,7 +224,7 @@ fn put_node(out: &mut Out, id: i32, node: &AstralInsertNode) {
         INSERT_PLAYER => b"player",
         _ => b"view",
     };
-    out.put8(1);
+    out.put_op(Op::Create);
     out.put(&id.to_le_bytes());
     out.put16(kind.len() as u16);
     out.put(kind);
@@ -301,15 +302,15 @@ fn put_node(out: &mut Out, id: i32, node: &AstralInsertNode) {
     if !tap.is_empty() {
         out.prop_string(properties.accessibility_id, tap);
         out.put16(properties.on);
-        out.put8(7);
+        out.put_tag(Tag::Array);
         out.put32(1);
-        out.put8(6);
+        out.put_tag(Tag::String);
         out.put_string(b"press");
     }
 }
 
 fn put_children(out: &mut Out, parent: i32, children: &[i32]) {
-    out.put8(3);
+    out.put_op(Op::SetChildren);
     out.put(&parent.to_le_bytes());
     out.put32(children.len() as u32);
     for id in children {
@@ -321,7 +322,7 @@ fn remove_inserted(out: &mut Out, target: &mut Target) {
     if target.inserted.is_empty() {
         return;
     }
-    out.put8(4);
+    out.put_op(Op::Remove);
     out.put32(target.inserted.len() as u32);
     for id in &target.inserted {
         out.put(&id.to_le_bytes());
@@ -588,12 +589,12 @@ fn insert_at_image(state: &mut State, bytes: *const u8, spans: &[Span], span: &S
 fn note_bases(state: &mut State, bytes: *const u8, spans: &[Span]) {
     for span in spans {
         let data = batch_of(bytes, span);
-        if span.op == 4 {
+        if span.op == Op::Remove {
             let removed: Vec<i32> = (0..span.child_count).map(|position| child(data, span, position)).collect();
             state.bases.retain(|base| !removed.contains(&base.node));
             continue;
         }
-        if span.op != 1 {
+        if span.op != Op::Create {
             continue;
         }
         let Some((identifier, _)) = read_identifier(data, span) else {
@@ -644,15 +645,15 @@ pub unsafe extern "C" fn wire_insert_nodes(
         let prefixes = state.prefixes.clone();
         for span in spans {
             let data = batch_of(bytes, span);
-            match span.op {
-                4 => {
+            match Op::parse(span.op) {
+                Some(Op::Remove) => {
                     for position in 0..span.child_count {
                         let removed = child(data, span, position);
                         state.targets.remove(&removed);
                         unpublish(removed);
                     }
                 }
-                3 => {
+                Some(Op::SetChildren) => {
                     let created = !unsafe { wire_creation(spans.as_ptr(), spans.len(), span.id) }.is_null();
                     let Some(target) = state.targets.get_mut(&span.id).filter(|_| !created) else {
                         continue;
@@ -667,7 +668,7 @@ pub unsafe extern "C" fn wire_insert_nodes(
                     *writer.changed = 1;
                     put_target_children(writer.out, span.id, target);
                 }
-                1 => {
+                Some(Op::Create) => {
                     let Some((identifier, kind)) = read_identifier(data, span) else {
                         insert_at_image(state, bytes, spans, span, &mut writer);
                         continue;

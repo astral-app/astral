@@ -1,3 +1,4 @@
+use super::tag::{Op, Tag};
 use crate::lua_enums::ScrollAlign;
 use core::ffi::{CStr, c_char, c_int};
 use std::sync::Mutex;
@@ -51,9 +52,9 @@ pub unsafe extern "C" fn astral_wire_scroll_to_message(message: u64, animated: c
     let properties = properties::current();
     let align = alignment(align);
     c_int::from(command(|out| {
-        out.put8(7);
+        out.put_op(Op::Command);
         out.put(&list.to_le_bytes());
-        out.put8(8);
+        out.put_tag(Tag::Map);
         out.put32(4);
         out.prop_int(properties.index, index as i32);
         out.prop_string(properties.align, align);
@@ -70,7 +71,7 @@ pub extern "C" fn astral_wire_focus_composer(focus: c_int) -> c_int {
         return 0;
     }
     c_int::from(command(|out| {
-        out.put8(6);
+        out.put_op(Op::SetFocus);
         out.put8(u8::from(focus != 0));
         if focus != 0 {
             out.put(&composer.to_le_bytes());

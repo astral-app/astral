@@ -15,6 +15,8 @@ use crate::signing;
 use crate::vphone_client::Client;
 use crate::vphone_ssh;
 
+const PAIRING_CODE_LENGTH: usize = 8;
+
 const USAGE: &str = "usage: astral dev <command>
   pair <code>            save the pairing code shown under Developer mode (the vphone needs none)
   status                 the device's astral version and plugins
@@ -58,7 +60,7 @@ fn stored_pairing() -> String {
 
 fn save_pairing(code: &str) -> Result<(), String> {
     let code = code.trim().replace('-', "").to_uppercase();
-    if code.len() != 8 {
+    if code.len() != PAIRING_CODE_LENGTH {
         return Err("a pairing code has 8 characters; it is shown under Developer mode in astral's settings".into());
     }
     std::fs::create_dir_all(pairing_path().parent().unwrap_or(Path::new("/")))
@@ -79,7 +81,7 @@ fn vphone_pairing() -> Result<String, String> {
     )
     .map_err(|error| format!("read the pairing code: {error}"))?;
     let code = output.trim().to_uppercase();
-    if code.len() != 8 || !code.bytes().all(|byte| byte.is_ascii_alphanumeric()) {
+    if code.len() != PAIRING_CODE_LENGTH || !code.bytes().all(|byte| byte.is_ascii_alphanumeric()) {
         return Err("the pairing code is not ready yet".into());
     }
     Ok(code)
@@ -118,7 +120,7 @@ fn android_pairing(serial: &str) -> String {
     ] {
         if let Ok(output) = adb(serial, arguments).output() {
             let code = String::from_utf8_lossy(&output.stdout).trim().to_owned();
-            if code.len() == 8 {
+            if code.len() == PAIRING_CODE_LENGTH {
                 return code;
             }
         }

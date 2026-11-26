@@ -161,9 +161,9 @@ impl Config {
         let status = unsafe { (self.fetch)(self.fetch_context as *mut c_void, url.as_ptr().cast(), url.len(), &mut body) };
         let data = bytes(body.bytes.cast(), body.length).to_vec();
         unsafe { crate::bridge::astral_rust_string_free(body) };
-        match status {
-            200 if data.len() > maximum => Err("download too large".to_owned()),
-            200 => Ok(data),
+        match i64::from(status) {
+            crate::http_status::OK if data.len() > maximum => Err("download too large".to_owned()),
+            crate::http_status::OK => Ok(data),
             0 => Err("request failed".to_owned()),
             status => Err(format!("HTTP {status}")),
         }

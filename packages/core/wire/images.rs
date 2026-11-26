@@ -1,3 +1,4 @@
+use super::tag::Op;
 use core::ffi::c_int;
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -39,10 +40,10 @@ pub unsafe extern "C" fn wire_track_images(bytes: *const u8, pointer: *const Spa
     let images = images.get_or_insert_with(HashMap::new);
     for span in spans_of(pointer, count) {
         let data = batch_of(bytes, span);
-        if (span.op == 1 && type_is(data, span, b"image")) || (span.op == 2 && images.contains_key(&span.id)) {
+        if (span.op == Op::Create && type_is(data, span, b"image")) || (span.op == Op::Update && images.contains_key(&span.id)) {
             observe(images, data, span);
         }
-        if span.op != 4 {
+        if span.op != Op::Remove {
             continue;
         }
         for position in 0..span.child_count {

@@ -1,3 +1,4 @@
+use super::tag::{Op, Tag};
 use core::ffi::{CStr, c_char, c_int};
 
 use super::cursor::Cursor;
@@ -54,15 +55,38 @@ pub struct CChange {
     pub number: f64,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum EditKind {
+    Keep,
+    Drop,
+    Text,
+    Number,
+    Integer,
+    Flag,
+}
+
+impl EditKind {
+    const fn from_c(edit: c_int) -> EditKind {
+        match edit {
+            1 => EditKind::Drop,
+            2 => EditKind::Text,
+            3 => EditKind::Number,
+            4 => EditKind::Integer,
+            5 => EditKind::Flag,
+            _ => EditKind::Keep,
+        }
+    }
+}
+
 fn from_c(change: &CChange) -> Change {
-    let edit = match change.edit {
-        1 => Edit::Drop,
-        2 if !change.text.is_null() => Edit::Text(unsafe { CStr::from_ptr(change.text) }.to_bytes().to_vec()),
-        2 => Edit::Text(Vec::new()),
-        3 => Edit::Number(change.number),
-        4 => Edit::Integer(change.number as i32),
-        5 => Edit::Flag(change.number != 0.0),
-        _ => Edit::Keep,
+    let edit = match EditKind::from_c(change.edit) {
+        EditKind::Drop => Edit::Drop,
+        EditKind::Text if !change.text.is_null() => Edit::Text(unsafe { CStr::from_ptr(change.text) }.to_bytes().to_vec()),
+        EditKind::Text => Edit::Text(Vec::new()),
+        EditKind::Number => Edit::Number(change.number),
+        EditKind::Integer => Edit::Integer(change.number as i32),
+        EditKind::Flag => Edit::Flag(change.number != 0.0),
+        EditKind::Keep => Edit::Keep,
     };
     Change {
         property: change.property,
@@ -73,16 +97,16 @@ fn from_c(change: &CChange) -> Change {
 fn put_value(out: &mut Out, edit: &Edit) {
     match edit {
         Edit::Text(text) => {
-            out.put8(6);
+            out.put_tag(Tag::String);
             out.put_string(text);
         }
-        Edit::Flag(value) => out.put8(if *value { 2 } else { 1 }),
+        Edit::Flag(value) => out.put_tag(Tag::flag(*value)),
         Edit::Integer(value) => {
-            out.put8(3);
+            out.put_tag(Tag::Int);
             out.put(&value.to_le_bytes());
         }
         Edit::Number(value) => {
-            out.put8(5);
+            out.put_tag(Tag::Double);
             out.put(&value.to_le_bytes());
         }
         Edit::Keep | Edit::Drop => {}
@@ -98,7 +122,7 @@ pub fn clone_creation(out: &mut Out, bytes: &[u8], span: &Span, id: i32, changes
         out.failed = 1;
         return;
     };
-    out.put8(1);
+    out.put_op(Op::Create);
     out.put(&id.to_le_bytes());
     out.put16(type_length as u16);
     out.put(type_name);
@@ -122,7 +146,7 @@ pub fn clone_creation(out: &mut Out, bytes: &[u8], span: &Span, id: i32, changes
         }
         match change.map(|index| &changes[index].edit) {
             Some(Edit::Drop) => continue,
-            None if tag == 12 => continue,
+            None if tag == Tag::WordRef => continue,
             Some(edit @ (Edit::Text(_) | Edit::Number(_) | Edit::Integer(_) | Edit::Flag(_))) => {
                 out.put16(property);
                 put_value(out, edit);

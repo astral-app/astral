@@ -1,3 +1,4 @@
+use super::tag::{Op, Tag};
 use core::ffi::{c_char, c_int};
 use std::collections::{HashMap, HashSet};
 use std::ffi::CString;
@@ -204,7 +205,7 @@ fn remove_stack(out: &mut Out, pill: &mut Pill) {
     for node in &pill.nodes {
         wire_tween_forget(*node);
     }
-    out.put8(4);
+    out.put_op(Op::Remove);
     out.put32(pill.nodes.len() as u32);
     for node in &pill.nodes {
         out.put(&node.to_le_bytes());
@@ -227,7 +228,7 @@ fn reattach(out: &mut Out, id: i32, pill: &Pill) -> bool {
 
 fn new_node(out: &mut Out, pill: &mut Pill, kind: &[u8], properties: u16) -> i32 {
     let id = stack_id();
-    out.put8(1);
+    out.put_op(Op::Create);
     out.put(&id.to_le_bytes());
     out.put16(kind.len() as u16);
     out.put(kind);
@@ -240,12 +241,12 @@ fn new_node(out: &mut Out, pill: &mut Pill, kind: &[u8], properties: u16) -> i32
 
 fn put_long(out: &mut Out, property: u16, value: u32) {
     out.put16(property);
-    out.put8(4);
+    out.put_tag(Tag::Long);
     out.put(&i64::from(value).to_le_bytes());
 }
 
 fn put_children(out: &mut Out, parent: i32, children: &[i32]) {
-    out.put8(3);
+    out.put_op(Op::SetChildren);
     out.put(&parent.to_le_bytes());
     out.put32(children.len() as u32);
     for id in children {
@@ -279,7 +280,7 @@ fn put_badge(out: &mut Out, pill: &mut Pill, overflow: u32) -> i32 {
     out.prop_int(properties.max_lines, 1);
     out.prop_string(properties.text, format!("+{overflow}").as_bytes());
     out.put16(properties.noto_fallback);
-    out.put8(2);
+    out.put_tag(Tag::True);
     let badge = new_node(out, pill, b"view", 8);
     put_long(out, properties.background, 0xFF00_0000);
     out.prop_number(properties.width, FACE_SIZE);
@@ -332,7 +333,7 @@ fn put_stack(out: &mut Out, id: i32, pill: &mut Pill, decoration: &AstralReactio
     out.prop_quad(properties.margin, [0.0; 4]);
     out.prop_number(properties.shrink, 0.0);
     out.put16(properties.clip);
-    out.put8(2);
+    out.put_tag(Tag::True);
     out.prop_number(properties.opacity, 0.0);
     out.prop_number(properties.max_width, 0.0);
     let width = if members.is_empty() {
@@ -424,8 +425,8 @@ pub unsafe extern "C" fn wire_reaction_avatars(
     with_pills(|pills| {
         for span in spans {
             let data = batch_of(bytes, span);
-            match span.op {
-                4 => {
+            match Op::parse(span.op) {
+                Some(Op::Remove) => {
                     for position in 0..span.child_count {
                         if let Some(pill) = pills.remove(&child(data, span, position)) {
                             for node in pill.nodes {
@@ -434,8 +435,8 @@ pub unsafe extern "C" fn wire_reaction_avatars(
                         }
                     }
                 }
-                1 if type_is(data, span, b"view") => register(pills, bytes, spans, span),
-                2 => {
+                Some(Op::Create) if type_is(data, span, b"view") => register(pills, bytes, spans, span),
+                Some(Op::Update) => {
                     let Some(pill) = pills.values_mut().find(|pill| pill.count_text == span.id) else {
                         continue;
                     };
@@ -450,7 +451,7 @@ pub unsafe extern "C" fn wire_reaction_avatars(
             }
         }
         let mut forced = HashSet::new();
-        for span in spans.iter().filter(|span| span.op == 3) {
+        for span in spans.iter().filter(|span| span.op == Op::SetChildren) {
             if !unsafe { wire_creation(spans.as_ptr(), spans.len(), span.id) }.is_null() {
                 continue;
             }

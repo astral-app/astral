@@ -10,6 +10,9 @@ use crate::settings::{AstralSettingsHandle, store as settings_store};
 use crate::toml_json;
 use crate::wire::theme::astral_wire_surface_of;
 
+const RGB_HEX_LENGTH: usize = 6;
+const ARGB_HEX_LENGTH: usize = 8;
+
 const DISCORD_BLURPLE: u32 = 0xFF58_65F2;
 const SURFACE_BACKGROUNDS: usize = 0;
 const SURFACE_TEXT: usize = 1;
@@ -38,8 +41,12 @@ fn entries(value: &Value) -> impl Iterator<Item = (&String, &Value)> {
 
 fn color(hex: &str) -> u32 {
     let hex = hex.strip_prefix('#').unwrap_or(hex);
-    let full = if hex.len() == 6 { format!("FF{hex}") } else { hex.to_owned() };
-    if full.len() != 8 || !full.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+    let full = if hex.len() == RGB_HEX_LENGTH {
+        format!("FF{hex}")
+    } else {
+        hex.to_owned()
+    };
+    if full.len() != ARGB_HEX_LENGTH || !full.bytes().all(|byte| byte.is_ascii_hexdigit()) {
         return 0;
     }
     u32::from_str_radix(&full, 16).unwrap_or(0)
@@ -48,8 +55,8 @@ fn color(hex: &str) -> u32 {
 fn argb(hex: &str) -> String {
     let hex = hex.strip_prefix('#').unwrap_or(hex);
     match hex.len() {
-        6 => format!("FF{hex}"),
-        8 if hex.is_ascii() => format!("{}{}", &hex[6..], &hex[..6]),
+        RGB_HEX_LENGTH => format!("FF{hex}"),
+        ARGB_HEX_LENGTH if hex.is_ascii() => format!("{}{}", &hex[6..], &hex[..6]),
         _ => String::new(),
     }
 }

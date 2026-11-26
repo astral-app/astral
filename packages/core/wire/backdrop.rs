@@ -1,3 +1,4 @@
+use super::tag::{Op, Tag};
 use core::ffi::c_int;
 use std::sync::Mutex;
 
@@ -58,7 +59,7 @@ fn read_gradient(bytes: &[u8], span: &Span) -> Option<(f64, Vec<u32>)> {
         }
         let property = cursor.read16();
         let tag = cursor.read8();
-        if property != properties.background_gradient || tag != 8 {
+        if property != properties.background_gradient || tag != Tag::Map {
             cursor.skip_value(tag, 0);
             continue;
         }
@@ -77,11 +78,11 @@ fn gradient_entries(cursor: &mut Cursor, bytes: &[u8], angle_key: u16, colors_ke
         }
         let key = cursor.read16();
         let tag = cursor.read8();
-        if key == angle_key && tag == 5 {
+        if key == angle_key && tag == Tag::Double {
             if let Some(value) = cursor.take(8) {
                 angle = f64::from_le_bytes(value.try_into().ok()?);
             }
-        } else if key == colors_key && tag == 7 {
+        } else if key == colors_key && tag == Tag::Array {
             let colors = cursor.read32();
             for _ in 0..colors {
                 if cursor.failed() {
@@ -90,7 +91,7 @@ fn gradient_entries(cursor: &mut Cursor, bytes: &[u8], angle_key: u16, colors_ke
                 let stop_tag = cursor.read8();
                 let at = cursor.offset();
                 cursor.skip_value(stop_tag, 2);
-                if cursor.failed() || (stop_tag != 3 && stop_tag != 4) || stops.len() >= STOPS {
+                if cursor.failed() || (stop_tag != Tag::Int && stop_tag != Tag::Long) || stops.len() >= STOPS {
                     continue;
                 }
                 stops.push(u32::from_le_bytes(bytes.get(at..at + 4)?.try_into().ok()?));
@@ -121,17 +122,17 @@ fn has_property(bytes: &[u8], span: &Span, wanted: u16) -> bool {
 fn observe_app_gradient(backdrop: &mut Backdrop, bytes: *const u8, spans: &[Span]) {
     let gradient = properties::current().background_gradient;
     for span in spans {
-        if span.op != 1 && span.op != 2 {
+        if span.op != Op::Create && span.op != Op::Update {
             continue;
         }
-        if span.op == 1 && backdrop.gradient_node != 0 && span.id != backdrop.gradient_node {
+        if span.op == Op::Create && backdrop.gradient_node != 0 && span.id != backdrop.gradient_node {
             continue;
         }
-        if span.op == 2 && span.id != backdrop.gradient_node {
+        if span.op == Op::Update && span.id != backdrop.gradient_node {
             continue;
         }
         let data = batch_of(bytes, span);
-        if span.op == 1 && !type_is(data, span, b"stack") {
+        if span.op == Op::Create && !type_is(data, span, b"stack") {
             continue;
         }
         match read_gradient(data, span) {
@@ -140,7 +141,7 @@ fn observe_app_gradient(backdrop: &mut Backdrop, bytes: *const u8, spans: &[Span
                 backdrop.angle = angle;
                 backdrop.stops = stops;
             }
-            None if span.op == 2 && has_property(data, span, gradient) => backdrop.stops.clear(),
+            None if span.op == Op::Update && has_property(data, span, gradient) => backdrop.stops.clear(),
             None => {}
         }
     }
@@ -195,7 +196,7 @@ fn collect_matching(bytes: *const u8, spans: &[Span], id: i32, background: u32, 
 fn put_transparent(out: &mut Out, id: i32) {
     out.update(id, 1);
     out.put16(properties::current().background);
-    out.put8(4);
+    out.put_tag(Tag::Long);
     out.put(&0i64.to_le_bytes());
 }
 
@@ -203,7 +204,7 @@ fn put_backdrop(out: &mut Out, id: i32, angle: f64, stops: &[u32]) {
     let properties = properties::current();
     out.update(id, 2);
     out.put16(properties.background);
-    out.put8(4);
+    out.put_tag(Tag::Long);
     out.put(&0i64.to_le_bytes());
     unsafe { wire_prop_gradient(out, properties.background_gradient, angle, stops.as_ptr(), stops.len() as u32) };
 }
@@ -239,7 +240,7 @@ pub unsafe extern "C" fn wire_settings_backdrop(
     for span in spans {
         let data = batch_of(bytes, span);
         let mut background = 0;
-        if span.op != 1
+        if span.op != Op::Create
             || !type_is(data, span, b"view")
             || super::format::find_string(data, span, properties.accessibility_id) != Some(b"settings-phone")
             || unsafe { wire_color_property(bytes, span, properties.background, &mut background) } == 0

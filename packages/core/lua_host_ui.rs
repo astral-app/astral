@@ -674,7 +674,7 @@ pub unsafe fn press_node(state: *mut LuaState) -> Outcome {
     if prefix {
         wanted.pop();
     }
-    if wanted.bytes().any(|byte| byte < 0x20 || byte == 0x7f) {
+    if wanted.bytes().any(|byte| byte.is_ascii_control()) {
         return Err("astral.ui.press: identifier has control characters".into());
     }
     unsafe { push_flag(state, host::platform_flag("pressNode", &json!([wanted, prefix]))) }

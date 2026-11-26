@@ -1,3 +1,4 @@
+use super::tag::{Op, Tag};
 use core::ffi::{CStr, c_char, c_int};
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -126,11 +127,11 @@ fn put_time_span(out: &mut Out, time: &[u8]) {
     let properties = properties::current();
     let mut spaced = b"   ".to_vec();
     spaced.extend_from_slice(time);
-    out.put8(8);
+    out.put_tag(Tag::Map);
     out.put32(3);
     out.prop_string(properties.text, &spaced);
     out.put16(properties.color);
-    out.put8(4);
+    out.put_tag(Tag::Long);
     out.put(&i64::from(NOTE_COLOR).to_le_bytes());
     out.prop_number(properties.scale, TIME_SCALE);
 }
@@ -139,20 +140,20 @@ fn put_override(out: &mut Out, node: i32, text: &[u8], note: &[u8], time: &[u8])
     let properties = properties::current();
     out.update(node, 1);
     out.put16(properties.spans);
-    out.put8(7);
+    out.put_tag(Tag::Array);
     out.put32(if note.is_empty() { 1 } else { 2 } + u32::from(!time.is_empty()));
-    out.put8(8);
+    out.put_tag(Tag::Map);
     out.put32(1);
     out.prop_string(properties.text, text);
     if !note.is_empty() {
         let mut suffix = b" (".to_vec();
         suffix.extend_from_slice(note);
         suffix.push(b')');
-        out.put8(8);
+        out.put_tag(Tag::Map);
         out.put32(2);
         out.prop_string(properties.text, &suffix);
         out.put16(properties.color);
-        out.put8(4);
+        out.put_tag(Tag::Long);
         out.put(&i64::from(NOTE_COLOR).to_le_bytes());
     }
     if !time.is_empty() {
@@ -161,13 +162,13 @@ fn put_override(out: &mut Out, node: i32, text: &[u8], note: &[u8], time: &[u8])
 }
 
 fn put_spans_with_time(out: &mut Out, node: i32, spans: &[u8], time: &[u8]) -> bool {
-    if spans.len() < 5 || spans[0] != 7 {
+    if spans.len() < 5 || spans[0] != Tag::Array {
         return false;
     }
     let count = u32::from_le_bytes([spans[1], spans[2], spans[3], spans[4]]);
     out.update(node, 1);
     out.put16(properties::current().spans);
-    out.put8(7);
+    out.put_tag(Tag::Array);
     out.put32(count + 1);
     out.put(&spans[5..]);
     put_time_span(out, time);
@@ -323,7 +324,7 @@ pub unsafe extern "C" fn wire_message_texts(
     with_texts(|texts| {
         for span in spans {
             let data = batch_of(bytes, span);
-            let message = if span.op == 1 && type_is(data, span, b"text") {
+            let message = if span.op == Op::Create && type_is(data, span, b"text") {
                 let message = content_message(bytes, spans, span.id);
                 if message == 0 {
                     continue;
@@ -332,7 +333,7 @@ pub unsafe extern "C" fn wire_message_texts(
                 text.node = span.id;
                 text.applied = 0;
                 message
-            } else if span.op == 2 {
+            } else if span.op == Op::Update {
                 let Some(message) = tracked_message(texts, span.id) else { continue };
                 if let Some(text) = texts.get_mut(&message) {
                     text.applied = 0;

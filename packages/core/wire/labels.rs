@@ -1,3 +1,4 @@
+use super::tag::{Op, Tag};
 use core::ffi::{c_char, c_int};
 use std::collections::HashMap;
 
@@ -51,7 +52,7 @@ fn string_at(bytes: &[u8], span: &Span, wanted: u16) -> Option<StringAt> {
         }
         let property = cursor.read16();
         let tag = cursor.read8();
-        if property == wanted && tag == 6 {
+        if property == wanted && tag == Tag::String {
             let offset = cursor.offset();
             let length = cursor.read32() as usize;
             cursor.take(length)?;
@@ -70,7 +71,7 @@ fn number_at(bytes: &[u8], span: &Span, wanted: u16) -> Option<f64> {
         }
         let property = cursor.read16();
         let tag = cursor.read8();
-        if property == wanted && tag == 5 {
+        if property == wanted && tag == Tag::Double {
             return Some(f64::from_le_bytes(cursor.take(8)?.try_into().ok()?));
         }
         cursor.skip_value(tag, 0);
@@ -87,11 +88,11 @@ fn first_span_text(bytes: &[u8], span: &Span) -> Option<StringAt> {
         }
         let property = cursor.read16();
         let tag = cursor.read8();
-        if property != properties.spans || tag != 7 {
+        if property != properties.spans || tag != Tag::Array {
             cursor.skip_value(tag, 0);
             continue;
         }
-        if cursor.read32() == 0 || cursor.read8() != 8 {
+        if cursor.read32() == 0 || cursor.read8() != Tag::Map {
             return None;
         }
         let entries = cursor.read32();
@@ -101,7 +102,7 @@ fn first_span_text(bytes: &[u8], span: &Span) -> Option<StringAt> {
             }
             let key = cursor.read16();
             let value_tag = cursor.read8();
-            if key == properties.text && value_tag == 6 {
+            if key == properties.text && value_tag == Tag::String {
                 let offset = cursor.offset();
                 let length = cursor.read32() as usize;
                 cursor.take(length)?;
@@ -165,7 +166,7 @@ fn label_profile(relabel: &mut Relabel, spans: &[Span]) {
     let bytes = relabel.bytes;
     let mut profile = false;
     let mut user = 0;
-    for span in spans.iter().filter(|span| span.op == 1) {
+    for span in spans.iter().filter(|span| span.op == Op::Create) {
         let data = &bytes[..span.end];
         if string_at(data, span, properties.accessibility_id).is_some_and(|at| at.text(data) == b"profile-scroll") {
             profile = true;
@@ -180,7 +181,7 @@ fn label_profile(relabel: &mut Relabel, spans: &[Span]) {
     if !profile {
         return;
     }
-    for span in spans.iter().filter(|span| span.op == 1) {
+    for span in spans.iter().filter(|span| span.op == Op::Create) {
         let data = &bytes[..span.end];
         if !type_is(data, span, b"text") || number_at(data, span, properties.font_size).is_none_or(|size| size < PROFILE_NAME_SIZE) {
             continue;
@@ -204,7 +205,7 @@ fn label_rows(relabel: &mut Relabel, spans: &[Span], links: &HashMap<i32, i32>) 
     let properties = properties::current();
     let bytes = relabel.bytes;
     let mut rows: HashMap<i32, Row> = HashMap::new();
-    for span in spans.iter().filter(|span| span.op == 1) {
+    for span in spans.iter().filter(|span| span.op == Op::Create) {
         if rows.len() >= MAX_NODES / 4 {
             break;
         }
@@ -236,7 +237,7 @@ fn label_rows(relabel: &mut Relabel, spans: &[Span], links: &HashMap<i32, i32>) 
     if rows.is_empty() {
         return;
     }
-    for span in spans.iter().filter(|span| span.op == 1) {
+    for span in spans.iter().filter(|span| span.op == Op::Create) {
         let data = &bytes[..span.end];
         if !type_is(data, span, b"text") {
             continue;
@@ -302,13 +303,13 @@ fn collect(relabel: &mut Relabel, spans: &[Span]) {
     let mut authors: Vec<(i32, u64)> = Vec::new();
     for span in spans {
         let data = &bytes[..span.end];
-        if span.op == 3 {
+        if span.op == Op::SetChildren {
             for position in 0..span.child_count {
                 if links.len() < MAX_LINKS {
                     links.entry(child(data, span, position)).or_insert(span.id);
                 }
             }
-        } else if span.op == 1
+        } else if span.op == Op::Create
             && let Some(identifier) = string_at(data, span, properties.accessibility_id)
         {
             let text = identifier.text(data);
@@ -322,7 +323,7 @@ fn collect(relabel: &mut Relabel, spans: &[Span]) {
             }
         }
     }
-    for span in spans.iter().filter(|span| span.op == 1 || span.op == 2) {
+    for span in spans.iter().filter(|span| span.op == Op::Create || span.op == Op::Update) {
         let data = &bytes[..span.end];
         let message = authors
             .iter()
@@ -337,7 +338,7 @@ fn collect(relabel: &mut Relabel, spans: &[Span]) {
             relabel.add(&text, &label_context(LABEL_AUTHOR, message, current_channel(), 0));
             continue;
         }
-        if span.op != 1 || !contains(bytes, span, b"replyPreview") {
+        if span.op != Op::Create || !contains(bytes, span, b"replyPreview") {
             continue;
         }
         let Some(text) = first_span_text(data, span) else { continue };

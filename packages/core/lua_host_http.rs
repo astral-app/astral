@@ -61,7 +61,7 @@ fn hidden_header(name: &str) -> bool {
 }
 
 pub fn contains_control(value: &str) -> bool {
-    value.bytes().any(|byte| byte <= 0x20 || byte == 0x7f)
+    value.bytes().any(|byte| byte.is_ascii_control() || byte == b' ')
 }
 
 pub fn finish_hold(exchange: u64, response: Option<HttpResponse>, changes: Option<Value>) {
@@ -660,7 +660,7 @@ pub fn intercept_response(request: &HttpRequest, response: &mut HttpResponse) ->
     }
     let _held = host::lock();
     let mut changed = false;
-    if is_command_index(&request.method, &request.path) && response.status == 200 && has_commands() {
+    if is_command_index(&request.method, &request.path) && response.status == crate::http_status::OK && has_commands() {
         changed = inject_commands(&mut response.body);
     }
     for plugin in host::plugins() {

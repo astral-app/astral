@@ -1,3 +1,4 @@
+use super::tag::{Op, Tag};
 use core::ffi::{c_char, c_int};
 use std::collections::HashMap;
 use std::ffi::CString;
@@ -8,6 +9,8 @@ use super::cursor::Cursor;
 use super::format::{Span, batch_of, child, find_string, property_cursor, spans_of, type_is, wire_creation, wire_parent_of};
 use super::out::{AstralWireBuffer, Out};
 use super::properties::{self, AstralWireProperties};
+
+const OPAQUE_ALPHA: u32 = 0xFF;
 
 pub type MentionDecorator = unsafe extern "C" fn(*const AstralMentionContext, *mut AstralMentionDecoration) -> c_int;
 pub type TextColorizer = unsafe extern "C" fn(u64, u64, *mut u32) -> c_int;
@@ -70,7 +73,7 @@ fn read_items(cursor: &mut Cursor, properties: &AstralWireProperties) -> Option<
     let mut items = Vec::new();
     for _ in 0..total {
         let start = cursor.offset();
-        if cursor.read8() != 8 {
+        if cursor.read8() != Tag::Map {
             return None;
         }
         let mut item = Item { start, ..Item::default() };
@@ -82,7 +85,7 @@ fn read_items(cursor: &mut Cursor, properties: &AstralWireProperties) -> Option<
             }
             let key = cursor.read16();
             let tag = cursor.read8();
-            if key == properties.text && tag == 6 {
+            if key == properties.text && tag == Tag::String {
                 let length = cursor.read32() as usize;
                 let at = cursor.offset();
                 cursor.take(length)?;
@@ -92,7 +95,7 @@ fn read_items(cursor: &mut Cursor, properties: &AstralWireProperties) -> Option<
             background |= key == properties.bg;
             link |= key == properties.link;
             if key == properties.color
-                && (tag == 3 || tag == 4)
+                && (tag == Tag::Int || tag == Tag::Long)
                 && let Some(color) = bytes.get(cursor.offset()..cursor.offset() + 4)
             {
                 item.color = u32::from_le_bytes(color.try_into().ok()?);
@@ -109,7 +112,7 @@ fn read_items(cursor: &mut Cursor, properties: &AstralWireProperties) -> Option<
 
 fn blended(base: u32, tint: u32) -> u32 {
     let amount = tint >> 24;
-    if amount == 0xFF {
+    if amount == OPAQUE_ALPHA {
         return tint;
     }
     (0..=16).step_by(8).fold(base & 0xFF00_0000, |result, shift| {
@@ -140,7 +143,7 @@ fn kept_fields(bytes: &[u8], item: &Item, limit: usize, keep: impl Fn(u16) -> bo
 
 fn put_long(out: &mut Out, key: u16, value: u32) {
     out.put16(key);
-    out.put8(4);
+    out.put_tag(Tag::Long);
     out.put(&i64::from(value).to_le_bytes());
 }
 
@@ -155,7 +158,7 @@ fn put_span(out: &mut Out, bytes: &[u8], item: &Item, change: Change, properties
             || (change.drop_at && key == properties.text))
     });
     let added = u32::from(change.color != 0) + u32::from(change.background != 0) + u32::from(change.drop_at);
-    out.put8(8);
+    out.put_tag(Tag::Map);
     out.put32(kept.len() as u32 + added);
     for (start, end) in kept {
         out.put(&bytes[start..end]);
@@ -204,7 +207,7 @@ fn put_avatar_span(
         ]
         .contains(&key)
     });
-    out.put8(8);
+    out.put_tag(Tag::Map);
     out.put32(kept.len() as u32 + 2 + u32::from(change.background != 0) + u32::from(change.color != 0));
     for (start, end) in kept {
         out.put(&bytes[start..end]);
@@ -217,7 +220,7 @@ fn put_avatar_span(
     }
     out.prop_string(properties.text, b"avatar");
     out.put16(properties.image);
-    out.put8(8);
+    out.put_tag(Tag::Map);
     out.put32(if decoration.round != 0 { 4 } else { 3 });
     let tint = if change.color != 0 { change.color } else { chip.color };
     out.prop_string(properties.uri, &chip_uri(decoration.image(), tint));
@@ -301,7 +304,7 @@ fn decorate_text(bytes: &[u8], span: &Span, message: u64, out: &mut Out, unresol
         }
         let property = cursor.read16();
         let tag = cursor.read8();
-        if property != properties.spans || tag != 7 {
+        if property != properties.spans || tag != Tag::Array {
             cursor.skip_value(tag, 0);
             continue;
         }
@@ -320,7 +323,7 @@ fn decorate_text(bytes: &[u8], span: &Span, message: u64, out: &mut Out, unresol
         let added = decorations.iter().filter(|decoration| !decoration.image().is_empty()).count() as u32;
         out.update(span.id, 1);
         out.put16(properties.spans);
-        out.put8(7);
+        out.put_tag(Tag::Array);
         out.put32(items.len() as u32 + added);
         for (index, item) in items.iter().enumerate() {
             let decoration = &decorations[index];
@@ -436,7 +439,7 @@ pub unsafe extern "C" fn wire_decorate_mentions(
     let spans = spans_of(pointer, count);
     for span in spans {
         let data = batch_of(bytes, span);
-        if span.op == 4 {
+        if span.op == Op::Remove {
             with_pending(|pending| {
                 for position in 0..span.child_count {
                     pending.remove(&child(data, span, position));
@@ -444,7 +447,7 @@ pub unsafe extern "C" fn wire_decorate_mentions(
             });
             continue;
         }
-        if span.op != 1 || !type_is(data, span, b"text") {
+        if span.op != Op::Create || !type_is(data, span, b"text") {
             continue;
         }
         let Some(message) = content_message(bytes, spans, span.id) else {

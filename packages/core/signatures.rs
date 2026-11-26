@@ -10,6 +10,8 @@ use ed25519_dalek::{Signature, VerifyingKey};
 use crate::bridge::{AstralRustString, bytes, path};
 use crate::files::resolve_inside;
 
+const SHA256_HEX_LENGTH: usize = 64;
+
 const SIGNATURE_LIMIT: usize = 128 << 10;
 const FILE_LIMIT: usize = 1 << 20;
 const TOTAL_LIMIT: usize = 2 << 20;
@@ -105,7 +107,10 @@ pub fn signed_files(public_key: &[u8], document: &[u8]) -> Option<BTreeMap<Strin
     let mut files = BTreeMap::new();
     for (relative, value) in entries {
         let digest = value.as_str()?;
-        if !safe_path(relative) || digest.len() != 64 || !digest.bytes().all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f')) {
+        if !safe_path(relative)
+            || digest.len() != SHA256_HEX_LENGTH
+            || !digest.bytes().all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
+        {
             return None;
         }
         files.insert(relative.clone(), digest.to_owned());

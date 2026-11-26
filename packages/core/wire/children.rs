@@ -1,3 +1,4 @@
+use super::tag::Op;
 use std::collections::HashMap;
 use std::sync::Mutex;
 
@@ -48,19 +49,19 @@ pub fn apply_edits(bytes: &[u8], span: &Span, previous: &[i32]) -> Option<Vec<i3
 }
 
 fn note(lists: &mut HashMap<i32, Vec<i32>>, bytes: &[u8], span: &Span) -> Option<Vec<i32>> {
-    match span.op {
-        1 => {
+    match Op::parse(span.op) {
+        Some(Op::Create) => {
             lists.remove(&span.id);
         }
-        3 if span.id != EMPTY => {
+        Some(Op::SetChildren) if span.id != EMPTY => {
             lists.insert(span.id, children_at(bytes, span));
         }
-        4 => {
+        Some(Op::Remove) => {
             for removed in children_at(bytes, span) {
                 lists.remove(&removed);
             }
         }
-        10 => {
+        Some(Op::EditChildren) => {
             let previous = lists.get(&span.id).map(Vec::as_slice).unwrap_or(&[]);
             match apply_edits(bytes, span, previous) {
                 Some(children) => {
@@ -80,7 +81,7 @@ fn note(lists: &mut HashMap<i32, Vec<i32>>, bytes: &[u8], span: &Span) -> Option
 }
 
 fn put_children(out: &mut Out, parent: i32, children: &[i32]) {
-    out.put8(3);
+    out.put_op(Op::SetChildren);
     out.put(&parent.to_le_bytes());
     out.put32(children.len() as u32);
     for id in children {

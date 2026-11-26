@@ -978,7 +978,7 @@ fn header_name_safe(name: &str) -> bool {
 }
 
 fn header_value_safe(value: &str) -> bool {
-    value.len() <= 8192 && value.bytes().all(|byte| byte >= 0x20 && byte != 0x7f)
+    value.len() <= 8192 && value.bytes().all(|byte| !byte.is_ascii_control())
 }
 
 pub fn safe_header_name(name: &str) -> bool {

@@ -20,8 +20,11 @@ fn picks_affected_steps() {
             "packages/core/include/LuaSandbox.h",
             "clang-format,core tests",
         ),
-        ("packages/core/lua_host.rs", "rust,core tests"),
-        ("packages/tools/cli/check.rs", "rust"),
+        (
+            "packages/core/lua_host.rs",
+            "rust,rust magic numbers,core tests",
+        ),
+        ("packages/tools/cli/check.rs", "rust,rust magic numbers"),
         ("packages/ios/sources/Themes.mm", "clang-format"),
         ("README.md", ""),
     ] {

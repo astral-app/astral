@@ -1,3 +1,4 @@
+use super::tag::Op;
 use core::ffi::{CStr, c_char, c_int};
 use std::ffi::CString;
 use std::sync::Mutex;
@@ -66,13 +67,16 @@ fn note_value(composer: &mut Composer, bytes: &[u8], span: &Span) {
 pub unsafe extern "C" fn wire_track_composer(bytes: *const u8, pointer: *const Span, count: usize) {
     let accessibility = properties::current().accessibility_id;
     with_composer(|composer| {
-        for span in spans_of(pointer, count).iter().filter(|span| span.op == 1 || span.op == 2) {
+        for span in spans_of(pointer, count)
+            .iter()
+            .filter(|span| span.op == Op::Create || span.op == Op::Update)
+        {
             let data = batch_of(bytes, span);
             let identifier = find_string(data, span, accessibility);
             if identifier == Some(b"send") {
                 composer.send_node = span.id;
             }
-            if span.op == 1 && identifier == Some(b"composer") {
+            if span.op == Op::Create && identifier == Some(b"composer") {
                 composer.input_node = span.id;
                 composer.value.clear();
             }

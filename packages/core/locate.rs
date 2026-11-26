@@ -258,7 +258,7 @@ fn single_function(image: &Image, pcs: &[u64]) -> u64 {
     if found != 0 { found - image.text_base } else { 0 }
 }
 
-fn branch_target(pc: u64, word: u32) -> Option<u64> {
+fn decode_branch_target(pc: u64, word: u32) -> Option<u64> {
     if word & 0xfc00_0000 != 0x9400_0000 {
         return None;
     }
@@ -277,12 +277,12 @@ fn unique_caller(image: &Image, callee: u64) -> u64 {
     let target = image.text_base.wrapping_add(callee);
     let text = image.text.addr;
     let pcs = matching_pcs(image, words, |_, index, word| {
-        branch_target(text + index as u64 * 4, word) == Some(target)
+        decode_branch_target(text + index as u64 * 4, word) == Some(target)
     });
     single_function(image, &pcs)
 }
 
-fn address_reference(words: &[[u8; 4]], index: usize, word: u32, text: u64) -> Option<u64> {
+fn decode_address_reference(words: &[[u8; 4]], index: usize, word: u32, text: u64) -> Option<u64> {
     if word & 0x9f00_0000 != 0x9000_0000 {
         return None;
     }
@@ -321,7 +321,7 @@ fn function_referencing(image: &Image, needle: &[u8]) -> u64 {
     let Some(words) = image.text_words() else { return 0 };
     let text = image.text.addr;
     let pcs = matching_pcs(image, words, |words, index, word| {
-        address_reference(words, index, word, text).is_some_and(|target| targets.contains(&target))
+        decode_address_reference(words, index, word, text).is_some_and(|target| targets.contains(&target))
     });
     single_function(image, &pcs)
 }

@@ -14,6 +14,8 @@ use crate::host_callback::AstralCallback;
 use crate::settings::{AstralSettingsHandle, store};
 use crate::settings_pages::HostCall;
 
+const PAIRING_CODE_LENGTH: usize = 8;
+
 const PORT: u16 = 9324;
 const RELISTEN_DELAY: Duration = Duration::from_millis(500);
 const MAX_ASSET_BYTES: usize = 384 << 10;
@@ -350,7 +352,11 @@ fn serialize(response: &Response) -> Vec<u8> {
     format!(
         "HTTP/1.1 {} {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{payload}",
         response.status,
-        if response.status == 200 { "OK" } else { "Error" },
+        if i64::from(response.status) == crate::http_status::OK {
+            "OK"
+        } else {
+            "Error"
+        },
         payload.len()
     )
     .into_bytes()
@@ -466,7 +472,7 @@ pub fn pairing_code() -> String {
             let stored = unsafe { store(handle) }
                 .and_then(|mut settings| settings.get_string("astral", "dev-pairing-code"))
                 .unwrap_or_default();
-            let code = if stored.len() == 8 {
+            let code = if stored.len() == PAIRING_CODE_LENGTH {
                 stored
             } else {
                 let code = random_code();

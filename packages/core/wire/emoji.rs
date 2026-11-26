@@ -1,3 +1,4 @@
+use super::tag::{Op, Tag};
 use core::ffi::{CStr, c_char, c_int};
 use std::ffi::CString;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -58,8 +59,8 @@ fn copy_value(out: &mut Out, cursor: &mut Cursor, tag: u8, key: u16, depth: u32,
     if depth > MAX_DEPTH || cursor.failed() {
         return false;
     }
-    match tag {
-        6 => {
+    match Tag::parse(tag) {
+        Some(Tag::String) => {
             let length = cursor.read32() as usize;
             let Some(text) = cursor.take(length) else { return false };
             match (key == properties::current().uri).then(|| resolve_uri(text)).flatten() {
@@ -71,7 +72,7 @@ fn copy_value(out: &mut Out, cursor: &mut Cursor, tag: u8, key: u16, depth: u32,
             }
             true
         }
-        7 => {
+        Some(Tag::Array) => {
             let count = cursor.read32();
             out.put32(count);
             for _ in 0..count {
@@ -82,7 +83,7 @@ fn copy_value(out: &mut Out, cursor: &mut Cursor, tag: u8, key: u16, depth: u32,
             }
             !cursor.failed()
         }
-        8 => {
+        Some(Tag::Map) => {
             let count = cursor.read32();
             out.put32(count);
             for _ in 0..count {
@@ -120,7 +121,7 @@ fn contains_emoji(bytes: &[u8], span: &Span) -> bool {
 fn copy_node(bytes: &[u8], span: &Span, out: &mut Out) -> bool {
     let properties = properties::current();
     let mut cursor = Cursor::new(bytes, span.start + 5);
-    if span.op == 1 {
+    if span.op == Op::Create {
         let type_length = cursor.read16() as usize;
         cursor.skip(type_length);
     }
@@ -168,7 +169,7 @@ pub unsafe extern "C" fn wire_emoji_batch(
     }
     let data = unsafe { core::slice::from_raw_parts(bytes, length) };
     let scanned = unsafe { core::slice::from_raw_parts(spans, *count) };
-    let candidate = |span: &&Span| (span.op == 1 || span.op == 2) && contains_emoji(data, span);
+    let candidate = |span: &&Span| (span.op == Op::Create || span.op == Op::Update) && contains_emoji(data, span);
     if !scanned.iter().any(|span| candidate(&span)) {
         return core::ptr::null_mut();
     }
@@ -283,13 +284,13 @@ fn put_reaction_image(out: &mut Out, text: i32, glyph: &[u8], url: &[u8]) {
     let properties = properties::current();
     out.update(text, 1);
     out.put16(properties.spans);
-    out.put8(7);
+    out.put_tag(Tag::Array);
     out.put32(1);
-    out.put8(8);
+    out.put_tag(Tag::Map);
     out.put32(2);
     out.prop_string(properties.text, glyph);
     out.put16(properties.image);
-    out.put8(8);
+    out.put_tag(Tag::Map);
     out.put32(2);
     out.prop_string(properties.uri, url);
     out.prop_number(properties.size, 20.0);
@@ -311,7 +312,7 @@ pub unsafe extern "C" fn wire_reaction_emoji(
         return;
     };
     let spans = spans_of(pointer, count);
-    for span in spans.iter().filter(|span| span.op == 1) {
+    for span in spans.iter().filter(|span| span.op == Op::Create) {
         let Some(codepoints) = reaction_codepoints(batch_of(bytes, span), span) else {
             continue;
         };

@@ -1,3 +1,4 @@
+use super::tag::{Op, Tag};
 use core::ffi::{c_char, c_int};
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -19,7 +20,7 @@ fn routable(text: &[u8]) -> bool {
 fn accessibility_id<'a>(bytes: &'a [u8], span: &Span) -> Option<&'a [u8]> {
     let wanted = properties::current().accessibility_id;
     let mut cursor = Cursor::new(bytes, span.start + 5);
-    if span.op == 1 {
+    if span.op == Op::Create {
         let length = cursor.read16() as usize;
         cursor.skip(length);
     }
@@ -30,7 +31,7 @@ fn accessibility_id<'a>(bytes: &'a [u8], span: &Span) -> Option<&'a [u8]> {
         }
         let property = cursor.read16();
         let tag = cursor.read8();
-        if property == wanted && tag == 6 {
+        if property == wanted && tag == Tag::String {
             let length = cursor.read32() as usize;
             return cursor.take(length);
         }
@@ -47,7 +48,7 @@ pub fn note(bytes: &[u8]) {
     let Some(count) = scan(bytes, &mut spans) else { return };
     let Ok(mut named) = NAMED.lock() else { return };
     let named = named.get_or_insert_with(HashMap::new);
-    for span in spans[..count].iter().filter(|span| span.op == 1 || span.op == 2) {
+    for span in spans[..count].iter().filter(|span| span.op == Op::Create || span.op == Op::Update) {
         let Some(text) = accessibility_id(&bytes[..span.end], span) else {
             continue;
         };

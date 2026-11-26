@@ -1,3 +1,4 @@
+use super::tag::Tag;
 use core::ffi::c_int;
 use std::sync::atomic::{AtomicU32, Ordering};
 
@@ -27,15 +28,15 @@ fn copy_value(cursor: &mut Cursor, bytes: &[u8], out: &mut Out, depth: u32, chan
     }
     let start = cursor.offset();
     let tag = cursor.read8();
-    match tag {
-        6 => {
+    match Tag::parse(tag) {
+        Some(Tag::String) => {
             let length = cursor.read32() as usize;
             let Some(text) = cursor.take(length) else { return false };
             if text.starts_with(b"https://")
                 && text.len() > 8
                 && let Some(rewritten) = REWRITER.rewrite(text)
             {
-                out.put8(6);
+                out.put_tag(Tag::String);
                 out.put_string(&rewritten);
                 *changed = true;
                 return true;
@@ -43,7 +44,7 @@ fn copy_value(cursor: &mut Cursor, bytes: &[u8], out: &mut Out, depth: u32, chan
             out.put(&bytes[start..cursor.offset()]);
             true
         }
-        7 | 8 | 10 => {
+        Some(Tag::Array | Tag::Map | Tag::Object) => {
             let count = cursor.read32();
             out.put8(tag);
             out.put32(count);
@@ -51,9 +52,9 @@ fn copy_value(cursor: &mut Cursor, bytes: &[u8], out: &mut Out, depth: u32, chan
                 if cursor.failed() {
                     return false;
                 }
-                if tag == 8 {
+                if tag == Tag::Map {
                     out.put16(cursor.read16());
-                } else if tag == 10 {
+                } else if tag == Tag::Object {
                     let key_length = cursor.read32() as usize;
                     let Some(key) = cursor.take(key_length) else { return false };
                     out.put_string(key);

@@ -1,3 +1,4 @@
+use super::tag::Op;
 use std::collections::HashMap;
 use std::hash::{BuildHasherDefault, Hasher};
 use std::sync::Mutex;
@@ -45,11 +46,11 @@ impl BatchIndex {
     fn fill(&mut self, bytes: &[u8], spans: &[Span]) {
         let index = self;
         for (position, span) in spans.iter().enumerate() {
-            match span.op {
-                1 => {
+            match Op::parse(span.op) {
+                Some(Op::Create) => {
                     index.creations.entry(span.id).or_insert(position);
                 }
-                3 => {
+                Some(Op::SetChildren) => {
                     index.child_lists.insert(span.id, position);
                     for slot in 0..span.child_count {
                         index.parents.insert(child(bytes, span, slot), span.id);

@@ -3,6 +3,10 @@ use core::ffi::c_char;
 use crate::bridge::{AstralRustString, bytes};
 use crate::wire::cursor::Cursor;
 
+use crate::wire::tag::Tag;
+
+const HEADER_PAIR: u32 = 2;
+
 const HEADER: usize = 16;
 const CALL_KIND: u8 = 1;
 const MAX_ARGUMENTS: u32 = 32;
@@ -44,11 +48,11 @@ fn read_headers(cursor: &mut Cursor) -> Option<Vec<(String, String)>> {
     }
     let mut headers = Vec::new();
     for _ in 0..count {
-        if cursor.failed() || cursor.read8() != 7 || cursor.read32() != 2 || cursor.read8() != 6 {
+        if cursor.failed() || cursor.read8() != Tag::Array || cursor.read32() != HEADER_PAIR || cursor.read8() != Tag::String {
             return None;
         }
         let name = read_string(cursor).to_ascii_lowercase();
-        if cursor.read8() != 6 {
+        if cursor.read8() != Tag::String {
             return None;
         }
         headers.push((name, read_string(cursor)));
@@ -82,7 +86,7 @@ fn read(frame: &[u8]) -> Option<Fields> {
     }
     let arguments_end = HEADER + arguments_length;
     let mut cursor = Cursor::new(&frame[..arguments_end], HEADER);
-    if cursor.read8() != 8 {
+    if cursor.read8() != Tag::Map {
         return None;
     }
     let count = cursor.read32();
@@ -102,8 +106,8 @@ fn read(frame: &[u8]) -> Option<Fields> {
         }
         cursor.read16();
         let tag = cursor.read8();
-        match tag {
-            6 => {
+        match Tag::parse(tag) {
+            Some(Tag::String) => {
                 let value = read_string(&mut cursor);
                 if fields.method.is_none() && is_method(&value) {
                     fields.method = Some(index);
@@ -113,7 +117,7 @@ fn read(frame: &[u8]) -> Option<Fields> {
                     fields.request.url = value;
                 }
             }
-            7 if fields.headers.is_none() => {
+            Some(Tag::Array) if fields.headers.is_none() => {
                 let mut probe = Cursor::new(&frame[..arguments_end], cursor.offset());
                 if let Some(headers) = read_headers(&mut probe) {
                     fields.headers = Some(index);

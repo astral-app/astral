@@ -2,6 +2,9 @@ use core::ffi::c_char;
 
 use crate::bridge::{AstralRustString, bytes};
 
+const BLOCK_BYTES: usize = 64;
+const LENGTH_OFFSET: usize = BLOCK_BYTES - 8;
+
 const ROUND_CONSTANTS: [u32; 64] = [
     0x428a_2f98,
     0x7137_4491,
@@ -134,7 +137,7 @@ pub fn sha256(data: &[u8]) -> [u8; 32] {
     let mut state = INITIAL_STATE;
     let mut padded = data.to_vec();
     padded.push(0x80);
-    while padded.len() % 64 != 56 {
+    while padded.len() % BLOCK_BYTES != LENGTH_OFFSET {
         padded.push(0);
     }
     padded.extend_from_slice(&((data.len() as u64).wrapping_mul(8)).to_be_bytes());

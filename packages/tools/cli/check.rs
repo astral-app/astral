@@ -89,6 +89,15 @@ pub fn rules() -> Vec<Rule> {
             run: |files, _| crate::lua_casing::check(files),
         },
         Rule {
+            name: "rust magic numbers",
+            affects: |path| {
+                repo::extension(path) == "rs"
+                    && under(path, &["packages/core/", "packages/tools/"])
+                    && !path.contains("/tests/")
+            },
+            run: |files, _| crate::rust_magic::check(files),
+        },
+        Rule {
             name: "lua enums",
             affects: |path| lua(path) && under(path, &["packages/addons/plugins/"]),
             run: |files, _| crate::lua_enums::check(files),
@@ -179,7 +188,13 @@ pub fn rules() -> Vec<Rule> {
 fn file_scoped(name: &str) -> bool {
     matches!(
         name,
-        "clang-format" | "stylua" | "luacheck" | "lua casing" | "lua enums" | "taplo"
+        "clang-format"
+            | "stylua"
+            | "luacheck"
+            | "lua casing"
+            | "lua enums"
+            | "rust magic numbers"
+            | "taplo"
     )
 }
 

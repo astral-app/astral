@@ -3,6 +3,10 @@ use std::sync::Mutex;
 
 use crate::bridge::{AstralRustString, bytes};
 
+const MIN_IDENTITY: usize = 20;
+const MIN_TIMESTAMP: usize = 4;
+const MIN_SIGNATURE: usize = 20;
+
 static TOKEN: Mutex<Vec<u8>> = Mutex::new(Vec::new());
 
 fn token_character(character: u8) -> bool {
@@ -11,7 +15,10 @@ fn token_character(character: u8) -> bool {
 
 pub fn plausible(token: &[u8]) -> bool {
     let parts: Vec<&[u8]> = token.split(|byte| *byte == b'.').collect();
-    if parts.len() != 3 || parts[0].len() < 20 || parts[1].len() < 4 || parts[2].len() < 20 {
+    let [identity, timestamp, signature] = parts.as_slice() else {
+        return false;
+    };
+    if identity.len() < MIN_IDENTITY || timestamp.len() < MIN_TIMESTAMP || signature.len() < MIN_SIGNATURE {
         return false;
     }
     token.iter().all(|character| *character == b'.' || token_character(*character))

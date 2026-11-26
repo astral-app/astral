@@ -127,7 +127,7 @@ pub fn type_name(kind: c_int) -> &'static str {
         lua::TSTRING => "string",
         lua::TTABLE => "table",
         -1 => "no value",
-        6 => "function",
+        lua::TFUNCTION => "function",
         2 => "userdata",
         _ => "value",
     }
