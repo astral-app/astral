@@ -224,6 +224,7 @@ pub fn initialize(launch: Launch) -> usize {
 pub fn initialize_in_background(launch: Launch) -> usize {
     let resolved = resolve_properties(&launch.property_names);
     let version = prepare(launch).version.clone();
+    install_decorators();
     let spawned = std::thread::Builder::new().name("astral-start".into()).spawn(move || {
         let plugins = start();
         log_start(&version, resolved, plugins);

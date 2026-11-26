@@ -459,7 +459,7 @@ impl Bridge for JniBridge {
                 Method::InsertComposerText,
                 &[Argument::Text(text), Argument::Flag(replace)],
             )),
-            Request::DispatchGateway { message } => {
+            Request::DispatchGateway { message } | Request::InjectGateway { message } => {
                 succeeded(&self.locked(Method::DispatchGateway, &[Argument::Text(message)]))
             }
             Request::RefreshEmoji | Request::RefreshDecorations => {
@@ -511,8 +511,7 @@ impl Bridge for JniBridge {
             Request::KeepAlive { .. }
             | Request::OfferPick { .. }
             | Request::DismissSheets
-            | Request::RefreshSettings
-            | Request::InjectGateway { .. } => Reply::Unsupported,
+            | Request::RefreshSettings => Reply::Unsupported,
         }
     }
 }
