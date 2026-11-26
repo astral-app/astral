@@ -14,17 +14,27 @@ const MAXIMUM_JSON_TEXT: usize = 4 << 20;
 
 pub type HasPermission = unsafe extern "C" fn(plugin: *mut c_void, name: *const c_char, length: usize) -> c_int;
 pub type Identifier = unsafe extern "C" fn(plugin: *mut c_void) -> AstralRustString;
+pub type PlatformCall = unsafe extern "C" fn(
+    method: *const c_char,
+    method_length: usize,
+    arguments: *const c_char,
+    arguments_length: usize,
+) -> AstralRustString;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct AstralLuaPluginCalls {
     pub has_permission: Option<HasPermission>,
     pub identifier: Option<Identifier>,
+    pub directory: Option<Identifier>,
+    pub platform: Option<PlatformCall>,
 }
 
 static CALLS: RwLock<AstralLuaPluginCalls> = RwLock::new(AstralLuaPluginCalls {
     has_permission: None,
     identifier: None,
+    directory: None,
+    platform: None,
 });
 static STORAGE_PATH: RwLock<String> = RwLock::new(String::new());
 static STORAGE: OnceLock<Storage> = OnceLock::new();
@@ -44,6 +54,35 @@ unsafe fn identifier(state: *mut LuaState) -> String {
         return String::new();
     };
     String::from_utf8_lossy(&crate::bridge::take(unsafe { identifier(plugin(state)) })).into_owned()
+}
+
+unsafe fn directory(state: *mut LuaState) -> String {
+    let Some(directory) = calls().directory else { return String::new() };
+    String::from_utf8_lossy(&crate::bridge::take(unsafe { directory(plugin(state)) })).into_owned()
+}
+
+enum Platform {
+    Missing,
+    Threw,
+    Value(Value),
+}
+
+fn platform_call(method: &str, arguments: Value) -> Platform {
+    let Some(call) = calls().platform else { return Platform::Missing };
+    let arguments = arguments.to_string();
+    let reply = crate::bridge::take(unsafe { call(method.as_ptr().cast(), method.len(), arguments.as_ptr().cast(), arguments.len()) });
+    let reply: Value = serde_json::from_slice(&reply).unwrap_or(Value::Null);
+    if reply.get("missing").and_then(Value::as_bool) == Some(true) {
+        return Platform::Missing;
+    }
+    if reply.get("threw").and_then(Value::as_bool) == Some(true) {
+        return Platform::Threw;
+    }
+    Platform::Value(reply.get("value").cloned().unwrap_or(Value::Null))
+}
+
+fn platform_flag(method: &str, arguments: Value) -> bool {
+    matches!(platform_call(method, arguments), Platform::Value(Value::Bool(true)))
 }
 
 pub unsafe fn has_permission(state: *mut LuaState, name: &str) -> bool {
@@ -402,6 +441,326 @@ unsafe fn discord_permissions(state: *mut LuaState) -> Outcome {
     Ok(1)
 }
 
+fn snowflake_text(value: &str) -> bool {
+    !value.is_empty() && value.len() <= 20 && value.bytes().all(|byte| byte.is_ascii_digit())
+}
+
+fn openable_url(url: &str) -> bool {
+    url.len() <= 2048 && (url.starts_with("https://") || url.starts_with("discord://"))
+}
+
+unsafe fn table_text(state: *mut LuaState, index: c_int, field: &core::ffi::CStr) -> Option<String> {
+    if unsafe { lua::lua_type(state, index) } != lua::TTABLE {
+        return None;
+    }
+    unsafe { lua::lua_getfield(state, index, field.as_ptr()) };
+    let value = unsafe { optional_text(state, -1) };
+    unsafe { lua::pop(state, 1) };
+    value
+}
+
+unsafe fn table_number(state: *mut LuaState, index: c_int, field: &core::ffi::CStr) -> Option<f64> {
+    if unsafe { lua::lua_type(state, index) } != lua::TTABLE {
+        return None;
+    }
+    unsafe { lua::lua_getfield(state, index, field.as_ptr()) };
+    let kind = unsafe { lua::lua_type(state, -1) };
+    let mut converted = 0;
+    let number = unsafe { lua::lua_tonumberx(state, -1, &mut converted) };
+    unsafe { lua::pop(state, 1) };
+    (kind == lua::TNUMBER || (kind == lua::TSTRING && converted != 0)).then_some(number)
+}
+
+unsafe fn push_flag(state: *mut LuaState, flag: bool) -> Outcome {
+    unsafe { lua::lua_pushboolean(state, c_int::from(flag)) };
+    Ok(1)
+}
+
+fn channel_link(channel: &str, message: &str) -> String {
+    let guild = discord::channel_guild(channel)
+        .filter(|guild| snowflake_text(guild))
+        .unwrap_or_else(|| "@me".into());
+    let mut link = format!("https://discord.com/channels/{guild}/{channel}");
+    if !message.is_empty() {
+        link.push('/');
+        link.push_str(message);
+    }
+    link
+}
+
+unsafe fn ui_toast(state: *mut LuaState) -> Outcome {
+    unsafe { require_permission(state, "ui.toasts") }?;
+    let (title, message) = (unsafe { check_text(state, 1) }?, unsafe { check_text(state, 2) }?);
+    if title.len() > 120 || message.len() > 2048 {
+        return Err("astral.ui.toast: text exceeds its limit".into());
+    }
+    match platform_call("showToast", serde_json::json!([title, message])) {
+        Platform::Missing => Err("astral.ui.toast: notifications are unavailable on this build".into()),
+        Platform::Threw => Err("astral.ui.toast: could not show the notification".into()),
+        Platform::Value(_) => Ok(0),
+    }
+}
+
+unsafe fn ui_copy(state: *mut LuaState) -> Outcome {
+    unsafe { require_permission(state, "ui.clipboard") }?;
+    let text = unsafe { check_bytes(state, 1) }?;
+    if text.len() > 16384 {
+        return Err("astral.ui.copy: text exceeds 16384 bytes".into());
+    }
+    match platform_call("writeClipboard", serde_json::json!([String::from_utf8_lossy(text)])) {
+        Platform::Missing => Err("astral.ui.copy: clipboard is unavailable on this build".into()),
+        reply => unsafe { push_flag(state, matches!(reply, Platform::Value(Value::Bool(true)))) },
+    }
+}
+
+unsafe fn ui_paste(state: *mut LuaState) -> Outcome {
+    unsafe { require_permission(state, "ui.clipboard") }?;
+    match platform_call("readClipboard", serde_json::json!([])) {
+        Platform::Missing => Err("astral.ui.paste: clipboard is unavailable on this build".into()),
+        Platform::Value(Value::String(text)) => {
+            let end = text.len().min(16384);
+            unsafe { lua::lua_pushlstring(state, text.as_ptr().cast(), end) };
+            Ok(1)
+        }
+        _ => Ok(0),
+    }
+}
+
+unsafe fn ui_open(state: *mut LuaState) -> Outcome {
+    let url = unsafe { check_text(state, 1) }?;
+    if !openable_url(&url) {
+        return Err("astral.ui.open: only https:// and discord:// links up to 2048 bytes".into());
+    }
+    match platform_call("openURL", serde_json::json!([url])) {
+        Platform::Missing => Err("astral.ui.open: opening links is unavailable on this build".into()),
+        reply => unsafe { push_flag(state, matches!(reply, Platform::Value(Value::Bool(true)))) },
+    }
+}
+
+unsafe fn ui_haptic(state: *mut LuaState) -> Outcome {
+    unsafe { require_permission(state, "ui.haptics") }?;
+    let strength = unsafe { check_text(state, 1) }?;
+    if !matches!(strength.as_str(), "light" | "medium" | "heavy") {
+        return Err("astral.ui.haptic: strength must be light, medium or heavy".into());
+    }
+    match platform_call("triggerHaptic", serde_json::json!([strength])) {
+        Platform::Missing => Err("astral.ui.haptic: haptics are unavailable on this build".into()),
+        reply => unsafe { push_flag(state, matches!(reply, Platform::Value(Value::Bool(true)))) },
+    }
+}
+
+unsafe fn background_keep_alive(state: *mut LuaState) -> Outcome {
+    unsafe { require_permission(state, "background") }?;
+    let on = unsafe { lua::lua_toboolean(state, 1) } != 0;
+    unsafe { push_flag(state, platform_flag("keepAlive", serde_json::json!([on]))) }
+}
+
+unsafe fn audio_speak(state: *mut LuaState) -> Outcome {
+    unsafe { require_permission(state, "audio") }?;
+    let text = unsafe { check_text(state, 1) }?;
+    if text.is_empty() || text.len() > 4096 {
+        return Err("astral.audio.speak: text is 1 to 4096 bytes".into());
+    }
+    let language = unsafe { table_text(state, 2, c"language") }.unwrap_or_default();
+    let rate = unsafe { table_number(state, 2, c"rate") }.unwrap_or(0.5);
+    if !rate.is_finite() || !(0.0..=1.0).contains(&rate) {
+        return Err("astral.audio.speak: rate is 0 to 1".into());
+    }
+    if language.len() > 35 {
+        return Err("astral.audio.speak: language is a BCP 47 tag".into());
+    }
+    match platform_call("speak", serde_json::json!([text, language, rate])) {
+        Platform::Missing => Err("astral.audio.speak: speech is unavailable on this build".into()),
+        reply => unsafe { push_flag(state, matches!(reply, Platform::Value(Value::Bool(true)))) },
+    }
+}
+
+fn plugin_sound_path(directory: &str, relative: &str) -> Option<String> {
+    let requested = std::path::Path::new(relative);
+    if relative.is_empty() || requested.is_absolute() || requested.components().any(|part| part.as_os_str() == "..") {
+        return None;
+    }
+    let extension = requested.extension()?.to_str()?.to_ascii_lowercase();
+    if !["mp3", "m4a", "wav", "caf", "aac"].contains(&extension.as_str()) {
+        return None;
+    }
+    let full = std::path::Path::new(directory).join(requested);
+    full.is_file().then(|| full.to_string_lossy().into_owned())
+}
+
+unsafe fn audio_play(state: *mut LuaState) -> Outcome {
+    unsafe { require_permission(state, "audio") }?;
+    let file = unsafe { check_text(state, 1) }?;
+    let volume = unsafe { table_number(state, 2, c"volume") }.unwrap_or(1.0);
+    if !volume.is_finite() || !(0.0..=1.0).contains(&volume) {
+        return Err("astral.audio.play: volume is 0 to 1".into());
+    }
+    let Some(path) = plugin_sound_path(&unsafe { directory(state) }, &file) else {
+        return Err(format!(
+            "astral.audio.play: {file} is not an mp3, m4a, wav, caf or aac file in the plugin"
+        ));
+    };
+    match platform_call("playSound", serde_json::json!([path, volume])) {
+        Platform::Missing => Err("astral.audio.play: sound is unavailable on this build".into()),
+        reply => unsafe { push_flag(state, matches!(reply, Platform::Value(Value::Bool(true)))) },
+    }
+}
+
+unsafe fn audio_stop(state: *mut LuaState) -> Outcome {
+    unsafe { require_permission(state, "audio") }?;
+    platform_call("stopAudio", serde_json::json!([]));
+    Ok(0)
+}
+
+static NOTIFICATION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
+unsafe fn ui_notify(state: *mut LuaState) -> Outcome {
+    unsafe { require_permission(state, "ui.notifications") }?;
+    let (title, body) = (unsafe { check_text(state, 1) }?, unsafe { check_text(state, 2) }?);
+    if title.len() > 120 || body.len() > 2048 {
+        return Err("astral.ui.notify: text exceeds its limit".into());
+    }
+    let delay = unsafe { table_number(state, 3, c"delay") }.unwrap_or(0.0);
+    let channel = unsafe { table_text(state, 3, c"channel_id") }.unwrap_or_default();
+    let message = unsafe { table_text(state, 3, c"message_id") }.unwrap_or_default();
+    if (!channel.is_empty() && !snowflake_text(&channel)) || (!message.is_empty() && (channel.is_empty() || !snowflake_text(&message))) {
+        return Err("astral.ui.notify: channel_id and message_id must be Discord ids".into());
+    }
+    let link = if channel.is_empty() {
+        String::new()
+    } else {
+        channel_link(&channel, &message)
+    };
+    if !delay.is_finite() || !(0.0..=604_800.0).contains(&delay) {
+        return Err("astral.ui.notify: delay is 0 to 604800 seconds".into());
+    }
+    let identifier = format!(
+        "astral.{}.{}",
+        unsafe { identifier(state) },
+        NOTIFICATION.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    );
+    match platform_call("notify", serde_json::json!([identifier, title, body, delay, link])) {
+        Platform::Missing => Err("astral.ui.notify: notifications are unavailable on this build".into()),
+        reply => unsafe { push_flag(state, matches!(reply, Platform::Value(Value::Bool(true)))) },
+    }
+}
+
+unsafe fn ui_open_channel(state: *mut LuaState) -> Outcome {
+    unsafe { require_permission(state, "ui.navigate") }?;
+    let channel = unsafe { check_text(state, 1) }?;
+    let message = unsafe { optional_text(state, 2) }.unwrap_or_default();
+    if !snowflake_text(&channel) {
+        return Err(format!("astral.ui.open_channel: '{channel}' is not a channel id"));
+    }
+    if !message.is_empty() && !snowflake_text(&message) {
+        return Err(format!("astral.ui.open_channel: '{message}' is not a message id"));
+    }
+    unsafe {
+        push_flag(
+            state,
+            platform_flag("openURL", serde_json::json!([channel_link(&channel, &message)])),
+        )
+    }
+}
+
+unsafe fn message_argument(state: *mut LuaState, index: c_int) -> Result<u64, String> {
+    let text = unsafe { check_text(state, index) }?;
+    let digits = text.trim_start().trim_start_matches('+');
+    match digits.parse::<u64>() {
+        Ok(parsed) if parsed != 0 => Ok(parsed),
+        _ => Err(format!("astral.messages: '{text}' is not a message id")),
+    }
+}
+
+unsafe fn ui_scroll_to(state: *mut LuaState) -> Outcome {
+    unsafe { require_permission(state, "ui.navigate") }?;
+    let message = unsafe { message_argument(state, 1) }?;
+    let mut animated = true;
+    if unsafe { lua::lua_type(state, 2) } == lua::TTABLE {
+        unsafe { lua::lua_getfield(state, 2, c"animated".as_ptr()) };
+        if unsafe { lua::lua_type(state, -1) } != lua::TNIL {
+            animated = unsafe { lua::lua_toboolean(state, -1) } != 0;
+        }
+        unsafe { lua::pop(state, 1) };
+    }
+    let align = unsafe { table_text(state, 2, c"align") }.unwrap_or_else(|| "visible".into());
+    unsafe {
+        push_flag(
+            state,
+            platform_flag("scrollToMessage", serde_json::json!([message, animated, align])),
+        )
+    }
+}
+
+unsafe fn ui_focus_composer(state: *mut LuaState) -> Outcome {
+    unsafe { require_permission(state, "ui.navigate") }?;
+    let kind = unsafe { lua::lua_type(state, 1) };
+    let focus = kind == lua::TNIL || kind == -1 || unsafe { lua::lua_toboolean(state, 1) } != 0;
+    unsafe { push_flag(state, platform_flag("focusComposer", serde_json::json!([focus]))) }
+}
+
+unsafe fn ui_dismiss(state: *mut LuaState) -> Outcome {
+    unsafe { require_permission(state, "ui.navigate") }?;
+    unsafe { push_flag(state, platform_flag("dismissSheets", serde_json::json!([]))) }
+}
+
+unsafe fn ui_insert_text(state: *mut LuaState) -> Outcome {
+    unsafe { require_permission(state, "ui.composer") }?;
+    let text = unsafe { check_bytes(state, 1) }?;
+    let replace = unsafe { table_flag(state, 2, c"replace") };
+    if (text.is_empty() && !replace) || text.len() > 4000 {
+        return Err("astral.ui.insert_text: text is 1 to 4000 bytes".into());
+    }
+    let text = String::from_utf8_lossy(text).into_owned();
+    unsafe { push_flag(state, platform_flag("insertComposerText", serde_json::json!([text, replace]))) }
+}
+
+unsafe fn ui_composer_text(state: *mut LuaState) -> Outcome {
+    unsafe { require_permission(state, "ui.composer") }?;
+    let mut buffer = vec![0u8; 8192];
+    let length = unsafe { crate::wire::composer::astral_wire_composer_text(buffer.as_mut_ptr().cast(), buffer.len()) };
+    unsafe { lua::lua_pushlstring(state, buffer.as_ptr().cast(), length.min(buffer.len())) };
+    Ok(1)
+}
+
+unsafe fn ui_refresh(_state: *mut LuaState) -> Outcome {
+    platform_call("refreshDecorations", serde_json::json!([]));
+    Ok(0)
+}
+
+unsafe fn diagnostics_environment(state: *mut LuaState) -> Outcome {
+    unsafe { require_permission(state, "diagnostics") }?;
+    let mut environment = match platform_call("environment", serde_json::json!([])) {
+        Platform::Value(value @ Value::Object(_)) => value,
+        _ => serde_json::json!({}),
+    };
+    environment["plugin_list"] = match platform_call("pluginList", serde_json::json!([])) {
+        Platform::Value(list @ Value::Array(_)) => list,
+        _ => serde_json::json!([]),
+    };
+    unsafe { push_json(state, &environment, 0) };
+    Ok(1)
+}
+
+unsafe fn code_highlight(state: *mut LuaState) -> Outcome {
+    let code = unsafe { check_bytes(state, 1) }?.to_vec();
+    let language = unsafe { optional_text(state, 2) }.unwrap_or_default();
+    let theme = unsafe { optional_text(state, 3) }.unwrap_or_else(|| "{}".into());
+    let result = crate::bridge::take(unsafe {
+        crate::highlight::astral_code_highlight(
+            code.as_ptr().cast(),
+            code.len(),
+            language.as_ptr().cast(),
+            language.len(),
+            theme.as_ptr().cast(),
+            theme.len(),
+        )
+    });
+    let value: Value = serde_json::from_slice(&result).unwrap_or(Value::Null);
+    unsafe { push_json(state, &value, 0) };
+    Ok(1)
+}
+
 macro_rules! lua_function {
     ($name:ident, $body:ident) => {
         #[unsafe(no_mangle)]
@@ -432,6 +791,25 @@ lua_function!(astral_lua_discord_relationship, discord_relationship);
 lua_function!(astral_lua_discord_message, discord_message);
 lua_function!(astral_lua_discord_raw_message, discord_raw_message);
 lua_function!(astral_lua_discord_permissions, discord_permissions);
+lua_function!(astral_lua_ui_toast, ui_toast);
+lua_function!(astral_lua_ui_copy, ui_copy);
+lua_function!(astral_lua_ui_paste, ui_paste);
+lua_function!(astral_lua_ui_open, ui_open);
+lua_function!(astral_lua_ui_haptic, ui_haptic);
+lua_function!(astral_lua_background_keep_alive, background_keep_alive);
+lua_function!(astral_lua_audio_speak, audio_speak);
+lua_function!(astral_lua_audio_play, audio_play);
+lua_function!(astral_lua_audio_stop, audio_stop);
+lua_function!(astral_lua_ui_notify, ui_notify);
+lua_function!(astral_lua_ui_open_channel, ui_open_channel);
+lua_function!(astral_lua_ui_scroll_to, ui_scroll_to);
+lua_function!(astral_lua_ui_focus_composer, ui_focus_composer);
+lua_function!(astral_lua_ui_dismiss, ui_dismiss);
+lua_function!(astral_lua_ui_insert_text, ui_insert_text);
+lua_function!(astral_lua_ui_composer_text, ui_composer_text);
+lua_function!(astral_lua_ui_refresh, ui_refresh);
+lua_function!(astral_lua_diagnostics_environment, diagnostics_environment);
+lua_function!(astral_lua_code_highlight, code_highlight);
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn astral_lua_api_configure(calls: AstralLuaPluginCalls, storage_path: *const c_char, length: usize) {

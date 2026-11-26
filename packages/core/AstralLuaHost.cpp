@@ -289,6 +289,111 @@ static LuaPlugin *Self(lua_State *state)
     return static_cast<LuaPlugin *>(lua_touserdata(state, lua_upvalueindex(1)));
 }
 
+static nlohmann::json PlatformValue(const nlohmann::json &arguments, size_t index)
+{
+    return arguments.is_array() && index < arguments.size() ? arguments[index] : nlohmann::json();
+}
+
+static std::string PlatformText(const nlohmann::json &arguments, size_t index)
+{
+    auto value = PlatformValue(arguments, index);
+    return value.is_string() ? value.get<std::string>() : "";
+}
+
+static double PlatformNumber(const nlohmann::json &arguments, size_t index)
+{
+    auto value = PlatformValue(arguments, index);
+    return value.is_number() ? value.get<double>() : 0;
+}
+
+static bool PlatformFlag(const nlohmann::json &arguments, size_t index)
+{
+    auto value = PlatformValue(arguments, index);
+    return value.is_boolean() && value.get<bool>();
+}
+
+static nlohmann::json PluginList(void)
+{
+    nlohmann::json plugins = nlohmann::json::array();
+    for (auto *plugin : gPlugins)
+        plugins.push_back({{"id", plugin->identifier},
+                           {"name", plugin->name},
+                           {"version", plugin->version},
+                           {"enabled", plugin->enabled},
+                           {"running", plugin->state != nullptr && !plugin->failed},
+                           {"failed", plugin->failed}});
+    return plugins;
+}
+
+template <typename Function, typename Call> static nlohmann::json Answer(const Function &function, const Call &call)
+{
+    if (!function) return {{"missing", true}};
+    try {
+        return {{"value", call()}};
+    } catch (...) {
+        return {{"threw", true}};
+    }
+}
+
+static nlohmann::json PlatformDispatch(const std::string &method, const nlohmann::json &arguments)
+{
+    auto &platform = gPlatform;
+    if (method == "showToast")
+        return Answer(platform.showToast, [&] {
+            platform.showToast(PlatformText(arguments, 0), PlatformText(arguments, 1));
+            return nlohmann::json();
+        });
+    if (method == "writeClipboard")
+        return Answer(platform.writeClipboard, [&] { return platform.writeClipboard(PlatformText(arguments, 0)); });
+    if (method == "readClipboard")
+        return Answer(platform.readClipboard, [&] {
+            auto value = platform.readClipboard();
+            return value ? nlohmann::json(*value) : nlohmann::json();
+        });
+    if (method == "openURL") return Answer(platform.openURL, [&] { return platform.openURL(PlatformText(arguments, 0)); });
+    if (method == "triggerHaptic")
+        return Answer(platform.triggerHaptic, [&] { return platform.triggerHaptic(PlatformText(arguments, 0)); });
+    if (method == "keepAlive") return Answer(platform.keepAlive, [&] { return platform.keepAlive(PlatformFlag(arguments, 0)); });
+    if (method == "speak")
+        return Answer(platform.speak,
+                      [&] { return platform.speak(PlatformText(arguments, 0), PlatformText(arguments, 1), PlatformNumber(arguments, 2)); });
+    if (method == "playSound")
+        return Answer(platform.playSound, [&] { return platform.playSound(PlatformText(arguments, 0), PlatformNumber(arguments, 1)); });
+    if (method == "stopAudio")
+        return Answer(platform.stopAudio, [&] {
+            platform.stopAudio();
+            return nlohmann::json();
+        });
+    if (method == "notify")
+        return Answer(platform.notify, [&] {
+            return platform.notify(PlatformText(arguments, 0), PlatformText(arguments, 1), PlatformText(arguments, 2),
+                                   PlatformNumber(arguments, 3), PlatformText(arguments, 4));
+        });
+    if (method == "scrollToMessage")
+        return Answer(platform.scrollToMessage, [&] {
+            auto message = PlatformValue(arguments, 0);
+            return platform.scrollToMessage(message.is_number_unsigned() ? message.get<uint64_t>() : 0, PlatformFlag(arguments, 1),
+                                            PlatformText(arguments, 2));
+        });
+    if (method == "focusComposer")
+        return Answer(platform.focusComposer, [&] { return platform.focusComposer(PlatformFlag(arguments, 0)); });
+    if (method == "dismissSheets") return Answer(platform.dismissSheets, [&] { return platform.dismissSheets(); });
+    if (method == "insertComposerText")
+        return Answer(platform.insertComposerText,
+                      [&] { return platform.insertComposerText(PlatformText(arguments, 0), PlatformFlag(arguments, 1)); });
+    if (method == "refreshDecorations")
+        return Answer(platform.refreshDecorations, [&] {
+            platform.refreshDecorations();
+            return nlohmann::json();
+        });
+    if (method == "environment") return Answer(platform.environment, [&] { return platform.environment(); });
+    if (method == "pluginList") {
+        std::lock_guard<std::recursive_mutex> lock(gMutex);
+        return {{"value", PluginList()}};
+    }
+    return {{"missing", true}};
+}
+
 static void ConfigureRustAPI(void)
 {
     AstralLuaPluginCalls calls = {
@@ -296,6 +401,12 @@ static void ConfigureRustAPI(void)
             return static_cast<LuaPlugin *>(plugin)->permissions.count(std::string(name, length)) > 0;
         },
         [](void *plugin) { return astral::rust::give(static_cast<LuaPlugin *>(plugin)->identifier); },
+        [](void *plugin) { return astral::rust::give(static_cast<LuaPlugin *>(plugin)->directory); },
+        [](const char *method, size_t methodLength, const char *arguments, size_t argumentsLength) {
+            auto parsed = nlohmann::json::parse(std::string(arguments, argumentsLength), nullptr, false);
+            auto reply = PlatformDispatch(std::string(method, methodLength), parsed);
+            return astral::rust::give(reply.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace));
+        },
     };
     astral_lua_api_configure(calls, gPlatform.storagePath.data(), gPlatform.storagePath.size());
 }
@@ -1030,92 +1141,11 @@ static int CloseSheet(lua_State *state)
     return 0;
 }
 
-static int ShowToast(lua_State *state)
-{
-    RequirePermission(state, "ui.toasts");
-    std::string title = luaL_checkstring(state, 1);
-    std::string message = luaL_checkstring(state, 2);
-    if (title.size() > 120 || message.size() > 2048) return luaL_error(state, "astral.ui.toast: text exceeds its limit");
-    if (!gPlatform.showToast) return luaL_error(state, "astral.ui.toast: notifications are unavailable on this build");
-    try {
-        gPlatform.showToast(title, message);
-    } catch (...) {
-        return luaL_error(state, "astral.ui.toast: could not show the notification");
-    }
-    return 0;
-}
-
-static int CopyText(lua_State *state)
-{
-    RequirePermission(state, "ui.clipboard");
-    size_t length = 0;
-    const char *value = luaL_checklstring(state, 1, &length);
-    if (length > 16384) return luaL_error(state, "astral.ui.copy: text exceeds 16384 bytes");
-    if (!gPlatform.writeClipboard) return luaL_error(state, "astral.ui.copy: clipboard is unavailable on this build");
-    bool copied = false;
-    try {
-        copied = gPlatform.writeClipboard(std::string(value, length));
-    } catch (...) {
-    }
-    lua_pushboolean(state, copied);
-    return 1;
-}
-
 static uint64_t MessageArgument(lua_State *state, int index);
-
-static int ScrollToMessage(lua_State *state)
-{
-    RequirePermission(state, "ui.navigate");
-    uint64_t message = MessageArgument(state, 1);
-    bool animated = true;
-    std::string align = "visible";
-    if (lua_istable(state, 2)) {
-        lua_getfield(state, 2, "animated");
-        if (!lua_isnil(state, -1)) animated = lua_toboolean(state, -1);
-        lua_getfield(state, 2, "align");
-        if (lua_isstring(state, -1)) align = lua_tostring(state, -1);
-        lua_pop(state, 2);
-    }
-    bool queued = gPlatform.scrollToMessage && gPlatform.scrollToMessage(message, animated, align);
-    lua_pushboolean(state, queued);
-    return 1;
-}
-
-static int FocusComposer(lua_State *state)
-{
-    RequirePermission(state, "ui.navigate");
-    bool focus = lua_isnoneornil(state, 1) || lua_toboolean(state, 1);
-    bool queued = gPlatform.focusComposer && gPlatform.focusComposer(focus);
-    lua_pushboolean(state, queued);
-    return 1;
-}
-
-static int DismissSheets(lua_State *state)
-{
-    RequirePermission(state, "ui.navigate");
-    lua_pushboolean(state, gPlatform.dismissSheets && gPlatform.dismissSheets());
-    return 1;
-}
 
 static bool SnowflakeText(const std::string &value)
 {
     return !value.empty() && value.size() <= 20 && value.find_first_not_of("0123456789") == std::string::npos;
-}
-
-static int OpenChannel(lua_State *state)
-{
-    RequirePermission(state, "ui.navigate");
-    std::string channel = luaL_checkstring(state, 1);
-    std::string message = luaL_optstring(state, 2, "");
-    if (!SnowflakeText(channel)) return luaL_error(state, "astral.ui.open_channel: '%s' is not a channel id", channel.c_str());
-    if (!message.empty() && !SnowflakeText(message))
-        return luaL_error(state, "astral.ui.open_channel: '%s' is not a message id", message.c_str());
-    auto guild = gDiscord.channelGuild ? gDiscord.channelGuild(channel) : std::nullopt;
-    std::string link = "https://discord.com/channels/" + (guild && SnowflakeText(*guild) ? *guild : std::string("@me")) + "/" + channel;
-    if (!message.empty()) link += "/" + message;
-    bool opened = gPlatform.openURL && gPlatform.openURL(link);
-    lua_pushboolean(state, opened);
-    return 1;
 }
 
 static int PressNode(lua_State *state)
@@ -1231,45 +1261,6 @@ static int RegisterCommand(lua_State *state)
 
 static std::string GatewayTimestamp(int64_t milliseconds);
 
-static int InsertComposerText(lua_State *state)
-{
-    RequirePermission(state, "ui.composer");
-    size_t length = 0;
-    const char *text = luaL_checklstring(state, 1, &length);
-    bool replace = false;
-    if (lua_istable(state, 2)) {
-        lua_getfield(state, 2, "replace");
-        replace = lua_toboolean(state, -1);
-        lua_pop(state, 1);
-    }
-    if ((length == 0 && !replace) || length > 4000) return luaL_error(state, "astral.ui.insert_text: text is 1 to 4000 bytes");
-    lua_pushboolean(state, gPlatform.insertComposerText && gPlatform.insertComposerText(std::string(text, length), replace));
-    return 1;
-}
-
-static int ComposerText(lua_State *state)
-{
-    RequirePermission(state, "ui.composer");
-    static char text[8192];
-    size_t length = astral_wire_composer_text(text, sizeof text);
-    lua_pushlstring(state, text, length);
-    return 1;
-}
-
-static int KeepAlive(lua_State *state)
-{
-    RequirePermission(state, "background");
-    bool on = lua_toboolean(state, 1);
-    lua_pushboolean(state, gPlatform.keepAlive && gPlatform.keepAlive(on));
-    return 1;
-}
-
-static int RefreshDecorationsNow(lua_State *)
-{
-    if (gPlatform.refreshDecorations) gPlatform.refreshDecorations();
-    return 0;
-}
-
 static int RenderImage(lua_State *state)
 {
     nlohmann::json spec;
@@ -1288,194 +1279,6 @@ static int RenderImage(lua_State *state)
     }
     if (!png) return 0;
     lua_pushlstring(state, png->data(), png->size());
-    return 1;
-}
-
-static int DiagnosticEnvironment(lua_State *state)
-{
-    RequirePermission(state, "diagnostics");
-    nlohmann::json environment = gPlatform.environment ? gPlatform.environment() : nlohmann::json::object();
-    if (!environment.is_object()) environment = nlohmann::json::object();
-    nlohmann::json plugins = nlohmann::json::array();
-    for (auto *plugin : gPlugins)
-        plugins.push_back({{"id", plugin->identifier},
-                           {"name", plugin->name},
-                           {"version", plugin->version},
-                           {"enabled", plugin->enabled},
-                           {"running", plugin->state != nullptr && !plugin->failed},
-                           {"failed", plugin->failed}});
-    environment["plugin_list"] = plugins;
-    astral::lua::pushJSON(state, environment);
-    return 1;
-}
-
-static int PasteText(lua_State *state)
-{
-    RequirePermission(state, "ui.clipboard");
-    if (!gPlatform.readClipboard) return luaL_error(state, "astral.ui.paste: clipboard is unavailable on this build");
-    std::optional<std::string> value;
-    try {
-        value = gPlatform.readClipboard();
-    } catch (...) {
-    }
-    if (!value) return 0;
-    lua_pushlstring(state, value->data(), std::min<size_t>(value->size(), 16384));
-    return 1;
-}
-
-static bool OpenableURL(const std::string &url)
-{
-    return url.size() <= 2048 && (url.rfind("https://", 0) == 0 || url.rfind("discord://", 0) == 0);
-}
-
-static int OpenURL(lua_State *state)
-{
-    std::string url = luaL_checkstring(state, 1);
-    if (!OpenableURL(url)) return luaL_error(state, "astral.ui.open: only https:// and discord:// links up to 2048 bytes");
-    if (!gPlatform.openURL) return luaL_error(state, "astral.ui.open: opening links is unavailable on this build");
-    bool opened = false;
-    try {
-        opened = gPlatform.openURL(url);
-    } catch (...) {
-    }
-    lua_pushboolean(state, opened);
-    return 1;
-}
-
-static int Notify(lua_State *state)
-{
-    LuaPlugin *plugin = Self(state);
-    RequirePermission(state, "ui.notifications");
-    std::string title = luaL_checkstring(state, 1);
-    std::string body = luaL_checkstring(state, 2);
-    if (title.size() > 120 || body.size() > 2048) return luaL_error(state, "astral.ui.notify: text exceeds its limit");
-    double delay = 0;
-    std::string channel, message;
-    if (lua_istable(state, 3)) {
-        lua_getfield(state, 3, "delay");
-        delay = lua_isnumber(state, -1) ? lua_tonumber(state, -1) : 0;
-        lua_pop(state, 1);
-        lua_getfield(state, 3, "channel_id");
-        if (lua_isstring(state, -1)) channel = lua_tostring(state, -1);
-        lua_pop(state, 1);
-        lua_getfield(state, 3, "message_id");
-        if (lua_isstring(state, -1)) message = lua_tostring(state, -1);
-        lua_pop(state, 1);
-    }
-    if ((!channel.empty() && !SnowflakeText(channel)) || (!message.empty() && (channel.empty() || !SnowflakeText(message))))
-        return luaL_error(state, "astral.ui.notify: channel_id and message_id must be Discord ids");
-    std::string link;
-    if (!channel.empty()) {
-        auto guild = gDiscord.channelGuild ? gDiscord.channelGuild(channel) : std::nullopt;
-        link = "https://discord.com/channels/" + (guild && SnowflakeText(*guild) ? *guild : std::string("@me")) + "/" + channel;
-        if (!message.empty()) link += "/" + message;
-    }
-    if (!std::isfinite(delay) || delay < 0 || delay > 7 * 24 * 60 * 60)
-        return luaL_error(state, "astral.ui.notify: delay is 0 to 604800 seconds");
-    if (!gPlatform.notify) return luaL_error(state, "astral.ui.notify: notifications are unavailable on this build");
-    std::string identifier = "astral." + plugin->identifier + "." + std::to_string(gNextRequest++);
-    bool scheduled = false;
-    try {
-        scheduled = gPlatform.notify(identifier, title, body, delay, link);
-    } catch (...) {
-    }
-    lua_pushboolean(state, scheduled);
-    return 1;
-}
-
-static const std::set<std::string> kSoundExtensions = {".mp3", ".m4a", ".wav", ".caf", ".aac"};
-
-static std::optional<std::string> PluginSoundPath(const LuaPlugin *plugin, const std::string &relative)
-{
-    std::filesystem::path requested(relative);
-    if (relative.empty() || requested.is_absolute()) return std::nullopt;
-    for (const auto &part : requested)
-        if (part == "..") return std::nullopt;
-    std::string extension = requested.extension().string();
-    std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char c) { return std::tolower(c); });
-    if (!kSoundExtensions.count(extension)) return std::nullopt;
-    std::error_code error;
-    std::filesystem::path full = std::filesystem::path(plugin->directory) / requested;
-    if (!std::filesystem::is_regular_file(full, error)) return std::nullopt;
-    return full.string();
-}
-
-static int Speak(lua_State *state)
-{
-    RequirePermission(state, "audio");
-    std::string text = luaL_checkstring(state, 1);
-    if (text.empty() || text.size() > 4096) return luaL_error(state, "astral.audio.speak: text is 1 to 4096 bytes");
-    std::string language;
-    double rate = 0.5;
-    if (lua_istable(state, 2)) {
-        lua_getfield(state, 2, "language");
-        if (lua_isstring(state, -1)) language = lua_tostring(state, -1);
-        lua_pop(state, 1);
-        lua_getfield(state, 2, "rate");
-        if (lua_isnumber(state, -1)) rate = lua_tonumber(state, -1);
-        lua_pop(state, 1);
-    }
-    if (!std::isfinite(rate) || rate < 0 || rate > 1) return luaL_error(state, "astral.audio.speak: rate is 0 to 1");
-    if (language.size() > 35) return luaL_error(state, "astral.audio.speak: language is a BCP 47 tag");
-    if (!gPlatform.speak) return luaL_error(state, "astral.audio.speak: speech is unavailable on this build");
-    bool spoken = false;
-    try {
-        spoken = gPlatform.speak(text, language, rate);
-    } catch (...) {
-    }
-    lua_pushboolean(state, spoken);
-    return 1;
-}
-
-static int PlaySound(lua_State *state)
-{
-    LuaPlugin *plugin = Self(state);
-    RequirePermission(state, "audio");
-    std::string file = luaL_checkstring(state, 1);
-    double volume = 1;
-    if (lua_istable(state, 2)) {
-        lua_getfield(state, 2, "volume");
-        if (lua_isnumber(state, -1)) volume = lua_tonumber(state, -1);
-        lua_pop(state, 1);
-    }
-    if (!std::isfinite(volume) || volume < 0 || volume > 1) return luaL_error(state, "astral.audio.play: volume is 0 to 1");
-    auto path = PluginSoundPath(plugin, file);
-    if (!path) return luaL_error(state, "astral.audio.play: %s is not an mp3, m4a, wav, caf or aac file in the plugin", file.c_str());
-    if (!gPlatform.playSound) return luaL_error(state, "astral.audio.play: sound is unavailable on this build");
-    bool played = false;
-    try {
-        played = gPlatform.playSound(*path, volume);
-    } catch (...) {
-    }
-    lua_pushboolean(state, played);
-    return 1;
-}
-
-static int StopAudio(lua_State *state)
-{
-    RequirePermission(state, "audio");
-    if (gPlatform.stopAudio) {
-        try {
-            gPlatform.stopAudio();
-        } catch (...) {
-        }
-    }
-    return 0;
-}
-
-static int Haptic(lua_State *state)
-{
-    RequirePermission(state, "ui.haptics");
-    std::string strength = luaL_checkstring(state, 1);
-    if (strength != "light" && strength != "medium" && strength != "heavy")
-        return luaL_error(state, "astral.ui.haptic: strength must be light, medium or heavy");
-    if (!gPlatform.triggerHaptic) return luaL_error(state, "astral.ui.haptic: haptics are unavailable on this build");
-    bool triggered = false;
-    try {
-        triggered = gPlatform.triggerHaptic(strength);
-    } catch (...) {
-    }
-    lua_pushboolean(state, triggered);
     return 1;
 }
 
@@ -2006,17 +1809,6 @@ static int RegisterCodeBlock(lua_State *state)
     return 0;
 }
 
-static int HighlightCode(lua_State *state)
-{
-    size_t codeLength = 0, languageLength = 0, themeLength = 0;
-    const char *code = luaL_checklstring(state, 1, &codeLength);
-    const char *language = luaL_optlstring(state, 2, "", &languageLength);
-    const char *theme = luaL_optlstring(state, 3, "{}", &themeLength);
-    std::string result = astral::rust::take(astral_code_highlight(code, codeLength, language, languageLength, theme, themeLength));
-    astral::lua::pushJSON(state, nlohmann::json::parse(result, nullptr, false));
-    return 1;
-}
-
 static int RegisterNodePatch(lua_State *state)
 {
     LuaPlugin *plugin = Self(state);
@@ -2510,9 +2302,9 @@ static void InstallAPI(LuaPlugin *plugin)
     lua_setfield(state, -2, "i18n");
 
     lua_newtable(state);
-    Function(state, plugin, "speak", Speak);
-    Function(state, plugin, "play", PlaySound);
-    Function(state, plugin, "stop", StopAudio);
+    Function(state, plugin, "speak", astral_lua_audio_speak);
+    Function(state, plugin, "play", astral_lua_audio_play);
+    Function(state, plugin, "stop", astral_lua_audio_stop);
     lua_setfield(state, -2, "audio");
 
     lua_newtable(state);
@@ -2531,27 +2323,27 @@ static void InstallAPI(LuaPlugin *plugin)
     Function(state, plugin, "sheet", OpenSheet);
     Function(state, plugin, "sheet_update", UpdateSheet);
     Function(state, plugin, "sheet_close", CloseSheet);
-    Function(state, plugin, "toast", ShowToast);
-    Function(state, plugin, "copy", CopyText);
-    Function(state, plugin, "paste", PasteText);
-    Function(state, plugin, "open", OpenURL);
-    Function(state, plugin, "open_channel", OpenChannel);
-    Function(state, plugin, "scroll_to", ScrollToMessage);
-    Function(state, plugin, "focus_composer", FocusComposer);
-    Function(state, plugin, "dismiss", DismissSheets);
+    Function(state, plugin, "toast", astral_lua_ui_toast);
+    Function(state, plugin, "copy", astral_lua_ui_copy);
+    Function(state, plugin, "paste", astral_lua_ui_paste);
+    Function(state, plugin, "open", astral_lua_ui_open);
+    Function(state, plugin, "open_channel", astral_lua_ui_open_channel);
+    Function(state, plugin, "scroll_to", astral_lua_ui_scroll_to);
+    Function(state, plugin, "focus_composer", astral_lua_ui_focus_composer);
+    Function(state, plugin, "dismiss", astral_lua_ui_dismiss);
     Function(state, plugin, "press", PressNode);
-    Function(state, plugin, "insert_text", InsertComposerText);
-    Function(state, plugin, "refresh", RefreshDecorationsNow);
-    Function(state, plugin, "composer_text", ComposerText);
+    Function(state, plugin, "insert_text", astral_lua_ui_insert_text);
+    Function(state, plugin, "refresh", astral_lua_ui_refresh);
+    Function(state, plugin, "composer_text", astral_lua_ui_composer_text);
     Function(state, plugin, "image_rewrite", RegisterImageRewrite);
     Function(state, plugin, "text_transform", RegisterTextTransform);
-    Function(state, plugin, "notify", Notify);
+    Function(state, plugin, "notify", astral_lua_ui_notify);
     Function(state, plugin, "composer", RegisterComposerDecorator);
     Function(state, plugin, "message_background", RegisterMessageBackground);
     Function(state, plugin, "patch", RegisterNodePatch);
     Function(state, plugin, "insert", RegisterNodeInsert);
     Function(state, plugin, "code_block", RegisterCodeBlock);
-    Function(state, plugin, "haptic", Haptic);
+    Function(state, plugin, "haptic", astral_lua_ui_haptic);
     Function(state, plugin, "web_auth", WebAuth);
     Function(state, plugin, "cancel_web_auth", CancelWebAuth);
     Function(state, plugin, "settings_backdrop", SettingsBackdrop);
@@ -2586,15 +2378,15 @@ static void InstallAPI(LuaPlugin *plugin)
     lua_setfield(state, -2, "image");
 
     lua_newtable(state);
-    Function(state, plugin, "keep_alive", KeepAlive);
+    Function(state, plugin, "keep_alive", astral_lua_background_keep_alive);
     lua_setfield(state, -2, "background");
 
     lua_newtable(state);
-    Function(state, plugin, "environment", DiagnosticEnvironment);
+    Function(state, plugin, "environment", astral_lua_diagnostics_environment);
     lua_setfield(state, -2, "diagnostics");
 
     lua_newtable(state);
-    Function(state, plugin, "highlight", HighlightCode);
+    Function(state, plugin, "highlight", astral_lua_code_highlight);
     lua_setfield(state, -2, "code");
 
     lua_newtable(state);
