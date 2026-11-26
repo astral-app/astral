@@ -301,6 +301,9 @@ pub unsafe fn respond_held(state: *mut LuaState) -> crate::lua::host::api::Outco
     Ok(0)
 }
 
+const NATIVE_OWNER: &str = "astral";
+const MAX_ATTACHMENT_DESCRIPTION: usize = 1024;
+
 fn command_id(plugin: &str, name: &str) -> String {
     let mut hash: u64 = 1_469_598_103_934_665_603;
     for byte in format!("{plugin}/{name}").bytes() {
@@ -310,9 +313,10 @@ fn command_id(plugin: &str, name: &str) -> String {
 }
 
 fn has_commands() -> bool {
-    host::plugins()
-        .into_iter()
-        .any(|plugin| unsafe { (*plugin).running() && !(*plugin).commands.is_empty() })
+    !NATIVE_COMMANDS.read().unwrap_or_else(|poisoned| poisoned.into_inner()).is_empty()
+        || host::plugins()
+            .into_iter()
+            .any(|plugin| unsafe { (*plugin).running() && !(*plugin).commands.is_empty() })
 }
 
 fn is_command_index(method: &str, path: &str) -> bool {
@@ -342,6 +346,15 @@ fn inject_commands(body: &mut Vec<u8>) -> bool {
             "id": COMMAND_APPLICATION, "name": "astral", "description": "Commands from astral plugins",
             "icon": null, "bot_id": COMMAND_APPLICATION, "flags": "0",
         }));
+    }
+    for (name, description, options, _) in native_commands() {
+        if let Some(commands) = index["application_commands"].as_array_mut() {
+            commands.push(json!({
+                "id": command_id(NATIVE_OWNER, &name), "application_id": COMMAND_APPLICATION, "version": "1",
+                "type": 1, "name": name, "description": description, "options": options,
+                "contexts": [0, 1, 2], "integration_types": [0, 1], "dm_permission": true,
+            }));
+        }
     }
     for plugin in host::plugins() {
         let plugin = unsafe { &*plugin };
@@ -404,40 +417,109 @@ unsafe fn push_option_values(state: *mut LuaState, options: &Value) {
     }
 }
 
-fn multipart_message(payload: &Value, filename: &str, content_type: &str, data: &[u8]) -> (Vec<u8>, String) {
-    let boundary = format!(
-        "astral{}",
-        std::time::Instant::now().elapsed().as_nanos() ^ u128::from(host::next_request())
-    );
-    let mut body = format!(
-        "--{boundary}\r\nContent-Disposition: form-data; name=\"payload_json\"\r\nContent-Type: application/json\r\n\r\n{payload}\r\n--{boundary}\r\nContent-Disposition: form-data; name=\"files[0]\"; filename=\"{filename}\"\r\nContent-Type: {content_type}\r\n\r\n"
-    )
-    .into_bytes();
-    body.extend_from_slice(data);
-    body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
-    (body, boundary)
-}
-
 fn dispatch_gateway(message: &Value) -> bool {
     host::platform_flag("dispatchGateway", &json!([message.to_string()]))
 }
 
-fn handle_interaction(request: &mut HttpRequest) -> Option<HttpDecision> {
-    let payload = interaction_payload(request)?;
-    if payload.get("application_id").and_then(Value::as_str) != Some(COMMAND_APPLICATION) {
-        return None;
+pub struct Attachment {
+    pub name: String,
+    pub content_type: String,
+    pub description: Option<String>,
+    pub data: Vec<u8>,
+}
+
+pub enum CommandReply {
+    Silent,
+    Local(Value),
+    Send { message: Value, attachments: Vec<Attachment> },
+}
+
+pub struct CommandContext {
+    pub channel_id: String,
+    pub guild_id: Option<String>,
+}
+
+pub type NativeExecute = fn(&Value, &CommandContext) -> CommandReply;
+
+pub struct NativeCommand {
+    pub name: &'static str,
+    pub description: &'static str,
+    pub options: Value,
+    pub execute: NativeExecute,
+}
+
+static NATIVE_COMMANDS: std::sync::RwLock<Vec<NativeCommand>> = std::sync::RwLock::new(Vec::new());
+
+pub fn register_native(command: NativeCommand) {
+    let mut commands = NATIVE_COMMANDS.write().unwrap_or_else(|poisoned| poisoned.into_inner());
+    commands.retain(|existing| existing.name != command.name);
+    commands.push(command);
+}
+
+fn native_commands() -> Vec<(String, String, Value, NativeExecute)> {
+    NATIVE_COMMANDS
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .iter()
+        .map(|command| {
+            (
+                command.name.to_owned(),
+                command.description.to_owned(),
+                command.options.clone(),
+                command.execute,
+            )
+        })
+        .collect()
+}
+
+fn option_values(options: &Value) -> Value {
+    let values: serde_json::Map<String, Value> = options
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|option| {
+            Some((
+                option.get("name")?.as_str()?.to_owned(),
+                option.get("value").cloned().unwrap_or(Value::Null),
+            ))
+        })
+        .collect();
+    Value::Object(values)
+}
+
+fn lua_reply(reply: Option<Value>) -> CommandReply {
+    let Some(mut reply) = reply else { return CommandReply::Silent };
+    if reply.is_string() {
+        reply = json!({"content": reply});
     }
-    let data = payload.get("data").cloned().unwrap_or_else(|| json!({}));
-    let name = data.get("name").and_then(Value::as_str).unwrap_or_default().to_owned();
-    let channel = payload.get("channel_id").and_then(Value::as_str).unwrap_or_default().to_owned();
-    let mut decision = HttpDecision {
-        changed: false,
-        response: Some(HttpResponse {
-            status: 204,
-            headers: Vec::new(),
-            body: Vec::new(),
-        }),
+    let Some(mut message) = reply.get("send").filter(|send| send.is_object()).cloned() else {
+        return CommandReply::Local(reply);
     };
+    let file = message
+        .as_object_mut()
+        .and_then(|object| object.remove("file"))
+        .unwrap_or(Value::Null);
+    let attachments = file
+        .get("data")
+        .and_then(Value::as_str)
+        .map(|data| Attachment {
+            name: file.get("name").and_then(Value::as_str).unwrap_or("file.png").to_owned(),
+            content_type: file.get("content_type").and_then(Value::as_str).unwrap_or("image/png").to_owned(),
+            description: file.get("description").and_then(Value::as_str).map(str::to_owned),
+            data: data.as_bytes().to_vec(),
+        })
+        .into_iter()
+        .collect();
+    CommandReply::Send { message, attachments }
+}
+
+enum Outcome {
+    Unknown,
+    Failed,
+    Replied(CommandReply),
+}
+
+fn run_plugin_command(name: &str, data: &Value, context: &CommandContext) -> Outcome {
     for plugin in host::plugins() {
         if !unsafe { (*plugin).running() } {
             continue;
@@ -456,9 +538,9 @@ fn handle_interaction(request: &mut HttpRequest) -> Option<HttpDecision> {
             lua::push_reference(state, reference);
             push_option_values(state, data.get("options").unwrap_or(&json!([])));
             lua::lua_createtable(state, 0, 2);
-            lua::push_str(state, &channel);
+            lua::push_str(state, &context.channel_id);
             lua::set_field(state, -2, "channel_id");
-            if let Some(guild) = payload.get("guild_id").and_then(Value::as_str) {
+            if let Some(guild) = &context.guild_id {
                 lua::push_str(state, guild);
                 lua::set_field(state, -2, "guild_id");
             }
@@ -466,7 +548,7 @@ fn handle_interaction(request: &mut HttpRequest) -> Option<HttpDecision> {
         if !host::call(plugin, 2, 1, "command") {
             unsafe { lua::lua_settop(state, top) };
             host::fail_and_stop(plugin);
-            return Some(decision);
+            return Outcome::Failed;
         }
         let reply = if unsafe { lua::lua_type(state, -1) } != lua::TNIL {
             unsafe { to_json(state, -1, 0) }
@@ -474,81 +556,147 @@ fn handle_interaction(request: &mut HttpRequest) -> Option<HttpDecision> {
             None
         };
         unsafe { lua::lua_settop(state, top) };
-        let nonce = payload.get("nonce").and_then(Value::as_str).unwrap_or_default().to_owned();
-        let interaction = command_id(
-            "interaction",
-            &host::NEXT_REQUEST.fetch_add(1, std::sync::atomic::Ordering::Relaxed).to_string(),
+        return Outcome::Replied(lua_reply(reply));
+    }
+    Outcome::Unknown
+}
+
+fn attachment_payload(index: usize, attachment: &Attachment) -> Value {
+    let mut payload = json!({"id": index, "filename": attachment.name});
+    if let Some(description) = &attachment.description {
+        payload["description"] = json!(description.chars().take(MAX_ATTACHMENT_DESCRIPTION).collect::<String>());
+    }
+    payload
+}
+
+fn multipart_message(payload: &Value, attachments: &[Attachment]) -> (Vec<u8>, String) {
+    let boundary = format!(
+        "astral{}",
+        std::time::Instant::now().elapsed().as_nanos() ^ u128::from(host::next_request())
+    );
+    let mut body = format!(
+        "--{boundary}\r\nContent-Disposition: form-data; name=\"payload_json\"\r\nContent-Type: application/json\r\n\r\n{payload}\r\n"
+    )
+    .into_bytes();
+    for (index, attachment) in attachments.iter().enumerate() {
+        body.extend_from_slice(
+            format!(
+                "--{boundary}\r\nContent-Disposition: form-data; name=\"files[{index}]\"; filename=\"{}\"\r\nContent-Type: {}\r\n\r\n",
+                attachment.name, attachment.content_type
+            )
+            .as_bytes(),
         );
-        if host::platform_has("dispatchGateway") {
-            dispatch_gateway(&json!({"op": 0, "t": "INTERACTION_CREATE", "s": null, "d": {"id": interaction, "nonce": nonce}}));
-            dispatch_gateway(&json!({"op": 0, "t": "INTERACTION_SUCCESS", "s": null, "d": {"id": interaction, "nonce": nonce}}));
-        }
-        let sends = reply.as_ref().is_some_and(|reply| reply.get("send").is_some_and(Value::is_object))
-            && crate::lua::host::ui::snowflake_text(&channel);
-        if (reply.is_none() || sends) && !nonce.is_empty() {
-            dispatch_gateway(&json!({"op": 0, "t": "MESSAGE_DELETE", "s": null, "d": {"id": nonce, "channel_id": channel}}));
-        }
-        let Some(mut reply) = reply else { return Some(decision) };
-        if reply.is_string() {
-            reply = json!({"content": reply});
-        }
-        if sends {
-            let mut message = reply["send"].clone();
-            let file = message
-                .as_object_mut()
-                .and_then(|object| object.remove("file"))
-                .unwrap_or(Value::Null);
-            if !nonce.is_empty() {
-                message["nonce"] = json!(nonce);
-            }
-            request.method = "POST".into();
-            request.url = format!("https://discord.com/api/v9/channels/{channel}/messages");
-            request.path = url_path(&request.url);
-            let mut headers: Vec<(String, String)> = request
-                .headers
+        body.extend_from_slice(&attachment.data);
+        body.extend_from_slice(b"\r\n");
+    }
+    body.extend_from_slice(format!("--{boundary}--\r\n").as_bytes());
+    (body, boundary)
+}
+
+fn send_from_interaction(request: &mut HttpRequest, channel: &str, nonce: &str, mut message: Value, attachments: &[Attachment]) {
+    if !nonce.is_empty() {
+        message["nonce"] = json!(nonce);
+    }
+    request.method = "POST".into();
+    request.url = format!("https://discord.com/api/v9/channels/{channel}/messages");
+    request.path = url_path(&request.url);
+    let mut headers: Vec<(String, String)> = request
+        .headers
+        .iter()
+        .filter(|(header, _)| header != "content-type" && header != "content-length")
+        .cloned()
+        .collect();
+    if attachments.is_empty() {
+        request.body = message.to_string().into_bytes();
+        headers.push(("content-type".into(), "application/json".into()));
+    } else {
+        message["attachments"] = Value::Array(
+            attachments
                 .iter()
-                .filter(|(header, _)| header != "content-type" && header != "content-length")
-                .cloned()
-                .collect();
-            if let Some(file_data) = file.get("data").and_then(Value::as_str) {
-                let filename = file.get("name").and_then(Value::as_str).unwrap_or("file.png").to_owned();
-                let mut attachment = json!({"id": 0, "filename": filename});
-                if let Some(description) = file.get("description").and_then(Value::as_str) {
-                    attachment["description"] = json!(description.chars().take(1024).collect::<String>());
-                }
-                message["attachments"] = json!([attachment]);
-                let content_type = file.get("content_type").and_then(Value::as_str).unwrap_or("image/png");
-                let (body, boundary) = multipart_message(&message, &filename, content_type, file_data.as_bytes());
-                request.body = body;
-                headers.push(("content-type".into(), format!("multipart/form-data; boundary={boundary}")));
-            } else {
-                request.body = message.to_string().into_bytes();
-                headers.push(("content-type".into(), "application/json".into()));
-            }
-            request.headers = headers;
+                .enumerate()
+                .map(|(index, attachment)| attachment_payload(index, attachment))
+                .collect(),
+        );
+        let (body, boundary) = multipart_message(&message, attachments);
+        request.body = body;
+        headers.push(("content-type".into(), format!("multipart/form-data; boundary={boundary}")));
+    }
+    request.headers = headers;
+}
+
+fn handle_interaction(request: &mut HttpRequest) -> Option<HttpDecision> {
+    let payload = interaction_payload(request)?;
+    if payload.get("application_id").and_then(Value::as_str) != Some(COMMAND_APPLICATION) {
+        return None;
+    }
+    let data = payload.get("data").cloned().unwrap_or_else(|| json!({}));
+    let name = data.get("name").and_then(Value::as_str).unwrap_or_default().to_owned();
+    let context = CommandContext {
+        channel_id: payload.get("channel_id").and_then(Value::as_str).unwrap_or_default().to_owned(),
+        guild_id: payload.get("guild_id").and_then(Value::as_str).map(str::to_owned),
+    };
+    let channel = context.channel_id.clone();
+    let mut decision = HttpDecision {
+        changed: false,
+        response: Some(HttpResponse {
+            status: 204,
+            headers: Vec::new(),
+            body: Vec::new(),
+        }),
+    };
+    let native = native_commands()
+        .into_iter()
+        .find(|(command, ..)| *command == name)
+        .map(|(.., execute)| execute);
+    let reply = match native {
+        Some(execute) => {
+            let options = option_values(data.get("options").unwrap_or(&Value::Null));
+            host::while_unlocked(|| execute(&options, &context))
+        }
+        None => match run_plugin_command(&name, &data, &context) {
+            Outcome::Replied(reply) => reply,
+            Outcome::Unknown | Outcome::Failed => return Some(decision),
+        },
+    };
+    let nonce = payload.get("nonce").and_then(Value::as_str).unwrap_or_default().to_owned();
+    let interaction = command_id(
+        "interaction",
+        &host::NEXT_REQUEST.fetch_add(1, std::sync::atomic::Ordering::Relaxed).to_string(),
+    );
+    if host::platform_has("dispatchGateway") {
+        dispatch_gateway(&json!({"op": 0, "t": "INTERACTION_CREATE", "s": null, "d": {"id": interaction, "nonce": nonce}}));
+        dispatch_gateway(&json!({"op": 0, "t": "INTERACTION_SUCCESS", "s": null, "d": {"id": interaction, "nonce": nonce}}));
+    }
+    let snowflake = crate::lua::host::ui::snowflake_text(&channel);
+    let sends = matches!(reply, CommandReply::Send { .. }) && snowflake;
+    if (matches!(reply, CommandReply::Silent) || sends) && !nonce.is_empty() {
+        dispatch_gateway(&json!({"op": 0, "t": "MESSAGE_DELETE", "s": null, "d": {"id": nonce, "channel_id": channel}}));
+    }
+    let local = match reply {
+        CommandReply::Silent => return Some(decision),
+        CommandReply::Send { message, attachments } if sends => {
+            send_from_interaction(request, &channel, &nonce, message, &attachments);
             decision.response = None;
             decision.changed = true;
             return Some(decision);
         }
-        if reply.is_object() && crate::lua::host::ui::snowflake_text(&channel) {
-            let mut local = reply.clone();
-            if let Some(object) = local.as_object_mut() {
-                object.remove("send");
-            }
-            local["nonce"] = json!(nonce);
-            local["type"] = json!(20);
-            local["application_id"] = json!(COMMAND_APPLICATION);
-            let current = host::host().current_user_id.clone();
-            let mut user = json!({"id": current});
-            if !current.is_empty()
-                && let Some(cached) = crate::discord::cache::user(&current).filter(Value::is_object)
-            {
-                user = cached;
-            }
-            local["interaction_metadata"] = json!({"id": interaction, "type": 2, "name": name, "user": user});
-            crate::lua::host::ui::send_local_message_json(&channel, &local);
+        CommandReply::Send { message, .. } => message,
+        CommandReply::Local(local) => local,
+    };
+    if local.is_object() && snowflake {
+        let mut local = local;
+        local["nonce"] = json!(nonce);
+        local["type"] = json!(20);
+        local["application_id"] = json!(COMMAND_APPLICATION);
+        let current = host::host().current_user_id.clone();
+        let mut user = json!({"id": current});
+        if !current.is_empty()
+            && let Some(cached) = crate::discord::cache::user(&current).filter(Value::is_object)
+        {
+            user = cached;
         }
-        return Some(decision);
+        local["interaction_metadata"] = json!({"id": interaction, "type": 2, "name": name, "user": user});
+        crate::lua::host::ui::send_local_message_json(&channel, &local);
     }
     Some(decision)
 }
