@@ -342,9 +342,10 @@ fn phoenix_classes() -> Result<Vec<String>, String> {
         "android",
         "PhoenixClasses.kt",
     ]))?;
-    let pattern =
-        regex::Regex::new(r#"const val [A-Z_]+ = "([a-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_$]+)+)""#)
-            .map_err(|error| error.to_string())?;
+    let pattern = regex::Regex::new(
+        r#"(?:const val|@Volatile var) [A-Z_]+ = "([a-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_$]+)+)""#,
+    )
+    .map_err(|error| error.to_string())?;
     let classes: Vec<String> = pattern
         .captures_iter(&source)
         .map(|found| found[1].to_owned())

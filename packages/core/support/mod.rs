@@ -1,6 +1,7 @@
 pub mod bridge;
 pub mod crypto;
 pub mod dev_server;
+pub mod dex;
 pub mod files;
 pub mod host_callback;
 pub mod json_bounds;

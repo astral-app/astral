@@ -785,6 +785,20 @@ pub extern "system" fn Java_app_astral_android_Native_sinkUrl<'local>(
 }
 
 #[unsafe(no_mangle)]
+pub extern "system" fn Java_app_astral_android_Native_anchoredClasses<'local>(
+    mut env: JNIEnv<'local>,
+    _: JClass<'local>,
+    apk: JString<'local>,
+    anchors: JString<'local>,
+) -> jstring {
+    let apk = text(&mut env, &apk);
+    let anchors: Vec<String> = serde_json::from_str(&text(&mut env, &anchors)).unwrap_or_default();
+    let anchors: Vec<&str> = anchors.iter().map(String::as_str).collect();
+    let found = astral_core::support::dex::anchored_classes(&apk, &anchors);
+    java_text(&mut env, &found.to_string())
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_app_astral_android_Native_iconPath<'local>(
     mut env: JNIEnv<'local>,
     _: JClass<'local>,

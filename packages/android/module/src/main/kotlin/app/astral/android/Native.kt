@@ -87,6 +87,8 @@ object Native {
 
     @JvmStatic external fun iconPath(name: String): String
 
+    @JvmStatic external fun anchoredClasses(apk: String, anchors: String): String
+
     @JvmStatic external fun emojiURL(codepoints: String): String?
 
     @JvmStatic external fun composerStyles(text: String): String
