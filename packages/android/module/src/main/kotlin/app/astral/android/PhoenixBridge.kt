@@ -814,11 +814,6 @@ object PhoenixBridge {
     }
 
     @JvmStatic
-    fun renderImage(spec: String): ByteArray? = runCatching { ImageRenderer.render(spec) }
-        .onFailure { Log.error("Failed to render an image for a plugin", it) }
-        .getOrNull()
-
-    @JvmStatic
     fun pressNode(identifier: String, prefix: Boolean): Boolean {
         val pressed = java.util.concurrent.CompletableFuture<Boolean>()
         mainHandler.post {

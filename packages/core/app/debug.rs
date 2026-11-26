@@ -448,7 +448,7 @@ struct Line {
     stripe: bool,
 }
 
-fn card(environment: &Value, stamp: &str) -> Value {
+pub fn card(environment: &Value, stamp: &str) -> Value {
     let room = ((WIDTH - PADDING * 2.0 - LABEL_WIDTH) / CHAR_WIDTH).floor() as usize;
     let mut lines = Vec::new();
     for (index, (label, spans)) in rows(environment).into_iter().enumerate() {
@@ -643,7 +643,7 @@ pub fn report(diagnostics: bool) -> Report {
     let environment = environment();
     let card = card(&environment, &stamp());
     Report {
-        card: host::request(Request::RenderImage { spec: &card.to_string() }).into_bytes(),
+        card: crate::render::image::render(&card),
         alt: alt_text(&environment),
         diagnostics: diagnostics.then(|| diagnostics_zip(&environment)).flatten(),
     }

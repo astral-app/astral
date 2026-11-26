@@ -80,9 +80,6 @@ pub enum Request<'a> {
         text: &'a str,
         replace: bool,
     },
-    RenderImage {
-        spec: &'a str,
-    },
     DispatchGateway {
         message: &'a str,
     },
