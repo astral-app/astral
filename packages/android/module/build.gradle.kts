@@ -27,7 +27,7 @@ abstract class StageResources : DefaultTask() {
         target.deleteRecursively()
         commands.exec {
             workingDir = repository.get().asFile
-            commandLine("cargo", "run", "--quiet", "--release", "--manifest-path", "packages/tools/Cargo.toml", "--", "stage", target.absolutePath)
+            commandLine("cargo", "run", "--quiet", "-p", "astral-tools", "--", "stage", target.absolutePath)
         }
     }
 }
@@ -54,7 +54,7 @@ abstract class BuildNativeLibraries : DefaultTask() {
         commands.exec {
             workingDir = repository.get().asFile
             commandLine(
-                "cargo", "run", "--quiet", "--release", "--manifest-path", "packages/tools/Cargo.toml", "--",
+                "cargo", "run", "--quiet", "-p", "astral-tools", "--",
                 "android-core", "--ndk", ndk.get(), "--output", output.get().asFile.absolutePath,
             )
         }

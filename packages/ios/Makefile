@@ -14,7 +14,8 @@ LUA_SOURCES := lapi lcode lctype ldebug ldo ldump lfunc lgc llex lmem lobject lo
 GENERATED := $(abspath .theos/generated)
 RUST_TARGET := aarch64-apple-ios
 NATIVE := $(abspath native)
-RUST_LIBRARY := $(NATIVE)/target/$(RUST_TARGET)/release/libastral_ios.a
+ASTRAL_RUST_PROFILE ?= device
+RUST_LIBRARY := $(ROOT)/target/$(RUST_TARGET)/$(ASTRAL_RUST_PROFILE)/libastral_ios.a
 
 include $(THEOS)/makefiles/common.mk
 
@@ -31,7 +32,7 @@ include $(THEOS_MAKE_PATH)/tweak.mk
 $(THEOS_OBJ_DIR)/$(TWEAK_NAME).dylib: $(RUST_LIBRARY)
 
 before-all::
-	IPHONEOS_DEPLOYMENT_TARGET=18.0 cargo build --release --quiet --target $(RUST_TARGET) --manifest-path "$(NATIVE)/Cargo.toml"
+	IPHONEOS_DEPLOYMENT_TARGET=18.0 cargo build --profile $(ASTRAL_RUST_PROFILE) --quiet --target $(RUST_TARGET) -p astral-ios --manifest-path "$(ROOT)/Cargo.toml"
 
 before-package::
-	cd $(ROOT) && cargo run --quiet --release --manifest-path packages/tools/Cargo.toml -- stage "$(THEOS_STAGING_DIR)/usr/lib/astral"
+	cd $(ROOT) && cargo run --quiet -p astral-tools -- stage "$(THEOS_STAGING_DIR)/usr/lib/astral"

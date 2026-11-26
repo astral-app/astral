@@ -1,3 +1,4 @@
+/target/
 .DS_Store
 .theos/
 packages/ios/packages/
@@ -10,10 +11,6 @@ packages/android/local.properties
 packages/android/.gradle/
 packages/android/.kotlin/
 packages/android/module/build/
-packages/android/native/target/
-packages/ios/native/target/
 packages/android/build/
 packages/ios/extensions/OpenInAstral/build/
-packages/core/target/
-packages/tools/target/
 /packages/tools/astral

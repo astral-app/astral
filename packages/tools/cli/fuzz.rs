@@ -5,14 +5,12 @@ use crate::flags::{Flags, environment};
 use crate::repo::{self, strings};
 
 pub fn core_library(release: bool) -> Result<String, String> {
-    let mut arguments = strings(&["build", "--quiet"]);
+    let mut arguments = strings(&["build", "--quiet", "-p", "astral-core"]);
     if release {
         arguments.push("--release".into());
     }
-    repo::run(&repo::path(&["packages", "core"]), "cargo", &arguments)?;
+    repo::run(&repo::path(&[]), "cargo", &arguments)?;
     Ok(repo::text(&repo::path(&[
-        "packages",
-        "core",
         "target",
         if release { "release" } else { "debug" },
         "libastral_core.a",

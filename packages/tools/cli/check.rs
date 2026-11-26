@@ -22,17 +22,19 @@ fn native(path: &str) -> bool {
 }
 
 fn rust(path: &str) -> bool {
-    under(
-        path,
-        &[
-            "packages/core/",
-            "packages/tools/",
-            "packages/android/native/",
-            "packages/ios/native/",
-        ],
-    ) && (repo::extension(path) == "rs"
-        || path.ends_with("/Cargo.toml")
-        || path.ends_with("/Cargo.lock"))
+    path == "Cargo.toml"
+        || path == "Cargo.lock"
+        || under(
+            path,
+            &[
+                "packages/core/",
+                "packages/tools/",
+                "packages/android/native/",
+                "packages/ios/native/",
+            ],
+        ) && (repo::extension(path) == "rs"
+            || path.ends_with("/Cargo.toml")
+            || path.ends_with("/Cargo.lock"))
 }
 
 fn lua(path: &str) -> bool {

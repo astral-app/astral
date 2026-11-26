@@ -90,28 +90,16 @@ pub fn build_native(toolchain: &Path, triple: &str, directory: &Path) -> Result<
         "cargo",
         &strings(&[
             "build",
-            "--release",
+            "--profile",
+            &repo::rust_profile(),
             "--quiet",
             "--target",
             triple,
-            "--manifest-path",
-            &repo::text(&repo::path(&[
-                "packages",
-                "android",
-                "native",
-                "Cargo.toml",
-            ])),
+            "-p",
+            "astral-android",
         ]),
     )?;
-    let built = repo::path(&[
-        "packages",
-        "android",
-        "native",
-        "target",
-        triple,
-        "release",
-        NATIVE_LIBRARY,
-    ]);
+    let built = repo::path(&["target", triple, &repo::rust_profile(), NATIVE_LIBRARY]);
     std::fs::create_dir_all(directory).map_err(|error| error.to_string())?;
     let library = directory.join(NATIVE_LIBRARY);
     files::copy(&built, &library)?;
