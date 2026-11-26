@@ -168,6 +168,7 @@ lua_enums! {
         Text = "text",
         Image = "image",
         Player = "player",
+        Lottie = "lottie",
     }
     InsertPosition {
         Start = "start",

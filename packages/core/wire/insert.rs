@@ -16,6 +16,7 @@ use super::properties;
 pub const INSERT_TEXT: c_int = 1;
 pub const INSERT_IMAGE: c_int = 3;
 pub const INSERT_PLAYER: c_int = 4;
+pub const INSERT_LOTTIE: c_int = 5;
 pub const INSERT_CAPACITY: usize = 32;
 
 const COLOR: u32 = 1 << 0;
@@ -206,6 +207,7 @@ fn property_count(node: &AstralInsertNode) -> u16 {
     count += u16::from(node.kind == INSERT_TEXT && !text_of(&node.text).is_empty());
     count += u16::from(node.kind == INSERT_IMAGE && !text_of(&node.uri).is_empty());
     count += 6 * u16::from(node.kind == INSERT_PLAYER && !text_of(&node.uri).is_empty());
+    count += 2 * u16::from(node.kind == INSERT_LOTTIE && !text_of(&node.uri).is_empty());
     if !text_of(&node.tap).is_empty() {
         count += 2;
     }
@@ -224,6 +226,7 @@ fn put_node(out: &mut Out, id: i32, node: &AstralInsertNode) {
         INSERT_TEXT => b"text",
         INSERT_IMAGE => b"image",
         INSERT_PLAYER => b"player",
+        INSERT_LOTTIE => b"lottie",
         _ => b"view",
     };
     out.put_op(Op::Create);
@@ -237,6 +240,10 @@ fn put_node(out: &mut Out, id: i32, node: &AstralInsertNode) {
     }
     if node.kind == INSERT_IMAGE && !uri.is_empty() {
         out.prop_string(properties.uri, uri);
+    }
+    if node.kind == INSERT_LOTTIE && !uri.is_empty() {
+        out.prop_string(properties.src, uri);
+        out.prop_bool(properties.r#loop, true);
     }
     if node.kind == INSERT_PLAYER && !uri.is_empty() {
         out.prop_string(properties.uri, uri);

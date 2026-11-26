@@ -15,6 +15,8 @@ fn properties(header: &str) -> Vec<(String, u16)> {
         .collect()
 }
 
+const KEYWORDS: [&str; 4] = ["loop", "type", "move", "match"];
+
 fn snake_case(name: &str) -> String {
     let mut out = String::with_capacity(name.len() + 4);
     for character in name.chars() {
@@ -24,6 +26,9 @@ fn snake_case(name: &str) -> String {
         } else {
             out.push(character);
         }
+    }
+    if KEYWORDS.contains(&out.as_str()) {
+        out.insert_str(0, "r#");
     }
     out
 }
