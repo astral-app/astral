@@ -2,9 +2,6 @@
 	path = vendor/lua
 	url = https://github.com/lua/lua.git
 	branch = v5.4
-[submodule "vendor/monocypher"]
-	path = vendor/monocypher
-	url = https://github.com/LoupVaillant/Monocypher.git
 [submodule "vendor/tomlplusplus"]
 	path = vendor/tomlplusplus
 	url = https://github.com/marzer/tomlplusplus.git

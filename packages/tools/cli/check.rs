@@ -187,7 +187,7 @@ pub fn rules() -> Vec<Rule> {
                     &["packages/addons/plugins/", "packages/catalog/", "keys/"],
                 )
             },
-            run: |_, work| test::test_signatures(work),
+            run: |_, _| test::test_signatures(),
         },
     ]
 }

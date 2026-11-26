@@ -21,7 +21,7 @@ include $(THEOS)/makefiles/common.mk
 TWEAK_NAME := astral
 astral_FILES := $(wildcard sources/*.mm sources/*.m sources/*.c sources/*.S sources/*.cpp) $(addprefix $(LUA)/,$(addsuffix .c,$(LUA_SOURCES)))
 ASTRAL_COMMIT ?= $(shell git -C $(ROOT) rev-parse --short=9 HEAD 2>/dev/null || echo unknown)
-astral_CFLAGS := -fobjc-arc -flto=thin -Isources -I$(CORE)/wire -I$(GENERATED) -I$(CORE)/include -isystem $(ROOT)/vendor/json/single_include -I$(LUA) -DLUA_USE_POSIX -DASTRAL_VERSION=\"$(ASTRAL_VERSION)\" -DASTRAL_COMMIT=\"$(ASTRAL_COMMIT)\" -DASTRAL_SIGNING_KEY=\"$(SIGNING_KEY)\" -isystem $(ROOT)/vendor/tomlplusplus/include
+astral_CFLAGS := -fobjc-arc -flto=thin -Isources -I$(CORE)/wire -I$(GENERATED) -I$(CORE)/include -isystem $(ROOT)/vendor/json/single_include -I$(LUA) -DLUA_USE_POSIX -DASTRAL_VERSION=\"$(ASTRAL_VERSION)\" -DASTRAL_COMMIT=\"$(ASTRAL_COMMIT)\" -DASTRAL_SIGNING_KEY=\"$(SIGNING_KEY)\"
 astral_CCFLAGS := -std=c++20 -fno-cxx-modules
 astral_LDFLAGS := -flto=thin $(RUST_LIBRARY)
 astral_FRAMEWORKS := Foundation UIKit Photos UserNotifications AVFoundation Security MetricKit UniformTypeIdentifiers ImageIO AuthenticationServices SafariServices WebKit
