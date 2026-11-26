@@ -1,97 +1,56 @@
-use core::ffi::{c_char, c_int, c_void};
+use core::ffi::c_int;
 use std::sync::{OnceLock, RwLock};
 
 use serde_json::Value;
 
-use crate::bridge::{AstralRustString, epoch_ms, text};
+use crate::bridge::epoch_ms;
 use crate::discord_cache as discord;
-use crate::lua_api::{self as lua, LuaState, REGISTRYINDEX};
+use crate::lua_api::{self as lua, LuaState};
 use crate::lua_json::{push_array_metatable, push_json, to_json};
 use crate::plugin_storage::{self, Storage};
 
 const STORAGE_LIMIT: usize = 512 << 10;
 const MAXIMUM_JSON_TEXT: usize = 4 << 20;
 
-pub type HasPermission = unsafe extern "C" fn(plugin: *mut c_void, name: *const c_char, length: usize) -> c_int;
-pub type Identifier = unsafe extern "C" fn(plugin: *mut c_void) -> AstralRustString;
-pub type PlatformCall = unsafe extern "C" fn(
-    method: *const c_char,
-    method_length: usize,
-    arguments: *const c_char,
-    arguments_length: usize,
-) -> AstralRustString;
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct AstralLuaPluginCalls {
-    pub has_permission: Option<HasPermission>,
-    pub identifier: Option<Identifier>,
-    pub directory: Option<Identifier>,
-    pub platform: Option<PlatformCall>,
-}
-
-static CALLS: RwLock<AstralLuaPluginCalls> = RwLock::new(AstralLuaPluginCalls {
-    has_permission: None,
-    identifier: None,
-    directory: None,
-    platform: None,
-});
 static STORAGE_PATH: RwLock<String> = RwLock::new(String::new());
 static STORAGE: OnceLock<Storage> = OnceLock::new();
 
-type Outcome = Result<c_int, String>;
-
-fn calls() -> AstralLuaPluginCalls {
-    *CALLS.read().unwrap_or_else(|poisoned| poisoned.into_inner())
-}
-
-unsafe fn plugin(state: *mut LuaState) -> *mut c_void {
-    unsafe { lua::lua_touserdata(state, REGISTRYINDEX - 1) }
-}
+pub type Outcome = Result<c_int, String>;
 
 unsafe fn identifier(state: *mut LuaState) -> String {
-    let Some(identifier) = calls().identifier else {
-        return String::new();
-    };
-    String::from_utf8_lossy(&crate::bridge::take(unsafe { identifier(plugin(state)) })).into_owned()
+    let plugin = crate::lua_host::plugin_of(state);
+    if plugin.is_null() {
+        String::new()
+    } else {
+        unsafe { (*plugin).identifier().to_owned() }
+    }
 }
 
 unsafe fn directory(state: *mut LuaState) -> String {
-    let Some(directory) = calls().directory else { return String::new() };
-    String::from_utf8_lossy(&crate::bridge::take(unsafe { directory(plugin(state)) })).into_owned()
+    let plugin = crate::lua_host::plugin_of(state);
+    if plugin.is_null() {
+        String::new()
+    } else {
+        unsafe { (*plugin).package.directory.clone() }
+    }
 }
 
-enum Platform {
-    Missing,
-    Threw,
-    Value(Value),
-}
+use crate::lua_host::Platform;
 
 fn platform_call(method: &str, arguments: Value) -> Platform {
-    let Some(call) = calls().platform else { return Platform::Missing };
-    let arguments = arguments.to_string();
-    let reply = crate::bridge::take(unsafe { call(method.as_ptr().cast(), method.len(), arguments.as_ptr().cast(), arguments.len()) });
-    let reply: Value = serde_json::from_slice(&reply).unwrap_or(Value::Null);
-    if reply.get("missing").and_then(Value::as_bool) == Some(true) {
-        return Platform::Missing;
-    }
-    if reply.get("threw").and_then(Value::as_bool) == Some(true) {
-        return Platform::Threw;
-    }
-    Platform::Value(reply.get("value").cloned().unwrap_or(Value::Null))
+    crate::lua_host::platform(method, arguments)
 }
 
 fn platform_flag(method: &str, arguments: Value) -> bool {
-    matches!(platform_call(method, arguments), Platform::Value(Value::Bool(true)))
+    crate::lua_host::platform_flag(method, arguments)
 }
 
 pub unsafe fn has_permission(state: *mut LuaState, name: &str) -> bool {
-    calls()
-        .has_permission
-        .is_some_and(|check| unsafe { check(plugin(state), name.as_ptr().cast(), name.len()) } != 0)
+    let plugin = crate::lua_host::plugin_of(state);
+    !plugin.is_null() && unsafe { (*plugin).permissions.contains(name) }
 }
 
-unsafe fn require_permission(state: *mut LuaState, name: &str) -> Result<(), String> {
+pub unsafe fn require_permission(state: *mut LuaState, name: &str) -> Result<(), String> {
     if unsafe { has_permission(state, name) } {
         Ok(())
     } else {
@@ -99,13 +58,58 @@ unsafe fn require_permission(state: *mut LuaState, name: &str) -> Result<(), Str
     }
 }
 
-unsafe fn raise(state: *mut LuaState, message: String) -> c_int {
+pub fn set_storage_path(path: &str) {
+    *STORAGE_PATH.write().unwrap_or_else(|poisoned| poisoned.into_inner()) = path.to_owned();
+}
+
+pub fn remove_storage(identifier: &str) {
+    storage().remove_all(identifier);
+}
+
+pub unsafe fn check_type(state: *mut LuaState, index: c_int, kind: c_int) -> Result<(), String> {
+    let actual = unsafe { lua::lua_type(state, index) };
+    if actual == kind {
+        Ok(())
+    } else {
+        Err(format!(
+            "bad argument #{index} ({} expected, got {})",
+            type_name(kind),
+            type_name(actual)
+        ))
+    }
+}
+
+pub unsafe fn check_integer(state: *mut LuaState, index: c_int) -> Result<i64, String> {
+    if unsafe { lua::lua_isinteger(state, index) } != 0 {
+        return Ok(unsafe { lua::to_integer(state, index) });
+    }
+    let mut converted = 0;
+    let value = unsafe { lua::lua_tointegerx(state, index, &mut converted) };
+    if converted != 0 {
+        return Ok(value);
+    }
+    let kind = unsafe { lua::lua_type(state, index) };
+    if kind == lua::TNUMBER {
+        return Err(format!("bad argument #{index} (number has no integer representation)"));
+    }
+    Err(format!("bad argument #{index} (number expected, got {})", type_name(kind)))
+}
+
+pub unsafe fn opt_text(state: *mut LuaState, index: c_int, fallback: &str) -> Result<String, String> {
+    if unsafe { lua::is_none_or_nil(state, index) } {
+        Ok(fallback.to_owned())
+    } else {
+        unsafe { check_text(state, index) }
+    }
+}
+
+pub unsafe fn raise(state: *mut LuaState, message: String) -> c_int {
     unsafe { lua::lua_pushlstring(state, message.as_ptr().cast(), message.len()) };
     drop(message);
     unsafe { lua::lua_error(state) }
 }
 
-unsafe fn guarded(state: *mut LuaState, body: unsafe fn(*mut LuaState) -> Outcome) -> c_int {
+pub unsafe fn guarded(state: *mut LuaState, body: unsafe fn(*mut LuaState) -> Outcome) -> c_int {
     let outcome = unsafe { body(state) };
     match outcome {
         Ok(results) => results,
@@ -113,7 +117,7 @@ unsafe fn guarded(state: *mut LuaState, body: unsafe fn(*mut LuaState) -> Outcom
     }
 }
 
-fn type_name(kind: c_int) -> &'static str {
+pub fn type_name(kind: c_int) -> &'static str {
     match kind {
         lua::TNIL => "nil",
         lua::TBOOLEAN => "boolean",
@@ -121,11 +125,13 @@ fn type_name(kind: c_int) -> &'static str {
         lua::TSTRING => "string",
         lua::TTABLE => "table",
         -1 => "no value",
+        6 => "function",
+        2 => "userdata",
         _ => "value",
     }
 }
 
-unsafe fn check_bytes<'a>(state: *mut LuaState, index: c_int) -> Result<&'a [u8], String> {
+pub unsafe fn check_bytes<'a>(state: *mut LuaState, index: c_int) -> Result<&'a [u8], String> {
     let kind = unsafe { lua::lua_type(state, index) };
     if kind != lua::TSTRING && kind != lua::TNUMBER {
         return Err(format!("bad argument #{index} (string expected, got {})", type_name(kind)));
@@ -133,15 +139,15 @@ unsafe fn check_bytes<'a>(state: *mut LuaState, index: c_int) -> Result<&'a [u8]
     Ok(unsafe { lua::to_bytes(state, index) }.unwrap_or_default())
 }
 
-unsafe fn check_text(state: *mut LuaState, index: c_int) -> Result<String, String> {
+pub unsafe fn check_text(state: *mut LuaState, index: c_int) -> Result<String, String> {
     Ok(String::from_utf8_lossy(unsafe { check_bytes(state, index) }?).into_owned())
 }
 
-unsafe fn push_text(state: *mut LuaState, value: &str) {
+pub unsafe fn push_text(state: *mut LuaState, value: &str) {
     unsafe { lua::lua_pushlstring(state, value.as_ptr().cast(), value.len()) };
 }
 
-unsafe fn table_flag(state: *mut LuaState, index: c_int, field: &core::ffi::CStr) -> bool {
+pub unsafe fn table_flag(state: *mut LuaState, index: c_int, field: &core::ffi::CStr) -> bool {
     if unsafe { lua::lua_type(state, index) } != lua::TTABLE {
         return false;
     }
@@ -322,7 +328,7 @@ unsafe fn storage_keys(state: *mut LuaState) -> Outcome {
     Ok(1)
 }
 
-unsafe fn push_optional_json(state: *mut LuaState, value: Option<Value>) {
+pub unsafe fn push_optional_json(state: *mut LuaState, value: Option<Value>) {
     match value {
         Some(value) => unsafe { push_json(state, &value, 0) },
         None => unsafe { lua::lua_pushnil(state) },
@@ -336,7 +342,7 @@ unsafe fn push_optional_text(state: *mut LuaState, value: Option<String>) {
     }
 }
 
-unsafe fn optional_text(state: *mut LuaState, index: c_int) -> Option<String> {
+pub unsafe fn optional_text(state: *mut LuaState, index: c_int) -> Option<String> {
     let kind = unsafe { lua::lua_type(state, index) };
     (kind == lua::TSTRING || kind == lua::TNUMBER)
         .then(|| String::from_utf8_lossy(unsafe { lua::to_bytes(state, index) }.unwrap_or_default()).into_owned())
@@ -449,7 +455,7 @@ fn openable_url(url: &str) -> bool {
     url.len() <= 2048 && (url.starts_with("https://") || url.starts_with("discord://"))
 }
 
-unsafe fn table_text(state: *mut LuaState, index: c_int, field: &core::ffi::CStr) -> Option<String> {
+pub unsafe fn table_text(state: *mut LuaState, index: c_int, field: &core::ffi::CStr) -> Option<String> {
     if unsafe { lua::lua_type(state, index) } != lua::TTABLE {
         return None;
     }
@@ -459,7 +465,7 @@ unsafe fn table_text(state: *mut LuaState, index: c_int, field: &core::ffi::CStr
     value
 }
 
-unsafe fn table_number(state: *mut LuaState, index: c_int, field: &core::ffi::CStr) -> Option<f64> {
+pub unsafe fn table_number(state: *mut LuaState, index: c_int, field: &core::ffi::CStr) -> Option<f64> {
     if unsafe { lua::lua_type(state, index) } != lua::TTABLE {
         return None;
     }
@@ -663,7 +669,7 @@ unsafe fn ui_open_channel(state: *mut LuaState) -> Outcome {
     }
 }
 
-unsafe fn message_argument(state: *mut LuaState, index: c_int) -> Result<u64, String> {
+pub unsafe fn message_argument(state: *mut LuaState, index: c_int) -> Result<u64, String> {
     let text = unsafe { check_text(state, index) }?;
     let digits = text.trim_start().trim_start_matches('+');
     match digits.parse::<u64>() {
@@ -734,10 +740,7 @@ unsafe fn diagnostics_environment(state: *mut LuaState) -> Outcome {
         Platform::Value(value @ Value::Object(_)) => value,
         _ => serde_json::json!({}),
     };
-    environment["plugin_list"] = match platform_call("pluginList", serde_json::json!([])) {
-        Platform::Value(list @ Value::Array(_)) => list,
-        _ => serde_json::json!([]),
-    };
+    environment["plugin_list"] = crate::lua_host::plugin_list();
     unsafe { push_json(state, &environment, 0) };
     Ok(1)
 }
@@ -810,14 +813,3 @@ lua_function!(astral_lua_ui_composer_text, ui_composer_text);
 lua_function!(astral_lua_ui_refresh, ui_refresh);
 lua_function!(astral_lua_diagnostics_environment, diagnostics_environment);
 lua_function!(astral_lua_code_highlight, code_highlight);
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn astral_lua_api_configure(calls: AstralLuaPluginCalls, storage_path: *const c_char, length: usize) {
-    *CALLS.write().unwrap_or_else(|poisoned| poisoned.into_inner()) = calls;
-    *STORAGE_PATH.write().unwrap_or_else(|poisoned| poisoned.into_inner()) = text(storage_path, length);
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn astral_lua_storage_remove_all(identifier: *const c_char, length: usize) {
-    storage().remove_all(&text(identifier, length));
-}
