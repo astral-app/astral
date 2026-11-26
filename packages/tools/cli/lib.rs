@@ -1,0 +1,10 @@
+pub mod catalog;
+pub mod check;
+pub mod flags;
+pub mod lint;
+pub mod lua_casing;
+pub mod readme;
+pub mod repo;
+pub mod signing;
+pub mod test;
+pub mod workflows;
