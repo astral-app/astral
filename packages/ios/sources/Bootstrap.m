@@ -16,6 +16,7 @@
 #import "LuaComposer.h"
 #import "MessageMenu.h"
 #import "NetworkFilter.h"
+#import "PhoenixAccessGate.h"
 #import "PhoenixImage.h"
 #import "PhoenixSettings.h"
 #import "SettingsEntry.h"
@@ -68,6 +69,7 @@ static void Status(NSString *stage)
         @"recovering" : @(astral_ios_recovering()),
         @"time" : @(NSDate.date.timeIntervalSince1970),
         @"engine" : engineSelection ?: @{},
+        @"phoenixAccess" : AstralPhoenixAccessStatus(),
         @"settings" : settingsIntegration ?: @"",
         @"settingsRefusal" : settingsRefusal ?: @"",
         @"missingExtensions" : missingExtensions ?: @[],
@@ -272,6 +274,7 @@ __attribute__((constructor)) static void AstralBootstrap(void)
     });
     AstralFixVirtualCamera();
     engineSelection = AstralForcePhoenix();
+    AstralArmPhoenixAccessUnlock();
     AstralInstallImageAssets();
     NSURL *documents = [NSFileManager.defaultManager URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask].firstObject;
     if (!documents) return;
@@ -287,6 +290,7 @@ __attribute__((constructor)) static void AstralBootstrap(void)
         Status(lastStage ?: @"route-changed");
     });
     AstralStartPhoenixRouteWhenLoaded(^{
+        AstralPhoenixAccessHealthy();
         StartPlugins();
     });
     dispatch_async(dispatch_get_main_queue(), ^{

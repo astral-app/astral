@@ -14,8 +14,11 @@ typedef struct {
 } AstralImageView;
 
 uint64_t astral_locate_function_referencing(const AstralImageView *view, const char *needle);
+uint64_t astral_locate_const_referencing(const AstralImageView *view, const char *needle);
+size_t astral_locate_callers(const AstralImageView *view, uint64_t callee, uint64_t *out, size_t capacity);
 uint64_t astral_locate_unique_caller(const AstralImageView *view, uint64_t callee);
 uint64_t astral_locate_host_call(const AstralImageView *view, uint64_t opsArrived);
+size_t astral_locate_pointer_to(const AstralImageView *view, uint64_t offset, uint64_t *out, size_t capacity);
 size_t astral_read_property_names(const AstralImageView *view, const char **names, size_t capacity, char *storage, size_t storageSize);
 
 #ifdef __cplusplus

@@ -140,6 +140,30 @@ fn absolute(path: &str) -> Result<PathBuf, String> {
     std::path::absolute(path).map_err(|error| error.to_string())
 }
 
+fn open_phoenix_access(ipa_path: &Path) -> Result<(), String> {
+    let mut ipa = Ipa::open(ipa_path)?;
+    let app = ipa.app()?;
+    let framework = format!("{app}Frameworks/PhoenixFatClient.framework/PhoenixFatClient");
+    if !ipa.has(&framework) {
+        return Ok(());
+    }
+    if !crate::phoenix::opens_access_gate(&ipa.read(&framework)?) {
+        return Ok(());
+    }
+    archive::rewrite(
+        ipa_path,
+        "phoenix-access",
+        |name| {
+            if name == framework {
+                Action::Patch(Box::new(crate::phoenix::patch_access_gate))
+            } else {
+                Action::Keep
+            }
+        },
+        Vec::new(),
+    )
+}
+
 pub fn build(ipa: &Path, deb: &Path, destination: &Path) -> Result<(), String> {
     if loads_astral(ipa)? {
         return Err("the IPA already loads astral.dylib; use a clean Discord IPA".into());
@@ -150,13 +174,16 @@ pub fn build(ipa: &Path, deb: &Path, destination: &Path) -> Result<(), String> {
     let bundle = work.0.join("astral.bundle");
     stage::stage_resources(&bundle)?;
     let built = work.0.join("astral.ipa");
+    let prepared = work.0.join("discord.ipa");
+    files::copy(ipa, &prepared)?;
+    open_phoenix_access(&prepared)?;
     repo::run(
         &work.0,
         &repo::text(&cyan),
         &strings(&[
             "-duwsgq",
             "-i",
-            &repo::text(ipa),
+            &repo::text(&prepared),
             "-o",
             &repo::text(&built),
             "-f",

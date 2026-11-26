@@ -19,6 +19,7 @@ pub mod lua_casing;
 pub mod lua_enums;
 pub mod macho;
 pub mod palette;
+pub mod phoenix;
 pub mod readme;
 pub mod repo;
 pub mod rust_magic;
