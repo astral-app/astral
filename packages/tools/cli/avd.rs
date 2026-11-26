@@ -366,6 +366,21 @@ fn open(link: &str) -> Result<(), String> {
 
 fn deploy(arguments: &[String]) -> Result<(), String> {
     let mut build = strings(&["build"]);
+    if !arguments
+        .iter()
+        .any(|argument| argument.starts_with("--abi"))
+    {
+        let abi = repo::output(
+            &repo::path(&[]),
+            "adb",
+            &strings(&["shell", "getprop", "ro.product.cpu.abi"]),
+        )
+        .map(|abi| abi.trim().to_owned())
+        .unwrap_or_default();
+        if !abi.is_empty() {
+            build.extend([String::from("--abi"), abi]);
+        }
+    }
     build.extend(arguments.iter().cloned());
     android::run(&build)?;
     let module = repo::text(&repo::path(&[

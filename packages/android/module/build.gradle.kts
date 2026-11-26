@@ -43,6 +43,9 @@ abstract class BuildNativeLibraries : DefaultTask() {
     @get:Input
     abstract val ndk: Property<String>
 
+    @get:Input
+    abstract val abis: Property<String>
+
     @get:OutputDirectory
     abstract val output: DirectoryProperty
 
@@ -55,7 +58,7 @@ abstract class BuildNativeLibraries : DefaultTask() {
             workingDir = repository.get().asFile
             commandLine(
                 "cargo", "run", "--quiet", "-p", "astral-tools", "--",
-                "android-core", "--ndk", ndk.get(), "--output", output.get().asFile.absolutePath,
+                "android-core", "--ndk", ndk.get(), "--abi", abis.get(), "--output", output.get().asFile.absolutePath,
             )
         }
     }
@@ -76,8 +79,11 @@ val buildNativeLibraries = tasks.register<BuildNativeLibraries>("buildNativeLibr
         fileTree(repositoryRoot.resolve("packages/android/native")) { exclude("target/**") },
         repositoryRoot.resolve("keys"),
         repositoryRoot.resolve("version.txt"),
+        repositoryRoot.resolve("Cargo.toml"),
+        repositoryRoot.resolve("Cargo.lock"),
     )
     repository.set(repositoryRoot)
+    abis.set(providers.gradleProperty("astral.abis").orElse(""))
     ndk.set(androidComponents.sdkComponents.ndkDirectory.map { it.asFile.absolutePath })
 }
 

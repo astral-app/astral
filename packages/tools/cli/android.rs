@@ -109,13 +109,18 @@ pub fn build_native(toolchain: &Path, triple: &str, directory: &Path) -> Result<
 pub fn core(arguments: &[String]) -> Result<(), String> {
     let flags = Flags::new("android-core")
         .string("ndk", "")
+        .string("abi", "")
         .string(
             "output",
             &repo::text(&repo::path(&["packages", "android", "build", "native"])),
         )
         .parse(arguments)?;
     let toolchain = ndk_toolchain(&flags.get("ndk"))?;
-    for (abi, triple) in ABIS {
+    let only = flags.get("abi");
+    for (abi, triple) in ABIS
+        .iter()
+        .filter(|(abi, _)| only.is_empty() || only.split(',').any(|wanted| wanted == *abi))
+    {
         let library = build_native(
             &toolchain,
             triple,
@@ -166,6 +171,7 @@ fn build(arguments: &[String]) -> Result<(), String> {
     let default = repo::text(&repo::path(&["packages", "android", "build", "astral"]));
     let flags = Flags::new("android build")
         .string("java-home", "")
+        .string("abi", "")
         .string("output", &default)
         .string("patcher", "")
         .parse(arguments)?;
@@ -181,11 +187,15 @@ fn build(arguments: &[String]) -> Result<(), String> {
     if environment("ANDROID_HOME").is_empty() && sdk.exists() {
         variables.push(("ANDROID_HOME", sdk_text.as_str()));
     }
+    let mut gradle = strings(&[":module:assembleDebug"]);
+    if !flags.get("abi").is_empty() {
+        gradle.push(format!("-Pastral.abis={}", flags.get("abi")));
+    }
     repo::run_with_env(
         &repo::path(&["packages", "android"]),
         &variables,
         "./gradlew",
-        &strings(&[":module:assembleDebug"]),
+        &gradle,
     )?;
     let module = repo::path(&[
         "packages",
