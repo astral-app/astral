@@ -2,7 +2,7 @@ package app.astral.android
 
 import android.app.Activity
 import android.graphics.Bitmap
-import android.graphics.Canvas
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.Rect
 import android.graphics.RectF
@@ -17,7 +17,6 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import io.github.libxposed.api.XposedInterface.ExceptionMode
 import io.github.libxposed.api.XposedModule
-import com.caverock.androidsvg.SVG
 import java.io.File
 import java.lang.ref.WeakReference
 import kotlin.math.min
@@ -121,10 +120,8 @@ object CutoutOverlay {
     }
 
     private fun readLogo(width: Int, height: Int): Bitmap? = runCatching {
-        val picture = logo.inputStream().buffered().use { SVG.getFromInputStream(it).renderToPicture(width, height) }
-        Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { bitmap ->
-            Canvas(bitmap).drawPicture(picture)
-        }
+        val png = Native.renderSvg(logo.readBytes(), width, height) ?: return@runCatching null
+        BitmapFactory.decodeByteArray(png, 0, png.size)
     }.getOrNull()
 
     private fun hide(activity: Activity) {
