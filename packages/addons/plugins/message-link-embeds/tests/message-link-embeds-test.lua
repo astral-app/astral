@@ -53,9 +53,9 @@ assert(avatar.icon == "https://cdn.discordapp.com/avatars/77/abc.png?size=80" an
 local header = column.children[1].children
 assert(header[1].text == "Ada" and header[2].text == "2026-11-25 16:32")
 assert(column.children[2].text == "linked text :wave: @Ada")
-assert(cards[1].align == "start")
+assert(cards[1].align == astral.Align.Start)
 local image = column.children[3]
-assert(image.type == "image" and image.width == 240 and image.height == 120)
+assert(image.type == astral.InsertNodeType.Image and image.width == 240 and image.height == 120)
 press({}, cards[1].action)
 assert(opened == "2/3")
 assert(build({ message_id = "99", channel_id = "9" }) == nil)

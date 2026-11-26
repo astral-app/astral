@@ -1,3 +1,4 @@
+use crate::lua_enums::ScrollAlign;
 use core::ffi::{CStr, c_char, c_int};
 use std::sync::Mutex;
 
@@ -21,13 +22,12 @@ fn queue(command: &[u8]) {
 
 fn alignment(align: *const c_char) -> &'static [u8] {
     if align.is_null() {
-        return b"visible";
+        return ScrollAlign::Visible.value().as_bytes();
     }
-    match unsafe { CStr::from_ptr(align) }.to_bytes() {
-        b"start" => b"start",
-        b"end" => b"end",
-        _ => b"visible",
-    }
+    let parsed = core::str::from_utf8(unsafe { CStr::from_ptr(align) }.to_bytes())
+        .ok()
+        .and_then(ScrollAlign::parse);
+    parsed.unwrap_or(ScrollAlign::Visible).value().as_bytes()
 }
 
 fn command(build: impl FnOnce(&mut Out)) -> bool {

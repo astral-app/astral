@@ -69,7 +69,7 @@ local function image_node(attachment)
 	local width, height = tonumber(attachment.width) or IMAGE_WIDTH, tonumber(attachment.height) or IMAGE_HEIGHT
 	local scale = math.min(1, IMAGE_WIDTH / math.max(width, 1), IMAGE_HEIGHT / math.max(height, 1))
 	return {
-		type = "image",
+		type = astral.InsertNodeType.Image,
 		icon = attachment.proxy_url or attachment.url,
 		width = math.floor(width * scale),
 		height = math.floor(height * scale),
@@ -86,30 +86,43 @@ local function card(link)
 	linked.id = linked.id or link.message
 	local author = type(linked.author) == "table" and linked.author or {}
 	local column = {
-		type = "view",
+		type = astral.InsertNodeType.View,
 		children = {
 			{
-				type = "view",
+				type = astral.InsertNodeType.View,
 				row = true,
 				children = {
-					{ type = "text", text = author_name(linked), size = 16, weight = 600, color = NAME },
-					{ type = "text", text = timestamp(linked), size = 12, color = MUTED, margin = { 6, 0, 0, 0 } },
+					{
+						type = astral.InsertNodeType.Text,
+						text = author_name(linked),
+						size = 16,
+						weight = 600,
+						color = NAME,
+					},
+					{
+						type = astral.InsertNodeType.Text,
+						text = timestamp(linked),
+						size = 12,
+						color = MUTED,
+						margin = { 6, 0, 0, 0 },
+					},
 				},
 			},
 		},
 	}
 	local text = body(linked.content)
 	if text ~= "" then
-		column.children[#column.children + 1] = { type = "text", text = text, size = 16, color = TEXT }
+		column.children[#column.children + 1] =
+			{ type = astral.InsertNodeType.Text, text = text, size = 16, color = TEXT }
 	end
 	local image = first_image(linked)
 	if image then
 		column.children[#column.children + 1] = image_node(image)
 	end
 	return {
-		type = "view",
+		type = astral.InsertNodeType.View,
 		row = true,
-		align = "start",
+		align = astral.Align.Start,
 		background = SURFACE,
 		radius = 8,
 		padding = { 12, 10, 12, 10 },
@@ -118,7 +131,7 @@ local function card(link)
 		action = link.channel .. ":" .. link.message,
 		children = {
 			{
-				type = "image",
+				type = astral.InsertNodeType.Image,
 				icon = avatar_url(author),
 				width = AVATAR,
 				height = AVATAR,

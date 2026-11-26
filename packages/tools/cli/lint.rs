@@ -110,6 +110,8 @@ pub fn run(_: &[String]) -> Result<(), String> {
         ]),
     )?;
     typecheck_lua()?;
+    crate::lua_enums::check_plugins()?;
+    crate::lua_enums::sync_sdk(true)?;
     clang_format(&["--dry-run", "-Werror"])?;
     lint_rust()?;
     workflows::lint_all()

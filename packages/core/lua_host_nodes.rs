@@ -1,3 +1,4 @@
+use crate::lua_enums::{Align, InsertNodeType, InsertPosition, Justify, NamePlacement, ReplyPlacement, TimePlacement};
 use core::ffi::{c_char, c_int};
 use std::collections::{BTreeMap, VecDeque};
 use std::sync::Mutex;
@@ -259,12 +260,12 @@ unsafe fn read_insert_style(state: *mut LuaState, node: &mut AstralInsertNode) {
         if node.kind == INSERT_PLAYER && field_flag(state, "muted") {
             node.fields |= INSERT_MUTED;
         }
-        if let Some(justify) = field_text(state, "justify").filter(|justify| matches!(justify.as_str(), "start" | "center" | "end")) {
-            write_text(&mut node.justify, &justify);
+        if let Some(justify) = field_text(state, "justify").as_deref().and_then(Justify::parse) {
+            node.justify = justify;
             node.fields |= INSERT_JUSTIFY;
         }
-        if let Some(align) = field_text(state, "align").filter(|align| matches!(align.as_str(), "start" | "center" | "end" | "stretch")) {
-            write_text(&mut node.align, &align);
+        if let Some(align) = field_text(state, "align").as_deref().and_then(Align::parse) {
+            node.align = align;
             node.fields |= INSERT_ALIGN;
         }
         if field_flag(state, "bold") {
@@ -296,11 +297,11 @@ unsafe fn read_insert_node(
     }
     let node = &mut nodes[*count];
     unsafe { core::ptr::write_bytes(node as *mut AstralInsertNode, 0, 1) };
-    node.kind = match unsafe { field_text(state, "type") }.as_deref() {
-        Some("text") => INSERT_TEXT,
-        Some("image") => INSERT_IMAGE,
-        Some("player") => INSERT_PLAYER,
-        _ => INSERT_VIEW,
+    node.kind = match unsafe { field_text(state, "type") }.as_deref().and_then(InsertNodeType::parse) {
+        Some(InsertNodeType::Text) => INSERT_TEXT,
+        Some(InsertNodeType::Image) => INSERT_IMAGE,
+        Some(InsertNodeType::Player) => INSERT_PLAYER,
+        Some(InsertNodeType::View) | None => INSERT_VIEW,
     };
     node.parent = parent;
     unsafe { copy_field(state, "text", &mut node.text) };
@@ -383,7 +384,7 @@ pub unsafe extern "C" fn astral_lua_insert_nodes(
             }
             let key = identifier.get(prefix_length..).unwrap_or_default().to_owned();
             if unsafe { lua::is_table(state, -1) } {
-                if unsafe { field_text(state, "position") }.as_deref() == Some("start") {
+                if unsafe { field_text(state, "position") }.as_deref().and_then(InsertPosition::parse) == Some(InsertPosition::Start) {
                     unsafe { *at_start = 1 };
                 }
                 unsafe { lua::get_field(state, -1, "type") };
@@ -527,17 +528,16 @@ pub unsafe extern "C" fn astral_lua_message_background(
                 };
                 unsafe { lua::pop(state, 1) };
                 let bubble = unsafe { field_flag(state, "bubble") };
-                let name_inside = unsafe { field_text(state, "name") }.as_deref() == Some("inside");
-                let time = match unsafe { field_text(state, "time") }.as_deref() {
-                    Some("inline") => 1,
-                    Some("hidden") => 2,
-                    _ => 0,
-                };
-                let reply = match unsafe { field_text(state, "reply") }.as_deref() {
-                    Some("inside") => 2,
-                    Some("bubble") => 1,
-                    _ => 0,
-                };
+                let name_inside =
+                    unsafe { field_text(state, "name") }.as_deref().and_then(NamePlacement::parse) == Some(NamePlacement::Inside);
+                let time = unsafe { field_text(state, "time") }
+                    .as_deref()
+                    .and_then(TimePlacement::parse)
+                    .unwrap_or_default();
+                let reply = unsafe { field_text(state, "reply") }
+                    .as_deref()
+                    .and_then(ReplyPlacement::parse)
+                    .unwrap_or_default();
                 if let Some(color) = color
                     && radius.is_finite()
                     && (0.0..=32.0).contains(&radius)
@@ -721,10 +721,7 @@ pub unsafe extern "C" fn astral_lua_name_color(context: *const AstralNameContext
         };
         user = named;
     }
-    let kind = ["avatar", "header", "voter", "typing"]
-        .get(context.kind as usize)
-        .copied()
-        .unwrap_or("avatar");
+    let kind = crate::lua_enums::NameColorKind::from_wire(context.kind).value();
     for plugin in running_plugins() {
         let colorizers = unsafe { &*plugin }.name_colorizers.clone();
         for reference in colorizers {

@@ -1,3 +1,5 @@
+use crate::capability::Capability;
+use crate::lua_enums::Event;
 use core::cell::{Cell, RefCell, UnsafeCell};
 use core::ffi::{c_char, c_int};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -142,7 +144,7 @@ pub struct CodeBlock {
 }
 
 pub struct EventCallback {
-    pub event: String,
+    pub event: crate::lua_enums::Event,
     pub reference: c_int,
     pub types: BTreeSet<String>,
 }
@@ -178,7 +180,7 @@ pub struct Timer {
 #[derive(Default)]
 pub struct Plugin {
     pub package: Package,
-    pub permissions: BTreeSet<String>,
+    pub permissions: BTreeSet<Capability>,
     pub errors: i32,
     pub failed: bool,
     pub last_error: String,
@@ -191,8 +193,8 @@ pub struct Plugin {
     pub settings_buttons: Vec<SettingsButton>,
     pub text_settings: Vec<TextSetting>,
     pub setting_count: usize,
-    pub decorators: Vec<(String, c_int)>,
-    pub relabelers: Vec<(String, c_int)>,
+    pub decorators: Vec<(crate::lua_enums::Target, c_int)>,
+    pub relabelers: Vec<(crate::lua_enums::Target, c_int)>,
     pub settings_backdrop: Option<f64>,
     pub mentioners: Vec<c_int>,
     pub colorizers: Vec<c_int>,
@@ -714,7 +716,11 @@ fn load(directory: &str) -> Option<Box<Plugin>> {
     };
     let package = plugin_package::load(directory, &host().config.preferred_languages, limits)?;
     let signed = platform_flag("verifySignature", &json!([directory, package.main]));
-    let permissions = package.permissions.iter().cloned().collect();
+    let permissions = package
+        .permissions
+        .iter()
+        .filter_map(|permission| Capability::parse(permission))
+        .collect();
     Some(Box::new(Plugin {
         package,
         permissions,
@@ -862,7 +868,7 @@ pub fn plugins_json() -> Value {
             .map(|(name, id)| json!({"name": name, "id": id}))
             .collect();
         list.push(json!({
-            "permissions": plugin.permissions.iter().collect::<Vec<_>>(),
+            "permissions": plugin.permissions.iter().map(|capability| capability.value()).collect::<Vec<_>>(),
             "id": plugin.identifier(),
             "name": plugin.package.name,
             "version": plugin.package.version,
@@ -1143,10 +1149,10 @@ pub fn complete_file_pick(request: u64, name: Option<&[u8]>, data: Option<&[u8]>
     call_or_stop(plugin, if picked { 1 } else { 2 }, 0, "file picker callback");
 }
 
-pub fn emit_event(event: &str) {
-    if event != "app.foreground" && event != "app.background" {
+pub fn emit_event(name: &str) {
+    let Some(event @ (Event::AppForeground | Event::AppBackground)) = Event::parse(name) else {
         return;
-    }
+    };
     let _held = lock();
     for plugin in plugins() {
         if !unsafe { (*plugin).running() } {
@@ -1170,8 +1176,8 @@ pub fn emit_event(event: &str) {
                 continue;
             }
             let state = unsafe { push_callback(plugin, reference, false) };
-            unsafe { lua::push_str(state, event) };
-            if !call_or_stop(plugin, 1, 0, event) {
+            unsafe { lua::push_str(state, event.value()) };
+            if !call_or_stop(plugin, 1, 0, event.value()) {
                 break;
             }
         }

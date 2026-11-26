@@ -2,6 +2,7 @@
 
 pub mod backup;
 pub mod bridge;
+pub mod capability;
 pub mod crypto;
 pub mod cutout;
 pub mod dev_server;
@@ -21,6 +22,7 @@ pub mod leftover_mods;
 pub mod locate;
 pub mod log;
 pub mod lua_api;
+pub mod lua_enums;
 pub mod lua_host;
 pub mod lua_host_api;
 pub mod lua_host_events;

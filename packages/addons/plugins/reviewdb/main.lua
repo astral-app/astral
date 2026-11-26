@@ -186,11 +186,17 @@ local function review_item(state, review)
 	end
 	local author_blocked = blocked(sender.discordID)
 	local header = {
-		{ type = "text", text = tostring(sender.username or t("USER")), bold = true, size = 16, lines = 1 },
+		{
+			type = astral.SheetItemType.Text,
+			text = tostring(sender.username or t("USER")),
+			bold = true,
+			size = 16,
+			lines = 1,
+		},
 	}
 	if author_blocked then
 		header[#header + 1] = {
-			type = "text",
+			type = astral.SheetItemType.Text,
 			text = t("BLOCKED"),
 			bold = true,
 			size = 10,
@@ -201,38 +207,42 @@ local function review_item(state, review)
 		}
 	end
 	if not astral.settings.get("hide_timestamps", false) and tonumber(review.timestamp) then
-		header[#header + 1] =
-			{ type = "text", text = date_text(math.floor(review.timestamp)), size = 12, color = "muted" }
+		header[#header + 1] = {
+			type = astral.SheetItemType.Text,
+			text = date_text(math.floor(review.timestamp)),
+			size = 12,
+			color = astral.SheetColor.Muted,
+		}
 	end
 	local body = {
-		{ type = "row", spacing = 6, items = header },
-		{ type = "text", text = comment },
+		{ type = astral.SheetItemType.Row, spacing = 6, items = header },
+		{ type = astral.SheetItemType.Text, text = comment },
 	}
 	if long then
 		body[#body + 1] = {
-			type = "text",
+			type = astral.SheetItemType.Text,
 			text = expanded and t("SHOW_LESS") or t("READ_MORE"),
 			bold = true,
 			size = 14,
-			color = "link",
+			color = astral.SheetColor.Link,
 			action = "expand:" .. review.id,
 		}
 	end
 	if permissions_for(review, state.target).vote then
 		local vote = review.userVote
 		body[#body + 1] = {
-			type = "row",
+			type = astral.SheetItemType.Row,
 			spacing = 6,
 			items = {
 				{
-					type = "icon",
+					type = astral.SheetItemType.Icon,
 					name = "thumbs_up",
 					size = 14,
 					color = vote == true and "positive" or "muted",
 					action = "up:" .. review.id,
 				},
 				{
-					type = "text",
+					type = astral.SheetItemType.Text,
 					text = tostring(review.score or 0),
 					bold = true,
 					size = 14,
@@ -240,7 +250,7 @@ local function review_item(state, review)
 					action = "up:" .. review.id,
 				},
 				{
-					type = "icon",
+					type = astral.SheetItemType.Icon,
 					name = "thumbs_down",
 					size = 14,
 					color = vote == false and "danger" or "muted",
@@ -250,13 +260,13 @@ local function review_item(state, review)
 		}
 	end
 	return {
-		type = "row",
-		align = "top",
+		type = astral.SheetItemType.Row,
+		align = astral.SheetAlign.Top,
 		spacing = 12,
 		long_action = "actions:" .. review.id,
 		items = {
-			{ type = "image", url = tostring(sender.profilePhoto or ""), size = 40, round = true },
-			{ type = "column", spacing = 4, items = body },
+			{ type = astral.SheetItemType.Image, url = tostring(sender.profilePhoto or ""), size = 40, round = true },
+			{ type = astral.SheetItemType.Column, spacing = 4, items = body },
 		},
 	}
 end
@@ -281,39 +291,51 @@ local function render(state)
 	local items = {}
 	for _, review in ipairs(system) do
 		items[#items + 1] = {
-			type = "row",
-			align = "top",
+			type = astral.SheetItemType.Row,
+			align = astral.SheetAlign.Top,
 			spacing = 10,
 			background = "#265865F2",
 			items = {
-				{ type = "icon", name = "info", size = 16, color = "link" },
+				{ type = astral.SheetItemType.Icon, name = "info", size = 16, color = astral.SheetColor.Link },
 				{
-					type = "column",
+					type = astral.SheetItemType.Column,
 					spacing = 2,
 					items = {
 						{
-							type = "text",
+							type = astral.SheetItemType.Text,
 							text = tostring(review.sender and review.sender.username or ""),
 							bold = true,
 							size = 14,
 						},
-						{ type = "text", text = tostring(review.comment or ""), size = 14 },
+						{ type = astral.SheetItemType.Text, text = tostring(review.comment or ""), size = 14 },
 					},
 				},
 			},
 		}
 	end
 	if not state.loading and #users == 0 then
-		items[#items + 1] = { type = "spacer", size = 12 }
-		items[#items + 1] = { type = "text", text = t("NO_REVIEWS"), bold = true, size = 17, align = "center" }
-		items[#items + 1] =
-			{ type = "text", text = t("NO_REVIEWS_SUBTITLE"), size = 14, color = "muted", align = "center" }
+		items[#items + 1] = { type = astral.SheetItemType.Spacer, size = 12 }
+		items[#items + 1] = {
+			type = astral.SheetItemType.Text,
+			text = t("NO_REVIEWS"),
+			bold = true,
+			size = 17,
+			align = astral.SheetAlign.Center,
+		}
+		items[#items + 1] = {
+			type = astral.SheetItemType.Text,
+			text = t("NO_REVIEWS_SUBTITLE"),
+			size = 14,
+			color = astral.SheetColor.Muted,
+			align = astral.SheetAlign.Center,
+		}
 	end
 	for _, review in ipairs(users) do
 		items[#items + 1] = review_item(state, review)
 	end
 	if state.has_next and not state.loading then
-		items[#items + 1] = { type = "buttons", buttons = { { label = t("LOAD_MORE"), action = "load_more" } } }
+		items[#items + 1] =
+			{ type = astral.SheetItemType.Buttons, buttons = { { label = t("LOAD_MORE"), action = "load_more" } } }
 	end
 	local own_profile = state.target == my_id
 	if not own_profile and not state.server and token() then
@@ -321,19 +343,28 @@ local function render(state)
 		for _, review in ipairs(users) do
 			has_own = has_own or (type(review.sender) == "table" and review.sender.discordID == my_id)
 		end
-		items[#items + 1] = { type = "heading", text = has_own and t("UPDATE_YOUR_REVIEW") or t("LEAVE_A_REVIEW") }
+		items[#items + 1] =
+			{ type = astral.SheetItemType.Heading, text = has_own and t("UPDATE_YOUR_REVIEW") or t("LEAVE_A_REVIEW") }
 		if has_own then
-			items[#items + 1] = { type = "text", text = t("UPDATE_REPLACES"), size = 13, color = "muted" }
+			items[#items + 1] = {
+				type = astral.SheetItemType.Text,
+				text = t("UPDATE_REPLACES"),
+				size = 13,
+				color = astral.SheetColor.Muted,
+			}
 		end
 		items[#items + 1] = {
-			type = "input",
+			type = astral.SheetItemType.Input,
 			placeholder = has_own and t("UPDATE_PLACEHOLDER", { name = state.name })
 				or t("REVIEW_PLACEHOLDER", { name = state.name }),
 			submit_label = has_own and t("UPDATE_REVIEW") or t("SUBMIT_REVIEW"),
 			action = "submit",
 		}
 	elseif not own_profile and not token() then
-		items[#items + 1] = { type = "buttons", buttons = { { label = t("SIGN_IN_TO_REVIEW"), action = "sign_in" } } }
+		items[#items + 1] = {
+			type = astral.SheetItemType.Buttons,
+			buttons = { { label = t("SIGN_IN_TO_REVIEW"), action = "sign_in" } },
+		}
 	end
 	local title = state.server and t("SERVER_REVIEWS_FOR", { name = state.name })
 		or t("REVIEWS_FOR", { name = state.name })
@@ -487,7 +518,7 @@ local function review_actions(state, review)
 		buttons[#buttons + 1] = { label = author_blocked and t("UNBLOCK_USER") or t("BLOCK_USER"), action = "block" }
 	end
 	if allowed.delete then
-		buttons[#buttons + 1] = { label = t("DELETE_REVIEW"), action = "delete", style = "danger" }
+		buttons[#buttons + 1] = { label = t("DELETE_REVIEW"), action = "delete", style = astral.ButtonStyle.Danger }
 	end
 	if #buttons == 0 then
 		return
@@ -495,7 +526,7 @@ local function review_actions(state, review)
 	local menu
 	menu = astral.ui.sheet({
 		title = tostring(sender.username or t("USER")),
-		items = { { type = "buttons", direction = "column", buttons = buttons } },
+		items = { { type = astral.SheetItemType.Buttons, direction = astral.Direction.Column, buttons = buttons } },
 	}, function(action)
 		if action == "closed" then
 			return
@@ -591,20 +622,30 @@ local function register_account_buttons()
 			local items = {}
 			for _, user in ipairs(type(users) == "table" and users or {}) do
 				items[#items + 1] = {
-					type = "row",
+					type = astral.SheetItemType.Row,
 					spacing = 12,
 					items = {
-						{ type = "image", url = tostring(user.profilePhoto or ""), size = 32, round = true },
-						{ type = "text", text = tostring(user.username or ""), bold = true },
 						{
-							type = "buttons",
+							type = astral.SheetItemType.Image,
+							url = tostring(user.profilePhoto or ""),
+							size = 32,
+							round = true,
+						},
+						{ type = astral.SheetItemType.Text, text = tostring(user.username or ""), bold = true },
+						{
+							type = astral.SheetItemType.Buttons,
 							buttons = { { label = t("UNBLOCK"), action = "unblock:" .. tostring(user.discordID) } },
 						},
 					},
 				}
 			end
 			if #items == 0 then
-				items[1] = { type = "text", text = t("NO_BLOCKED_USERS"), color = "muted", align = "center" }
+				items[1] = {
+					type = astral.SheetItemType.Text,
+					text = t("NO_BLOCKED_USERS"),
+					color = astral.SheetColor.Muted,
+					align = astral.SheetAlign.Center,
+				}
 			end
 			local blocked_sheet
 			blocked_sheet = astral.ui.sheet({ title = t("BLOCKED_USERS"), items = items }, function(action)
@@ -694,18 +735,24 @@ astral.ui.insert({ id = "Note^>" }, function(node)
 		return nil
 	end
 	return {
-		type = "view",
+		type = astral.InsertNodeType.View,
 		margin = { 0, 0, 0, 16 },
 		children = {
-			{ type = "text", text = t("REVIEWS_TITLE"), size = 16, weight = 500 },
+			{ type = astral.InsertNodeType.Text, text = t("REVIEWS_TITLE"), size = 16, weight = 500 },
 			{
-				type = "view",
+				type = astral.InsertNodeType.View,
 				row = true,
 				margin = { 0, 8, 0, 0 },
 				action = "open_" .. node.author_id,
 				children = {
-					{ type = "image", icon = "res://ic_mana_star", width = 16, height = 16, margin = { 0, 0, 8, 0 } },
-					{ type = "text", text = t("VIEW_REVIEWS"), size = 16, color = LINK_COLOR },
+					{
+						type = astral.InsertNodeType.Image,
+						icon = "res://ic_mana_star",
+						width = 16,
+						height = 16,
+						margin = { 0, 0, 8, 0 },
+					},
+					{ type = astral.InsertNodeType.Text, text = t("VIEW_REVIEWS"), size = 16, color = LINK_COLOR },
 				},
 			},
 		},
@@ -717,7 +764,7 @@ end, function(_, action)
 	end
 end)
 
-astral.events.on("gateway", function(event)
+astral.events.on(astral.Event.Gateway, function(event)
 	if type(event.data) == "table" and type(event.data.user) == "table" then
 		my_id = event.data.user.id
 	end

@@ -64,19 +64,19 @@ local function title_of(data)
 	return guild and guild.name and (author .. " in " .. guild.name) or author
 end
 
-astral.events.on("app.background", function()
+astral.events.on(astral.Event.AppBackground, function()
 	in_background = true
 	if setting("keep_alive", true) then
 		astral.background.keep_alive(true)
 	end
 end)
 
-astral.events.on("app.foreground", function()
+astral.events.on(astral.Event.AppForeground, function()
 	in_background = false
 	astral.background.keep_alive(false)
 end)
 
-astral.events.on("gateway", function(event)
+astral.events.on(astral.Event.Gateway, function(event)
 	local data = event.data
 	if event.type == "READY" then
 		current_user = type(data.user) == "table" and data.user.id or nil

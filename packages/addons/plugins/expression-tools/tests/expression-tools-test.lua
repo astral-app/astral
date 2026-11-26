@@ -99,7 +99,7 @@ assert(copied == "<:wave:42>" and toasts[#toasts] == "MARKUP_COPIED")
 menu.press({}, "clone")
 local names = {}
 for _, item in ipairs(sheet_spec.items) do
-	if item.type == "row" then
+	if item.type == astral.SheetItemType.Row then
 		names[#names + 1] = item.items[1].text
 	end
 end

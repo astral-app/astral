@@ -1,3 +1,5 @@
+use crate::capability::Capability;
+use crate::lua_enums::{Event, OptionType, Target};
 use core::ffi::c_int;
 use std::collections::BTreeSet;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -520,7 +522,7 @@ pub fn set_text(identifier: &str, key: &str, value: &str) {
 }
 
 pub unsafe fn show_alert(state: *mut LuaState) -> Outcome {
-    unsafe { require_permission(state, "ui.dialogs") }?;
+    unsafe { require_permission(state, Capability::UiDialogs) }?;
     let (title, message) = (unsafe { check_text(state, 1) }?, unsafe { check_text(state, 2) }?);
     if title.len() > 120 || message.len() > 2048 {
         return Err("astral.ui.alert: text exceeds its limit".into());
@@ -571,7 +573,7 @@ fn abandon_request(
 
 pub unsafe fn confirm(state: *mut LuaState) -> Outcome {
     let plugin = me(state);
-    unsafe { require_permission(state, "ui.dialogs") }?;
+    unsafe { require_permission(state, Capability::UiDialogs) }?;
     unsafe { check_type(state, 1, lua::TTABLE) }?;
     unsafe { check_type(state, 2, lua::TFUNCTION) }?;
     let mut spec = unsafe {
@@ -630,7 +632,7 @@ unsafe fn sheet_id(state: *mut LuaState, function: &str) -> Result<u64, String> 
 
 pub unsafe fn open_sheet(state: *mut LuaState) -> Outcome {
     let plugin = me(state);
-    unsafe { require_permission(state, "ui.dialogs") }?;
+    unsafe { require_permission(state, Capability::UiDialogs) }?;
     let spec = unsafe { sheet_spec(state, 1, "astral.ui.sheet") }?;
     unsafe { check_type(state, 2, lua::TFUNCTION) }?;
     if plugin.sheets.len() >= 4 {
@@ -662,7 +664,7 @@ pub unsafe fn close_sheet(state: *mut LuaState) -> Outcome {
 }
 
 pub unsafe fn press_node(state: *mut LuaState) -> Outcome {
-    unsafe { require_permission(state, "ui.press") }?;
+    unsafe { require_permission(state, Capability::UiPress) }?;
     let raw = unsafe { check_bytes(state, 1) }?;
     if raw.is_empty() || raw.len() > 128 {
         return Err("astral.ui.press: identifiers are 1 to 128 characters".into());
@@ -680,7 +682,7 @@ pub unsafe fn press_node(state: *mut LuaState) -> Outcome {
 
 pub unsafe fn register_image_rewrite(state: *mut LuaState) -> Outcome {
     let plugin = me(state);
-    unsafe { require_permission(state, "ui.images") }?;
+    unsafe { require_permission(state, Capability::UiImages) }?;
     let prefix = unsafe { check_text(state, 1) }?;
     unsafe { check_type(state, 2, lua::TFUNCTION) }?;
     if !prefix.starts_with("http") {
@@ -696,7 +698,7 @@ pub unsafe fn register_image_rewrite(state: *mut LuaState) -> Outcome {
 
 pub unsafe fn register_text_transform(state: *mut LuaState) -> Outcome {
     let plugin = me(state);
-    unsafe { require_permission(state, "ui.text") }?;
+    unsafe { require_permission(state, Capability::UiText) }?;
     unsafe { check_type(state, 1, lua::TFUNCTION) }?;
     if plugin.text_transforms.len() >= 8 {
         return Err("astral.ui.text_transform: at most 8 transforms per plugin".into());
@@ -708,16 +710,7 @@ pub unsafe fn register_text_transform(state: *mut LuaState) -> Outcome {
 }
 
 fn option_type(kind: &str) -> i64 {
-    match kind {
-        "string" => 3,
-        "integer" => 4,
-        "boolean" => 5,
-        "user" => 6,
-        "channel" => 7,
-        "role" => 8,
-        "number" => 10,
-        _ => 0,
-    }
+    OptionType::parse(kind).map_or(0, OptionType::discord_type)
 }
 
 fn command_name(name: &str) -> bool {
@@ -741,7 +734,7 @@ unsafe fn string_field_or(state: *mut LuaState, index: c_int, name: &str, fallba
 
 pub unsafe fn register_command(state: *mut LuaState) -> Outcome {
     let plugin = me(state);
-    unsafe { require_permission(state, "commands") }?;
+    unsafe { require_permission(state, Capability::Commands) }?;
     unsafe { check_type(state, 1, lua::TTABLE) }?;
     if plugin.commands.len() >= 16 {
         return Err("astral.commands.register: at most 16 commands per plugin".into());
@@ -826,7 +819,7 @@ pub unsafe fn render_image(state: *mut LuaState) -> Outcome {
 
 pub unsafe fn pick_file(state: *mut LuaState) -> Outcome {
     let plugin = me(state);
-    unsafe { require_permission(state, "files.read") }?;
+    unsafe { require_permission(state, Capability::FilesRead) }?;
     unsafe { check_type(state, 1, lua::TTABLE) }?;
     unsafe { check_type(state, 2, lua::TFUNCTION) }?;
     let count = unsafe { lua::lua_rawlen(state, 1) };
@@ -869,7 +862,7 @@ pub unsafe fn pick_file(state: *mut LuaState) -> Outcome {
 
 unsafe fn cancel_request(
     state: *mut LuaState,
-    permission: &str,
+    permission: Capability,
     table: impl FnOnce(&mut Plugin) -> &mut std::collections::BTreeMap<u64, c_int>,
     method: &str,
 ) -> Outcome {
@@ -888,7 +881,7 @@ unsafe fn cancel_request(
 }
 
 pub unsafe fn cancel_file_pick(state: *mut LuaState) -> Outcome {
-    unsafe { cancel_request(state, "files.read", |plugin| &mut plugin.file_picks, "cancelFilePick") }
+    unsafe { cancel_request(state, Capability::FilesRead, |plugin| &mut plugin.file_picks, "cancelFilePick") }
 }
 
 fn valid_utf8(value: &[u8]) -> bool {
@@ -949,7 +942,7 @@ fn redirect_uri(url: &str) -> String {
 
 pub unsafe fn web_auth(state: *mut LuaState) -> Outcome {
     let plugin = me(state);
-    unsafe { require_permission(state, "ui.web_auth") }?;
+    unsafe { require_permission(state, Capability::UiWebAuth) }?;
     let url = unsafe { check_text(state, 1) }?;
     let callback = unsafe { check_text(state, 2) }?;
     unsafe { check_type(state, 3, lua::TFUNCTION) }?;
@@ -979,32 +972,38 @@ pub unsafe fn web_auth(state: *mut LuaState) -> Outcome {
 }
 
 pub unsafe fn cancel_web_auth(state: *mut LuaState) -> Outcome {
-    unsafe { cancel_request(state, "ui.web_auth", |plugin| &mut plugin.web_auth_requests, "cancelWebAuth") }
+    unsafe {
+        cancel_request(
+            state,
+            Capability::UiWebAuth,
+            |plugin| &mut plugin.web_auth_requests,
+            "cancelWebAuth",
+        )
+    }
 }
 
-fn event_permission(event: &str) -> Option<&'static str> {
+const fn event_permission(event: Event) -> Capability {
     match event {
-        "app.foreground" | "app.background" => Some("events.lifecycle"),
-        "message.create" => Some("events.messages"),
-        "message.filter" => Some("events.messages.filter"),
-        "gateway" => Some("events.gateway"),
-        _ => None,
+        Event::AppForeground | Event::AppBackground => Capability::EventsLifecycle,
+        Event::MessageCreate => Capability::EventsMessages,
+        Event::MessageFilter => Capability::EventsMessagesFilter,
+        Event::Gateway => Capability::EventsGateway,
     }
 }
 
 pub unsafe fn subscribe_event(state: *mut LuaState) -> Outcome {
     let plugin = me(state);
-    let event = unsafe { check_text(state, 1) }?;
-    let Some(permission) = event_permission(&event) else {
-        return Err(format!("astral.events.on: unsupported event '{event}'"));
+    let name = unsafe { check_text(state, 1) }?;
+    let Some(event) = Event::parse(&name) else {
+        return Err(format!("astral.events.on: unsupported event '{name}'"));
     };
-    unsafe { require_permission(state, permission) }?;
+    unsafe { require_permission(state, event_permission(event)) }?;
     unsafe { check_type(state, 2, lua::TFUNCTION) }?;
     if plugin.event_callbacks.len() >= 32 {
         return Err("astral.events.on: at most 32 subscriptions per plugin".into());
     }
     let mut types = BTreeSet::new();
-    if event == "gateway" && unsafe { lua::is_table(state, 3) } {
+    if event == Event::Gateway && unsafe { lua::is_table(state, 3) } {
         let count = unsafe { lua::luaL_len(state, 3) };
         if count > 64 {
             return Err("astral.events.on: at most 64 gateway event types".into());
@@ -1036,12 +1035,10 @@ pub unsafe fn unsubscribe_event(state: *mut LuaState) -> Outcome {
         return unsafe { push_flag(state, false) };
     }
     let subscription = value as u64;
-    let Some(event) = me(state).event_callbacks.get(&subscription).map(|callback| callback.event.clone()) else {
+    let Some(event) = me(state).event_callbacks.get(&subscription).map(|callback| callback.event) else {
         return unsafe { push_flag(state, false) };
     };
-    if let Some(permission) = event_permission(&event) {
-        unsafe { require_permission(state, permission) }?;
-    }
+    unsafe { require_permission(state, event_permission(event)) }?;
     if let Some(callback) = me(state).event_callbacks.remove(&subscription) {
         unsafe { lua::release(state, callback.reference) };
     }
@@ -1049,7 +1046,7 @@ pub unsafe fn unsubscribe_event(state: *mut LuaState) -> Outcome {
 }
 
 pub unsafe fn dispatch_gateway_event(state: *mut LuaState) -> Outcome {
-    unsafe { require_permission(state, "messages.local") }?;
+    unsafe { require_permission(state, Capability::MessagesLocal) }?;
     let kind = unsafe { check_text(state, 1) }?;
     if kind.is_empty() || kind.len() > 64 {
         return Err("astral.gateway.dispatch: event types are 1 to 64 characters".into());
@@ -1094,7 +1091,7 @@ pub fn send_local_message_json(channel: &str, message: &Value) -> Option<String>
 }
 
 pub unsafe fn send_local_message(state: *mut LuaState) -> Outcome {
-    unsafe { require_permission(state, "messages.local") }?;
+    unsafe { require_permission(state, Capability::MessagesLocal) }?;
     let channel = unsafe { check_text(state, 1) }?;
     if !snowflake_text(&channel) {
         return Err(format!("astral.messages.send_local: '{channel}' is not a channel id"));
@@ -1121,7 +1118,7 @@ pub unsafe fn send_local_message(state: *mut LuaState) -> Outcome {
 
 unsafe fn register_function(
     state: *mut LuaState,
-    permission: Option<&str>,
+    permission: Option<Capability>,
     limit: usize,
     message: &str,
     list: impl FnOnce(&mut Plugin) -> &mut Vec<c_int>,
@@ -1143,7 +1140,7 @@ pub unsafe fn register_outgoing_transform(state: *mut LuaState) -> Outcome {
     unsafe {
         register_function(
             state,
-            Some("discord.messages.send"),
+            Some(Capability::DiscordMessagesSend),
             16,
             "astral.messages.transform: at most 16 transforms per plugin",
             |plugin| &mut plugin.outgoing_message_transforms,
@@ -1155,7 +1152,7 @@ pub unsafe fn register_media_save_handler(state: *mut LuaState) -> Outcome {
     unsafe {
         register_function(
             state,
-            Some("media.save"),
+            Some(Capability::MediaSave),
             4,
             "astral.media.on_save: at most 4 handlers per plugin",
             |plugin| &mut plugin.media_save_handlers,
@@ -1167,7 +1164,7 @@ pub unsafe fn register_composer_decorator(state: *mut LuaState) -> Outcome {
     unsafe {
         register_function(
             state,
-            Some("ui.composer"),
+            Some(Capability::UiComposer),
             1,
             "astral.ui.composer: at most one formatter per plugin",
             |plugin| &mut plugin.composer_decorators,
@@ -1179,7 +1176,7 @@ pub unsafe fn register_message_background(state: *mut LuaState) -> Outcome {
     unsafe {
         register_function(
             state,
-            Some("ui.message_background"),
+            Some(Capability::UiMessageBackground),
             1,
             "astral.ui.message_background: at most one decorator per plugin",
             |plugin| &mut plugin.message_background_decorators,
@@ -1214,7 +1211,7 @@ fn picked_slot(uri: &str) -> Option<String> {
 }
 
 pub unsafe fn picked_media(state: *mut LuaState) -> Outcome {
-    unsafe { require_permission(state, "media.picker") }?;
+    unsafe { require_permission(state, Capability::MediaPicker) }?;
     let Some(slot) = picked_slot(&unsafe { check_text(state, 1) }?) else {
         return Ok(0);
     };
@@ -1236,7 +1233,7 @@ pub unsafe fn picked_media(state: *mut LuaState) -> Outcome {
 }
 
 pub unsafe fn picked_video_url(state: *mut LuaState) -> Outcome {
-    unsafe { require_permission(state, "media.picker") }?;
+    unsafe { require_permission(state, Capability::MediaPicker) }?;
     let Some(slot) = picked_slot(&unsafe { check_text(state, 1) }?) else {
         return Ok(0);
     };
@@ -1264,7 +1261,7 @@ fn offerable_name(name: &str) -> bool {
 }
 
 pub unsafe fn offer_pick(state: *mut LuaState) -> Outcome {
-    unsafe { require_permission(state, "media.offer") }?;
+    unsafe { require_permission(state, Capability::MediaOffer) }?;
     let bytes = unsafe { check_bytes(state, 1) }?.to_vec();
     let name = unsafe { check_text(state, 2) }?;
     if bytes.is_empty() || bytes.len() > 1024 * 1024 {
@@ -1277,7 +1274,7 @@ pub unsafe fn offer_pick(state: *mut LuaState) -> Outcome {
     unsafe { push_flag(state, host::platform_flag("offerPick", &json!([encoded, name]))) }
 }
 
-unsafe fn prefixed_registration(state: *mut LuaState, permission: &str, function: &str) -> Result<(String, String), String> {
+unsafe fn prefixed_registration(state: *mut LuaState, permission: Capability, function: &str) -> Result<(String, String), String> {
     unsafe { require_permission(state, permission) }?;
     let prefix = unsafe { check_text(state, 1) }?;
     let kind = unsafe { opt_text(state, 2, "") }?;
@@ -1289,7 +1286,7 @@ unsafe fn prefixed_registration(state: *mut LuaState, permission: &str, function
 }
 
 pub unsafe fn register_node_insert(state: *mut LuaState) -> Outcome {
-    let (prefix, kind) = unsafe { prefixed_registration(state, "ui.insert", "astral.ui.insert") }?;
+    let (prefix, kind) = unsafe { prefixed_registration(state, Capability::UiInsert, "astral.ui.insert") }?;
     let plugin = me(state);
     if plugin.node_inserts.len() >= 16 {
         return Err("astral.ui.insert: at most 16 inserts per plugin".into());
@@ -1314,7 +1311,7 @@ pub unsafe fn register_node_insert(state: *mut LuaState) -> Outcome {
 
 pub unsafe fn register_code_block(state: *mut LuaState) -> Outcome {
     let plugin = me(state);
-    unsafe { require_permission(state, "ui.code_blocks") }?;
+    unsafe { require_permission(state, Capability::UiCodeBlocks) }?;
     unsafe { check_type(state, 1, lua::TFUNCTION) }?;
     if !plugin.code_blocks.is_empty() {
         return Err("astral.ui.code_block: at most one renderer per plugin".into());
@@ -1331,7 +1328,7 @@ pub unsafe fn register_code_block(state: *mut LuaState) -> Outcome {
 }
 
 pub unsafe fn register_node_patch(state: *mut LuaState) -> Outcome {
-    let (prefix, kind) = unsafe { prefixed_registration(state, "ui.patch", "astral.ui.patch") }?;
+    let (prefix, kind) = unsafe { prefixed_registration(state, Capability::UiPatch, "astral.ui.patch") }?;
     let plugin = me(state);
     if plugin.node_patches.len() >= 16 {
         return Err("astral.ui.patch: at most 16 patches per plugin".into());
@@ -1343,32 +1340,29 @@ pub unsafe fn register_node_patch(state: *mut LuaState) -> Outcome {
 }
 
 pub unsafe fn decorate(state: *mut LuaState) -> Outcome {
-    let prefix = unsafe { check_text(state, 1) }?;
+    let name = unsafe { check_text(state, 1) }?;
     unsafe { check_type(state, 2, lua::TFUNCTION) }?;
-    if prefix != "message.author" {
-        return Err(format!("astral.ui.decorate: unsupported target '{prefix}'"));
-    }
+    let Some(target @ Target::MessageAuthor) = Target::parse(&name) else {
+        return Err(format!("astral.ui.decorate: unsupported target '{name}'"));
+    };
     let reference = unsafe { reference_at(state, 2) };
-    me(state).decorators.push((prefix, reference));
+    me(state).decorators.push((target, reference));
     Ok(0)
 }
 
 pub unsafe fn relabel(state: *mut LuaState) -> Outcome {
-    let target = unsafe { check_text(state, 1) }?;
+    let name = unsafe { check_text(state, 1) }?;
     unsafe { check_type(state, 2, lua::TFUNCTION) }?;
-    if !matches!(
-        target.as_str(),
-        "message.author" | "channel.name" | "member.name" | "composer.placeholder" | "profile.name"
-    ) {
-        return Err(format!("astral.ui.relabel: unsupported target '{target}'"));
-    }
+    let Some(target) = Target::parse(&name) else {
+        return Err(format!("astral.ui.relabel: unsupported target '{name}'"));
+    };
     let reference = unsafe { reference_at(state, 2) };
     me(state).relabelers.push((target, reference));
     Ok(0)
 }
 
 pub unsafe fn set_message_text(state: *mut LuaState) -> Outcome {
-    unsafe { require_permission(state, "messages.display") }?;
+    unsafe { require_permission(state, Capability::MessagesDisplay) }?;
     let message = unsafe { message_argument(state, 2) }?;
     let texts = &mut host::host().displayed_texts;
     if unsafe { lua::is_none_or_nil(state, 3) } {
@@ -1398,7 +1392,7 @@ pub unsafe fn set_message_text(state: *mut LuaState) -> Outcome {
 }
 
 pub unsafe fn get_message_text(state: *mut LuaState) -> Outcome {
-    unsafe { require_permission(state, "messages.display") }?;
+    unsafe { require_permission(state, Capability::MessagesDisplay) }?;
     let message = unsafe { message_argument(state, 1) }?;
     match host::host().displayed_texts.get(&message) {
         Some((text, _)) => unsafe { lua::push_str(state, text) },
@@ -1409,7 +1403,7 @@ pub unsafe fn get_message_text(state: *mut LuaState) -> Outcome {
 
 pub unsafe fn message_action(state: *mut LuaState) -> Outcome {
     let plugin = me(state);
-    unsafe { require_permission(state, "ui.message_actions") }?;
+    unsafe { require_permission(state, Capability::UiMessageActions) }?;
     let label = unsafe { check_bytes(state, 1) }?.to_vec();
     unsafe { check_type(state, 2, lua::TFUNCTION) }?;
     if label.is_empty() || label.len() > 24 {
@@ -1465,7 +1459,7 @@ pub unsafe fn settings_backdrop(state: *mut LuaState) -> Outcome {
 }
 
 pub unsafe fn reactors(state: *mut LuaState) -> Outcome {
-    unsafe { require_permission(state, "discord.messages") }?;
+    unsafe { require_permission(state, Capability::DiscordMessages) }?;
     let channel = unsafe { check_text(state, 1) }?;
     let message = unsafe { check_text(state, 2) }?;
     let emoji = unsafe { check_text(state, 3) }?;
@@ -1558,7 +1552,7 @@ fn network_options(mut options: Value) -> Result<Value, &'static str> {
 }
 
 pub unsafe fn network_request(state: *mut LuaState) -> Outcome {
-    unsafe { require_permission(state, "network") }?;
+    unsafe { require_permission(state, Capability::Network) }?;
     if !host::platform_has("networkRequest") {
         return Err("astral.net is unavailable on this client".into());
     }
@@ -1578,7 +1572,14 @@ pub unsafe fn network_request(state: *mut LuaState) -> Outcome {
 }
 
 pub unsafe fn cancel_network_request(state: *mut LuaState) -> Outcome {
-    unsafe { cancel_request(state, "network", |plugin| &mut plugin.network_requests, "cancelNetworkRequest") }
+    unsafe {
+        cancel_request(
+            state,
+            Capability::Network,
+            |plugin| &mut plugin.network_requests,
+            "cancelNetworkRequest",
+        )
+    }
 }
 
 pub unsafe fn require(state: *mut LuaState) -> Outcome {

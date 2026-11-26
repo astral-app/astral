@@ -1,3 +1,5 @@
+use crate::capability::Capability;
+use crate::lua_enums::Event;
 use core::ffi::c_int;
 use std::collections::BTreeMap;
 use std::sync::Mutex;
@@ -62,7 +64,7 @@ fn filter_message(facts: &MessageFacts, edited: bool) -> bool {
         if !unsafe { (*plugin).running() } {
             continue;
         }
-        for subscription in subscriptions(plugin, |callback| callback.event == "message.filter") {
+        for subscription in subscriptions(plugin, |callback| callback.event == Event::MessageFilter) {
             let Some(reference) = reference_of(plugin, subscription) else {
                 continue;
             };
@@ -80,7 +82,7 @@ fn filter_message(facts: &MessageFacts, edited: bool) -> bool {
                 set_flag(state, "direct", facts.direct);
                 set_flag(state, "open", facts.open);
             }
-            if !host::call_or_stop(plugin, 1, 1, "message.filter") {
+            if !host::call_or_stop(plugin, 1, 1, Event::MessageFilter.value()) {
                 break;
             }
             let filtered = unsafe { lua::lua_type(state, -1) == lua::TBOOLEAN && lua::lua_toboolean(state, -1) != 0 };
@@ -126,7 +128,7 @@ fn emit_message_create(facts: &MessageFacts, mentions: &Mentions) {
         if !unsafe { (*plugin).running() } {
             continue;
         }
-        for subscription in subscriptions(plugin, |callback| callback.event == "message.create") {
+        for subscription in subscriptions(plugin, |callback| callback.event == Event::MessageCreate) {
             let Some(reference) = reference_of(plugin, subscription) else {
                 continue;
             };
@@ -147,7 +149,7 @@ fn emit_message_create(facts: &MessageFacts, mentions: &Mentions) {
                 set_flag(state, "direct", facts.direct);
                 set_flag(state, "open", facts.open);
             }
-            if !host::call_or_stop(plugin, 1, 0, "message.create") {
+            if !host::call_or_stop(plugin, 1, 0, Event::MessageCreate.value()) {
                 break;
             }
         }
@@ -172,7 +174,7 @@ fn run_gateway_subscribers(envelope: &mut Value) -> Verdict {
             continue;
         }
         let wanted = subscriptions(plugin, |callback| {
-            callback.event == "gateway" && (callback.types.is_empty() || callback.types.contains(&kind))
+            callback.event == Event::Gateway && (callback.types.is_empty() || callback.types.contains(&kind))
         });
         for subscription in wanted {
             let Some(reference) = reference_of(plugin, subscription) else {
@@ -190,7 +192,7 @@ fn run_gateway_subscribers(envelope: &mut Value) -> Verdict {
                 push_json(state, envelope.get("d").unwrap_or(&Value::Null), 0);
                 lua::set_field(state, -2, "data");
             }
-            if !host::call_or_stop(plugin, 1, 1, "gateway") {
+            if !host::call_or_stop(plugin, 1, 1, Event::Gateway.value()) {
                 break;
             }
             if unsafe { lua::lua_type(state, -1) == lua::TBOOLEAN && lua::lua_toboolean(state, -1) == 0 } {
@@ -218,8 +220,8 @@ pub fn needs_gateway_events() -> bool {
             && (plugin
                 .event_callbacks
                 .values()
-                .any(|callback| matches!(callback.event.as_str(), "gateway" | "message.create" | "message.filter"))
-                || plugin.permissions.contains("messages.local"))
+                .any(|callback| matches!(callback.event, Event::Gateway | Event::MessageCreate | Event::MessageFilter))
+                || plugin.permissions.contains(&Capability::MessagesLocal))
     })
 }
 

@@ -16,6 +16,7 @@ pub mod ipa_archive;
 pub mod ipa_groups;
 pub mod lint;
 pub mod lua_casing;
+pub mod lua_enums;
 pub mod macho;
 pub mod palette;
 pub mod readme;

@@ -83,7 +83,7 @@ local function strip_message(message, fields)
 	return changed
 end
 
-astral.events.on("gateway", function(event)
+astral.events.on(astral.Event.Gateway, function(event)
 	local fields = stripped_fields()
 	if #fields == 0 then
 		return nil

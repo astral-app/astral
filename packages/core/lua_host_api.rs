@@ -1,3 +1,5 @@
+use crate::capability::Capability;
+use crate::lua_enums::{Relationship, ScrollAlign};
 use core::ffi::c_int;
 use std::sync::{OnceLock, RwLock};
 
@@ -45,16 +47,16 @@ fn platform_flag(method: &str, arguments: &Value) -> bool {
     crate::lua_host::platform_flag(method, arguments)
 }
 
-pub unsafe fn has_permission(state: *mut LuaState, name: &str) -> bool {
+pub unsafe fn has_permission(state: *mut LuaState, capability: Capability) -> bool {
     let plugin = crate::lua_host::plugin_of(state);
-    !plugin.is_null() && unsafe { (*plugin).permissions.contains(name) }
+    !plugin.is_null() && unsafe { (*plugin).permissions.contains(&capability) }
 }
 
-pub unsafe fn require_permission(state: *mut LuaState, name: &str) -> Result<(), String> {
-    if unsafe { has_permission(state, name) } {
+pub unsafe fn require_permission(state: *mut LuaState, capability: Capability) -> Result<(), String> {
+    if unsafe { has_permission(state, capability) } {
         Ok(())
     } else {
-        Err(format!("permission '{name}' is not declared in manifest.toml"))
+        Err(format!("permission '{}' is not declared in manifest.toml", capability.value()))
     }
 }
 
@@ -275,7 +277,7 @@ fn storage() -> &'static Storage {
 }
 
 unsafe fn available_storage(state: *mut LuaState) -> Result<&'static Storage, String> {
-    unsafe { require_permission(state, "storage") }?;
+    unsafe { require_permission(state, Capability::Storage) }?;
     let storage = storage();
     if storage.available() {
         Ok(storage)
@@ -349,14 +351,14 @@ pub unsafe fn optional_text(state: *mut LuaState, index: c_int) -> Option<String
 }
 
 unsafe fn discord_guild(state: *mut LuaState) -> Outcome {
-    unsafe { require_permission(state, "discord.guilds") }?;
+    unsafe { require_permission(state, Capability::DiscordGuilds) }?;
     let id = unsafe { check_text(state, 1) }?;
     unsafe { push_optional_json(state, discord::guild(&id)) };
     Ok(1)
 }
 
 unsafe fn discord_guilds(state: *mut LuaState) -> Outcome {
-    unsafe { require_permission(state, "discord.guilds") }?;
+    unsafe { require_permission(state, Capability::DiscordGuilds) }?;
     unsafe { push_json(state, &discord::guilds(), 0) };
     Ok(1)
 }
@@ -367,59 +369,53 @@ unsafe fn discord_me(state: *mut LuaState) -> Outcome {
 }
 
 unsafe fn discord_emoji(state: *mut LuaState) -> Outcome {
-    unsafe { require_permission(state, "discord.messages") }?;
+    unsafe { require_permission(state, Capability::DiscordMessages) }?;
     let id = unsafe { check_text(state, 1) }?;
     unsafe { push_optional_json(state, discord::emoji(&id)) };
     Ok(1)
 }
 
 unsafe fn discord_member(state: *mut LuaState) -> Outcome {
-    unsafe { require_permission(state, "discord.members") }?;
+    unsafe { require_permission(state, Capability::DiscordMembers) }?;
     let (guild, user) = (unsafe { check_text(state, 1) }?, unsafe { check_text(state, 2) }?);
     unsafe { push_optional_json(state, discord::member(&guild, &user)) };
     Ok(1)
 }
 
 unsafe fn discord_channel_guild(state: *mut LuaState) -> Outcome {
-    unsafe { require_permission(state, "discord.guilds") }?;
+    unsafe { require_permission(state, Capability::DiscordGuilds) }?;
     let channel = unsafe { check_text(state, 1) }?;
     unsafe { push_optional_text(state, discord::channel_guild(&channel)) };
     Ok(1)
 }
 
 unsafe fn discord_user(state: *mut LuaState) -> Outcome {
-    unsafe { require_permission(state, "discord.users") }?;
+    unsafe { require_permission(state, Capability::DiscordUsers) }?;
     let user = unsafe { check_text(state, 1) }?;
     unsafe { push_optional_json(state, discord::user(&user)) };
     Ok(1)
 }
 
 unsafe fn discord_nickname(state: *mut LuaState) -> Outcome {
-    unsafe { require_permission(state, "discord.relationships") }?;
+    unsafe { require_permission(state, Capability::DiscordRelationships) }?;
     let user = unsafe { check_text(state, 1) }?;
     unsafe { push_optional_text(state, discord::friend_nickname(&user)) };
     Ok(1)
 }
 
 unsafe fn discord_relationship(state: *mut LuaState) -> Outcome {
-    unsafe { require_permission(state, "discord.relationships") }?;
+    unsafe { require_permission(state, Capability::DiscordRelationships) }?;
     let user = unsafe { check_text(state, 1) }?;
-    let name = match discord::relationship_type(&user) {
-        Some(1) => Some("friend"),
-        Some(2) => Some("blocked"),
-        Some(3) => Some("incoming"),
-        Some(4) => Some("outgoing"),
-        _ => None,
-    };
-    unsafe { push_optional_text(state, name.map(str::to_owned)) };
+    let relationship = discord::relationship_type(&user).and_then(Relationship::from_discord);
+    unsafe { push_optional_text(state, relationship.map(|relationship| relationship.value().to_owned())) };
     Ok(1)
 }
 
 unsafe fn discord_message(state: *mut LuaState) -> Outcome {
-    unsafe { require_permission(state, "discord.messages") }?;
+    unsafe { require_permission(state, Capability::DiscordMessages) }?;
     let (channel, message) = (unsafe { check_text(state, 1) }?, unsafe { check_text(state, 2) }?);
     let mut found = discord::message(&channel, &message);
-    if !unsafe { has_permission(state, "discord.messages.content") }
+    if !unsafe { has_permission(state, Capability::DiscordMessagesContent) }
         && let Some(object) = found.as_mut().and_then(Value::as_object_mut)
     {
         object.remove("content");
@@ -429,15 +425,15 @@ unsafe fn discord_message(state: *mut LuaState) -> Outcome {
 }
 
 unsafe fn discord_raw_message(state: *mut LuaState) -> Outcome {
-    unsafe { require_permission(state, "discord.messages") }?;
-    unsafe { require_permission(state, "discord.messages.content") }?;
+    unsafe { require_permission(state, Capability::DiscordMessages) }?;
+    unsafe { require_permission(state, Capability::DiscordMessagesContent) }?;
     let (channel, message) = (unsafe { check_text(state, 1) }?, unsafe { check_text(state, 2) }?);
     unsafe { push_optional_json(state, discord::raw_message(&channel, &message)) };
     Ok(1)
 }
 
 unsafe fn discord_permissions(state: *mut LuaState) -> Outcome {
-    unsafe { require_permission(state, "discord.permissions") }?;
+    unsafe { require_permission(state, Capability::DiscordPermissions) }?;
     let (guild, user) = (unsafe { check_text(state, 1) }?, unsafe { check_text(state, 2) }?);
     let channel = unsafe { optional_text(state, 3) };
     match discord::permissions(&guild, &user, channel.as_deref()) {
@@ -495,7 +491,7 @@ fn channel_link(channel: &str, message: &str) -> String {
 }
 
 unsafe fn ui_toast(state: *mut LuaState) -> Outcome {
-    unsafe { require_permission(state, "ui.toasts") }?;
+    unsafe { require_permission(state, Capability::UiToasts) }?;
     let (title, message) = (unsafe { check_text(state, 1) }?, unsafe { check_text(state, 2) }?);
     if title.len() > 120 || message.len() > 2048 {
         return Err("astral.ui.toast: text exceeds its limit".into());
@@ -508,7 +504,7 @@ unsafe fn ui_toast(state: *mut LuaState) -> Outcome {
 }
 
 unsafe fn ui_copy(state: *mut LuaState) -> Outcome {
-    unsafe { require_permission(state, "ui.clipboard") }?;
+    unsafe { require_permission(state, Capability::UiClipboard) }?;
     let text = unsafe { check_bytes(state, 1) }?;
     if text.len() > 16384 {
         return Err("astral.ui.copy: text exceeds 16384 bytes".into());
@@ -520,7 +516,7 @@ unsafe fn ui_copy(state: *mut LuaState) -> Outcome {
 }
 
 unsafe fn ui_paste(state: *mut LuaState) -> Outcome {
-    unsafe { require_permission(state, "ui.clipboard") }?;
+    unsafe { require_permission(state, Capability::UiClipboard) }?;
     match platform_call("readClipboard", &serde_json::json!([])) {
         Platform::Missing => Err("astral.ui.paste: clipboard is unavailable on this build".into()),
         Platform::Value(Value::String(text)) => {
@@ -544,7 +540,7 @@ unsafe fn ui_open(state: *mut LuaState) -> Outcome {
 }
 
 unsafe fn ui_haptic(state: *mut LuaState) -> Outcome {
-    unsafe { require_permission(state, "ui.haptics") }?;
+    unsafe { require_permission(state, Capability::UiHaptics) }?;
     let strength = unsafe { check_text(state, 1) }?;
     if !matches!(strength.as_str(), "light" | "medium" | "heavy") {
         return Err("astral.ui.haptic: strength must be light, medium or heavy".into());
@@ -556,13 +552,13 @@ unsafe fn ui_haptic(state: *mut LuaState) -> Outcome {
 }
 
 unsafe fn background_keep_alive(state: *mut LuaState) -> Outcome {
-    unsafe { require_permission(state, "background") }?;
+    unsafe { require_permission(state, Capability::Background) }?;
     let on = unsafe { lua::lua_toboolean(state, 1) } != 0;
     unsafe { push_flag(state, platform_flag("keepAlive", &serde_json::json!([on]))) }
 }
 
 unsafe fn audio_speak(state: *mut LuaState) -> Outcome {
-    unsafe { require_permission(state, "audio") }?;
+    unsafe { require_permission(state, Capability::Audio) }?;
     let text = unsafe { check_text(state, 1) }?;
     if text.is_empty() || text.len() > 4096 {
         return Err("astral.audio.speak: text is 1 to 4096 bytes".into());
@@ -595,7 +591,7 @@ fn plugin_sound_path(directory: &str, relative: &str) -> Option<String> {
 }
 
 unsafe fn audio_play(state: *mut LuaState) -> Outcome {
-    unsafe { require_permission(state, "audio") }?;
+    unsafe { require_permission(state, Capability::Audio) }?;
     let file = unsafe { check_text(state, 1) }?;
     let volume = unsafe { table_number(state, 2, c"volume") }.unwrap_or(1.0);
     if !volume.is_finite() || !(0.0..=1.0).contains(&volume) {
@@ -613,7 +609,7 @@ unsafe fn audio_play(state: *mut LuaState) -> Outcome {
 }
 
 unsafe fn audio_stop(state: *mut LuaState) -> Outcome {
-    unsafe { require_permission(state, "audio") }?;
+    unsafe { require_permission(state, Capability::Audio) }?;
     platform_call("stopAudio", &serde_json::json!([]));
     Ok(0)
 }
@@ -621,7 +617,7 @@ unsafe fn audio_stop(state: *mut LuaState) -> Outcome {
 static NOTIFICATION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
 
 unsafe fn ui_notify(state: *mut LuaState) -> Outcome {
-    unsafe { require_permission(state, "ui.notifications") }?;
+    unsafe { require_permission(state, Capability::UiNotifications) }?;
     let (title, body) = (unsafe { check_text(state, 1) }?, unsafe { check_text(state, 2) }?);
     if title.len() > 120 || body.len() > 2048 {
         return Err("astral.ui.notify: text exceeds its limit".into());
@@ -652,7 +648,7 @@ unsafe fn ui_notify(state: *mut LuaState) -> Outcome {
 }
 
 unsafe fn ui_open_channel(state: *mut LuaState) -> Outcome {
-    unsafe { require_permission(state, "ui.navigate") }?;
+    unsafe { require_permission(state, Capability::UiNavigate) }?;
     let channel = unsafe { check_text(state, 1) }?;
     let message = unsafe { optional_text(state, 2) }.unwrap_or_default();
     if !snowflake_text(&channel) {
@@ -679,7 +675,7 @@ pub unsafe fn message_argument(state: *mut LuaState, index: c_int) -> Result<u64
 }
 
 unsafe fn ui_scroll_to(state: *mut LuaState) -> Outcome {
-    unsafe { require_permission(state, "ui.navigate") }?;
+    unsafe { require_permission(state, Capability::UiNavigate) }?;
     let message = unsafe { message_argument(state, 1) }?;
     let mut animated = true;
     if unsafe { lua::lua_type(state, 2) } == lua::TTABLE {
@@ -689,7 +685,11 @@ unsafe fn ui_scroll_to(state: *mut LuaState) -> Outcome {
         }
         unsafe { lua::pop(state, 1) };
     }
-    let align = unsafe { table_text(state, 2, c"align") }.unwrap_or_else(|| "visible".into());
+    let align = unsafe { table_text(state, 2, c"align") }
+        .as_deref()
+        .and_then(ScrollAlign::parse)
+        .unwrap_or(ScrollAlign::Visible)
+        .value();
     unsafe {
         push_flag(
             state,
@@ -699,19 +699,19 @@ unsafe fn ui_scroll_to(state: *mut LuaState) -> Outcome {
 }
 
 unsafe fn ui_focus_composer(state: *mut LuaState) -> Outcome {
-    unsafe { require_permission(state, "ui.navigate") }?;
+    unsafe { require_permission(state, Capability::UiNavigate) }?;
     let kind = unsafe { lua::lua_type(state, 1) };
     let focus = kind == lua::TNIL || kind == -1 || unsafe { lua::lua_toboolean(state, 1) } != 0;
     unsafe { push_flag(state, platform_flag("focusComposer", &serde_json::json!([focus]))) }
 }
 
 unsafe fn ui_dismiss(state: *mut LuaState) -> Outcome {
-    unsafe { require_permission(state, "ui.navigate") }?;
+    unsafe { require_permission(state, Capability::UiNavigate) }?;
     unsafe { push_flag(state, platform_flag("dismissSheets", &serde_json::json!([]))) }
 }
 
 unsafe fn ui_insert_text(state: *mut LuaState) -> Outcome {
-    unsafe { require_permission(state, "ui.composer") }?;
+    unsafe { require_permission(state, Capability::UiComposer) }?;
     let text = unsafe { check_bytes(state, 1) }?;
     let replace = unsafe { table_flag(state, 2, c"replace") };
     if (text.is_empty() && !replace) || text.len() > 4000 {
@@ -722,7 +722,7 @@ unsafe fn ui_insert_text(state: *mut LuaState) -> Outcome {
 }
 
 unsafe fn ui_composer_text(state: *mut LuaState) -> Outcome {
-    unsafe { require_permission(state, "ui.composer") }?;
+    unsafe { require_permission(state, Capability::UiComposer) }?;
     let mut buffer = vec![0u8; 8192];
     let length = unsafe { crate::wire::composer::astral_wire_composer_text(buffer.as_mut_ptr().cast(), buffer.len()) };
     unsafe { lua::lua_pushlstring(state, buffer.as_ptr().cast(), length.min(buffer.len())) };
@@ -735,7 +735,7 @@ unsafe fn ui_refresh(_state: *mut LuaState) -> Outcome {
 }
 
 unsafe fn diagnostics_environment(state: *mut LuaState) -> Outcome {
-    unsafe { require_permission(state, "diagnostics") }?;
+    unsafe { require_permission(state, Capability::Diagnostics) }?;
     let mut environment = match platform_call("environment", &serde_json::json!([])) {
         Platform::Value(value @ Value::Object(_)) => value,
         _ => serde_json::json!({}),

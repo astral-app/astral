@@ -65,7 +65,7 @@ local answer = interceptor.request({
 assert(answer.status == 200 and dispatched.data.id == "5")
 assert(composer == "\u{200B}")
 local preview = inserter.build({ channel_id = "9" })
-assert(preview.justify == "end" and preview.children[1].action == "remove_1")
+assert(preview.justify == astral.Justify.End and preview.children[1].action == "remove_1")
 assert(preview.children[1].children[1].icon:find("/stickers/77.webp", 1, true))
 
 local rewritten = interceptor.request({ id = 2, path = "/api/v9/channels/9/messages", headers = {}, body = "typed" })

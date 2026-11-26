@@ -25,7 +25,9 @@ local native = {
 	typing = astral.ui.typing,
 	reaction = astral.ui.reaction,
 	permission = astral.discord.permission,
+	enums = astral.enums,
 }
+astral.enums = nil
 
 function astral.enum(name, members)
 	local frozen = {}
@@ -92,43 +94,9 @@ function astral.class(name, parent)
 	})
 end
 
-astral.Target = astral.enum("Target", {
-	MessageAuthor = "message.author",
-	ChannelName = "channel.name",
-	MemberName = "member.name",
-	ComposerPlaceholder = "composer.placeholder",
-	ProfileName = "profile.name",
-})
-
-astral.NodeKind = astral.enum("NodeKind", {
-	Author = "author",
-	Reply = "reply",
-	Channel = "channel",
-	Member = "member",
-	Composer = "composer",
-	Profile = "profile",
-})
-
-astral.Shape = astral.enum("Shape", { Pill = "pill", Op = "op" })
-
-astral.MessageType = astral.enum("MessageType", {
-	Default = 0,
-	RecipientAdd = 1,
-	RecipientRemove = 2,
-	Call = 3,
-	ChannelNameChange = 4,
-	ChannelIconChange = 5,
-	ChannelPinnedMessage = 6,
-	UserJoin = 7,
-	GuildBoost = 8,
-	ThreadCreated = 18,
-	Reply = 19,
-	ChatInputCommand = 20,
-	ThreadStarterMessage = 21,
-	ContextMenuCommand = 23,
-	AutoModerationAction = 24,
-	PollResult = 46,
-})
+for name, members in pairs(native.enums) do
+	astral[name] = astral.enum(name, members)
+end
 
 astral.Permission = astral.enum("Permission", native.permission)
 astral.discord.permission = nil

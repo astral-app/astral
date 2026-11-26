@@ -29,7 +29,7 @@ dofile(arg[1])
 
 local function saved(url, extra)
 	local answer = "unanswered"
-	local save = { url = url, kind = "video" }
+	local save = { url = url, kind = astral.MediaKind.Video }
 	for key, value in pairs(extra or {}) do
 		save[key] = value
 	end
@@ -59,7 +59,7 @@ lookup.callback({ ok = false })
 local search = requests[#requests]
 assert(search.options.url:find("q=kpop%20triples%20405", 1, true))
 local answer
-handler({ url = video, kind = "video", channel_id = "1", message_id = "2" }, function(value)
+handler({ url = video, kind = astral.MediaKind.Video, channel_id = "1", message_id = "2" }, function(value)
 	answer = value
 end)
 assert(#requests == 3)

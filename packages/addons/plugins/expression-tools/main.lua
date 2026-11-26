@@ -43,25 +43,32 @@ end
 
 local function divider()
 	return {
-		type = "view",
+		type = astral.InsertNodeType.View,
 		background = ROW_BACKGROUND,
 		padding = { DIVIDER_INSET, 0, 0, 0 },
 		fill = true,
-		children = { { type = "view", background = DIVIDER, height = 0.5, fill = true } },
+		children = { { type = astral.InsertNodeType.View, background = DIVIDER, height = 0.5, fill = true } },
 	}
 end
 
 local function menu_row(label, icon, action)
 	return {
-		type = "view",
+		type = astral.InsertNodeType.View,
 		background = ROW_BACKGROUND,
 		row = true,
 		padding = 12,
 		fill = true,
 		action = action,
 		children = {
-			{ type = "image", icon = icon, width = 24, height = 24, margin = { 4, 4, 16, 4 }, color = FOREGROUND },
-			{ type = "text", text = label, size = 16, weight = 500, color = FOREGROUND },
+			{
+				type = astral.InsertNodeType.Image,
+				icon = icon,
+				width = 24,
+				height = 24,
+				margin = { 4, 4, 16, 4 },
+				color = FOREGROUND,
+			},
+			{ type = astral.InsertNodeType.Text, text = label, size = 16, weight = 500, color = FOREGROUND },
 		},
 	}
 end
@@ -115,16 +122,20 @@ end
 local function clone_sheet(emoji)
 	local guilds = managed_guilds()
 	local items = {
-		{ type = "heading", text = t("YOUR_SERVERS") },
+		{ type = astral.SheetItemType.Heading, text = t("YOUR_SERVERS") },
 	}
 	if #guilds == 0 then
-		items[#items + 1] = { type = "text", text = t("NO_OWNED_SERVERS") }
+		items[#items + 1] = { type = astral.SheetItemType.Text, text = t("NO_OWNED_SERVERS") }
 	end
 	local by_action = {}
 	for index, guild in ipairs(guilds) do
 		local action = "guild:" .. index
 		by_action[action] = guild
-		items[#items + 1] = { type = "row", action = action, items = { { type = "text", text = guild.name } } }
+		items[#items + 1] = {
+			type = astral.SheetItemType.Row,
+			action = action,
+			items = { { type = astral.SheetItemType.Text, text = guild.name } },
+		}
 	end
 	local sheet
 	sheet = astral.ui.sheet({ title = t("CLONE_TO_SERVER"), items = items, expanded = true }, function(action)

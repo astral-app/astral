@@ -251,7 +251,7 @@ end
 local function runs(items, spans, x, y)
 	for _, span in ipairs(spans) do
 		add(items, {
-			type = "text",
+			type = astral.ImageItemType.Text,
 			x = x,
 			y = y,
 			text = span.text,
@@ -273,16 +273,16 @@ end
 
 local function pill(items, x, y, text, color)
 	local width = math.ceil(utf8.len(text) * 10 * 0.62) + 14
-	add(items, { type = "rect", x = x, y = y, w = width, h = 17, radius = 8.5, color = color })
+	add(items, { type = astral.ImageItemType.Rect, x = x, y = y, w = width, h = 17, radius = 8.5, color = color })
 	add(items, {
-		type = "text",
+		type = astral.ImageItemType.Text,
 		x = x,
 		y = y + 2.5,
 		width = width,
 		text = text,
 		size = 10,
-		weight = "bold",
-		align = "center",
+		weight = astral.FontWeight.Bold,
+		align = astral.TextAlign.Center,
 		color = COLORS.value,
 	})
 	return width
@@ -308,13 +308,13 @@ end
 
 local function draw_header(items, environment, stamp)
 	add(items, {
-		type = "text",
+		type = astral.ImageItemType.Text,
 		x = PADDING,
 		y = PADDING - 3,
 		width = 60,
 		text = "astral",
 		size = 17,
-		weight = "bold",
+		weight = astral.FontWeight.Bold,
 		color = COLORS.value,
 	})
 	local x = PADDING + 56 + pill(items, PADDING + 56, PADDING, environment.astral or "?", COLORS.accent) + 6
@@ -326,7 +326,7 @@ local function draw_header(items, environment, stamp)
 	end
 	for _, span in ipairs(trailing) do
 		add(items, {
-			type = "text",
+			type = astral.ImageItemType.Text,
 			x = x,
 			y = PADDING + 3,
 			text = span.text,
@@ -349,13 +349,14 @@ local function draw_card(environment, stamp)
 	local summary = summary_spans(environment)
 	local summary_room = math.floor((WIDTH - PADDING * 2 - ALT_CLEARANCE) / CHAR_WIDTH)
 	local height = HEADER_HEIGHT + #lines * LINE_HEIGHT + ALT_HEIGHT
-	local items = { { type = "rect", x = 0, y = 0, w = WIDTH, h = height, radius = 12, color = COLORS.card } }
+	local items =
+		{ { type = astral.ImageItemType.Rect, x = 0, y = 0, w = WIDTH, h = height, radius = 12, color = COLORS.card } }
 	draw_header(items, environment, stamp)
 	for index, entry in ipairs(lines) do
 		local top = HEADER_HEIGHT + (index - 1) * LINE_HEIGHT
 		if entry.stripe then
 			add(items, {
-				type = "rect",
+				type = astral.ImageItemType.Rect,
 				x = PADDING - 6,
 				y = top,
 				w = WIDTH - (PADDING - 6) * 2,
@@ -365,7 +366,7 @@ local function draw_card(environment, stamp)
 			})
 		end
 		add(items, {
-			type = "text",
+			type = astral.ImageItemType.Text,
 			x = PADDING,
 			y = top + 2.5,
 			width = LABEL_WIDTH - 6,
@@ -435,7 +436,7 @@ end
 astral.commands.register({
 	name = "debug",
 	description = "Posts astral's debug card for support",
-	options = { { name = "message", description = "Add a note above the card", type = "string" } },
+	options = { { name = "message", description = "Add a note above the card", type = astral.OptionType.String } },
 	execute = function(args)
 		local environment = astral.diagnostics.environment()
 		local png = astral.image.render(draw_card(environment, stamp()))

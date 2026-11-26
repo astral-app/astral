@@ -154,9 +154,9 @@ typedef struct {
     uint32_t color;
     double radius;
     int bubble;
-    int reply;
+    uint8_t reply;
     int nameInside;
-    int time;
+    uint8_t time;
 } AstralMessageBackgroundStyle;
 
 typedef int (*AstralMessageBackgroundDecorator)(const AstralMessageBackgroundContext *context, AstralMessageBackgroundStyle *style);
@@ -350,8 +350,8 @@ typedef struct {
     double height;
     float padding[4];
     float margin[4];
-    char justify[8];
-    char align[8];
+    uint8_t justify;
+    uint8_t align;
 } AstralInsertNode;
 
 enum { kAstralInsertCapacity = 32 };

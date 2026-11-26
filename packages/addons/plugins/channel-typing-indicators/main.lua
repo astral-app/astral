@@ -31,7 +31,7 @@ local function schedule_expiry()
 	end)
 end
 
-astral.events.on("gateway", function(event)
+astral.events.on(astral.Event.Gateway, function(event)
 	local data = event.data
 	if event.type == "READY" then
 		current_user = type(data.user) == "table" and data.user.id or nil
@@ -63,7 +63,7 @@ astral.ui.insert({ id = "navigation.channel:" }, function(node)
 		return nil
 	end
 	return {
-		type = "text",
+		type = astral.InsertNodeType.Text,
 		text = count > 1 and ("••• " .. count) or "•••",
 		color = DOTS,
 		size = 13,

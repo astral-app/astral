@@ -105,8 +105,16 @@ pub fn install_sdk() -> Result<PathBuf, String> {
 }
 
 pub fn sdk(arguments: &[String]) -> Result<(), String> {
-    if arguments != ["install"] {
-        return Err("usage: astral sdk install".into());
+    match arguments
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>()
+        .as_slice()
+    {
+        ["enums"] => return crate::lua_enums::sync_sdk(false),
+        ["enums", "--check"] => return crate::lua_enums::sync_sdk(true),
+        ["install"] => {}
+        _ => return Err("usage: astral sdk <install|enums [--check]>".into()),
     }
     let target = install_sdk()?;
     println!(

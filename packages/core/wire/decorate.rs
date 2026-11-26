@@ -1,3 +1,4 @@
+use crate::lua_enums::{ReplyPlacement, TimePlacement};
 use core::ffi::{c_char, c_int};
 use std::collections::{HashMap, HashSet};
 use std::os::unix::ffi::OsStrExt;
@@ -54,12 +55,6 @@ const CORNERS_ALL: i32 = 15;
 const REPLY_RADIUS: f64 = 9.0;
 const QUOTE_PADDING: [f32; 4] = [8.0, 4.0, 8.0, 4.0];
 const QUOTE_COLOR: i64 = 0x2600_0000;
-
-const REPLY_ABOVE: c_int = 0;
-const REPLY_BUBBLE: c_int = 1;
-const REPLY_INSIDE: c_int = 2;
-const TIME_HEADER: c_int = 0;
-const TIME_INLINE: c_int = 1;
 
 const TAG_ORIGINAL_POSTER: c_int = 1;
 const TAG_ICON: c_int = 2;
@@ -139,9 +134,9 @@ pub struct AstralMessageBackgroundStyle {
     pub color: u32,
     pub radius: f64,
     pub bubble: c_int,
-    pub reply: c_int,
+    pub reply: ReplyPlacement,
     pub name_inside: c_int,
-    pub time: c_int,
+    pub time: TimePlacement,
 }
 
 pub type AstralDecorator = unsafe extern "C" fn(*const AstralDecorationContext, *mut AstralTag, usize) -> usize;
@@ -192,7 +187,7 @@ struct Row {
     has_original: bool,
     active: bool,
     bubble: bool,
-    reply_shown: c_int,
+    reply_shown: ReplyPlacement,
     column: i32,
     reply: i32,
     reply_bar: i32,
@@ -212,7 +207,7 @@ struct Row {
     avatar_margin: [f32; 4],
     avatar_shifted: bool,
     corners: i32,
-    time_shown: c_int,
+    time_shown: TimePlacement,
     blocks: Vec<Block>,
     shown_blocks: usize,
 }
@@ -628,9 +623,9 @@ fn write_bubble_update(out: &mut Out, state: &Row, shown: bool, color: u32, radi
     write_corners(out, state, shown, radius);
 }
 
-fn write_preview_style(out: &mut Out, preview: i32, mode: c_int, color: u32) {
+fn write_preview_style(out: &mut Out, preview: i32, mode: ReplyPlacement, color: u32) {
     let properties = properties::current();
-    let bubble = mode == REPLY_BUBBLE;
+    let bubble = mode == ReplyPlacement::Bubble;
     out.update(preview, 3);
     out.prop_long(properties.background, if bubble { i64::from(color) } else { 0 });
     out.prop_number(properties.radius, if bubble { REPLY_RADIUS } else { 0.0 });
@@ -919,7 +914,7 @@ fn write_time_parent_layout(out: &mut Out, state: &Row) {
         .time_parent_children
         .iter()
         .copied()
-        .filter(|node| !(state.time_shown != TIME_HEADER && *node == state.timestamp))
+        .filter(|node| !(state.time_shown != TimePlacement::Header && *node == state.timestamp))
         .collect();
     out.put_children(state.time_parent, &children);
 }
@@ -929,12 +924,12 @@ fn can_move_time(state: &Row) -> bool {
 }
 
 fn shows_inside(state: &Row) -> bool {
-    state.reply_shown == REPLY_INSIDE || state.name_shown || state.time_shown != TIME_HEADER
+    state.reply_shown == ReplyPlacement::Inside || state.name_shown || state.time_shown != TimePlacement::Header
 }
 
 fn publish_time(state: &Row, listed: bool) {
     with_inline_times(|times| {
-        if listed && state.time_shown == TIME_INLINE && !state.time_text.is_empty() && state.message != 0 {
+        if listed && state.time_shown == TimePlacement::Inline && !state.time_text.is_empty() && state.message != 0 {
             times.insert(state.message, (state.id, state.time_text.clone()));
         } else {
             times.retain(|_, (row, _)| *row != state.id);
@@ -950,7 +945,7 @@ fn publish_times(backgrounds: &Backgrounds) {
     with_inline_times(|times| {
         times.clear();
         for state in backgrounds.inside.iter().filter_map(|id| backgrounds.rows.get(id)) {
-            if state.time_shown == TIME_INLINE && !state.time_text.is_empty() && state.message != 0 {
+            if state.time_shown == TimePlacement::Inline && !state.time_text.is_empty() && state.message != 0 {
                 times.insert(state.message, (state.id, state.time_text.clone()));
             }
         }
@@ -989,7 +984,7 @@ fn write_avatar_shift(out: &mut Out, state: &mut Row, shifted: bool) {
     state.avatar_shifted = shifted;
 }
 
-fn write_header_layout(out: &mut Out, state: &mut Row, inside: &mut Vec<i32>, text: Option<&Block>, name: bool, time: c_int) {
+fn write_header_layout(out: &mut Out, state: &mut Row, inside: &mut Vec<i32>, text: Option<&Block>, name: bool, time: TimePlacement) {
     state.name_shown = name;
     state.time_shown = time;
     write_column_layout(out, state);
@@ -1034,16 +1029,16 @@ pub unsafe extern "C" fn wire_write_host_layout(out: *mut Out, parent: i32) -> c
     })
 }
 
-fn write_reply_style(out: &mut Out, state: &mut Row, inside: &mut Vec<i32>, mode: c_int, color: u32, radius: f64) {
-    if state.reply_shown == REPLY_INSIDE && mode != REPLY_INSIDE {
+fn write_reply_style(out: &mut Out, state: &mut Row, inside: &mut Vec<i32>, mode: ReplyPlacement, color: u32, radius: f64) {
+    if state.reply_shown == ReplyPlacement::Inside && mode != ReplyPlacement::Inside {
         if let Some(quoted) = find_block(state, state.quoted_in) {
             write_quote_move(out, state, &quoted, false, radius);
         }
-        if !state.name_shown && state.time_shown != TIME_INLINE {
+        if !state.name_shown && state.time_shown != TimePlacement::Inline {
             state.quoted_in = 0;
         }
     }
-    if mode == REPLY_INSIDE
+    if mode == ReplyPlacement::Inside
         && let Some(text) = text_block(state)
     {
         write_quote_move(out, state, &text, true, radius);
@@ -1131,15 +1126,15 @@ fn keep_quotes_inside(batch: &Batch, backgrounds: &mut Backgrounds, out: &mut Ou
             untrack_inside(inside, row);
             continue;
         };
-        let quoting = state.reply_shown == REPLY_INSIDE;
-        if !quoting && !state.name_shown && state.time_shown == TIME_HEADER {
+        let quoting = state.reply_shown == ReplyPlacement::Inside;
+        if !quoting && !state.name_shown && state.time_shown == TimePlacement::Header {
             untrack_inside(inside, row);
             continue;
         }
         let bar_list = if quoting { batch.list(state.reply_bar) } else { None };
         let text_list = batch.list(state.quoted_in);
         let column_list = if state.name_shown { batch.list(state.column) } else { None };
-        let time_list = if state.time_shown != TIME_HEADER {
+        let time_list = if state.time_shown != TimePlacement::Header {
             batch.list(state.time_parent)
         } else {
             None
@@ -1172,7 +1167,7 @@ fn keep_quotes_inside(batch: &Batch, backgrounds: &mut Backgrounds, out: &mut Ou
         if quoting {
             write_quote_move(out, state, &text, true, state.applied_radius);
             if bar_list.is_some() {
-                write_preview_style(out, state.reply, REPLY_INSIDE, state.applied_color);
+                write_preview_style(out, state.reply, ReplyPlacement::Inside, state.applied_color);
             }
         }
         if column_list.is_some() {
@@ -1197,7 +1192,7 @@ fn reset_bubble_nodes(state: &mut Row, inside: &mut Vec<i32>) {
     state.column = 0;
     state.reply = 0;
     state.bubble = false;
-    state.reply_shown = REPLY_ABOVE;
+    state.reply_shown = ReplyPlacement::Above;
     state.reply_bar = 0;
     state.quoted_in = 0;
     state.quote_box = 0;
@@ -1207,7 +1202,7 @@ fn reset_bubble_nodes(state: &mut Row, inside: &mut Vec<i32>) {
     state.time_parent_children.clear();
     state.column_children.clear();
     state.name_shown = false;
-    state.time_shown = TIME_HEADER;
+    state.time_shown = TimePlacement::Header;
     state.avatar = 0;
     state.avatar_shifted = false;
     state.corners = 0;
@@ -1269,7 +1264,7 @@ fn bubble_late_blocks(
             write_block_update(out, &state.blocks[index], true, state.applied_color, state.applied_radius);
         }
         state.shown_blocks = state.blocks.len();
-        if state.reply_shown == REPLY_INSIDE
+        if state.reply_shown == ReplyPlacement::Inside
             && let Some(quoted) = find_block(state, state.quoted_in)
         {
             write_quote_move(out, state, &quoted, true, state.applied_radius);
@@ -1300,14 +1295,22 @@ fn apply_background_style(out: &mut Out, state: &mut Row, inside: &mut Vec<i32>,
     let active = result > 0 && valid_style(&style);
     let bubble = active && style.bubble != 0 && !state.blocks.is_empty();
     let text = text_block(state);
-    let mut reply = if bubble && state.reply != 0 { style.reply } else { REPLY_ABOVE };
-    if reply == REPLY_INSIDE && text.is_none() {
-        reply = REPLY_BUBBLE;
+    let mut reply = if bubble && state.reply != 0 {
+        style.reply
+    } else {
+        ReplyPlacement::Above
+    };
+    if reply == ReplyPlacement::Inside && text.is_none() {
+        reply = ReplyPlacement::Bubble;
     }
     let name = bubble && style.name_inside != 0 && state.header != 0 && !state.column_children.is_empty() && text.is_some();
-    let mut time = if bubble && can_move_time(state) { style.time } else { TIME_HEADER };
-    if time == TIME_INLINE && !name {
-        time = TIME_HEADER;
+    let mut time = if bubble && can_move_time(state) {
+        style.time
+    } else {
+        TimePlacement::Header
+    };
+    if time == TimePlacement::Inline && !name {
+        time = TimePlacement::Header;
     }
     let color = if active { style.color } else { state.original_color };
     let radius = if active { style.radius } else { state.original_radius };
@@ -1340,7 +1343,7 @@ fn apply_background_style(out: &mut Out, state: &mut Row, inside: &mut Vec<i32>,
         write_header_layout(out, state, inside, text.as_ref(), name, time);
         match text {
             Some(text) if name => state.quoted_in = text.id,
-            _ if state.reply_shown != REPLY_INSIDE => state.quoted_in = 0,
+            _ if state.reply_shown != ReplyPlacement::Inside => state.quoted_in = 0,
             _ => {}
         }
         track_inside(inside, state, shows_inside(state));

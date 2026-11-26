@@ -52,7 +52,7 @@ local function label(latency)
 	return string.format("%ds", latency // 1000)
 end
 
-astral.events.on("gateway", function(event)
+astral.events.on(astral.Event.Gateway, function(event)
 	if event.type == "READY" and type(event.data.user) == "table" then
 		current_user = event.data.user.id
 		return nil
@@ -76,5 +76,5 @@ astral.ui.insert({ id = "message.timestamp:" }, function(node)
 	if not latency then
 		return nil
 	end
-	return { type = "text", text = "  ⏳ " .. label(latency), color = MUTED, size = 12 }
+	return { type = astral.InsertNodeType.Text, text = "  ⏳ " .. label(latency), color = MUTED, size = 12 }
 end)

@@ -374,6 +374,8 @@ pub(crate) fn install_api(plugin: *mut Plugin) {
         }
         lua::set_field(state, -2, "permission");
         lua::set_field(state, -2, "discord");
+        crate::lua_enums::push_all(state);
+        lua::set_field(state, -2, "enums");
         lua::lua_setglobal(state, c"astral".as_ptr());
     }
 }

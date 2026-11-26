@@ -1,9 +1,9 @@
 local build
 local media = {
-	["picked://p1"] = { size = 2812524, duration = 0, type = "image" },
-	["picked://p2"] = { size = 132680, duration = 4.5, type = "video" },
-	["picked://p3"] = { size = 0, duration = 0, type = "image" },
-	["picked://p4"] = { size = 512, duration = 0, type = "image" },
+	["picked://p1"] = { size = 2812524, duration = 0, type = astral.PickedMediaType.Image },
+	["picked://p2"] = { size = 132680, duration = 4.5, type = astral.PickedMediaType.Video },
+	["picked://p3"] = { size = 0, duration = 0, type = astral.PickedMediaType.Image },
+	["picked://p4"] = { size = 512, duration = 0, type = astral.PickedMediaType.Image },
 }
 astral = {
 	i18n = {
@@ -18,7 +18,7 @@ astral = {
 	},
 	ui = {
 		insert = function(selector, fn)
-			assert(selector.id == "media-tile-" and selector.type == "stack")
+			assert(selector.id == "media-tile-" and selector.type == astral.PatchNodeType.Stack)
 			build = fn
 		end,
 	},
@@ -26,8 +26,8 @@ astral = {
 dofile(arg[1])
 
 local function label(key)
-	local node = build({ id = "media-tile-" .. key, key = key, type = "stack" })
-	return node and node.type == "view" and node.children[1].text
+	local node = build({ id = "media-tile-" .. key, key = key, type = astral.PatchNodeType.Stack })
+	return node and node.type == astral.InsertNodeType.View and node.children[1].text
 end
 
 assert(label("1") == "2.68 MB", label("1"))
