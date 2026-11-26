@@ -1,3 +1,4 @@
+use crate::wire::tag::Tag;
 use core::ffi::{c_char, c_int};
 
 use crate::lua_api::{self as lua, LuaState};
@@ -53,15 +54,15 @@ impl Reader<'_> {
             self.failed = true;
             return;
         }
-        match tag {
-            0..=2 => {}
-            3 => self.advance(4),
-            4 | 5 => self.advance(8),
-            6 => {
+        match Tag::parse(tag) {
+            Some(Tag::Null | Tag::False | Tag::True) => {}
+            Some(Tag::Int) => self.advance(4),
+            Some(Tag::Long | Tag::Double) => self.advance(8),
+            Some(Tag::String) => {
                 let size = self.u32() as usize;
                 self.advance(size);
             }
-            7 => {
+            Some(Tag::Array) => {
                 let count = self.u32();
                 for _ in 0..count {
                     if self.failed {
@@ -71,7 +72,7 @@ impl Reader<'_> {
                     self.skip(tag, depth + 1);
                 }
             }
-            8 => {
+            Some(Tag::Map) => {
                 let count = self.u32();
                 for _ in 0..count {
                     if self.failed {
@@ -82,8 +83,8 @@ impl Reader<'_> {
                     self.skip(tag, depth + 1);
                 }
             }
-            9 => self.advance(16),
-            11 => {
+            Some(Tag::Quad) => self.advance(16),
+            Some(Tag::Words) => {
                 let count = self.u32() as usize;
                 self.advance(count * 4);
             }
@@ -125,7 +126,7 @@ unsafe fn push_spans(state: *mut LuaState, bytes: &[u8]) -> bool {
         offset: 0,
         failed: false,
     };
-    if reader.u8() != 7 {
+    if reader.u8() != Tag::Array {
         return false;
     }
     let count = reader.u32();
@@ -139,7 +140,7 @@ unsafe fn push_spans(state: *mut LuaState, bytes: &[u8]) -> bool {
         if reader.failed {
             break;
         }
-        if reader.u8() != 8 {
+        if reader.u8() != Tag::Map {
             return false;
         }
         let entries = reader.u32();
@@ -160,16 +161,16 @@ unsafe fn push_spans(state: *mut LuaState, bytes: &[u8]) -> bool {
                 return false;
             }
             let pushed = match field {
-                Some((_, _, Kind::Text)) if tag == 6 => {
+                Some((_, _, Kind::Text)) if tag == Tag::String => {
                     unsafe { lua::push_bytes(state, &bytes[value + 4..reader.offset]) };
                     true
                 }
-                Some((_, _, Kind::Color)) if tag == 4 => {
+                Some((_, _, Kind::Color)) if tag == Tag::Long => {
                     let wide = i64::from_ne_bytes(bytes[value..value + 8].try_into().unwrap_or_default());
                     unsafe { lua::lua_pushinteger(state, i64::from(wide as u32)) };
                     true
                 }
-                Some((_, field_key, Kind::Integer)) if tag == 3 => {
+                Some((_, field_key, Kind::Integer)) if tag == Tag::Int => {
                     let integer = i32::from_ne_bytes(bytes[value..value + 4].try_into().unwrap_or_default());
                     let pushed = if *field_key == background {
                         i64::from(integer as u32)
@@ -179,12 +180,12 @@ unsafe fn push_spans(state: *mut LuaState, bytes: &[u8]) -> bool {
                     unsafe { lua::lua_pushinteger(state, pushed) };
                     true
                 }
-                Some((_, _, Kind::Number)) if tag == 5 => {
+                Some((_, _, Kind::Number)) if tag == Tag::Double => {
                     unsafe { lua::lua_pushnumber(state, f64::from_ne_bytes(bytes[value..value + 8].try_into().unwrap_or_default())) };
                     true
                 }
-                Some((_, _, Kind::Flag)) if tag == 1 || tag == 2 => {
-                    unsafe { lua::lua_pushboolean(state, c_int::from(tag == 2)) };
+                Some((_, _, Kind::Flag)) if tag == Tag::False || tag == Tag::True => {
+                    unsafe { lua::lua_pushboolean(state, c_int::from(tag == Tag::True)) };
                     true
                 }
                 _ => false,
@@ -219,7 +220,7 @@ unsafe fn encode_spans(state: *mut LuaState, index: c_int) -> Option<Vec<u8>> {
         return None;
     }
     let fields = fields();
-    let mut out = vec![7u8];
+    let mut out = vec![Tag::Array as u8];
     out.extend_from_slice(&(count as u32).to_ne_bytes());
     for position in 1..=count {
         unsafe { lua::lua_rawgeti(state, index, position) };
@@ -238,7 +239,7 @@ unsafe fn encode_spans(state: *mut LuaState, index: c_int) -> Option<Vec<u8>> {
                             && let Some(text) = unsafe { lua::to_bytes(state, -1) }.filter(|text| text.len() <= 8192)
                         {
                             entries.extend_from_slice(&key.to_ne_bytes());
-                            entries.push(6);
+                            entries.push(Tag::String as u8);
                             entries.extend_from_slice(&(text.len() as u32).to_ne_bytes());
                             entries.extend_from_slice(text);
                             entry_count += 1;
@@ -248,7 +249,7 @@ unsafe fn encode_spans(state: *mut LuaState, index: c_int) -> Option<Vec<u8>> {
                         unsafe { lua::pop(state, 1) };
                         if let Some(color) = unsafe { patch_color(state, name) } {
                             entries.extend_from_slice(&key.to_ne_bytes());
-                            entries.push(4);
+                            entries.push(Tag::Long as u8);
                             entries.extend_from_slice(&i64::from(color).to_ne_bytes());
                             entry_count += 1;
                         }
@@ -257,7 +258,7 @@ unsafe fn encode_spans(state: *mut LuaState, index: c_int) -> Option<Vec<u8>> {
                     Kind::Integer => {
                         if unsafe { lua::lua_isinteger(state, -1) } != 0 {
                             entries.extend_from_slice(&key.to_ne_bytes());
-                            entries.push(3);
+                            entries.push(Tag::Int as u8);
                             entries.extend_from_slice(&(unsafe { lua::to_integer(state, -1) } as i32).to_ne_bytes());
                             entry_count += 1;
                         }
@@ -266,14 +267,14 @@ unsafe fn encode_spans(state: *mut LuaState, index: c_int) -> Option<Vec<u8>> {
                         let value = unsafe { lua::to_number(state, -1) };
                         if unsafe { lua::lua_isnumber(state, -1) } != 0 && value.is_finite() {
                             entries.extend_from_slice(&key.to_ne_bytes());
-                            entries.push(5);
+                            entries.push(Tag::Double as u8);
                             entries.extend_from_slice(&value.to_ne_bytes());
                             entry_count += 1;
                         }
                     }
                     Kind::Flag => {
                         entries.extend_from_slice(&key.to_ne_bytes());
-                        entries.push(if unsafe { lua::lua_toboolean(state, -1) } != 0 { 2 } else { 1 });
+                        entries.push(Tag::flag(unsafe { lua::lua_toboolean(state, -1) } != 0) as u8);
                         entry_count += 1;
                     }
                 }
@@ -289,7 +290,7 @@ unsafe fn encode_spans(state: *mut LuaState, index: c_int) -> Option<Vec<u8>> {
             entry_count += unsafe { lua::to_integer(state, -1) } as u32;
         }
         unsafe { lua::pop(state, 3) };
-        out.push(8);
+        out.push(Tag::Map as u8);
         out.extend_from_slice(&entry_count.to_ne_bytes());
         out.extend_from_slice(&entries);
     }

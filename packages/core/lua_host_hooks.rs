@@ -6,6 +6,9 @@ use serde_json::Value;
 
 use crate::lua_api::{self as lua, LuaState};
 use crate::lua_host::{self as host, Plugin};
+
+const EDGE_COUNT: i64 = 4;
+
 use crate::wire::abi::{
     AstralLabelContext, AstralMentionContext, AstralMentionDecoration, AstralNodePatch, AstralPatchTarget, LABEL_CHANNEL, LABEL_COMPOSER,
     LABEL_MEMBER, LABEL_PROFILE, LABEL_REPLY, PATCH_BACKGROUND, PATCH_BORDER, PATCH_HIDDEN, PATCH_MARGIN, PATCH_OPACITY, PATCH_PADDING,
@@ -171,7 +174,7 @@ pub unsafe extern "C" fn astral_lua_relabel(
                 set_text(state, "text", &current);
                 set_optional(state, "message_id", &message);
                 set_optional(state, "channel_id", &channel);
-                if context.kind == 3 || context.kind == 5 {
+                if context.kind == LABEL_MEMBER || context.kind == LABEL_PROFILE {
                     set_optional(state, "user_id", &target);
                 }
                 if let Some(guild) = &guild {
@@ -392,7 +395,7 @@ pub unsafe fn patch_quad(state: *mut LuaState, field: &str) -> Option<[f32; 4]> 
         let value = unsafe { lua::to_number(state, -1) };
         valid = value.is_finite() && (-64.0..=64.0).contains(&value);
         quad = [value as f32; 4];
-    } else if unsafe { lua::is_table(state, -1) } && unsafe { lua::luaL_len(state, -1) } == 4 {
+    } else if unsafe { lua::is_table(state, -1) } && unsafe { lua::luaL_len(state, -1) } == EDGE_COUNT {
         valid = true;
         for (index, slot) in quad.iter_mut().enumerate() {
             unsafe { lua::lua_rawgeti(state, -1, index as i64 + 1) };

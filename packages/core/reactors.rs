@@ -169,8 +169,16 @@ fn work() {
         };
         let url = format!("https://discord.com/api/v{}{}", discord_headers::api_version(), job.path);
         let (status, body) = fetch(fetcher, &url, &token);
-        store(&job.key, job.count, if status == 200 { users(&body) } else { None });
-        if status == 429 {
+        store(
+            &job.key,
+            job.count,
+            if i64::from(status) == crate::http_status::OK {
+                users(&body)
+            } else {
+                None
+            },
+        );
+        if i64::from(status) == crate::http_status::TOO_MANY_REQUESTS {
             std::thread::sleep(rate_limit_wait(&body));
         }
     }

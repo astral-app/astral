@@ -1,3 +1,4 @@
+use super::tag::{Op, Tag};
 use core::ffi::{CStr, c_char, c_int};
 use std::ffi::CString;
 use std::sync::Mutex;
@@ -407,7 +408,7 @@ impl Batch<'_> {
 }
 
 fn put_children(out: &mut Out, parent: i32, children: &[i32]) {
-    out.put8(3);
+    out.put_op(Op::SetChildren);
     out.put(&parent.to_le_bytes());
     out.put32(children.len() as u32);
     for id in children {
@@ -416,7 +417,7 @@ fn put_children(out: &mut Out, parent: i32, children: &[i32]) {
 }
 
 fn put_removal(out: &mut Out, ids: &[i32]) {
-    out.put8(4);
+    out.put_op(Op::Remove);
     out.put32(ids.len() as u32);
     for id in ids {
         out.put(&id.to_le_bytes());
@@ -725,7 +726,7 @@ fn integer_property(bytes: &[u8], span: &Span, wanted: u16) -> Option<i32> {
         }
         let property = cursor.read16();
         let tag = cursor.read8();
-        if property == wanted && tag == 3 {
+        if property == wanted && tag == Tag::Int {
             return Some(cursor.read32() as i32);
         }
         cursor.skip_value(tag, 0);
@@ -743,7 +744,7 @@ fn track_navigators(state: &mut State, batch: &Batch, out: &mut Out, changed: &m
     let index_key = properties::current().index;
     for span in batch.spans {
         let data = batch_of(batch.bytes, span);
-        if span.op == 1
+        if span.op == Op::Create
             && type_is(data, span, b"navigator")
             && state.navigator(span.id).is_none()
             && state.navigators.len() < MAX_NAVIGATORS
@@ -753,13 +754,13 @@ fn track_navigators(state: &mut State, batch: &Batch, out: &mut Out, changed: &m
                 ..Navigator::default()
             });
         }
-        if span.op != 2 && span.op != 3 {
+        if span.op != Op::Update && span.op != Op::SetChildren {
             continue;
         }
         let settings = state.settings_navigator;
         let has_pages = !state.pages.is_empty();
         let Some(navigator) = state.navigator(span.id) else { continue };
-        if span.op == 3 && span.child_count as usize <= MAX_NAVIGATOR_CHILDREN {
+        if span.op == Op::SetChildren && span.child_count as usize <= MAX_NAVIGATOR_CHILDREN {
             navigator.children = (0..span.child_count).map(|position| child(data, span, position)).collect();
             if has_pages && navigator.id == settings {
                 if *changed == 0 {
@@ -769,7 +770,7 @@ fn track_navigators(state: &mut State, batch: &Batch, out: &mut Out, changed: &m
                 *changed = 1;
             }
         }
-        if span.op == 2
+        if span.op == Op::Update
             && let Some(value) = integer_property(data, span, index_key)
             && let Some(navigator) = state.navigator(span.id)
         {
@@ -838,7 +839,7 @@ impl Builder<'_> {
 
     fn node(&mut self, kind: &[u8], properties: u16) -> i32 {
         let id = self.allocate();
-        self.out.put8(1);
+        self.out.put_op(Op::Create);
         self.out.put(&id.to_le_bytes());
         self.out.put16(kind.len() as u16);
         self.out.put(kind);
@@ -852,7 +853,7 @@ impl Builder<'_> {
 
     fn long(&mut self, property: u16, value: u32) {
         self.out.put16(property);
-        self.out.put8(4);
+        self.out.put_tag(Tag::Long);
         self.out.put(&i64::from(value).to_le_bytes());
     }
 
@@ -863,9 +864,9 @@ impl Builder<'_> {
 
     fn events(&mut self, property: u16, event: &[u8]) {
         self.out.put16(property);
-        self.out.put8(7);
+        self.out.put_tag(Tag::Array);
         self.out.put32(1);
-        self.out.put8(6);
+        self.out.put_tag(Tag::String);
         self.out.put_string(event);
     }
 
@@ -888,7 +889,7 @@ impl Builder<'_> {
             }
             let property = cursor.read16();
             let tag = cursor.read8();
-            if property == wanted && (tag == 3 || tag == 4) {
+            if property == wanted && (tag == Tag::Int || tag == Tag::Long) {
                 return cursor.read32();
             }
             cursor.skip_value(tag, 0);
@@ -1593,10 +1594,9 @@ pub unsafe extern "C" fn wire_rewrite_pages(
         track_navigators(state, &batch, out, changed, original);
         if state.category_active {
             let list = state.category_list;
-            let removed = batch
-                .spans
-                .iter()
-                .any(|span| span.op == 4 && (0..span.child_count).any(|position| child(batch_of(bytes, span), span, position) == list));
+            let removed = batch.spans.iter().any(|span| {
+                span.op == Op::Remove && (0..span.child_count).any(|position| child(batch_of(bytes, span), span, position) == list)
+            });
             if removed {
                 if *changed == 0 {
                     out.put(original);
@@ -1622,7 +1622,7 @@ pub unsafe extern "C" fn wire_rewrite_pages(
         let Some(anchor) = batch
             .spans
             .iter()
-            .find(|span| span.op == 1 && find_string(batch_of(bytes, span), span, accessibility) == Some(ANCHOR))
+            .find(|span| span.op == Op::Create && find_string(batch_of(bytes, span), span, accessibility) == Some(ANCHOR))
         else {
             return;
         };

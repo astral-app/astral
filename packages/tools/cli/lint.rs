@@ -114,6 +114,7 @@ pub fn run(_: &[String]) -> Result<(), String> {
     crate::lua_enums::sync_sdk(true)?;
     clang_format(&["--dry-run", "-Werror"])?;
     lint_rust()?;
+    crate::rust_magic::check_all()?;
     workflows::lint_all()
 }
 

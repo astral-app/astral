@@ -2,7 +2,7 @@ use core::ffi::{c_char, c_int};
 
 use crate::bridge::{AstralRustString, bytes};
 
-fn valid_sequence_length(text: &[u8], index: usize) -> usize {
+fn decode_sequence_length(text: &[u8], index: usize) -> usize {
     let lead = text[index];
     let (length, lowest, highest) = match lead {
         0x00..=0x7F => return 1,
@@ -25,7 +25,7 @@ pub fn with_valid_utf8(text: &[u8]) -> Vec<u8> {
     let mut result = Vec::with_capacity(text.len());
     let mut index = 0;
     while index < text.len() {
-        let length = valid_sequence_length(text, index);
+        let length = decode_sequence_length(text, index);
         if length > 0 {
             result.extend_from_slice(&text[index..index + length]);
             index += length;

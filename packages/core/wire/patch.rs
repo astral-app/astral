@@ -1,3 +1,4 @@
+use super::tag::{Op, Tag};
 use core::ffi::{c_char, c_int};
 use std::collections::HashMap;
 use std::ffi::CString;
@@ -20,7 +21,62 @@ const MAX_PREFIXES: usize = 32;
 const MAX_PREFIX_LENGTH: usize = 96;
 const PATCHED_CAPACITY: usize = 512;
 const RAW_CAPACITY: usize = 40;
-const PATCH_PROPS: usize = 11;
+const PATCH_PROPS: usize = Slot::ALL.len();
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Slot {
+    Background,
+    Radius,
+    Opacity,
+    Padding,
+    Margin,
+    BorderColor,
+    BorderWidth,
+    TextColor,
+    Width,
+    Height,
+    Clip,
+}
+
+impl Slot {
+    const ALL: [Slot; 11] = [
+        Slot::Background,
+        Slot::Radius,
+        Slot::Opacity,
+        Slot::Padding,
+        Slot::Margin,
+        Slot::BorderColor,
+        Slot::BorderWidth,
+        Slot::TextColor,
+        Slot::Width,
+        Slot::Height,
+        Slot::Clip,
+    ];
+
+    const fn index(self) -> usize {
+        self as usize
+    }
+
+    const fn bit(self) -> u32 {
+        1 << self as u32
+    }
+
+    const fn property(self, properties: &AstralWireProperties) -> u16 {
+        match self {
+            Slot::Background => properties.background,
+            Slot::Radius => properties.radius,
+            Slot::Opacity => properties.opacity,
+            Slot::Padding => properties.padding,
+            Slot::Margin => properties.margin,
+            Slot::BorderColor => properties.border_color,
+            Slot::BorderWidth => properties.border_width,
+            Slot::TextColor => properties.color,
+            Slot::Width => properties.width,
+            Slot::Height => properties.height,
+            Slot::Clip => properties.clip,
+        }
+    }
+}
 const SCALED_CAPACITY: usize = 2048;
 const SCALE_DEPTH: u32 = 5;
 const SCALE_NODES: usize = 64;
@@ -61,22 +117,6 @@ static REFRESH_BUSY: AtomicBool = AtomicBool::new(false);
 fn with_state<T>(work: impl FnOnce(&mut State) -> T) -> Option<T> {
     let mut state = STATE.lock().ok()?;
     Some(work(state.get_or_insert_with(State::default)))
-}
-
-fn patch_property(properties: &AstralWireProperties, slot: usize) -> u16 {
-    [
-        properties.background,
-        properties.radius,
-        properties.opacity,
-        properties.padding,
-        properties.margin,
-        properties.border_color,
-        properties.border_width,
-        properties.color,
-        properties.width,
-        properties.height,
-        properties.clip,
-    ][slot]
 }
 
 #[unsafe(export_name = "wireMarkRefreshBusy")]
@@ -157,7 +197,7 @@ pub fn read_identifier<'a>(bytes: &'a [u8], span: &Span) -> Option<(&'a [u8], &'
         }
         let property = cursor.read16();
         let tag = cursor.read8();
-        if property == accessibility && tag == 6 {
+        if property == accessibility && tag == Tag::String {
             let length = cursor.read32() as usize;
             if length >= IDENTIFIER_LENGTH {
                 return None;
@@ -237,9 +277,9 @@ fn capture_originals(bytes: &[u8], span: &Span, patched: &mut Patched, propertie
         let start = cursor.offset();
         cursor.skip_value(tag, 0);
         let Some(value) = bytes.get(start..cursor.offset()) else { break };
-        for slot in 0..PATCH_PROPS {
-            if patch_property(properties, slot) == property && value.len() <= RAW_CAPACITY {
-                patched.originals[slot] = Some(RawProp {
+        for slot in Slot::ALL {
+            if slot.property(properties) == property && value.len() <= RAW_CAPACITY {
+                patched.originals[slot.index()] = Some(RawProp {
                     tag,
                     value: value.to_vec(),
                 });
@@ -258,14 +298,14 @@ fn patch_fields(patch: &AstralNodePatch) -> u32 {
 
 fn slot_mask(fields: u32) -> u32 {
     [
-        (PATCH_BACKGROUND, 1 << 0),
-        (PATCH_RADIUS, 1 << 1),
-        (PATCH_OPACITY, 1 << 2),
-        (PATCH_PADDING, 1 << 3),
-        (PATCH_MARGIN, 1 << 4),
-        (PATCH_BORDER, (1 << 5) | (1 << 6)),
-        (PATCH_TEXT_COLOR, 1 << 7),
-        (PATCH_HIDDEN, (1 << 8) | (1 << 9) | (1 << 10)),
+        (PATCH_BACKGROUND, Slot::Background.bit()),
+        (PATCH_RADIUS, Slot::Radius.bit()),
+        (PATCH_OPACITY, Slot::Opacity.bit()),
+        (PATCH_PADDING, Slot::Padding.bit()),
+        (PATCH_MARGIN, Slot::Margin.bit()),
+        (PATCH_BORDER, Slot::BorderColor.bit() | Slot::BorderWidth.bit()),
+        (PATCH_TEXT_COLOR, Slot::TextColor.bit()),
+        (PATCH_HIDDEN, Slot::Width.bit() | Slot::Height.bit() | Slot::Clip.bit()),
     ]
     .iter()
     .filter(|(field, _)| fields & field != 0)
@@ -274,38 +314,38 @@ fn slot_mask(fields: u32) -> u32 {
 
 fn put_long(out: &mut Out, property: u16, value: u32) {
     out.put16(property);
-    out.put8(4);
+    out.put_tag(Tag::Long);
     out.put(&i64::from(value).to_le_bytes());
 }
 
-fn put_patched(out: &mut Out, slot: usize, patch: &AstralNodePatch, properties: &AstralWireProperties) {
+fn put_patched(out: &mut Out, slot: Slot, patch: &AstralNodePatch, properties: &AstralWireProperties) {
     let hidden = patch.fields & PATCH_HIDDEN != 0;
-    let property = patch_property(properties, slot);
+    let property = slot.property(properties);
     match slot {
-        0 => put_long(out, property, patch.background),
-        1 => out.prop_number(property, patch.radius),
-        2 => out.prop_number(property, if hidden { 0.0 } else { patch.opacity }),
-        3 => out.prop_quad(property, if hidden { [0.0; 4] } else { patch.padding }),
-        4 => out.prop_quad(property, if hidden { [0.0; 4] } else { patch.margin }),
-        5 => put_long(out, property, patch.border_color),
-        6 => out.prop_number(property, patch.border_width),
-        7 => put_long(out, property, patch.text_color),
-        8 | 9 => out.prop_number(property, 0.0),
-        _ => {
+        Slot::Background => put_long(out, property, patch.background),
+        Slot::Radius => out.prop_number(property, patch.radius),
+        Slot::Opacity => out.prop_number(property, if hidden { 0.0 } else { patch.opacity }),
+        Slot::Padding => out.prop_quad(property, if hidden { [0.0; 4] } else { patch.padding }),
+        Slot::Margin => out.prop_quad(property, if hidden { [0.0; 4] } else { patch.margin }),
+        Slot::BorderColor => put_long(out, property, patch.border_color),
+        Slot::BorderWidth => out.prop_number(property, patch.border_width),
+        Slot::TextColor => put_long(out, property, patch.text_color),
+        Slot::Width | Slot::Height => out.prop_number(property, 0.0),
+        Slot::Clip => {
             out.put16(property);
-            out.put8(2);
+            out.put_tag(Tag::True);
         }
     }
 }
 
-fn put_original(out: &mut Out, slot: usize, raw: Option<&RawProp>, properties: &AstralWireProperties) {
-    out.put16(patch_property(properties, slot));
+fn put_original(out: &mut Out, slot: Slot, raw: Option<&RawProp>, properties: &AstralWireProperties) {
+    out.put16(slot.property(properties));
     match raw {
         Some(raw) => {
             out.put8(raw.tag);
             out.put(&raw.value);
         }
-        None => out.put8(0),
+        None => out.put_tag(Tag::Null),
     }
 }
 
@@ -317,11 +357,11 @@ fn write_patch(out: &mut Out, id: i32, patched: &mut Patched, patch: &AstralNode
         return false;
     }
     out.update(id, touched.count_ones() as u16);
-    for slot in (0..PATCH_PROPS).filter(|slot| touched >> slot & 1 == 1) {
-        if wanted >> slot & 1 == 1 {
+    for slot in Slot::ALL.into_iter().filter(|slot| touched & slot.bit() != 0) {
+        if wanted & slot.bit() != 0 {
             put_patched(out, slot, patch, &properties);
         } else {
-            put_original(out, slot, patched.originals[slot].as_ref(), &properties);
+            put_original(out, slot, patched.originals[slot.index()].as_ref(), &properties);
         }
     }
     patched.applied = wanted;
@@ -360,7 +400,7 @@ fn font_size(bytes: &[u8], span: &Span) -> Option<f64> {
         }
         let property = cursor.read16();
         let tag = cursor.read8();
-        if property == wanted && tag == 5 {
+        if property == wanted && tag == Tag::Double {
             return Some(f64::from_le_bytes(cursor.take(8)?.try_into().ok()?));
         }
         cursor.skip_value(tag, 0);
@@ -429,7 +469,7 @@ pub unsafe extern "C" fn wire_patch_nodes(
         }
         for span in spans {
             let data = batch_of(bytes, span);
-            if span.op == 4 {
+            if span.op == Op::Remove {
                 for position in 0..span.child_count {
                     let removed = child(data, span, position);
                     state.patched.remove(&removed);
@@ -437,7 +477,7 @@ pub unsafe extern "C" fn wire_patch_nodes(
                 }
                 continue;
             }
-            if span.op != 1 {
+            if span.op != Op::Create {
                 continue;
             }
             let Some((identifier, kind)) = read_identifier(data, span) else {

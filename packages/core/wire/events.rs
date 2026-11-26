@@ -1,5 +1,6 @@
 use super::cursor::Cursor;
 use super::properties;
+use super::tag::Tag;
 
 const MAX_PROPS: u32 = 128;
 const EVENT_MAP: u8 = 8;
@@ -28,10 +29,10 @@ pub fn event_value(bytes: &[u8]) -> Option<f64> {
         if found.is_some() {
             return None;
         }
-        let number = match tag {
-            3 => f64::from(cursor.read32() as i32),
-            4 => i64::from_le_bytes(cursor.take(8)?.try_into().ok()?) as f64,
-            5 => f64::from_le_bytes(cursor.take(8)?.try_into().ok()?),
+        let number = match Tag::parse(tag) {
+            Some(Tag::Int) => f64::from(cursor.read32() as i32),
+            Some(Tag::Long) => i64::from_le_bytes(cursor.take(8)?.try_into().ok()?) as f64,
+            Some(Tag::Double) => f64::from_le_bytes(cursor.take(8)?.try_into().ok()?),
             _ => return None,
         };
         found = Some(number);

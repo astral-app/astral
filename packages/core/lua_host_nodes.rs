@@ -90,7 +90,7 @@ pub unsafe extern "C" fn astral_lua_image_rewrite(uri: *const c_char, rewritten:
                 && !next.is_empty()
                 && next.len() < capacity
                 && next.starts_with(b"http")
-                && !next.iter().any(|byte| *byte <= 0x20 || *byte == 0x7f)
+                && !next.iter().any(|byte| byte.is_ascii_control() || *byte == b' ')
             {
                 current = String::from_utf8_lossy(next).into_owned();
                 changed = true;

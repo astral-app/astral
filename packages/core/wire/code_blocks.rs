@@ -1,3 +1,4 @@
+use super::tag::{Op, Tag};
 use crate::lua_enums::TextStyle;
 use core::ffi::{c_char, c_int};
 use std::collections::HashMap;
@@ -77,19 +78,19 @@ fn span_texts(bytes: &[u8], span: &Span) -> Option<Vec<u8>> {
         }
         let property = cursor.read16();
         let tag = cursor.read8();
-        if property != properties.spans || tag != 7 {
+        if property != properties.spans || tag != Tag::Array {
             cursor.skip_value(tag, 0);
             continue;
         }
         let mut text = Vec::new();
         for _ in 0..cursor.read32() {
-            if cursor.read8() != 8 {
+            if cursor.read8() != Tag::Map {
                 return None;
             }
             for _ in 0..cursor.read32() {
                 let field = cursor.read16();
                 let kind = cursor.read8();
-                if field == properties.text && kind == 6 {
+                if field == properties.text && kind == Tag::String {
                     let length = cursor.read32() as usize;
                     text.extend_from_slice(cursor.take(length)?);
                 } else {
@@ -104,7 +105,7 @@ fn span_texts(bytes: &[u8], span: &Span) -> Option<Vec<u8>> {
 
 pub fn is_code_block(bytes: &[u8], span: &Span) -> bool {
     let properties = properties::current();
-    span.op == 1
+    span.op == Op::Create
         && type_is(bytes, span, b"text")
         && find_string(bytes, span, properties.font_family) == Some(MONOSPACE)
         && has_property(bytes, span, properties.background)
@@ -164,14 +165,14 @@ fn text<'a>(value: &'a Value, key: &str) -> &'a [u8] {
 
 fn put_long(out: &mut Out, property: u16, value: i64) {
     out.put16(property);
-    out.put8(4);
+    out.put_tag(Tag::Long);
     out.put(&value.to_le_bytes());
 }
 
 fn put_run(out: &mut Out, text: &[u8], color: i64, flags: u64) {
     let properties = properties::current();
     let fields = 2 + u32::from(flags & BOLD != 0) + u32::from(flags & ITALIC != 0) + u32::from(flags & UNDERLINE != 0);
-    out.put8(8);
+    out.put_tag(Tag::Map);
     out.put32(fields);
     out.prop_string(properties.text, text);
     put_long(out, properties.color, color);
@@ -211,7 +212,7 @@ fn put_code_text(out: &mut Out, node: i32, runs: &[(Vec<u8>, i64, u64)], card: &
     let properties = properties::current();
     out.create(node, b"text", if grow { 6 } else { 5 });
     out.put16(properties.spans);
-    out.put8(7);
+    out.put_tag(Tag::Array);
     out.put32(runs.len() as u32);
     for (text, color, flags) in runs {
         put_run(out, text, *color, *flags);
@@ -464,8 +465,8 @@ pub unsafe extern "C" fn wire_code_blocks(
         let mut relisted = Vec::new();
         for span in spans {
             let data = batch_of(bytes, span);
-            match span.op {
-                4 => {
+            match Op::parse(span.op) {
+                Some(Op::Remove) => {
                     for position in 0..span.child_count {
                         let removed = child(data, span, position);
                         if let Some(block) = state.blocks.get(&removed)
@@ -477,7 +478,7 @@ pub unsafe extern "C" fn wire_code_blocks(
                         forget(state, removed);
                     }
                 }
-                1 if is_code_block(data, span) && state.blocks.len() < MAX_BLOCKS => {
+                Some(Op::Create) if is_code_block(data, span) && state.blocks.len() < MAX_BLOCKS => {
                     let (message, parent) = message_of(bytes, spans, span.id);
                     if message == 0 || parent == 0 {
                         continue;
@@ -497,7 +498,7 @@ pub unsafe extern "C" fn wire_code_blocks(
                     );
                     touched.push(span.id);
                 }
-                2 if state.blocks.contains_key(&span.id) => {
+                Some(Op::Update) if state.blocks.contains_key(&span.id) => {
                     if let Some(code) = span_texts(data, span)
                         && let Some(block) = state.blocks.get_mut(&span.id)
                     {
@@ -509,7 +510,7 @@ pub unsafe extern "C" fn wire_code_blocks(
                         touched.push(span.id);
                     }
                 }
-                3 => relisted.push(span),
+                Some(Op::SetChildren) => relisted.push(span),
                 _ => {}
             }
         }

@@ -4,6 +4,8 @@ use std::sync::Mutex;
 
 use crate::bridge::{AstralRustString, bytes};
 
+const OPAQUE_ALPHA: u32 = 0xFF;
+
 const SWATCH_SIZE: u32 = 48;
 const RING_WIDTH: f64 = 2.0;
 const RING_COLOR: u32 = 0x5580_8080;
@@ -142,7 +144,7 @@ pub fn parse_color(text: &[u8]) -> Option<u32> {
 }
 
 pub fn color_text(argb: u32) -> String {
-    if argb >> 24 == 0xFF {
+    if argb >> 24 == OPAQUE_ALPHA {
         format!("#{:06X}", argb & 0xFF_FFFF)
     } else {
         format!("#{argb:08X}")

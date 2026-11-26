@@ -1,3 +1,4 @@
+use super::tag::{Op, Tag};
 use core::ffi::c_int;
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -267,7 +268,7 @@ fn gradient_writes(theme: &Theme, bytes: &[u8], start: usize, end: usize, replac
         }
         let key = cursor.read16();
         let tag = cursor.read8();
-        if key != colors_key || tag != 7 {
+        if key != colors_key || tag != Tag::Array {
             cursor.skip_value(tag, 1);
             continue;
         }
@@ -279,7 +280,7 @@ fn gradient_writes(theme: &Theme, bytes: &[u8], start: usize, end: usize, replac
             let stop_tag = cursor.read8();
             let at = cursor.offset();
             cursor.skip_value(stop_tag, 2);
-            if cursor.failed() || (stop_tag != 3 && stop_tag != 4) {
+            if cursor.failed() || (stop_tag != Tag::Int && stop_tag != Tag::Long) {
                 continue;
             }
             let color = u32::from_le_bytes([bytes[at], bytes[at + 1], bytes[at + 2], bytes[at + 3]]);
@@ -299,7 +300,7 @@ fn gradient_writes(theme: &Theme, bytes: &[u8], start: usize, end: usize, replac
 fn apply(bytes: &mut [u8], writes: &[Write]) {
     for write in writes {
         bytes[write.at..write.at + 4].copy_from_slice(&write.color.to_le_bytes());
-        if write.tag == 4 {
+        if write.tag == Tag::Long {
             bytes[write.at + 4..write.at + 8].fill(0);
         }
     }
@@ -346,7 +347,7 @@ fn color_property(properties: &AstralWireProperties, property: u16) -> bool {
 
 fn span_cursor<'a>(bytes: &'a [u8], span: &Span) -> (Cursor<'a>, u16) {
     let mut cursor = Cursor::new(&bytes[..span.end.min(bytes.len())], span.start + 5);
-    if span.op == 1 {
+    if span.op == Op::Create {
         let type_length = cursor.read16() as usize;
         cursor.skip(type_length);
     }
@@ -358,7 +359,7 @@ pub fn patch_colors(bytes: &mut [u8], spans: &[Span]) -> bool {
     let properties = properties::current();
     let Some(patched) = theme(|theme| {
         let mut patched = false;
-        for span in spans.iter().filter(|span| span.op == 1 || span.op == 2) {
+        for span in spans.iter().filter(|span| span.op == Op::Create || span.op == Op::Update) {
             let mut numbers = Vec::new();
             let mut colors = Vec::new();
             let (mut cursor, count) = span_cursor(bytes, span);
@@ -373,7 +374,7 @@ pub fn patch_colors(bytes: &mut [u8], spans: &[Span]) -> bool {
                 if cursor.failed() {
                     break;
                 }
-                if tag == 5
+                if tag == Tag::Double
                     && let Some(scale) = scale_for(theme, &properties, property)
                 {
                     let value = f64::from_le_bytes(bytes[at..at + 8].try_into().unwrap_or([0; 8]));
@@ -382,14 +383,14 @@ pub fn patch_colors(bytes: &mut [u8], spans: &[Span]) -> bool {
                     }
                     continue;
                 }
-                if property == properties.background_gradient && tag == 8 {
+                if property == properties.background_gradient && tag == Tag::Map {
                     let replace_all = !theme.background_stops.is_empty() && span.id > 0 && span.id < FIRST_ASTRAL_ID;
                     if replace_all || !theme.palette.is_empty() || any_tint(theme) {
                         colors.extend(gradient_writes(theme, bytes, at, cursor.offset(), replace_all, properties.colors));
                     }
                     continue;
                 }
-                if !color_property(&properties, property) || (tag != 3 && tag != 4) {
+                if !color_property(&properties, property) || (tag != Tag::Int && tag != Tag::Long) {
                     continue;
                 }
                 let color = u32::from_le_bytes([bytes[at], bytes[at + 1], bytes[at + 2], bytes[at + 3]]);
@@ -428,10 +429,10 @@ fn with_tracked<T>(work: impl FnOnce(&mut HashMap<(i32, u16), TrackedValue>) -> 
 }
 
 fn tracked_property(properties: &AstralWireProperties, property: u16, tag: u8) -> bool {
-    match tag {
-        3 | 4 => color_property(properties, property),
-        5 => radius_property(properties, property) || font_property(properties, property),
-        8 => property == properties.background_gradient,
+    match Tag::parse(tag) {
+        Some(Tag::Int | Tag::Long) => color_property(properties, property),
+        Some(Tag::Double) => radius_property(properties, property) || font_property(properties, property),
+        Some(Tag::Map) => property == properties.background_gradient,
         _ => false,
     }
 }
@@ -464,7 +465,7 @@ pub unsafe extern "C" fn wire_track_colors(bytes: *const u8, pointer: *const Spa
     with_tracked(|tracked| {
         for span in spans {
             let data = super::format::batch_of(bytes, span);
-            if span.op == 4 && span.child_count > 0 {
+            if span.op == Op::Remove && span.child_count > 0 {
                 for position in 0..span.child_count {
                     let id = child(data, span, position);
                     for property in removed_properties(&properties) {
@@ -472,7 +473,7 @@ pub unsafe extern "C" fn wire_track_colors(bytes: *const u8, pointer: *const Spa
                     }
                 }
             }
-            if (span.op != 1 && span.op != 2) || span.id <= 0 || span.id >= FIRST_ASTRAL_ID {
+            if (span.op != Op::Create && span.op != Op::Update) || span.id <= 0 || span.id >= FIRST_ASTRAL_ID {
                 continue;
             }
             let (mut cursor, entries) = span_cursor(data, span);
@@ -488,12 +489,12 @@ pub unsafe extern "C" fn wire_track_colors(bytes: *const u8, pointer: *const Spa
                     continue;
                 }
                 let value = &data[at..cursor.offset()];
-                let entry = match tag {
-                    3 | 4 => TrackedValue::Color {
+                let entry = match Tag::parse(tag) {
+                    Some(Tag::Int | Tag::Long) => TrackedValue::Color {
                         tag,
                         color: u32::from_le_bytes([value[0], value[1], value[2], value[3]]),
                     },
-                    5 => TrackedValue::Number(f64::from_le_bytes(value.try_into().unwrap_or([0; 8]))),
+                    Some(Tag::Double) => TrackedValue::Number(f64::from_le_bytes(value.try_into().unwrap_or([0; 8]))),
                     _ => TrackedValue::Gradient(value.to_vec()),
                 };
                 if tracked.len() >= TRACKED_LIMIT && !tracked.contains_key(&(span.id, property)) {
@@ -511,12 +512,12 @@ fn put_tracked(out: &mut Out, theme: &Theme, properties: &AstralWireProperties, 
         TrackedValue::Color { tag, color } => {
             out.put8(*tag);
             out.put32(themed_color(theme, *color).unwrap_or(*color));
-            if *tag == 4 {
+            if *tag == Tag::Long {
                 out.put32(0);
             }
         }
         TrackedValue::Number(number) => {
-            out.put8(5);
+            out.put_tag(Tag::Double);
             let scale = if font_property(properties, property) {
                 theme.font_scale
             } else {
@@ -530,7 +531,7 @@ fn put_tracked(out: &mut Out, theme: &Theme, properties: &AstralWireProperties, 
             out.put(&value.to_le_bytes());
         }
         TrackedValue::Gradient(bytes) => {
-            out.put8(8);
+            out.put_tag(Tag::Map);
             let mut copy = bytes.clone();
             if !theme.background_stops.is_empty() || !theme.palette.is_empty() || any_tint(theme) {
                 let writes = gradient_writes(theme, &copy, 0, copy.len(), !theme.background_stops.is_empty(), properties.colors);

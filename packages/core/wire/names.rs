@@ -1,3 +1,4 @@
+use super::tag::{Op, Tag};
 use core::ffi::c_int;
 use std::ffi::CString;
 use std::sync::atomic::{AtomicI32, Ordering};
@@ -12,6 +13,9 @@ use super::format::{
 };
 use super::out::Out;
 use super::properties;
+
+const TYPING_DOT_SIZE: f64 = 6.0;
+const ROUND_RADIUS: f64 = 999.0;
 
 pub type NameColorizer = unsafe extern "C" fn(*const AstralNameContext, *mut u32) -> c_int;
 pub type TypingDecorator = unsafe extern "C" fn(*const AstralNameContext, *mut AstralMentionDecoration) -> c_int;
@@ -129,7 +133,7 @@ fn number_property(bytes: &[u8], span: &Span, wanted: u16) -> f64 {
         let property = cursor.read16();
         let tag = cursor.read8();
         if property == wanted
-            && tag == 5
+            && tag == Tag::Double
             && let Some(value) = cursor.take(8)
         {
             return f64::from_le_bytes(value.try_into().unwrap_or([0; 8]));
@@ -152,9 +156,9 @@ fn is_typing_line(batch: &Batch, id: i32) -> bool {
         }
         if let Some((creation, bytes)) = batch.creation(sibling)
             && type_is(bytes, creation, b"view")
-            && number_property(bytes, creation, properties.width) == 6.0
-            && number_property(bytes, creation, properties.height) == 6.0
-            && number_property(bytes, creation, properties.radius) >= 999.0
+            && number_property(bytes, creation, properties.width) == TYPING_DOT_SIZE
+            && number_property(bytes, creation, properties.height) == TYPING_DOT_SIZE
+            && number_property(bytes, creation, properties.radius) >= ROUND_RADIUS
         {
             dots += 1;
         }
@@ -178,7 +182,7 @@ fn read_name_spans(bytes: &[u8], span: &Span) -> Vec<NameSpan> {
         }
         let property = cursor.read16();
         let tag = cursor.read8();
-        if property != properties.spans || tag != 7 {
+        if property != properties.spans || tag != Tag::Array {
             cursor.skip_value(tag, 0);
             continue;
         }
@@ -195,7 +199,7 @@ fn name_entries(cursor: &mut Cursor, text_key: u16, weight_key: u16) -> Option<V
     let mut items = Vec::new();
     for _ in 0..total {
         let start = cursor.offset();
-        if cursor.read8() != 8 {
+        if cursor.read8() != Tag::Map {
             return None;
         }
         let mut entry = NameSpan {
@@ -211,7 +215,7 @@ fn name_entries(cursor: &mut Cursor, text_key: u16, weight_key: u16) -> Option<V
             }
             let key = cursor.read16();
             let tag = cursor.read8();
-            if key == text_key && tag == 6 {
+            if key == text_key && tag == Tag::String {
                 let length = cursor.read32() as usize;
                 let at = cursor.offset();
                 cursor.take(length)?;
@@ -219,7 +223,7 @@ fn name_entries(cursor: &mut Cursor, text_key: u16, weight_key: u16) -> Option<V
                 continue;
             }
             if key == weight_key
-                && tag == 3
+                && tag == Tag::Int
                 && let Some(weight) = cursor.bytes().get(cursor.offset()..cursor.offset() + 4)
             {
                 entry.bold = i32::from_le_bytes(weight.try_into().ok()?) >= 600;
@@ -253,23 +257,23 @@ fn put_colored_span(out: &mut Out, bytes: &[u8], item: &NameSpan, color: u32) {
             kept.push((at, cursor.offset()));
         }
     }
-    out.put8(8);
+    out.put_tag(Tag::Map);
     out.put32(kept.len() as u32 + 1);
     for (start, end) in kept {
         out.put(&bytes[start..end]);
     }
     out.put16(color_key);
-    out.put8(4);
+    out.put_tag(Tag::Long);
     out.put(&i64::from(color).to_le_bytes());
 }
 
 fn put_typing_avatar(out: &mut Out, image: &[u8], round: bool) {
     let properties = properties::current();
-    out.put8(8);
+    out.put_tag(Tag::Map);
     out.put32(2);
     out.prop_string(properties.text, b"avatar");
     out.put16(properties.image);
-    out.put8(8);
+    out.put_tag(Tag::Map);
     out.put32(if round { 4 } else { 3 });
     out.prop_string(properties.uri, image);
     out.prop_number(properties.size, 14.0);
@@ -280,7 +284,7 @@ fn put_typing_avatar(out: &mut Out, image: &[u8], round: bool) {
 }
 
 fn put_spacer(out: &mut Out) {
-    out.put8(8);
+    out.put_tag(Tag::Map);
     out.put32(1);
     out.prop_string(properties::current().text, b" ");
 }
@@ -330,7 +334,7 @@ fn color_typing(bytes: &[u8], span: &Span, out: &mut Out) -> bool {
     }
     out.update(span.id, 1);
     out.put16(properties::current().spans);
-    out.put8(7);
+    out.put_tag(Tag::Array);
     out.put32(items.len() as u32 + added);
     for (index, item) in items.iter().enumerate() {
         if !avatars[index].image().is_empty() {
@@ -344,7 +348,7 @@ fn color_typing(bytes: &[u8], span: &Span, out: &mut Out) -> bool {
 
 fn name_color(batch: &Batch, bytes: &[u8], span: &Span) -> Option<u32> {
     let colorizer = COLORIZER.get::<NameColorizer>()?;
-    if span.op != 1 || !type_is(bytes, span, b"text") {
+    if span.op != Op::Create || !type_is(bytes, span, b"text") {
         return None;
     }
     let text = find_string(bytes, span, properties::current().text)?;
@@ -371,7 +375,7 @@ fn name_color(batch: &Batch, bytes: &[u8], span: &Span) -> Option<u32> {
 fn put_color(out: &mut Out, id: i32, color: u32) {
     out.update(id, 1);
     out.put16(properties::current().color);
-    out.put8(4);
+    out.put_tag(Tag::Long);
     out.put(&i64::from(color).to_le_bytes());
 }
 
@@ -398,8 +402,8 @@ pub unsafe extern "C" fn wire_color_names(
     for span in batch.spans {
         let data = batch_of(bytes, span);
         let typing_node = TYPING_NODE.load(Ordering::Relaxed);
-        let mut typing = span.op == 2 && typing_node != 0 && span.id == typing_node;
-        if !typing && span.op == 1 && type_is(data, span, b"text") && is_typing_line(&batch, span.id) {
+        let mut typing = span.op == Op::Update && typing_node != 0 && span.id == typing_node;
+        if !typing && span.op == Op::Create && type_is(data, span, b"text") && is_typing_line(&batch, span.id) {
             TYPING_NODE.store(span.id, Ordering::Relaxed);
             typing = true;
         }

@@ -16,6 +16,7 @@ pub mod files;
 pub mod highlight;
 pub mod host_callback;
 pub mod host_requests;
+pub mod http_status;
 pub mod json_bounds;
 pub mod launch_guard;
 pub mod leftover_mods;

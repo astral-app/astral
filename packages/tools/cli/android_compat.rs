@@ -10,6 +10,9 @@ use crate::compat;
 use crate::flags::Flags;
 use crate::repo;
 
+const DEX_ENDIAN_CONSTANT: u32 = 0x1234_5678;
+const DEX_HEADER_SIZE: usize = 112;
+
 const MAXIMUM_DEX_SIZE: u64 = 128 << 20;
 const TABLE_LIMIT: u32 = 1 << 22;
 const GUEST_HOST: &str = "Lcom/discord/nativeapp/bridge/GuestHost;";
@@ -124,13 +127,13 @@ struct Header {
 
 fn header(dex: &Dex) -> Result<Header, String> {
     let data = dex.data;
-    if data.len() < 112 || &data[..4] != b"dex\n" || data[7] != 0 {
+    if data.len() < DEX_HEADER_SIZE || &data[..4] != b"dex\n" || data[7] != 0 {
         return Err("APK contains an invalid DEX file".into());
     }
-    if dex.u32(40)? != 0x1234_5678 {
+    if dex.u32(40)? != DEX_ENDIAN_CONSTANT {
         return Err("APK contains a DEX file with an unsupported byte order".into());
     }
-    if dex.u32(32)? as usize != data.len() || dex.u32(36)? != 112 {
+    if dex.u32(32)? as usize != data.len() || dex.u32(36)? != DEX_HEADER_SIZE as u32 {
         return Err("APK contains a DEX file with an invalid header".into());
     }
     let pair =

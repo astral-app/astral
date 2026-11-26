@@ -2,6 +2,7 @@ use super::format::{Span, find_string, property_cursor, type_is, wire_scan};
 use super::out::Out;
 use super::properties;
 use super::rewriter::{ImageRewriter, Slot};
+use super::tag::{Op, Tag};
 
 static REWRITER: Slot = Slot::new();
 
@@ -23,7 +24,7 @@ fn put_rewritten(out: &mut Out, bytes: &[u8], span: &Span, uri: &[u8]) {
         let property = cursor.read16();
         let tag = cursor.read8();
         cursor.skip_value(tag, 0);
-        if (property == properties.uri || property == properties.cache_key) && tag == 6 {
+        if (property == properties.uri || property == properties.cache_key) && tag == Tag::String {
             out.prop_string(property, uri);
         } else {
             out.put(&bytes[start..cursor.offset().min(bytes.len())]);
@@ -32,10 +33,10 @@ fn put_rewritten(out: &mut Out, bytes: &[u8], span: &Span, uri: &[u8]) {
 }
 
 fn rewritten_uri(bytes: &[u8], span: &Span) -> Option<Vec<u8>> {
-    if span.op != 1 && span.op != 2 {
+    if span.op != Op::Create && span.op != Op::Update {
         return None;
     }
-    if span.op == 1 && !type_is(bytes, span, b"image") {
+    if span.op == Op::Create && !type_is(bytes, span, b"image") {
         return None;
     }
     let uri = find_string(bytes, span, properties::current().uri)?;

@@ -29,5 +29,6 @@ pub mod properties;
 pub mod reactions;
 pub mod rewrite;
 pub mod rewriter;
+pub mod tag;
 pub mod theme;
 pub mod tween;

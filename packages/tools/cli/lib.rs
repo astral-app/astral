@@ -21,6 +21,7 @@ pub mod macho;
 pub mod palette;
 pub mod readme;
 pub mod repo;
+pub mod rust_magic;
 pub mod sideload;
 pub mod signing;
 pub mod stage;

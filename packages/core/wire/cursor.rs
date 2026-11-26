@@ -1,3 +1,5 @@
+use super::tag::Tag;
+
 pub const MAX_DEPTH: u32 = 8;
 
 pub struct Cursor<'a> {
@@ -67,15 +69,15 @@ impl<'a> Cursor<'a> {
             self.failed = true;
             return;
         }
-        match tag {
-            0..=2 => {}
-            3 => self.skip(4),
-            4 | 5 => self.skip(8),
-            6 => {
+        match Tag::parse(tag) {
+            Some(Tag::Null | Tag::False | Tag::True) => {}
+            Some(Tag::Int) => self.skip(4),
+            Some(Tag::Long | Tag::Double) => self.skip(8),
+            Some(Tag::String) => {
                 let length = self.read32() as usize;
                 self.skip(length);
             }
-            7 => {
+            Some(Tag::Array) => {
                 let count = self.read32();
                 for _ in 0..count {
                     if self.failed {
@@ -84,7 +86,7 @@ impl<'a> Cursor<'a> {
                     self.skip_tagged(depth + 1);
                 }
             }
-            8 => {
+            Some(Tag::Map) => {
                 let count = self.read32();
                 for _ in 0..count {
                     if self.failed {
@@ -94,8 +96,8 @@ impl<'a> Cursor<'a> {
                     self.skip_tagged(depth + 1);
                 }
             }
-            9 => self.skip(16),
-            10 => {
+            Some(Tag::Quad) => self.skip(16),
+            Some(Tag::Object) => {
                 let count = self.read32();
                 for _ in 0..count {
                     if self.failed {
@@ -106,11 +108,11 @@ impl<'a> Cursor<'a> {
                     self.skip_tagged(depth + 1);
                 }
             }
-            11 => {
+            Some(Tag::Words) => {
                 let count = self.read32() as usize;
                 self.skip(count.saturating_mul(4));
             }
-            12 => {
+            Some(Tag::WordRef) => {
                 self.skip(4);
                 let count = self.read16() as usize;
                 self.skip(count * 6);

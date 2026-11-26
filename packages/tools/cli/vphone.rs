@@ -160,7 +160,9 @@ fn ready_ipa(source: &Path, work: &Path) -> Result<PathBuf, String> {
         {
             continue;
         }
-        if parts.len() == 3 && parts[1].ends_with(".app") && parts[2] == "Info.plist" {
+        if let [_, app, "Info.plist"] = parts.as_slice()
+            && app.ends_with(".app")
+        {
             let method = entry.compression();
             let mut data = Vec::new();
             let mut entry = entry;

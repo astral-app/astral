@@ -6,6 +6,11 @@ use std::path::Path;
 use crate::bridge::{AstralRustString, bytes, optional, path};
 use crate::crypto::{hex, sha256};
 
+const BLOB_HEADER: usize = 8;
+const DER_SEQUENCE: u8 = 0x30;
+const DER_OBJECT_IDENTIFIER: u8 = 0x06;
+const DER_EXPLICIT_ZERO: u8 = 0xa0;
+
 const MACHO_MAGIC_64: u32 = 0xfeed_facf;
 const MACHO_SWAPPED_MAGIC_64: u32 = 0xcffa_edfe;
 const FAT_MAGIC: u32 = 0xcafe_babe;
@@ -151,7 +156,7 @@ pub fn entitlement_blobs(executable: &Path) -> Vec<Vec<u8>> {
 
 pub fn entitlements_from_blob(blob: &[u8]) -> Option<Vec<u8>> {
     let length = big(blob, 4)? as usize;
-    if big(blob, 0)? != ENTITLEMENTS_MAGIC || length < 8 || length > blob.len() || length == 8 {
+    if big(blob, 0)? != ENTITLEMENTS_MAGIC || length <= BLOB_HEADER || length > blob.len() {
         return None;
     }
     Some(blob[8..length].to_vec())
@@ -326,7 +331,7 @@ fn name_attribute(name: &[u8], oid: &[u8]) -> Vec<u8> {
     for set in children(name) {
         for pair in children(set.content) {
             let parts = children(pair.content);
-            if parts.len() >= 2 && parts[0].tag == 0x06 && parts[0].content == oid {
+            if parts.len() >= 2 && parts[0].tag == DER_OBJECT_IDENTIFIER && parts[0].content == oid {
                 return parts[1].content.to_vec();
             }
         }
@@ -336,15 +341,15 @@ fn name_attribute(name: &[u8], oid: &[u8]) -> Vec<u8> {
 
 fn tbs_fields(der: &[u8]) -> Vec<Element<'_>> {
     let mut offset = 0;
-    let Some(certificate) = read_element(der, &mut offset).filter(|element| element.tag == 0x30) else {
+    let Some(certificate) = read_element(der, &mut offset).filter(|element| element.tag == DER_SEQUENCE) else {
         return Vec::new();
     };
     let parts = children(certificate.content);
-    let Some(tbs) = parts.first().filter(|element| element.tag == 0x30) else {
+    let Some(tbs) = parts.first().filter(|element| element.tag == DER_SEQUENCE) else {
         return Vec::new();
     };
     let mut fields = children(tbs.content);
-    if fields.first().is_some_and(|field| field.tag == 0xa0) {
+    if fields.first().is_some_and(|field| field.tag == DER_EXPLICIT_ZERO) {
         fields.remove(0);
     }
     fields
@@ -352,24 +357,24 @@ fn tbs_fields(der: &[u8]) -> Vec<Element<'_>> {
 
 pub fn cms_certificates(cms: &[u8]) -> Vec<&[u8]> {
     let mut offset = 0;
-    let Some(info) = read_element(cms, &mut offset).filter(|element| element.tag == 0x30) else {
+    let Some(info) = read_element(cms, &mut offset).filter(|element| element.tag == DER_SEQUENCE) else {
         return Vec::new();
     };
     let info = children(info.content);
-    let Some(wrapped) = info.get(1).filter(|element| element.tag == 0xa0) else {
+    let Some(wrapped) = info.get(1).filter(|element| element.tag == DER_EXPLICIT_ZERO) else {
         return Vec::new();
     };
     let wrapped = children(wrapped.content);
-    let Some(signed) = wrapped.first().filter(|element| element.tag == 0x30) else {
+    let Some(signed) = wrapped.first().filter(|element| element.tag == DER_SEQUENCE) else {
         return Vec::new();
     };
     children(signed.content)
         .into_iter()
-        .find(|field| field.tag == 0xa0)
+        .find(|field| field.tag == DER_EXPLICIT_ZERO)
         .map(|field| {
             children(field.content)
                 .into_iter()
-                .filter(|element| element.tag == 0x30)
+                .filter(|element| element.tag == DER_SEQUENCE)
                 .map(|element| element.whole)
                 .collect()
         })

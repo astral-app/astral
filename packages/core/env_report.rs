@@ -6,6 +6,8 @@ use serde_json::{Value, json};
 
 use crate::bridge::{AstralRustString, bytes};
 
+const STANDARD_PAGE_SIZE: i64 = 4096;
+
 const PUBLIC_ROOTS: [&str; 22] = [
     "GTS Root",
     "Google Trust Services",
@@ -233,7 +235,7 @@ pub fn android_markers(facts: &AndroidFacts) -> Vec<String> {
     } else if !facts.build_tags.is_empty() && facts.build_tags != "release-keys" {
         markers.push(facts.build_tags.clone());
     }
-    if facts.page_size > 0 && facts.page_size != 4096 {
+    if facts.page_size > 0 && facts.page_size != STANDARD_PAGE_SIZE {
         markers.push(format!("{} KB pages", facts.page_size / 1024));
     }
     if !facts.web_view.is_empty() && !is_usual_web_view(&facts.web_view) {

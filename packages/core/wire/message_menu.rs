@@ -1,3 +1,4 @@
+use super::tag::{Op, Tag};
 use core::ffi::{CStr, c_char, c_int};
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -98,13 +99,13 @@ fn number_at(bytes: &[u8], span: &Span, wanted: u16) -> Option<i64> {
             cursor.skip_value(tag, 0);
             continue;
         }
-        return match tag {
-            3 => {
+        return match Tag::parse(tag) {
+            Some(Tag::Int) => {
                 let value = cursor.read32() as i32;
                 (!cursor.failed()).then_some(i64::from(value))
             }
-            4 => Some(i64::from_le_bytes(cursor.take(8)?.try_into().ok()?)),
-            5 => Some(f64::from_le_bytes(cursor.take(8)?.try_into().ok()?) as i64),
+            Some(Tag::Long) => Some(i64::from_le_bytes(cursor.take(8)?.try_into().ok()?)),
+            Some(Tag::Double) => Some(f64::from_le_bytes(cursor.take(8)?.try_into().ok()?) as i64),
             _ => None,
         };
     }
@@ -113,10 +114,10 @@ fn number_at(bytes: &[u8], span: &Span, wanted: u16) -> Option<i64> {
 
 fn window_index(tracking: &mut Tracking, bytes: &[u8], span: &Span) -> Option<usize> {
     let existing = tracking.lists.iter().position(|window| window.list == span.id);
-    if span.op == 2 || span.op == 3 {
+    if span.op == Op::Update || span.op == Op::SetChildren {
         return existing;
     }
-    if span.op != 1 || !type_is(bytes, span, b"list") {
+    if span.op != Op::Create || !type_is(bytes, span, b"list") {
         return None;
     }
     if existing.is_some() {
@@ -140,7 +141,7 @@ fn track_list_window(tracking: &mut Tracking, bytes: &[u8], span: &Span) {
     let properties = properties::current();
     let Some(index) = window_index(tracking, bytes, span) else { return };
     let window = &mut tracking.lists[index];
-    if span.op == 3 {
+    if span.op == Op::SetChildren {
         window.rows = (0..span.child_count.min(MAX_LIST_ROWS))
             .map(|position| child(bytes, span, position))
             .collect();
@@ -268,7 +269,7 @@ pub unsafe extern "C" fn wire_track_message_nodes(bytes: *const u8, pointer: *co
         for span in batch.spans {
             let data = batch_of(bytes, span);
             track_list_window(tracking, data, span);
-            if span.op != 1 || find_string(data, span, accessibility) != Some(b"message-row") {
+            if span.op != Op::Create || find_string(data, span, accessibility) != Some(b"message-row") {
                 continue;
             }
             let nodes = subtree(&batch, span.id);
@@ -298,7 +299,7 @@ fn menu_id() -> i32 {
 }
 
 fn is_action_row(bytes: &[u8], span: &Span) -> bool {
-    if span.op != 1 {
+    if span.op != Op::Create {
         return false;
     }
     let Some(identifier) = find_string(bytes, span, properties::current().accessibility_id) else {
@@ -320,7 +321,7 @@ fn clone_node(out: &mut Out, batch: &Batch, source: i32, changes: &[Change]) -> 
 }
 
 fn put_children(out: &mut Out, parent: i32, children: &[i32]) {
-    out.put8(3);
+    out.put_op(Op::SetChildren);
     out.put(&parent.to_le_bytes());
     out.put32(children.len() as u32);
     for id in children {
