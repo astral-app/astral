@@ -124,7 +124,13 @@ fn text<'a>(data: *const c_char, length: usize) -> &'a str {
     std::str::from_utf8(bytes(data, length)).unwrap_or("")
 }
 
-fn transform_body(host: &str, path: &str, method: &str, body: &[u8], transform: Transform, context: *mut c_void) -> Option<Vec<u8>> {
+pub fn transform_message_body(
+    host: &str,
+    path: &str,
+    method: &str,
+    body: &[u8],
+    transform: impl FnOnce(&str, &str, &str) -> Option<String>,
+) -> Option<Vec<u8>> {
     if body.is_empty() || body.len() > MAX_BODY {
         return None;
     }
@@ -134,33 +140,39 @@ fn transform_body(host: &str, path: &str, method: &str, body: &[u8], transform: 
     if content.len() > MAX_CONTENT {
         return None;
     }
-    let mut replacement = AstralRustString {
-        bytes: core::ptr::null_mut(),
-        length: 0,
-    };
-    let changed = unsafe {
-        transform(
-            context,
-            channel.as_ptr().cast(),
-            channel.len(),
-            operation.as_ptr().cast(),
-            operation.len(),
-            content.as_ptr().cast(),
-            content.len(),
-            &mut replacement,
-        )
-    };
-    let produced = bytes(replacement.bytes.cast(), replacement.length).to_vec();
-    unsafe { crate::bridge::astral_rust_string_free(replacement) };
-    if changed == 0 || produced.len() > MAX_CONTENT {
-        return None;
-    }
-    let produced = String::from_utf8(produced).ok()?;
+    let produced = transform(&channel, operation, &content).filter(|produced| produced.len() <= MAX_CONTENT)?;
     if produced == content {
         return None;
     }
     request["content"] = Value::String(produced);
     Some(request.to_string().into_bytes())
+}
+
+fn transform_body(host: &str, path: &str, method: &str, body: &[u8], transform: Transform, context: *mut c_void) -> Option<Vec<u8>> {
+    transform_message_body(host, path, method, body, |channel, operation, content| {
+        let mut replacement = AstralRustString {
+            bytes: core::ptr::null_mut(),
+            length: 0,
+        };
+        let changed = unsafe {
+            transform(
+                context,
+                channel.as_ptr().cast(),
+                channel.len(),
+                operation.as_ptr().cast(),
+                operation.len(),
+                content.as_ptr().cast(),
+                content.len(),
+                &mut replacement,
+            )
+        };
+        let produced = bytes(replacement.bytes.cast(), replacement.length).to_vec();
+        unsafe { crate::bridge::astral_rust_string_free(replacement) };
+        if changed == 0 {
+            return None;
+        }
+        String::from_utf8(produced).ok()
+    })
 }
 
 #[unsafe(no_mangle)]

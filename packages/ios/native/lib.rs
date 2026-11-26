@@ -1,6 +1,8 @@
 #![allow(clippy::missing_safety_doc)]
 
 mod bridge;
+mod network;
+mod shapes;
 mod text;
 
 use astral_core::app::{self, Launch, state::Platform};
@@ -8,6 +10,10 @@ use astral_core::lua_enums::Event;
 
 pub use crate::bridge::{
     AstralBridge, AstralReply, AstralReplyKind, AstralRequest, AstralRequestKind,
+};
+pub use crate::network::{AstralMediaKind, AstralRequestPlan, AstralRequestProbe};
+pub use crate::shapes::{
+    AstralCutout, AstralCutoutKind, AstralPath, AstralPathSegment, AstralRect, AstralSegmentKind,
 };
 pub use crate::text::{AstralOwned, AstralText};
 

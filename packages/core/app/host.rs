@@ -129,6 +129,7 @@ pub enum Request<'a> {
     InjectGateway {
         message: &'a str,
     },
+    SessionToken,
 }
 
 pub enum Reply {

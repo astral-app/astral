@@ -1,6 +1,6 @@
 #import "SvgRaster.h"
 
-#include "AstralRust.h"
+#import "AstralCore.h"
 
 typedef struct {
     BOOL fill;
@@ -49,36 +49,41 @@ static Paint Inherit(Paint parent, NSDictionary<NSString *, NSString *> *attribu
     return paint;
 }
 
-enum { kSegmentMove, kSegmentLine, kSegmentCubic, kSegmentQuad, kSegmentArc, kSegmentClose };
-
-AstralRustString astral_svg_path(const char *data, size_t length);
+static void AddSegment(CGMutablePathRef path, const AstralPathSegment *segment)
+{
+    const double *v = segment->values;
+    switch (segment->kind) {
+    case AstralSegmentKind_Move:
+        CGPathMoveToPoint(path, NULL, v[0], v[1]);
+        break;
+    case AstralSegmentKind_Line:
+        CGPathAddLineToPoint(path, NULL, v[0], v[1]);
+        break;
+    case AstralSegmentKind_Cubic:
+        CGPathAddCurveToPoint(path, NULL, v[0], v[1], v[2], v[3], v[4], v[5]);
+        break;
+    case AstralSegmentKind_Quad:
+        CGPathAddQuadCurveToPoint(path, NULL, v[0], v[1], v[2], v[3]);
+        break;
+    case AstralSegmentKind_Arc: {
+        CGAffineTransform transform = CGAffineTransformMakeTranslation(v[0], v[1]);
+        transform = CGAffineTransformRotate(transform, v[4]);
+        transform = CGAffineTransformScale(transform, v[2], v[3]);
+        CGPathAddRelativeArc(path, &transform, 0, 0, 1, v[5], v[6]);
+        break;
+    }
+    case AstralSegmentKind_Close:
+        CGPathCloseSubpath(path);
+        break;
+    }
+}
 
 static CGPathRef PathFromData(NSString *data)
 {
     CGMutablePathRef path = CGPathCreateMutable();
-    const char *text = data.UTF8String ?: "";
-    AstralRustString segments = astral_svg_path(text, strlen(text));
-    const double *values = (const double *)segments.bytes;
-    size_t count = segments.length / sizeof(double);
-    for (size_t index = 0; index < count;) {
-        int kind = (int)values[index++];
-        size_t needed = kind == kSegmentCubic ? 6 : kind == kSegmentQuad ? 4 : kind == kSegmentArc ? 7 : kind == kSegmentClose ? 0 : 2;
-        if (index + needed > count) break;
-        const double *v = values + index;
-        if (kind == kSegmentMove) CGPathMoveToPoint(path, NULL, v[0], v[1]);
-        if (kind == kSegmentLine) CGPathAddLineToPoint(path, NULL, v[0], v[1]);
-        if (kind == kSegmentCubic) CGPathAddCurveToPoint(path, NULL, v[0], v[1], v[2], v[3], v[4], v[5]);
-        if (kind == kSegmentQuad) CGPathAddQuadCurveToPoint(path, NULL, v[0], v[1], v[2], v[3]);
-        if (kind == kSegmentClose) CGPathCloseSubpath(path);
-        if (kind == kSegmentArc) {
-            CGAffineTransform transform = CGAffineTransformMakeTranslation(v[0], v[1]);
-            transform = CGAffineTransformRotate(transform, v[4]);
-            transform = CGAffineTransformScale(transform, v[2], v[3]);
-            CGPathAddRelativeArc(path, &transform, 0, 0, 1, v[5], v[6]);
-        }
-        index += needed;
-    }
-    astral_rust_string_free(segments);
+    AstralPath parsed = astral_ios_svg_path(AstralTextOf(data));
+    for (size_t index = 0; index < parsed.count; index++) AddSegment(path, &parsed.segments[index]);
+    astral_ios_free_path(parsed);
     return path;
 }
 

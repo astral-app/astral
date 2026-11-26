@@ -1,6 +1,7 @@
 mod dev;
 mod ffi;
 pub mod host;
+pub mod network;
 mod pages;
 mod platform;
 mod reports;

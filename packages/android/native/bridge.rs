@@ -541,7 +541,8 @@ impl Bridge for JniBridge {
             | Request::OfferPick { .. }
             | Request::DismissSheets
             | Request::RefreshSettings
-            | Request::InjectGateway { .. } => Reply::Unsupported,
+            | Request::InjectGateway { .. }
+            | Request::SessionToken => Reply::Unsupported,
         }
     }
 }
