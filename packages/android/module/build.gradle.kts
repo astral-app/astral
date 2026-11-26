@@ -6,15 +6,6 @@ plugins {
 
 val repositoryRoot: File = rootDir.parentFile.parentFile
 val astralVersion = repositoryRoot.resolve("version.txt").readText().trim()
-val astralCommit =
-    providers
-        .exec {
-            commandLine("git", "-C", repositoryRoot.absolutePath, "rev-parse", "--short=9", "HEAD")
-            isIgnoreExitValue = true
-        }.standardOutput.asText
-        .get()
-        .trim()
-        .ifEmpty { "unknown" }
 
 abstract class StageResources : DefaultTask() {
     @get:InputFiles
@@ -41,6 +32,35 @@ abstract class StageResources : DefaultTask() {
     }
 }
 
+abstract class BuildNativeLibraries : DefaultTask() {
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val sources: ConfigurableFileCollection
+
+    @get:Internal
+    abstract val repository: DirectoryProperty
+
+    @get:Input
+    abstract val ndk: Property<String>
+
+    @get:OutputDirectory
+    abstract val output: DirectoryProperty
+
+    @get:Inject
+    abstract val commands: ExecOperations
+
+    @TaskAction
+    fun build() {
+        commands.exec {
+            workingDir = repository.get().asFile
+            commandLine(
+                "cargo", "run", "--quiet", "--release", "--manifest-path", "packages/tools/Cargo.toml", "--",
+                "android-core", "--ndk", ndk.get(), "--output", output.get().asFile.absolutePath,
+            )
+        }
+    }
+}
+
 val stageResources = tasks.register<StageResources>("stageResources") {
     sources.from(
         repositoryRoot.resolve("packages/addons"),
@@ -50,9 +70,21 @@ val stageResources = tasks.register<StageResources>("stageResources") {
     repository.set(repositoryRoot)
 }
 
+val buildNativeLibraries = tasks.register<BuildNativeLibraries>("buildNativeLibraries") {
+    sources.from(
+        fileTree(repositoryRoot.resolve("packages/core")) { exclude("target/**", "build/**") },
+        fileTree(repositoryRoot.resolve("packages/android/native")) { exclude("target/**") },
+        repositoryRoot.resolve("keys"),
+        repositoryRoot.resolve("version.txt"),
+    )
+    repository.set(repositoryRoot)
+    ndk.set(androidComponents.sdkComponents.ndkDirectory.map { it.asFile.absolutePath })
+}
+
 androidComponents {
     onVariants { variant ->
         variant.sources.assets?.addGeneratedSourceDirectory(stageResources, StageResources::output)
+        variant.sources.jniLibs?.addGeneratedSourceDirectory(buildNativeLibraries, BuildNativeLibraries::output)
     }
 }
 
@@ -69,19 +101,6 @@ android {
         versionCode = 1
         versionName = astralVersion
 
-        externalNativeBuild {
-            cmake {
-                arguments +=
-                    listOf(
-                        "-DANDROID_STL=c++_static",
-                        "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON",
-                        "-DASTRAL_ROOT=${repositoryRoot.absolutePath}",
-                        "-DASTRAL_VERSION=$astralVersion",
-                        "-DASTRAL_COMMIT=$astralCommit",
-                    )
-                cppFlags += listOf("-std=c++20", "-fexceptions", "-frtti")
-            }
-        }
 
         ndk {
             abiFilters += listOf("arm64-v8a", "x86_64")
@@ -92,13 +111,6 @@ android {
         release {
             isMinifyEnabled = false
             signingConfig = signingConfigs.getByName("debug")
-        }
-    }
-
-    externalNativeBuild {
-        cmake {
-            path = file("src/main/cpp/CMakeLists.txt")
-            version = "3.22.1"
         }
     }
 

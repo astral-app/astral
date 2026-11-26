@@ -1,0 +1,246 @@
+use serde_json::{Value, json};
+
+use super::ffi::{raw, take};
+use super::host::{self, Request};
+use super::state::{Platform, app};
+use crate::bridge::AstralRustString;
+use crate::env_report::{AndroidFacts, LocaleFacts};
+use crate::lua_host;
+use crate::plugin_trace::AstralPreviousSession;
+use crate::privacy::sanitize;
+
+const ENVIRONMENT_KEYS: [&str; 9] = [
+    "device",
+    "architecture",
+    "abi",
+    "system",
+    "locale",
+    "astral",
+    "discord",
+    "phoenix",
+    "engine",
+];
+const ENVIRONMENT_SCHEMA: i64 = 2;
+const IMAGE_NAME: &str = "libastral.so";
+
+struct PreviousSession {
+    started: i64,
+    active: String,
+    running: Value,
+}
+
+fn empty_session() -> AstralPreviousSession {
+    AstralPreviousSession {
+        started: 0,
+        active: AstralRustString::new(Vec::new()),
+        last: AstralRustString::new(Vec::new()),
+        running: AstralRustString::new(Vec::new()),
+    }
+}
+
+fn adopt(session: AstralPreviousSession) -> PreviousSession {
+    let running = take(session.running);
+    drop(take(session.last));
+    PreviousSession {
+        started: session.started,
+        active: take(session.active),
+        running: serde_json::from_str(&running).unwrap_or(Value::Null),
+    }
+}
+
+pub fn open_trace(state: &str, now: i64) {
+    let (directory, length) = raw(state);
+    let mut session = empty_session();
+    unsafe { crate::plugin_trace::astral_trace_open(directory, length, now, &raw mut session) };
+    adopt(session);
+}
+
+fn previous_session() -> Option<PreviousSession> {
+    let mut session = empty_session();
+    let found = unsafe { crate::plugin_trace::astral_trace_previous(&raw mut session) };
+    let adopted = adopt(session);
+    (found != 0).then_some(adopted)
+}
+
+fn running_plugins() -> Vec<Value> {
+    lua_host::plugins_json()
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|plugin| plugin.get("running").and_then(Value::as_bool) == Some(true))
+        .map(|plugin| json!(sanitize(plugin.get("id").and_then(Value::as_str).unwrap_or_default().as_bytes())))
+        .collect()
+}
+
+pub fn report_environment() -> Value {
+    let Some(current) = app() else { return json!({}) };
+    let stored = current.environment.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).clone();
+    let mut environment = json!({});
+    for key in ENVIRONMENT_KEYS {
+        if let Some(value) = stored.get(key).and_then(Value::as_str) {
+            environment[key] = json!(sanitize(value.as_bytes()));
+        }
+    }
+    environment["schema"] = json!(ENVIRONMENT_SCHEMA);
+    environment["platform"] = json!(current.platform.name());
+    environment["install_mode"] = json!(if current.platform == Platform::Android {
+        "injected"
+    } else {
+        "package"
+    });
+    environment["plugins"] = Value::Array(running_plugins());
+    environment
+}
+
+pub fn list() -> Value {
+    Value::Array(crate::reports::list())
+}
+
+pub fn plugin_reports() -> Value {
+    let plugins = lua_host::plugins_json();
+    for plugin in plugins.as_array().into_iter().flatten() {
+        if plugin.get("failed").and_then(Value::as_bool) != Some(true) {
+            continue;
+        }
+        let identifier = plugin.get("id").and_then(Value::as_str).unwrap_or_default();
+        let name = plugin.get("name").and_then(Value::as_str).unwrap_or(identifier);
+        let error = plugin.get("error").and_then(Value::as_str).unwrap_or_default();
+        crate::reports::plugin_failure(identifier, name, error, &report_environment());
+    }
+    list()
+}
+
+pub fn record_plugin_failure(identifier: &str, name: &str, error: &str) {
+    host::log(&format!(
+        "plugin {} failed: {}",
+        sanitize(identifier.as_bytes()),
+        sanitize(error.as_bytes())
+    ));
+    crate::reports::plugin_failure(identifier, name, error, &report_environment());
+}
+
+pub fn record_process_exit(kind: &str, timestamp: i64, reason: i64, description: &str, trace: &str) {
+    let mut detail = description.to_owned();
+    if !trace.is_empty() {
+        if !detail.is_empty() {
+            detail.push('\n');
+        }
+        detail.push_str(trace);
+    }
+    let (active, running) = match previous_session() {
+        Some(session) if session.started > 0 && timestamp >= session.started => (session.active, Some(session.running)),
+        _ => (String::new(), None),
+    };
+    crate::reports::process_exit(kind, timestamp, reason, &detail, report_environment(), &active, running);
+}
+
+fn report_text(report: &Value, key: &str) -> String {
+    if let Some(value) = report.get(key).and_then(Value::as_str) {
+        return value.to_owned();
+    }
+    if key == "detail" {
+        return report.get("error").and_then(Value::as_str).unwrap_or_default().to_owned();
+    }
+    String::new()
+}
+
+pub fn open_report(index: usize) {
+    let reports = plugin_reports();
+    let Some(report) = reports.as_array().and_then(|reports| reports.get(index)) else {
+        return;
+    };
+    let mut content = report_text(report, "title");
+    if content.is_empty() {
+        content = "Plugin failure".to_owned();
+    }
+    content.push_str(&format!(" ({})\n\n{}", report_text(report, "id"), report_text(report, "detail")));
+    if let Some(environment) = report.get("environment").and_then(Value::as_object) {
+        for (key, value) in environment {
+            let rendered = value.as_str().map_or_else(|| host::json_text(value), str::to_owned);
+            content.push_str(&format!("\n{key}: {rendered}"));
+        }
+    }
+    host::request(Request::OpenReport { text: &content });
+}
+
+fn text(object: &Value, key: &str) -> String {
+    object.get(key).and_then(Value::as_str).unwrap_or_default().to_owned()
+}
+
+fn flag(object: &Value, key: &str) -> bool {
+    object.get(key).and_then(Value::as_bool).unwrap_or(false)
+}
+
+fn integer(object: &Value, key: &str) -> i64 {
+    object.get(key).and_then(Value::as_i64).unwrap_or(0)
+}
+
+fn android_facts(device: &Value) -> AndroidFacts {
+    let background = device.get("background").cloned().unwrap_or(Value::Null);
+    let locale = device.get("locale").cloned().unwrap_or(Value::Null);
+    AndroidFacts {
+        selinux_enforcing: device.get("selinux").and_then(Value::as_bool),
+        verified_boot_state: text(device, "verifiedBoot"),
+        build_tags: text(device, "buildTags"),
+        custom_rom: text(device, "rom"),
+        page_size: integer(device, "pageSize"),
+        web_view: text(device, "webView"),
+        host: text(device, "host"),
+        skin: text(device, "skin"),
+        battery_optimized: flag(&background, "optimized"),
+        background_restricted: flag(&background, "restricted"),
+        standby_bucket: integer(&background, "bucket"),
+        abi_bridge: text(device, "abiBridge"),
+        low_ram: flag(device, "lowRam"),
+        harmony_os: flag(device, "harmony"),
+        adoptable_storage: flag(device, "adoptable"),
+        refresh_rate: integer(device, "refreshRate"),
+        bold_text: flag(device, "boldText"),
+        form_factor: text(device, "formFactor"),
+        duplicate_copy: String::new(),
+        locale: LocaleFacts {
+            calendar: text(&locale, "calendar"),
+            non_latin_digits: flag(&locale, "nonLatinDigits"),
+            right_to_left: flag(&locale, "rtl"),
+        },
+    }
+}
+
+fn device_report() -> Value {
+    let facts: Value = host::request(Request::EnvironmentFacts)
+        .into_text()
+        .and_then(|text| serde_json::from_str(&text).ok())
+        .unwrap_or(Value::Null);
+    let mut environment = json!({});
+    if !facts.is_object() {
+        return environment;
+    }
+    environment["install"] = json!(crate::env_report::android_install_line(
+        facts.get("install").unwrap_or(&Value::Null)
+    ));
+    environment["framework"] = json!(text(&facts, "framework"));
+    environment["device_name"] = json!(text(&facts, "device_name"));
+    let device = facts.get("device").cloned().unwrap_or(Value::Null);
+    let mut markers = crate::env_report::android_markers(&android_facts(&device));
+    let stack = take(crate::network_stack::astral_current_network_stack_marker());
+    if !stack.is_empty() {
+        markers.push(stack);
+    }
+    environment["markers"] = json!(markers);
+    environment
+}
+
+pub fn environment() -> Value {
+    let Some(current) = app() else { return json!({}) };
+    let mut environment = report_environment();
+    if let (Some(target), Value::Object(device)) = (environment.as_object_mut(), device_report()) {
+        target.extend(device);
+    }
+    environment["commit"] = json!(current.commit);
+    environment["image"] = json!(IMAGE_NAME);
+    let now = std::time::UNIX_EPOCH.elapsed().map_or(0.0, |elapsed| elapsed.as_secs_f64());
+    if let (Some(target), Value::Object(summary)) = (environment.as_object_mut(), crate::env_report::crash_summary(&list(), now)) {
+        target.extend(summary);
+    }
+    environment
+}

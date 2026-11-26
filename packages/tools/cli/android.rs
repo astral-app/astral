@@ -8,15 +8,11 @@ use crate::files;
 use crate::flags::{Flags, environment};
 use crate::repo::{self, strings};
 
-const API_LEVEL: &str = "26";
+const API_LEVEL: &str = "28";
+const NATIVE_LIBRARY: &str = "libastral.so";
 const ABIS: [(&str, &str); 2] = [
     ("arm64-v8a", "aarch64-linux-android"),
     ("x86_64", "x86_64-linux-android"),
-];
-const LUA_SOURCES: [&str; 27] = [
-    "lapi", "lcode", "lctype", "ldebug", "ldo", "ldump", "lfunc", "lgc", "llex", "lmem", "lobject",
-    "lopcodes", "lparser", "lstate", "lstring", "ltable", "ltm", "lundump", "lvm", "lzio",
-    "lauxlib", "lbaselib", "lstrlib", "ltablib", "lmathlib", "lutf8lib", "lcorolib",
 ];
 const USAGE: &str = "usage: astral android <command>
   build [--java-home <JDK>] [--output <directory>] [--patcher <LSPatch.jar> <Discord APK>...]
@@ -57,99 +53,68 @@ pub fn ndk_toolchain(explicit: &str) -> Result<PathBuf, String> {
         .ok_or_else(|| "no Android NDK; pass --ndk or set ANDROID_NDK_HOME".into())
 }
 
-fn rust_objects(archiver: &Path, library: &Path, directory: &Path) -> Result<Vec<String>, String> {
-    let extracted = directory.join("rust");
-    std::fs::create_dir_all(&extracted).map_err(|error| error.to_string())?;
-    repo::run(
-        &extracted,
-        &repo::text(archiver),
-        &strings(&["x", &repo::text(library)]),
-    )?;
-    Ok(files::glob(&extracted.join("*.o"))
-        .iter()
-        .map(|object| repo::text(object))
-        .collect())
+fn commit() -> String {
+    repo::output(
+        &repo::path(&[]),
+        "git",
+        &strings(&["rev-parse", "--short=9", "HEAD"]),
+    )
+    .map(|commit| commit.trim().to_owned())
+    .ok()
+    .filter(|commit| !commit.is_empty())
+    .unwrap_or_else(|| "unknown".to_owned())
 }
 
-fn build_core(toolchain: &Path, triple: &str, directory: &Path) -> Result<PathBuf, String> {
-    let objects = directory.join("objects");
-    std::fs::create_dir_all(&objects).map_err(|error| error.to_string())?;
+fn linker_variable(triple: &str) -> String {
+    format!(
+        "CARGO_TARGET_{}_LINKER",
+        triple.to_ascii_uppercase().replace('-', "_")
+    )
+}
+
+pub fn build_native(toolchain: &Path, triple: &str, directory: &Path) -> Result<PathBuf, String> {
     let compiler = repo::text(&toolchain.join(format!("{triple}{API_LEVEL}-clang")));
-    let archiver = toolchain.join("llvm-ar");
-    let root = repo::path(&[]);
-    let mut built = Vec::new();
-    let sqlite = repo::text(&objects.join("c-sqlite3.o"));
-    repo::run(
-        &root,
-        &compiler,
+    let archiver = repo::text(&toolchain.join("llvm-ar"));
+    let version = repo::read(&repo::path(&["version.txt"]))?.trim().to_owned();
+    let commit = commit();
+    let linker = linker_variable(triple);
+    repo::run_with_env(
+        &repo::path(&[]),
+        &[
+            ("CC", compiler.as_str()),
+            ("AR", archiver.as_str()),
+            (linker.as_str(), compiler.as_str()),
+            ("ASTRAL_VERSION", version.as_str()),
+            ("ASTRAL_COMMIT", commit.as_str()),
+        ],
+        "cargo",
         &strings(&[
-            "-O2",
-            "-fPIC",
-            "-w",
-            "-c",
-            &repo::text(&repo::path(&["vendor", "sqlite", "sqlite3.c"])),
-            "-o",
-            &sqlite,
+            "build",
+            "--release",
+            "--quiet",
+            "--target",
+            triple,
+            "--manifest-path",
+            &repo::text(&repo::path(&[
+                "packages",
+                "android",
+                "native",
+                "Cargo.toml",
+            ])),
         ]),
     )?;
-    built.push(sqlite);
-    for name in LUA_SOURCES {
-        let object = repo::text(&objects.join(format!("lua-{name}.o")));
-        repo::run(
-            &root,
-            &compiler,
-            &strings(&[
-                "-O2",
-                "-fPIC",
-                "-w",
-                "-DLUA_USE_POSIX",
-                "-c",
-                &repo::text(&repo::path(&["vendor", "lua", &format!("{name}.c")])),
-                "-o",
-                &object,
-            ]),
-        )?;
-        built.push(object);
-    }
-    repo::run(
-        &repo::path(&["packages", "core"]),
-        "cargo",
-        &strings(&["build", "--release", "--quiet", "--target", triple]),
-    )?;
-    let rust = repo::path(&[
+    let built = repo::path(&[
         "packages",
-        "core",
+        "android",
+        "native",
         "target",
         triple,
         "release",
-        "libastral_core.a",
+        NATIVE_LIBRARY,
     ]);
-    built.extend(rust_objects(&archiver, &rust, &objects)?);
-    let library = directory.join("libastral-core.a");
-    let _ = std::fs::remove_file(&library);
-    let mut arguments = strings(&["rcs", &repo::text(&library)]);
-    arguments.extend(built);
-    repo::run(&root, &repo::text(&archiver), &arguments)?;
-    let shared = directory.join("libastral-core.so");
-    let linked = repo::run(
-        &root,
-        &format!("{compiler}++"),
-        &strings(&[
-            "-shared",
-            "-static-libstdc++",
-            "-Wl,--no-undefined",
-            "-Wl,--whole-archive",
-            &repo::text(&library),
-            "-Wl,--no-whole-archive",
-            "-llog",
-            "-lm",
-            "-o",
-            &repo::text(&shared),
-        ]),
-    );
-    let _ = std::fs::remove_file(&shared);
-    linked?;
-    std::fs::remove_dir_all(&objects).map_err(|error| error.to_string())?;
+    std::fs::create_dir_all(directory).map_err(|error| error.to_string())?;
+    let library = directory.join(NATIVE_LIBRARY);
+    files::copy(&built, &library)?;
     Ok(library)
 }
 
@@ -158,12 +123,12 @@ pub fn core(arguments: &[String]) -> Result<(), String> {
         .string("ndk", "")
         .string(
             "output",
-            &repo::text(&repo::path(&["packages", "core", "build", "android"])),
+            &repo::text(&repo::path(&["packages", "android", "build", "native"])),
         )
         .parse(arguments)?;
     let toolchain = ndk_toolchain(&flags.get("ndk"))?;
     for (abi, triple) in ABIS {
-        let library = build_core(
+        let library = build_native(
             &toolchain,
             triple,
             &PathBuf::from(flags.get("output")).join(abi),

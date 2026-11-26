@@ -16,7 +16,11 @@ const NATIVE_PATTERNS: [&str; 5] = [
     "packages/*.mm",
     "packages/*.cpp",
 ];
-const RUST_CRATES: [&[&str]; 2] = [&["packages", "core"], &["packages", "tools"]];
+const RUST_CRATES: [&[&str]; 3] = [
+    &["packages", "core"],
+    &["packages", "tools"],
+    &["packages", "android", "native"],
+];
 
 pub fn taplo(arguments: &[String]) -> Result<(), String> {
     repo::run_with_env(

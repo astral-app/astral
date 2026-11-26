@@ -1,0 +1,42 @@
+[package]
+name = "astral-android"
+version = "0.0.1"
+edition = "2024"
+publish = false
+
+[lib]
+name = "astral"
+path = "lib.rs"
+crate-type = ["cdylib"]
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+opt-level = 3
+lto = true
+codegen-units = 1
+debug = false
+strip = "symbols"
+
+[dependencies]
+astral-core = { path = "../../core" }
+jni = { version = "0.21", default-features = false }
+serde_json = "1"
+
+[lints.rust]
+nonstandard_style = "deny"
+unsafe_op_in_unsafe_fn = "deny"
+
+[lints.clippy]
+cast_lossless = "deny"
+enum_glob_use = "deny"
+many_single_char_names = "deny"
+match_same_arms = "deny"
+min_ident_chars = "deny"
+needless_pass_by_value = "deny"
+redundant_else = "deny"
+struct_field_names = "deny"
+unreadable_literal = "deny"
+wildcard_imports = "deny"
