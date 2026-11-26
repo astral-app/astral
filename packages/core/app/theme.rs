@@ -3,7 +3,7 @@ use core::ffi::{c_char, c_int, c_void};
 use serde_json::Value;
 
 use super::ffi::{collect, raw, take, take_json, take_optional};
-use super::host::{self, Request};
+use super::host;
 use super::state::{App, app, signing_key, wire};
 use crate::lua::host as lua_host;
 use crate::support::bridge::AstralRustString;
@@ -12,7 +12,6 @@ const DEFAULT_THEME: &str = "discord";
 const MARKETPLACE_THEME: c_int = 1;
 const PLUGIN_ICON_PREFIX: &str = "astral_plugin_";
 const PLUGIN_ICON_LIMIT: usize = 16_384;
-const STATUS_BYTES: usize = 4;
 const SURFACE_COUNT: usize = 3;
 
 pub fn active(current: &App) -> String {
@@ -120,21 +119,13 @@ pub fn import_unbound(current: &App, source: &str, fallback: &str) -> Option<Str
     })
 }
 
-fn split_status(reply: Option<Vec<u8>>) -> (c_int, Vec<u8>) {
-    let Some(bytes) = reply.filter(|bytes| bytes.len() >= STATUS_BYTES) else {
-        return (0, Vec::new());
-    };
-    let status = i32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
-    (status, bytes[STATUS_BYTES..].to_vec())
-}
-
-pub fn fetch(url: &str, token: &str) -> (c_int, Vec<u8>) {
-    split_status(host::request(Request::Fetch { url, token }).into_bytes())
+pub fn fetch(url: &str) -> (c_int, Vec<u8>) {
+    crate::network::http::fetch(url)
 }
 
 unsafe extern "C" fn marketplace_fetch(_: *mut c_void, url: *const c_char, length: usize, body: *mut AstralRustString) -> c_int {
     let url = String::from_utf8_lossy(crate::support::bridge::bytes(url, length)).into_owned();
-    let (status, bytes) = fetch(&url, "");
+    let (status, bytes) = fetch(&url);
     if !body.is_null() {
         unsafe { *body = AstralRustString::new(bytes) };
     }

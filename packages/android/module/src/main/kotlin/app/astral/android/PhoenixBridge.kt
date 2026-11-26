@@ -849,16 +849,7 @@ object PhoenixBridge {
     fun restartGatewaySession() = NetworkHooks.restartGatewaySession()
 
     @JvmStatic
-    fun fetch(url: String, token: String): ByteArray = Http.get(url, token)
-
-    @JvmStatic
     fun discordRequest(id: Long, method: String, path: String, body: String) = PhoenixOkHttp.sendDiscordRequest(id, method, path, body)
-
-    @JvmStatic
-    fun request(id: Long, options: String) = Http.request(id, options)
-
-    @JvmStatic
-    fun cancelRequest(id: Long) = Http.cancel(id)
 
     @JvmStatic
     fun deliver(ops: ByteArray) {

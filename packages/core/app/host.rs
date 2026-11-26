@@ -36,13 +36,6 @@ pub enum Request<'a> {
         path: &'a str,
     },
     StopAudio,
-    NetworkRequest {
-        request: u64,
-        options: &'a str,
-    },
-    CancelNetworkRequest {
-        request: u64,
-    },
     WebAuth {
         request: u64,
         url: &'a str,
@@ -108,10 +101,6 @@ pub enum Request<'a> {
         maximum: i32,
     },
     EnvironmentFacts,
-    Fetch {
-        url: &'a str,
-        token: &'a str,
-    },
     DiscordRequest {
         request: u64,
         method: &'a str,

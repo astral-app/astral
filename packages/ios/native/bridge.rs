@@ -17,8 +17,6 @@ pub enum AstralRequestKind {
     Speak,
     PlaySound,
     StopAudio,
-    NetworkRequest,
-    CancelNetworkRequest,
     WebAuth,
     CancelWebAuth,
     Confirm,
@@ -40,7 +38,6 @@ pub enum AstralRequestKind {
     RestartGatewaySession,
     EditText,
     EnvironmentFacts,
-    Fetch,
     DiscordRequest,
     KeepAlive,
     OfferPick,
@@ -190,12 +187,6 @@ fn outgoing<'a>(request: &Request<'a>) -> Outgoing<'a> {
             .number(volume_permille)
             .texts(&[path]),
         Request::StopAudio => Outgoing::new(Kind::StopAudio),
-        Request::NetworkRequest { request, options } => Outgoing::new(Kind::NetworkRequest)
-            .identifier(request)
-            .texts(&[options]),
-        Request::CancelNetworkRequest { request } => {
-            Outgoing::new(Kind::CancelNetworkRequest).identifier(request)
-        }
         Request::WebAuth {
             request,
             url,
@@ -252,7 +243,6 @@ fn outgoing<'a>(request: &Request<'a>) -> Outgoing<'a> {
             .number(i64::from(maximum))
             .texts(&[title, value]),
         Request::EnvironmentFacts => Outgoing::new(Kind::EnvironmentFacts),
-        Request::Fetch { url, token } => Outgoing::new(Kind::Fetch).texts(&[url, token]),
         Request::DiscordRequest {
             request,
             method,

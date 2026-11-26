@@ -15,7 +15,6 @@
 #import "ImageRenderer.h"
 #import "LuaComposer.h"
 #import "NetworkFilter.h"
-#import "NetworkRequest.h"
 #import "NotificationTaps.h"
 #import "PhoenixImage.h"
 #import "PhoenixSettings.h"
@@ -23,7 +22,6 @@
 #import "PickedMedia.h"
 #import "PluginSheet.h"
 
-static const NSTimeInterval kFetchTimeout = 15;
 static const double kPermille = 1000;
 static const uint32_t kSilenceSampleRate = 8000;
 
@@ -382,14 +380,6 @@ static AstralReply StopAudio(void)
     return Done();
 }
 
-static AstralReply StartNetworkRequest(const AstralRequest *request)
-{
-    NSDictionary *options = DictionaryOf(request->first);
-    if (!options) return Flag(NO);
-    AstralStartNetworkRequest(request->identifier, options);
-    return Done();
-}
-
 static AstralReply WebAuth(const AstralRequest *request)
 {
     BOOL opened =
@@ -562,43 +552,6 @@ static AstralReply EnvironmentFacts(void)
     return Text(json ? [[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding] : nil);
 }
 
-static AstralReply Fetch(NSString *address, NSDictionary *headers)
-{
-    NSURL *url = [NSURL URLWithString:address];
-    uint32_t status = 0;
-    NSMutableData *reply = [NSMutableData dataWithLength:sizeof status];
-    if (!url) return Bytes(reply);
-    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url
-                                                           cachePolicy:NSURLRequestReloadIgnoringLocalCacheData
-                                                       timeoutInterval:kFetchTimeout];
-    for (NSString *name in headers) {
-        id value = headers[name];
-        if ([name isKindOfClass:NSString.class] && [value isKindOfClass:NSString.class]) [request setValue:value forHTTPHeaderField:name];
-    }
-    __block NSInteger code = 0;
-    __block NSData *body = nil;
-    dispatch_semaphore_t done = dispatch_semaphore_create(0);
-    [[NSURLSession.sharedSession dataTaskWithRequest:request
-                                   completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
-                                       if (!error && [response isKindOfClass:NSHTTPURLResponse.class]) {
-                                           code = ((NSHTTPURLResponse *)response).statusCode;
-                                           body = data;
-                                       }
-                                       dispatch_semaphore_signal(done);
-                                   }] resume];
-    dispatch_semaphore_wait(done, DISPATCH_TIME_FOREVER);
-    status = CFSwapInt32HostToBig((uint32_t)code);
-    [reply replaceBytesInRange:NSMakeRange(0, sizeof status) withBytes:&status];
-    if (body) [reply appendData:body];
-    return Bytes(reply);
-}
-
-static AstralReply FetchWithToken(const AstralRequest *request)
-{
-    NSString *token = AstralStringOfText(request->second);
-    return Fetch(AstralStringOfText(request->first), token.length ? @{@"Authorization" : token} : @{});
-}
-
 static AstralReply DismissSheets(void)
 {
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -651,10 +604,6 @@ static AstralReply Answer(const AstralRequest *request)
         return PlaySound(request);
     case AstralRequestKind_StopAudio:
         return StopAudio();
-    case AstralRequestKind_NetworkRequest:
-        return StartNetworkRequest(request);
-    case AstralRequestKind_CancelNetworkRequest:
-        AstralCancelNetworkRequest(request->identifier);
         return Done();
     case AstralRequestKind_WebAuth:
         return WebAuth(request);
@@ -706,8 +655,6 @@ static AstralReply Answer(const AstralRequest *request)
         return EditText(request);
     case AstralRequestKind_EnvironmentFacts:
         return EnvironmentFacts();
-    case AstralRequestKind_Fetch:
-        return FetchWithToken(request);
     case AstralRequestKind_DiscordRequest:
         AstralSendDiscordRequest(request->identifier, AstralStringOfText(request->first), AstralStringOfText(request->second),
                                  AstralStringOfText(request->third));

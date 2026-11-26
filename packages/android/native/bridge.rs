@@ -32,10 +32,7 @@ pub fn log(line: &str) {
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Method {
     Deliver,
-    Fetch,
     DiscordRequest,
-    Request,
-    CancelRequest,
     ExportBackup,
     ImportBackup,
     OpenReport,
@@ -78,12 +75,9 @@ enum Returns {
 }
 
 impl Method {
-    const ALL: [Method; 36] = [
+    const ALL: [Method; 33] = [
         Method::Deliver,
-        Method::Fetch,
         Method::DiscordRequest,
-        Method::Request,
-        Method::CancelRequest,
         Method::ExportBackup,
         Method::ImportBackup,
         Method::OpenReport,
@@ -120,10 +114,7 @@ impl Method {
     const fn name(self) -> &'static str {
         match self {
             Method::Deliver => "deliver",
-            Method::Fetch => "fetch",
             Method::DiscordRequest => "discordRequest",
-            Method::Request => "request",
-            Method::CancelRequest => "cancelRequest",
             Method::ExportBackup => "exportBackup",
             Method::ImportBackup => "importBackup",
             Method::OpenReport => "openReport",
@@ -161,17 +152,11 @@ impl Method {
     const fn signature(self) -> &'static str {
         match self {
             Method::Deliver => "([B)V",
-            Method::Fetch => "(Ljava/lang/String;Ljava/lang/String;)[B",
             Method::DiscordRequest => "(JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
-            Method::Request
-            | Method::PickFile
-            | Method::ShowConfirm
-            | Method::OpenSheet
-            | Method::UpdateSheet => "(JLjava/lang/String;)V",
-            Method::CancelRequest
-            | Method::CancelFilePick
-            | Method::CancelWebAuth
-            | Method::CloseSheet => "(J)V",
+            Method::PickFile | Method::ShowConfirm | Method::OpenSheet | Method::UpdateSheet => {
+                "(JLjava/lang/String;)V"
+            }
+            Method::CancelFilePick | Method::CancelWebAuth | Method::CloseSheet => "(J)V",
             Method::ExportBackup
             | Method::ImportBackup
             | Method::RefreshEmoji
@@ -216,7 +201,7 @@ impl Method {
             | Method::EnvironmentFacts
             | Method::PickedMedia
             | Method::PickedVideo => Returns::Text,
-            Method::Fetch | Method::RenderImage => Returns::Bytes,
+            Method::RenderImage => Returns::Bytes,
             _ => Returns::Nothing,
         }
     }
@@ -438,13 +423,6 @@ impl Bridge for JniBridge {
                 ],
             )),
             Request::StopAudio => into_reply(self.locked(Method::StopAudio, &[])),
-            Request::NetworkRequest { request, options } => into_reply(self.locked(
-                Method::Request,
-                &[Argument::Long(signed(request)), Argument::Text(options)],
-            )),
-            Request::CancelNetworkRequest { request } => {
-                into_reply(self.locked(Method::CancelRequest, &[Argument::Long(signed(request))]))
-            }
             Request::WebAuth {
                 request,
                 url,
@@ -531,9 +509,6 @@ impl Bridge for JniBridge {
                 ],
             )),
             Request::EnvironmentFacts => into_reply(self.call(Method::EnvironmentFacts, &[])),
-            Request::Fetch { url, token } => {
-                into_reply(self.call(Method::Fetch, &[Argument::Text(url), Argument::Text(token)]))
-            }
             Request::DiscordRequest {
                 request,
                 method,
