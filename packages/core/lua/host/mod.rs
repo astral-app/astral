@@ -217,6 +217,7 @@ pub struct Plugin {
     pub node_inserts: Vec<NodeInsert>,
     pub code_blocks: Vec<CodeBlock>,
     pub message_actions: Vec<MessageAction>,
+    pub menu_actions: Vec<MessageAction>,
     pub network_requests: BTreeMap<u64, c_int>,
     pub timers: BTreeMap<u64, Timer>,
     pub web_auth_requests: BTreeMap<u64, c_int>,
@@ -300,6 +301,8 @@ pub struct Host {
     pub displayed_texts: BTreeMap<u64, (String, String)>,
     pub menu_channel: u64,
     pub menu_message: u64,
+    pub popover_title: String,
+    pub popover_guild: String,
     pub current_user_id: String,
     pub code_block_code: HashMap<String, String>,
 }
@@ -573,6 +576,12 @@ pub(crate) fn stop_plugin(plugin: *mut Plugin) {
     release_all(
         state,
         core::mem::take(&mut plugin_ref.message_actions)
+            .into_iter()
+            .map(|action| action.reference),
+    );
+    release_all(
+        state,
+        core::mem::take(&mut plugin_ref.menu_actions)
             .into_iter()
             .map(|action| action.reference),
     );

@@ -20,6 +20,7 @@ local native = {
 	cancel_web_auth = astral.ui.cancel_web_auth,
 	style_text = astral.ui.style_text,
 	message_action = astral.ui.message_action,
+	menu_action = astral.ui.menu_action,
 	permission = astral.discord.permission,
 	enums = astral.enums,
 	picked = astral.media and astral.media.picked,
@@ -632,6 +633,22 @@ function astral.ui.message_action(label, callback, options)
 	end
 	return native.message_action(label, function(node)
 		return callback(wrap_node(node))
+	end, wrapped)
+end
+
+function astral.ui.menu_action(label, callback, options)
+	local wrapped = options
+	if options and options.when then
+		wrapped = {
+			icon = options.icon,
+			danger = options.danger,
+			when = function(menu)
+				return options.when(wrap_node(menu)) == true
+			end,
+		}
+	end
+	return native.menu_action(label, function(menu)
+		return callback(wrap_node(menu))
 	end, wrapped)
 end
 

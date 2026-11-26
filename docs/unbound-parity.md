@@ -52,7 +52,6 @@ astral ports Unbound's plugins as signed Lua packages. They behave and look like
 
 ## Known gaps
 
-- **ReviewDB:** the Server Reviews row on a server's long-press menu is missing; profile reviews, commands and View Reviews are ported.
 - **Message Link Embeds:** the preview lacks the author's avatar, the timestamp and attachments.
 - **Chat Bubbles:** grouped corners and media shaping follow Unbound only partly.
 

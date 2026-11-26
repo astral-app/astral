@@ -14,7 +14,7 @@ use super::images::wire_track_images;
 use super::insert::wire_insert_nodes;
 use super::labels::wire_relabel;
 use super::mentions::wire_decorate_mentions;
-use super::message_menu::{wire_message_menu, wire_track_message_nodes};
+use super::message_menu::{wire_message_menu, wire_popover_menu, wire_track_message_nodes};
 use super::message_text::wire_message_texts;
 use super::names::wire_color_names;
 use super::out::{AstralWireBuffer, Out, WIRE_VERSION};
@@ -29,12 +29,13 @@ unsafe extern "C" {
 type Stage = unsafe extern "C" fn(*const u8, *const Span, usize, *mut Out, *mut c_int, usize);
 type Expansion = unsafe extern "C" fn(*const u8, usize, *mut Span, *mut usize, *mut usize) -> *mut u8;
 
-const STAGES: [Stage; 11] = [
+const STAGES: [Stage; 12] = [
     wire_decorate,
     wire_patch_nodes,
     wire_insert_nodes,
     wire_decorate_mentions,
     wire_message_menu,
+    wire_popover_menu,
     wire_color_names,
     wire_reaction_emoji,
     wire_message_texts,

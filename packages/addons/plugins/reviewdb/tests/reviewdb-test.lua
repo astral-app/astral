@@ -1,3 +1,4 @@
+local menu
 local buttons, switches, inserter, presser, gateway = {}, {}, nil, nil, nil
 local requests, stored, toasts, sheets, auth = {}, {}, {}, {}, nil
 local strings = {
@@ -79,6 +80,9 @@ astral = {
 			inserter = { selector = selector, build = build }
 			presser = on_press
 		end,
+		menu_action = function(label, fn, options)
+			menu = { label = label, fn = fn, options = options }
+		end,
 		web_auth = function(url, callback, fn)
 			auth = { url = url, callback = callback, fn = fn }
 		end,
@@ -97,6 +101,13 @@ astral = {
 	},
 }
 dofile(arg[1])
+
+assert(menu.label == "SERVER_REVIEWS" and menu.options.icon == "res://ic_mana_star")
+assert(menu.options.when({ title = "Main" }) == false)
+assert(menu.options.when({ title = "The Botcave", guild_id = "5" }) == true)
+local before = #sheets
+menu.fn({ title = "The Botcave", guild_id = "5" })
+assert(#sheets == before + 1)
 
 assert(buttons.authorize.title == "Authorize with ReviewDB" and buttons.view_my_reviews and buttons.website)
 assert(switches.notify_reviews == true and switches.hide_blocked_users == true and switches.hide_timestamps == false)

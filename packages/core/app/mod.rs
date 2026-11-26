@@ -110,6 +110,7 @@ pub fn install_decorators() {
     wire::message_text::astral_wire_set_span_transformer(Some(spans::astral_lua_span_transform));
     wire::insert::astral_wire_set_node_inserter(Some(nodes::astral_lua_insert_nodes));
     wire::message_menu::astral_wire_set_message_menu_provider(Some(nodes::astral_lua_message_menu));
+    wire::message_menu::astral_wire_set_popover_menu_provider(Some(nodes::astral_lua_popover_menu));
     wire::message_text::astral_wire_set_message_text_provider(Some(nodes::astral_lua_message_text));
     wire::composer::astral_wire_set_send_transform(Some(nodes::astral_lua_send_transform));
     wire::labels::astral_wire_set_relabeler(Some(hooks::astral_lua_relabel));
