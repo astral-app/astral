@@ -771,7 +771,7 @@ end
 function astral.ui.insert(selector, build, on_press)
 	local id, kind = selector, nil
 	if type(selector) == "table" then
-		id, kind = selector.id, selector.type
+		id, kind = selector.id, selector.path or selector.type
 	end
 	return native.insert(id, kind, function(node)
 		return insert_spec(build(wrap_node(node)))
