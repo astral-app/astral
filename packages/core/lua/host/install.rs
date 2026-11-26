@@ -357,6 +357,8 @@ pub(crate) fn install_api(plugin: *mut Plugin) {
             ("user", api::astral_lua_discord_user),
             ("nickname", api::astral_lua_discord_nickname),
             ("relationship", api::astral_lua_discord_relationship),
+            ("ignored", api::astral_lua_discord_ignored),
+            ("muted", api::astral_lua_discord_muted),
         ] {
             function(state, plugin, name, body);
         }

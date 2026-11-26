@@ -411,6 +411,21 @@ unsafe fn discord_relationship(state: *mut LuaState) -> Outcome {
     Ok(1)
 }
 
+unsafe fn discord_ignored(state: *mut LuaState) -> Outcome {
+    unsafe { require_permission(state, Capability::DiscordRelationships) }?;
+    let user = unsafe { check_text(state, 1) }?;
+    unsafe { lua::lua_pushboolean(state, c_int::from(discord::user_ignored(&user))) };
+    Ok(1)
+}
+
+unsafe fn discord_muted(state: *mut LuaState) -> Outcome {
+    unsafe { require_permission(state, Capability::DiscordGuilds) }?;
+    let channel = unsafe { check_text(state, 1) }?;
+    let now = gateway_timestamp(crate::support::bridge::epoch_ms());
+    unsafe { lua::lua_pushboolean(state, c_int::from(discord::channel_muted(&channel, &now))) };
+    Ok(1)
+}
+
 unsafe fn discord_message(state: *mut LuaState) -> Outcome {
     unsafe { require_permission(state, Capability::DiscordMessages) }?;
     let (channel, message) = (unsafe { check_text(state, 1) }?, unsafe { check_text(state, 2) }?);
@@ -791,6 +806,8 @@ lua_function!(astral_lua_discord_channel_guild, discord_channel_guild);
 lua_function!(astral_lua_discord_user, discord_user);
 lua_function!(astral_lua_discord_nickname, discord_nickname);
 lua_function!(astral_lua_discord_relationship, discord_relationship);
+lua_function!(astral_lua_discord_ignored, discord_ignored);
+lua_function!(astral_lua_discord_muted, discord_muted);
 lua_function!(astral_lua_discord_message, discord_message);
 lua_function!(astral_lua_discord_raw_message, discord_raw_message);
 lua_function!(astral_lua_discord_permissions, discord_permissions);

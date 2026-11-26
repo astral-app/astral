@@ -1,8 +1,8 @@
 use std::process::ExitCode;
 
 use astral_tools::{
-    android, android_compat, avd, check, compat, create, dev, device, doctor, fuzz, ipa, lint,
-    palette, readme, sideload, signing, stage, test, theos, vphone,
+    android, android_compat, avd, check, compat, create, dev, device, doctor, fuzz, i18n, ipa,
+    lint, palette, readme, sideload, signing, stage, test, theos, vphone,
 };
 
 type Run = fn(&[String]) -> Result<(), String>;
@@ -53,6 +53,11 @@ const COMMANDS: &[(&str, &str, Run)] = &[
     ),
     ("doctor", "doctor", doctor::run),
     ("format", "format", lint::format),
+    (
+        "i18n",
+        "i18n import <unbound i18n dir> <plugin i18n dir> [--keys A,B]",
+        i18n::run,
+    ),
     (
         "fuzz",
         "fuzz [--seconds 60] [--corpus <directory>]",
