@@ -1,5 +1,4 @@
 use super::tag::{Op, Tag};
-use crate::lua::enums::TextStyle;
 use core::ffi::{c_char, c_int};
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -7,7 +6,6 @@ use std::sync::Mutex;
 use serde_json::Value;
 
 use super::abi::Callback;
-use super::decorate::wire_allocate_node;
 use super::format::{Span, batch_of, child, find_string, property_cursor, spans_of, type_is, wire_creation, wire_parent_of};
 use super::ids::current_channel;
 use super::out::{AstralWireBuffer, Out};
@@ -19,13 +17,6 @@ const CONTENT_PREFIX: &[u8] = b"message.content:";
 const MONOSPACE: &[u8] = b"monospace";
 const MAX_BLOCKS: usize = 256;
 const MAX_ANCESTORS: usize = 4;
-const HEADER_HEIGHT: f64 = 34.0;
-const SIDE_PADDING: f32 = 12.0;
-const ICON_SIZE: f64 = 16.0;
-const CORNER: f64 = 6.0;
-const BOLD: u64 = TextStyle::Bold.value() as u64;
-const ITALIC: u64 = TextStyle::Italic.value() as u64;
-const UNDERLINE: u64 = TextStyle::Underline.value() as u64;
 
 #[repr(C)]
 pub struct AstralCodeBlockContext {
@@ -151,205 +142,15 @@ fn hash(value: &Value) -> u64 {
     })
 }
 
-fn number(value: &Value, key: &str) -> Option<f64> {
-    value.get(key).and_then(Value::as_f64)
-}
-
-fn color(value: &Value, key: &str) -> i64 {
-    value.get(key).and_then(Value::as_i64).unwrap_or(0)
-}
-
-fn text<'a>(value: &'a Value, key: &str) -> &'a [u8] {
-    value.get(key).and_then(Value::as_str).unwrap_or("").as_bytes()
-}
-
-fn put_long(out: &mut Out, property: u16, value: i64) {
-    out.put16(property);
-    out.put_tag(Tag::Long);
-    out.put(&value.to_le_bytes());
-}
-
-fn put_run(out: &mut Out, text: &[u8], color: i64, flags: u64) {
-    let properties = properties::current();
-    let fields = 2 + u32::from(flags & BOLD != 0) + u32::from(flags & ITALIC != 0) + u32::from(flags & UNDERLINE != 0);
-    out.put_tag(Tag::Map);
-    out.put32(fields);
-    out.prop_string(properties.text, text);
-    put_long(out, properties.color, color);
-    if flags & BOLD != 0 {
-        out.prop_bool(properties.bold, true);
-    }
-    if flags & ITALIC != 0 {
-        out.prop_bool(properties.italic, true);
-    }
-    if flags & UNDERLINE != 0 {
-        out.prop_bool(properties.underline, true);
-    }
-}
-
-fn line_runs(line: &Value, foreground: i64) -> Vec<(Vec<u8>, i64, u64)> {
-    let runs: Vec<(Vec<u8>, i64, u64)> = line
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(|run| {
-            let text = run.get(0).and_then(Value::as_str).filter(|text| !text.is_empty())?;
-            Some((
-                text.as_bytes().to_vec(),
-                run.get(1).and_then(Value::as_i64).unwrap_or(foreground),
-                run.get(2).and_then(Value::as_u64).unwrap_or(0),
-            ))
-        })
-        .collect();
-    if runs.is_empty() {
-        vec![(b" ".to_vec(), foreground, 0)]
-    } else {
-        runs
-    }
-}
-
-fn put_code_text(out: &mut Out, node: i32, runs: &[(Vec<u8>, i64, u64)], card: &Value, grow: bool) {
-    let properties = properties::current();
-    out.create(node, b"text", if grow { 6 } else { 5 });
-    out.put16(properties.spans);
-    out.put_tag(Tag::Array);
-    out.put32(runs.len() as u32);
-    for (text, color, flags) in runs {
-        put_run(out, text, *color, *flags);
-    }
-    out.prop_string(properties.font_family, MONOSPACE);
-    out.prop_number(properties.font_size, number(card, "fontSize").unwrap_or(12.0));
-    out.prop_number(properties.line_height, number(card, "lineHeight").unwrap_or(14.5));
-    put_long(out, properties.color, color(card, "foreground"));
-    if grow {
-        out.prop_number(properties.shrink, 1.0);
-    }
-}
-
-fn put_body(out: &mut Out, block: &mut Block, card: &Value) -> i32 {
-    let properties = properties::current();
-    let foreground = color(card, "foreground");
-    let numbers = color(card, "lineNumbers");
-    let lines = card.get("lines").and_then(Value::as_array).cloned().unwrap_or_default();
-    let width = lines.len().to_string().len().max(2);
-    let body = wire_allocate_node();
-    block.header.push(body);
-    out.create(body, b"view", 6);
-    out.prop_string(properties.direction, b"column");
-    put_long(out, properties.background, color(card, "background"));
-    out.prop_quad(properties.padding, [SIDE_PADDING, 8.0, SIDE_PADDING, 10.0]);
-    out.prop_number(properties.radius_bottom_left, CORNER);
-    out.prop_number(properties.radius_bottom_right, CORNER);
-    out.prop_string(properties.width, b"fill");
-    let mut rows = Vec::with_capacity(lines.len());
-    for (index, line) in lines.iter().enumerate() {
-        let row = wire_allocate_node();
-        block.header.push(row);
-        out.create(row, b"view", 2);
-        out.prop_string(properties.direction, b"row");
-        out.prop_string(properties.align, b"start");
-        let mut cells = Vec::with_capacity(2);
-        if numbers != 0 {
-            let number_cell = wire_allocate_node();
-            block.header.push(number_cell);
-            put_code_text(
-                out,
-                number_cell,
-                &[(format!("{:>width$} ", index + 1).into_bytes(), numbers, 0)],
-                card,
-                false,
-            );
-            cells.push(number_cell);
-        }
-        let code_cell = wire_allocate_node();
-        block.header.push(code_cell);
-        put_code_text(out, code_cell, &line_runs(line, foreground), card, true);
-        cells.push(code_cell);
-        out.put_children(row, &cells);
-        rows.push(row);
-    }
-    out.put_children(body, &rows);
-    body
-}
-
 fn put_card(out: &mut Out, block: &mut Block, card: &Value) {
-    let properties = properties::current();
     if !block.header.is_empty() {
         out.remove(&block.header);
         block.header.clear();
     }
-    let root = wire_allocate_node();
-    block.header.push(root);
-    out.create(root, b"view", 3);
-    out.prop_string(properties.direction, b"column");
-    out.prop_quad(properties.margin, [0.0, 8.0, 0.0, 0.0]);
-    out.prop_string(properties.width, b"fill");
-    let mut children = Vec::with_capacity(2);
-    if let Some(header) = put_header(out, block, card) {
-        children.push(header);
+    let mut created = Vec::new();
+    if super::rich::put_tree(out, &mut created, card).is_some() {
+        block.header = created;
     }
-    children.push(put_body(out, block, card));
-    out.put_children(root, &children);
-}
-
-fn put_label(out: &mut Out, node: i32, label: &[u8], color: i64, weight: i32, grow: bool) {
-    let properties = properties::current();
-    out.create(node, b"text", if grow { 6 } else { 5 });
-    out.prop_string(properties.text, label);
-    put_long(out, properties.color, color);
-    out.prop_number(properties.font_size, 11.0);
-    out.prop_int(properties.font_weight, weight);
-    out.prop_int(properties.max_lines, 1);
-    if grow {
-        out.prop_number(properties.flex, 1.0);
-    }
-}
-
-fn put_header(out: &mut Out, block: &mut Block, card: &Value) -> Option<i32> {
-    let properties = properties::current();
-    let header = card.get("header").filter(|header| header.is_object())?;
-    let root = wire_allocate_node();
-    let foreground = color(header, "foreground");
-    let tap = text(header, "tap");
-    out.create(root, b"view", 7);
-    out.prop_string(properties.direction, b"row");
-    out.prop_string(properties.align, b"center");
-    out.prop_number(properties.height, HEADER_HEIGHT);
-    out.prop_quad(properties.padding, [SIDE_PADDING, 0.0, SIDE_PADDING, 0.0]);
-    put_long(out, properties.background, color(header, "background"));
-    out.prop_number(properties.radius_top_left, CORNER);
-    out.prop_number(properties.radius_top_right, CORNER);
-    block.header.push(root);
-    let mut children = Vec::new();
-    let uri = text(header, "icon");
-    if !uri.is_empty() {
-        let icon = wire_allocate_node();
-        let tint = color(header, "iconTint");
-        out.create(icon, b"image", if tint != 0 { 6 } else { 5 });
-        out.prop_string(properties.uri, uri);
-        out.prop_number(properties.width, ICON_SIZE);
-        out.prop_number(properties.height, ICON_SIZE);
-        out.prop_string(properties.scale, b"fit");
-        out.prop_quad(properties.margin, [0.0, 0.0, 8.0, 0.0]);
-        if tint != 0 {
-            put_long(out, properties.tint, tint);
-        }
-        children.push(icon);
-    }
-    let label = wire_allocate_node();
-    put_label(out, label, text(header, "label"), foreground, 600, true);
-    children.push(label);
-    if !tap.is_empty() {
-        let copy = wire_allocate_node();
-        put_label(out, copy, text(header, "copy"), foreground, 500, false);
-        out.update(copy, 2);
-        out.prop_string(properties.accessibility_id, tap);
-        out.prop_events(properties.on, b"press");
-        children.push(copy);
-    }
-    out.put_children(root, &children);
-    block.header.extend(children);
-    Some(root)
 }
 
 fn put_parent(out: &mut Out, state: &State, parent: i32) {
@@ -391,7 +192,7 @@ fn decorate(block: &mut Block) -> Option<Value> {
     }
     produced
         .and_then(|produced| serde_json::from_slice(&produced).ok())
-        .filter(Value::is_object)
+        .filter(|tree: &Value| tree.is_object() || tree.is_array())
 }
 
 fn render(out: &mut Out, state: &mut State, node: i32, force: bool) -> bool {

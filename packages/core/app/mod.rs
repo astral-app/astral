@@ -341,9 +341,12 @@ pub fn pending_updates() -> Vec<u8> {
         collect(&mut merged, |buffer| unsafe {
             wire::decorate::astral_wire_refresh_message_backgrounds(buffer)
         });
-        collect(&mut merged, |buffer| unsafe {
-            wire::code_blocks::astral_wire_refresh_code_blocks(buffer)
-        });
+        let mut code_blocks = ffi::WireBuffer::new();
+        if unsafe { wire::code_blocks::astral_wire_refresh_code_blocks(code_blocks.pointer()) } != 0 {
+            let bytes = code_blocks.bytes();
+            unsafe { wire::identifiers::astral_wire_note_identifiers(bytes.as_ptr(), bytes.len()) };
+            ffi::append(&mut merged, &code_blocks);
+        }
         collect(&mut merged, |buffer| unsafe {
             wire::patch::astral_wire_refresh_node_patches(buffer)
         });

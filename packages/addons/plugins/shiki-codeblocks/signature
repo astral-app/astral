@@ -1,4 +1,4 @@
-signature = "baFFculUX2cGO7Y3/s8mrUKihNM9kluOCQJxVhaSKMy/NXANh1H9szdpKNi6A389rFGuOSZtuC9ValwZ16DvBw=="
+signature = "kOrXMwQmKQIVL5wJCXslSgKN0J+QRSYjwaF42mUWxNsvjdZuit6lc4VlFrWKZ1JGiVcb4pVxOMdQR0IfzqrJBw=="
 
 [files]
 "i18n/en-US.toml" = "0b20f62733aa52f84c6c4f50049fc4ce8f03d5542c91cc8efe85f4b692f57054"
@@ -6,6 +6,6 @@ signature = "baFFculUX2cGO7Y3/s8mrUKihNM9kluOCQJxVhaSKMy/NXANh1H9szdpKNi6A389rFG
 "lib/devicons.luac" = "a195e7b2350532958542685627a6ef024827d6f37f8f013b620b5e8a552c8757"
 "lib/themes.lua" = "53c3b7205ab792b9cf7ea1dd7810853884b1001c4194497084eb398cbbcf0d87"
 "lib/themes.luac" = "be2bf6bd7a55f970fe26b76191cf171c6e1facd0b3098d7581893d6f790189bf"
-"main.lua" = "7d7f3db3ba01fbd3e5802cf07a9ffa7d17f8402dc23752152859715be72cb500"
-"main.luac" = "8644188d0bfaeaa5794dd616c849e9ef56b83af98a5393697ed00eb07f35f5e9"
-"manifest.toml" = "63c65ffc6c1a53535ff6175c958d29d24ecf550b1ba9c5f2bfefe3f99290069a"
+"main.lua" = "e6b17bde3f86d4498db25bf98d86ae4e5bb97f34c3ded9e827fd8b9851ed6ad4"
+"main.luac" = "b223921706c12b0b8b9420c0c75b14f02d71affa9d11b87567f0b1145784c561"
+"manifest.toml" = "1bf96fa76cbfd6f87b9c1c960ad54ccda704801242a7d6656a95e90009a12576"

@@ -162,7 +162,117 @@ local function icon_for(language)
 	return image and ("data:image/png;base64," .. image) or ""
 end
 
-astral.ui.code_block(function(block)
+local CODE_SIZE = 12
+local CODE_LINE_HEIGHT = 14.5
+local HEADER_HEIGHT = 34
+local LABEL_SIZE = 11
+local ICON_SIZE = 16
+local SIDE = 12
+local CORNER = 6
+
+local function runs_of(line, foreground)
+	local runs = {}
+	for _, run in ipairs(line) do
+		local text, color, flags = run[1], run[2], run[3] or 0
+		if type(text) == "string" and text ~= "" then
+			runs[#runs + 1] = {
+				text = text,
+				color = color or foreground,
+				bold = flags & astral.TextStyle.Bold ~= 0,
+				italic = flags & astral.TextStyle.Italic ~= 0,
+				underline = flags & astral.TextStyle.Underline ~= 0,
+			}
+		end
+	end
+	if #runs == 0 then
+		runs[1] = { text = " ", color = foreground }
+	end
+	return runs
+end
+
+local function code_text(runs, foreground, grow)
+	return {
+		type = astral.InsertNodeType.Text,
+		runs = runs,
+		font = "monospace",
+		size = CODE_SIZE,
+		line_height = CODE_LINE_HEIGHT,
+		color = foreground,
+		grow = grow,
+	}
+end
+
+local function body(lines, background, foreground, numbers)
+	local width = math.max(#tostring(#lines), 2)
+	local rows = {}
+	for index, line in ipairs(lines) do
+		local cells = {}
+		if numbers then
+			cells[1] = code_text({ { text = string.format("%" .. width .. "d ", index), color = numbers } }, foreground)
+		end
+		cells[#cells + 1] = code_text(runs_of(line, foreground), foreground, true)
+		rows[index] = { type = astral.InsertNodeType.View, row = true, align = astral.Align.Start, children = cells }
+	end
+	return {
+		type = astral.InsertNodeType.View,
+		background = background,
+		padding = { SIDE, 8, SIDE, 10 },
+		radius = { 0, 0, CORNER, CORNER },
+		fill = true,
+		children = rows,
+	}
+end
+
+local function header(label, icon, tint, background, foreground)
+	local children = {}
+	if icon ~= "" then
+		children[1] = {
+			type = astral.InsertNodeType.Image,
+			icon = icon,
+			width = ICON_SIZE,
+			height = ICON_SIZE,
+			margin = { 0, 0, 8, 0 },
+			color = tint,
+		}
+	end
+	children[#children + 1] = {
+		type = astral.InsertNodeType.Text,
+		text = label,
+		color = foreground,
+		size = LABEL_SIZE,
+		weight = 600,
+		max_lines = 1,
+		grow = true,
+	}
+	children[#children + 1] = {
+		type = astral.InsertNodeType.View,
+		action = "copy",
+		padding = { 8, 8, 0, 8 },
+		children = {
+			{
+				type = astral.InsertNodeType.Text,
+				text = t("COPY"),
+				color = foreground,
+				size = LABEL_SIZE,
+				weight = 500,
+				max_lines = 1,
+			},
+		},
+	}
+	return {
+		type = astral.InsertNodeType.View,
+		row = true,
+		fill = true,
+		height = HEADER_HEIGHT,
+		padding = { SIDE, 0, SIDE, 0 },
+		background = background,
+		radius = { CORNER, CORNER, 0, 0 },
+		children = children,
+	}
+end
+
+---@param block astral.CodeBlock
+local function render(block)
 	local source = active_theme()
 	local language = language_of(block)
 	local theme = load_theme(source)
@@ -175,23 +285,22 @@ astral.ui.code_block(function(block)
 		or (result.found and result.language)
 		or (language ~= "" and language)
 		or t("PLAIN_TEXT")
+	local icon = mode ~= "disabled" and icon_for(language) or ""
+	local tint = mode == "greyscale" and result.foreground or nil
 	return {
-		background = background,
-		foreground = result.foreground,
-		lineNumbers = LINE_NUMBERS[appearance_kind],
-		fontSize = 12,
-		lineHeight = 14.5,
-		lines = result.lines,
-		header = {
-			label = label,
-			icon = mode ~= "disabled" and icon_for(language) or "",
-			iconTint = mode == "greyscale" and result.foreground or nil,
-			copy = t("COPY"),
-			background = background,
-			foreground = result.foreground,
+		type = astral.InsertNodeType.View,
+		margin = { 0, 8, 0, 0 },
+		fill = true,
+		children = {
+			header(label, icon, tint, background, result.foreground),
+			body(result.lines, background, result.foreground, LINE_NUMBERS[appearance_kind]),
 		},
 	}
-end, function(block, action)
+end
+
+---@param block astral.CodeBlock
+---@param action string
+local function on_press(block, action)
 	if action ~= "copy" then
 		return
 	end
@@ -200,7 +309,9 @@ end, function(block, action)
 		return
 	end
 	astral.ui.toast(t("SHIKI_CODEBLOCKS"), t("CODE_COPIED"))
-end)
+end
+
+astral.ui.insert("code:", render, on_press)
 
 for _, key in ipairs({ "theme", "customTheme", "bgOpacity", "useDevIcon" }) do
 	astral.settings.on_change(key, function()

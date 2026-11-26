@@ -1306,24 +1306,6 @@ pub unsafe fn register_node_insert(state: *mut LuaState) -> Outcome {
     Ok(0)
 }
 
-pub unsafe fn register_code_block(state: *mut LuaState) -> Outcome {
-    let plugin = me(state);
-    unsafe { require_permission(state, Capability::UiCodeBlocks) }?;
-    unsafe { check_type(state, 1, lua::TFUNCTION) }?;
-    if !plugin.code_blocks.is_empty() {
-        return Err("astral.ui.code_block: at most one renderer per plugin".into());
-    }
-    let render = unsafe { reference_at(state, 1) };
-    let press = if unsafe { lua::is_function(state, 2) } {
-        unsafe { reference_at(state, 2) }
-    } else {
-        NOREF
-    };
-    let identifier = host::NEXT_INSERT.fetch_add(1, Ordering::Relaxed);
-    plugin.code_blocks.push(crate::lua::host::CodeBlock { identifier, render, press });
-    Ok(0)
-}
-
 pub unsafe fn register_node_patch(state: *mut LuaState) -> Outcome {
     let (prefix, kind) = unsafe { prefixed_registration(state, Capability::UiPatch, "astral.ui.patch") }?;
     let plugin = me(state);

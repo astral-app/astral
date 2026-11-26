@@ -425,6 +425,41 @@ pub unsafe extern "C" fn astral_lua_insert_nodes(
     count as c_int
 }
 
+pub const CODE_PREFIX: &str = "code:";
+
+fn tap_actions(tree: &mut Value, identifier: u64, key: &str) {
+    match tree {
+        Value::Array(nodes) => nodes.iter_mut().for_each(|node| tap_actions(node, identifier, key)),
+        Value::Object(node) => {
+            if let Some(action) = node.remove("action").and_then(|action| action.as_str().map(str::to_owned))
+                && !action.is_empty()
+                && action.len() < 32
+                && !action.contains(':')
+            {
+                node.insert("tap".into(), json!(format!("astral.tap.{identifier}:{action}:{key}")));
+            }
+            if let Some(children) = node.get_mut("children") {
+                tap_actions(children, identifier, key);
+            }
+        }
+        _ => {}
+    }
+}
+
+unsafe fn push_code_target(state: *mut LuaState, key: &str, message: &str, channel: &str, index: i64, code: &str) {
+    unsafe {
+        lua::lua_createtable(state, 0, 7);
+        set_text(state, "id", &format!("{CODE_PREFIX}{key}"));
+        set_text(state, "key", key);
+        set_text(state, "type", "code");
+        set_text(state, "message_id", message);
+        set_optional(state, "channel_id", channel);
+        lua::lua_pushinteger(state, index);
+        lua::set_field(state, -2, "index");
+        set_text(state, "code", code);
+    }
+}
+
 #[unsafe(export_name = "AstralLuaCodeBlock")]
 pub unsafe extern "C" fn astral_lua_code_block(context: *const AstralCodeBlockContext, card: *mut AstralRustString) -> c_int {
     let (Some(context), Some(card)) = (unsafe { context.as_ref() }, unsafe { card.as_mut() }) else {
@@ -435,49 +470,40 @@ pub unsafe extern "C" fn astral_lua_code_block(context: *const AstralCodeBlockCo
     let channel = snowflake(context.channel_id);
     let code = String::from_utf8_lossy(crate::support::bridge::bytes(context.code, context.code_length)).into_owned();
     let key = format!("{message}.{}", context.index);
+    let target = format!("{CODE_PREFIX}{key}");
     for plugin in running_plugins() {
-        let blocks: Vec<(u64, c_int, c_int)> = unsafe { &*plugin }
-            .code_blocks
+        let inserts: Vec<(u64, c_int)> = unsafe { &*plugin }
+            .node_inserts
             .iter()
-            .map(|entry| (entry.identifier, entry.render, entry.press))
+            .filter(|entry| entry.prefix.starts_with(CODE_PREFIX) && target.starts_with(&entry.prefix))
+            .map(|entry| (entry.identifier, entry.build))
             .collect();
-        for (identifier, render, press) in blocks {
+        for (identifier, build) in inserts {
             let state = unsafe { (*plugin).state() };
             let top = unsafe { lua::lua_gettop(state) };
             unsafe {
-                lua::push_reference(state, render);
-                lua::lua_createtable(state, 0, 4);
-                set_text(state, "message_id", &message);
-                set_optional(state, "channel_id", &channel);
-                lua::lua_pushinteger(state, i64::from(context.index));
-                lua::set_field(state, -2, "index");
-                set_text(state, "code", &code);
+                lua::push_reference(state, build);
+                push_code_target(state, &key, &message, &channel, i64::from(context.index), &code);
             }
-            if !host::call(plugin, 1, 1, "code block") {
+            if !host::call(plugin, 1, 1, "code block insert") {
                 unsafe { lua::lua_settop(state, top) };
                 host::fail_and_stop(plugin);
                 return 0;
             }
-            let rendered = if unsafe { lua::is_table(state, -1) } {
-                unsafe { to_json(state, -1, 0) }.filter(Value::is_object)
+            let built = if unsafe { lua::is_table(state, -1) } {
+                unsafe { to_json(state, -1, 0) }.filter(|tree| tree.is_object() || tree.is_array())
             } else {
                 None
             };
             unsafe { lua::lua_settop(state, top) };
-            let Some(mut rendered) = rendered else { continue };
-            if press != NOREF
-                && rendered
-                    .get("header")
-                    .is_some_and(|header| header.is_object() && header.get("copy").is_some())
-            {
-                rendered["header"]["tap"] = json!(format!("astral.tap.{identifier}:copy:{key}"));
-                let codes = &mut host::host().code_block_code;
-                if codes.len() > 256 {
-                    codes.clear();
-                }
-                codes.insert(key.clone(), code.clone());
+            let Some(mut tree) = built else { continue };
+            tap_actions(&mut tree, identifier, &key);
+            let codes = &mut host::host().code_block_code;
+            if codes.len() > 256 {
+                codes.clear();
             }
-            *card = AstralRustString::new(rendered.to_string().into_bytes());
+            codes.insert(key.clone(), code.clone());
+            *card = AstralRustString::new(tree.to_string().into_bytes());
             return 1;
         }
     }
@@ -835,6 +861,28 @@ pub fn press_inserted_node(identifier: &str) -> bool {
         else {
             continue;
         };
+        if prefix.starts_with(CODE_PREFIX) {
+            let code = host::host().code_block_code.get(key).cloned().unwrap_or_default();
+            let (message, index) = match key.rsplit_once('.') {
+                Some((message, index)) => (message.to_owned(), index.parse::<i64>().unwrap_or(0)),
+                None => (key.to_owned(), 0),
+            };
+            let channel = snowflake(crate::wire::ids::astral_wire_current_channel());
+            let state = unsafe { (*plugin).state() };
+            let top = unsafe { lua::lua_gettop(state) };
+            unsafe {
+                lua::push_reference(state, press);
+                push_code_target(state, key, &message, &channel, index, &code);
+                lua::push_str(state, action);
+            }
+            if !host::call(plugin, 2, 0, "code block press") {
+                unsafe { lua::lua_settop(state, top) };
+                host::fail_and_stop(plugin);
+                return true;
+            }
+            unsafe { lua::lua_settop(state, top) };
+            return true;
+        }
         let full = std::ffi::CString::new(format!("{prefix}{key}")).unwrap_or_default();
         let kind = std::ffi::CString::new(kind).unwrap_or_default();
         let message = unsafe { crate::wire::patch::astral_wire_message_of(full.as_ptr()) };
@@ -865,39 +913,7 @@ pub fn press_inserted_node(identifier: &str) -> bool {
         unsafe { lua::lua_settop(state, top) };
         return true;
     }
-    for plugin in running_plugins() {
-        let Some(press) = (unsafe { &*plugin })
-            .code_blocks
-            .iter()
-            .find(|entry| entry.identifier == registration && entry.press != NOREF)
-            .map(|entry| entry.press)
-        else {
-            continue;
-        };
-        let code = host::host().code_block_code.get(key).cloned().unwrap_or_default();
-        let (message, index) = match key.rsplit_once('.') {
-            Some((message, index)) => (message.to_owned(), index.parse::<i64>().unwrap_or(0)),
-            None => (key.to_owned(), 0),
-        };
-        let state = unsafe { (*plugin).state() };
-        let top = unsafe { lua::lua_gettop(state) };
-        unsafe {
-            lua::push_reference(state, press);
-            lua::lua_createtable(state, 0, 3);
-            set_text(state, "message_id", &message);
-            lua::lua_pushinteger(state, index);
-            lua::set_field(state, -2, "index");
-            set_text(state, "code", &code);
-            lua::push_str(state, action);
-        }
-        if !host::call(plugin, 2, 0, "code block press") {
-            unsafe { lua::lua_settop(state, top) };
-            host::fail_and_stop(plugin);
-            return true;
-        }
-        unsafe { lua::lua_settop(state, top) };
-        return true;
-    }
+
     false
 }
 

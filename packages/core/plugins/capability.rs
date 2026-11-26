@@ -64,7 +64,6 @@ capabilities! {
     UiDialogs = "ui.dialogs", "Shows dialogs and pickers", "res://ic_mana_chat";
     UiPatch = "ui.patch", "Restyles parts of Discord's screens", "res://ic_mana_paint_palette";
     UiInsert = "ui.insert", "Adds buttons and text to Discord's screens", "res://ic_mana_paint_palette";
-    UiCodeBlocks = "ui.code_blocks", "Restyles code blocks in messages", "res://ic_mana_paint_palette";
     FilesRead = "files.read", "Reads files you pick", "res://ic_mana_image";
     MediaSave = "media.save", "Changes which file Discord saves to your photos", "res://ic_mana_download";
     MediaPicker = "media.picker", "Reads the size and length of photos in the media picker", "res://ic_mana_image";
