@@ -218,9 +218,10 @@ fn build(arguments: &[String]) -> Result<(), String> {
     }
     let jar = std::fs::canonicalize(flags.get("patcher")).map_err(|error| error.to_string())?;
     let work = repo::scratch()?;
+    let prepared = open_phoenix_access(&inputs, &work.0)?;
     let patched = work.0.join("patched");
     let mut patch = strings(&["-jar", &repo::text(&jar)]);
-    patch.extend(inputs.iter().map(|input| repo::text(input)));
+    patch.extend(prepared.iter().map(|input| repo::text(input)));
     patch.extend(strings(&[
         "-m",
         &repo::text(&module),
@@ -456,4 +457,47 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
         Some("download") => download(&arguments[1..]),
         _ => Err(USAGE.into()),
     }
+}
+
+const PHOENIX_SO: &str = "lib/arm64-v8a/liblibdiscord_wasm_host.so";
+
+fn open_phoenix_access(
+    inputs: &[std::path::PathBuf],
+    work: &std::path::Path,
+) -> Result<Vec<std::path::PathBuf>, String> {
+    let mut prepared = Vec::new();
+    for (index, input) in inputs.iter().enumerate() {
+        let mut archive = crate::ipa_archive::Ipa::open(input)?;
+        let Some(entry) = archive
+            .names()
+            .into_iter()
+            .find(|name| name.ends_with(PHOENIX_SO))
+        else {
+            prepared.push(input.clone());
+            continue;
+        };
+        if !crate::phoenix::opens_android_access_gate(&archive.read(&entry)?) {
+            prepared.push(input.clone());
+            continue;
+        }
+        let copy = work.join(format!("phoenix-{index}.apk"));
+        files::copy(input, &copy)?;
+        crate::ipa_archive::rewrite(
+            &copy,
+            "phoenix-access",
+            |name| {
+                if name == entry {
+                    crate::ipa_archive::Action::Patch(Box::new(
+                        crate::phoenix::patch_android_access_gate,
+                    ))
+                } else {
+                    crate::ipa_archive::Action::Keep
+                }
+            },
+            Vec::new(),
+        )?;
+        println!("opened Phoenix's access gate in {}", input.display());
+        prepared.push(copy);
+    }
+    Ok(prepared)
 }
