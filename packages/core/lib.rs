@@ -9,6 +9,7 @@ pub mod discord_cache;
 pub mod discord_headers;
 pub mod disk_full;
 pub mod env_report;
+pub mod environment;
 pub mod exit_record;
 pub mod files;
 pub mod highlight;
