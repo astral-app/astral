@@ -1,0 +1,271 @@
+use std::path::Path;
+
+use crate::flags::{Flags, environment};
+use crate::lint;
+use crate::repo::{self, strings};
+use crate::signing;
+
+fn core_library() -> Result<String, String> {
+    repo::run(
+        &repo::path(&["packages", "core"]),
+        "cargo",
+        &strings(&["build", "--quiet"]),
+    )?;
+    Ok(repo::text(&repo::path(&[
+        "packages",
+        "core",
+        "target",
+        "debug",
+        "libastral_core.a",
+    ])))
+}
+
+fn lua_platform() -> &'static str {
+    if cfg!(target_os = "macos") {
+        "-DLUA_USE_MACOSX"
+    } else {
+        "-DLUA_USE_LINUX"
+    }
+}
+
+pub fn test_wire(work: &Path) -> Result<(), String> {
+    let ios = repo::path(&["packages", "ios"]);
+    let binary = repo::text(&work.join("phoenix-wire-test"));
+    let mut arguments = strings(&[
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-g",
+        "-fsanitize=address,undefined",
+        "tests/phoenix-wire-test.c",
+        "tests/support/wire-parser.c",
+    ]);
+    arguments.push(format!(
+        "-I{}",
+        repo::text(&repo::path(&["packages", "core", "wire"]))
+    ));
+    arguments.push(core_library()?);
+    arguments.extend(strings(&["-lm", "-o", &binary]));
+    repo::run(&ios, "clang", &arguments)?;
+    repo::run(&ios, &binary, &[])
+}
+
+pub fn test_core(work: &Path) -> Result<(), String> {
+    let root = repo::path(&[]);
+    let object = repo::text(&work.join("lua-core.o"));
+    let onelua = repo::text(&repo::path(&["vendor", "lua", "onelua.c"]));
+    repo::run(
+        &root,
+        "cc",
+        &strings(&[
+            "-c",
+            "-O1",
+            "-g",
+            "-fsanitize=address,undefined",
+            "-DMAKE_LIB",
+            lua_platform(),
+            "-w",
+            &onelua,
+            "-o",
+            &object,
+        ]),
+    )?;
+    let binary = repo::text(&work.join("lua-core-test"));
+    let include = |parts: &[&str]| format!("-I{}", repo::text(&repo::path(parts)));
+    let mut arguments = strings(&[
+        "-std=c++20",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-g",
+        "-fsanitize=address,undefined",
+    ]);
+    arguments.extend([
+        include(&["packages", "core", "include"]),
+        include(&["vendor", "lua"]),
+        format!("-I{}", repo::text(work)),
+        include(&["packages", "core", "wire"]),
+        "-isystem".into(),
+        repo::text(&repo::path(&["vendor", "json", "single_include"])),
+        "-isystem".into(),
+        repo::text(&repo::path(&["vendor", "tomlplusplus", "include"])),
+        repo::text(&repo::path(&[
+            "packages",
+            "core",
+            "tests",
+            "lua-core-test.cpp",
+        ])),
+    ]);
+    if !cfg!(target_os = "macos") {
+        arguments.push("-lcrypto".into());
+    }
+    arguments.extend([
+        object,
+        core_library()?,
+        "-lsqlite3".into(),
+        "-o".into(),
+        binary.clone(),
+    ]);
+    repo::run(&root, "clang++", &arguments)?;
+    repo::run(&root, &binary, &[repo::text(work), repo::text(&root)])
+}
+
+pub fn build_lua(work: &Path) -> Result<String, String> {
+    let binary = repo::text(&work.join("lua"));
+    let onelua = repo::text(&repo::path(&["vendor", "lua", "onelua.c"]));
+    repo::run(
+        &repo::path(&[]),
+        "cc",
+        &strings(&["-O1", lua_platform(), "-w", "-o", &binary, &onelua, "-lm"]),
+    )?;
+    Ok(binary)
+}
+
+pub fn test_lua(work: &Path) -> Result<(), String> {
+    let root = repo::path(&[]);
+    let lua = build_lua(work)?;
+    let prelude = repo::text(&repo::path(&["packages", "core", "lua", "prelude.lua"]));
+    repo::run(
+        &root,
+        &lua,
+        &[
+            repo::text(&repo::path(&[
+                "packages",
+                "core",
+                "tests",
+                "prelude-test.lua",
+            ])),
+            prelude.clone(),
+        ],
+    )?;
+    for folder in repo::plugin_folders()? {
+        let manifest = signing::read_manifest(&folder)?;
+        let Ok(entries) = std::fs::read_dir(folder.join("tests")) else {
+            continue;
+        };
+        let mut tests: Vec<_> = entries
+            .flatten()
+            .map(|entry| entry.path())
+            .filter(|path| path.extension().is_some_and(|extension| extension == "lua"))
+            .collect();
+        tests.sort();
+        for test in tests {
+            repo::run(
+                &root,
+                &lua,
+                &[
+                    repo::text(&test),
+                    repo::text(&folder.join(&manifest.main)),
+                    prelude.clone(),
+                ],
+            )?;
+        }
+    }
+    Ok(())
+}
+
+pub fn test_signatures(work: &Path) -> Result<(), String> {
+    let key = signing::public_key()?;
+    let folders = repo::plugin_folders()?;
+    for folder in &folders {
+        signing::verify_plugin(folder, &key)?;
+    }
+    signing::verify_catalog(&key)?;
+    verify_with_monocypher(work, &folders)
+}
+
+fn verify_with_monocypher(work: &Path, folders: &[std::path::PathBuf]) -> Result<(), String> {
+    let monocypher = repo::path(&["vendor", "monocypher", "src"]);
+    let verifier = repo::text(&work.join("verify-signature"));
+    repo::run(
+        &repo::path(&[]),
+        "cc",
+        &strings(&[
+            "-O1",
+            "-w",
+            &format!("-I{}", repo::text(&monocypher)),
+            &format!("-I{}", repo::text(&monocypher.join("optional"))),
+            "-o",
+            &verifier,
+            &repo::text(&repo::path(&[
+                "packages",
+                "ios",
+                "tests",
+                "support",
+                "verify-signature.c",
+            ])),
+            &repo::text(&monocypher.join("monocypher.c")),
+            &repo::text(&monocypher.join("optional").join("monocypher-ed25519.c")),
+        ]),
+    )?;
+    let key = repo::read(&repo::path(&["keys", "plugin-signing.pub"]))?
+        .trim()
+        .to_owned();
+    let (message, signature_file) = (work.join("message"), work.join("signature"));
+    for folder in folders {
+        let signature = signing::read_plugin_signature(folder)?;
+        std::fs::write(&message, signing::signature_message(&signature.files))
+            .map_err(|error| error.to_string())?;
+        std::fs::write(&signature_file, &signature.signature).map_err(|error| error.to_string())?;
+        repo::run(
+            work,
+            &verifier,
+            &[
+                repo::text(&message),
+                repo::text(&signature_file),
+                key.clone(),
+            ],
+        )
+        .map_err(|_| {
+            format!(
+                "{}: Monocypher rejects the signature",
+                signing::name_of(folder)
+            )
+        })?;
+    }
+    repo::run(
+        work,
+        &verifier,
+        &[
+            repo::text(&repo::path(&["packages", "catalog", "index.toml"])),
+            repo::text(&repo::path(&["packages", "catalog", "index.toml.sig"])),
+            key,
+        ],
+    )
+    .map_err(|_| "Monocypher rejects the catalog signature".to_owned())?;
+    println!("signatures ok");
+    Ok(())
+}
+
+fn test_locator(work: &Path, phoenix: &str) -> Result<(), String> {
+    let binary = repo::text(&work.join("locate-test"));
+    let sources = repo::path(&["packages", "ios"]);
+    let mut arguments = strings(&["-Wall", "-Wextra", "-Werror", "-O1", "tests/locate-test.c"]);
+    arguments.push(format!(
+        "-I{}",
+        repo::text(&repo::path(&["packages", "core", "wire"]))
+    ));
+    arguments.extend([core_library()?, "-o".into(), binary.clone()]);
+    repo::run(&sources, "clang", &arguments)?;
+    repo::run(&sources, &binary, &[phoenix.to_owned()])
+}
+
+pub fn run(arguments: &[String]) -> Result<(), String> {
+    let flags = Flags::new("test")
+        .string("phoenix", &environment("ASTRAL_PHOENIX_BINARY"))
+        .parse(arguments)?;
+    let work = repo::scratch()?;
+    lint::test_go()?;
+    lint::test_rust()?;
+    test_wire(&work.0)?;
+    test_core(&work.0)?;
+    test_lua(&work.0)?;
+    test_signatures(&work.0)?;
+    crate::readme::test()?;
+    crate::catalog::test()?;
+    let phoenix = flags.get("phoenix");
+    if !phoenix.is_empty() {
+        test_locator(&work.0, &phoenix)?;
+    }
+    Ok(())
+}
