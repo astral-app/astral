@@ -386,6 +386,7 @@ pub fn developer_log(line: &str) {
 }
 
 pub fn refresh_decorations() {
+    nodes::forget_tags();
     platform("refreshDecorations", &json!([]));
 }
 
@@ -589,6 +590,7 @@ pub(crate) fn stop_plugin(plugin: *mut Plugin) {
     plugin_ref.settings_buttons.clear();
     plugin_ref.setting_count = 0;
     plugin_ref.decorators.clear();
+    nodes::forget_tags();
     plugin_ref.relabelers.clear();
     plugin_ref.text_stylers.clear();
     plugin_ref.composer_decorators.clear();

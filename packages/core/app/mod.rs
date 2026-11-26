@@ -403,6 +403,7 @@ pub fn page_open() -> bool {
 }
 
 pub fn refresh_decorations() {
+    crate::lua::host::nodes::forget_tags();
     REFRESH_DECORATIONS.store(true, Ordering::Release);
 }
 
