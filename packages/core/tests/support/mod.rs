@@ -13,7 +13,15 @@ use serde_json::{Value, json};
 
 pub mod batch;
 
-const ADVERTISED: [&str; 6] = ["confirm", "openSheet", "pickFile", "webAuth", "networkRequest", "dispatchGateway"];
+const ADVERTISED: [&str; 7] = [
+    "confirm",
+    "openSheet",
+    "pickFile",
+    "webAuth",
+    "networkRequest",
+    "discordRequest",
+    "dispatchGateway",
+];
 const SETTINGS_RECHECK_MS: u64 = 500;
 
 pub fn work(name: &str) -> PathBuf {

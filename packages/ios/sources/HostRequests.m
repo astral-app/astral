@@ -9,7 +9,6 @@
 #import "AstralCore.h"
 #import "BrowserAuth.h"
 #import "ConfirmSheet.h"
-#import "DiscordSession.h"
 #import "EmojiComposer.h"
 #import "EnvironmentReport.h"
 #import "FilePicker.h"
@@ -600,11 +599,6 @@ static AstralReply FetchWithToken(const AstralRequest *request)
     return Fetch(AstralStringOfText(request->first), token.length ? @{@"Authorization" : token} : @{});
 }
 
-static AstralReply FetchWithHeaders(const AstralRequest *request)
-{
-    return Fetch(AstralStringOfText(request->first), DictionaryOf(request->second) ?: @{});
-}
-
 static AstralReply DismissSheets(void)
 {
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -714,8 +708,10 @@ static AstralReply Answer(const AstralRequest *request)
         return EnvironmentFacts();
     case AstralRequestKind_Fetch:
         return FetchWithToken(request);
-    case AstralRequestKind_FetchWith:
-        return FetchWithHeaders(request);
+    case AstralRequestKind_DiscordRequest:
+        AstralSendDiscordRequest(request->identifier, AstralStringOfText(request->first), AstralStringOfText(request->second),
+                                 AstralStringOfText(request->third));
+        return Done();
     case AstralRequestKind_KeepAlive:
         return KeepAlive(request->flag);
     case AstralRequestKind_OfferPick:
@@ -732,8 +728,6 @@ static AstralReply Answer(const AstralRequest *request)
         return Done();
     case AstralRequestKind_InjectGateway:
         return Flag(AstralInjectGatewayMessage(AstralStringOfText(request->first)));
-    case AstralRequestKind_SessionToken:
-        return Text(AstralDiscordSessionToken());
     }
     return Unsupported();
 }

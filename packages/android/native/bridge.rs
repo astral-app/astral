@@ -33,7 +33,7 @@ pub fn log(line: &str) {
 pub enum Method {
     Deliver,
     Fetch,
-    FetchWith,
+    DiscordRequest,
     Request,
     CancelRequest,
     ExportBackup,
@@ -81,7 +81,7 @@ impl Method {
     const ALL: [Method; 36] = [
         Method::Deliver,
         Method::Fetch,
-        Method::FetchWith,
+        Method::DiscordRequest,
         Method::Request,
         Method::CancelRequest,
         Method::ExportBackup,
@@ -121,7 +121,7 @@ impl Method {
         match self {
             Method::Deliver => "deliver",
             Method::Fetch => "fetch",
-            Method::FetchWith => "fetchWith",
+            Method::DiscordRequest => "discordRequest",
             Method::Request => "request",
             Method::CancelRequest => "cancelRequest",
             Method::ExportBackup => "exportBackup",
@@ -161,7 +161,8 @@ impl Method {
     const fn signature(self) -> &'static str {
         match self {
             Method::Deliver => "([B)V",
-            Method::Fetch | Method::FetchWith => "(Ljava/lang/String;Ljava/lang/String;)[B",
+            Method::Fetch => "(Ljava/lang/String;Ljava/lang/String;)[B",
+            Method::DiscordRequest => "(JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
             Method::Request
             | Method::PickFile
             | Method::ShowConfirm
@@ -215,7 +216,7 @@ impl Method {
             | Method::EnvironmentFacts
             | Method::PickedMedia
             | Method::PickedVideo => Returns::Text,
-            Method::Fetch | Method::FetchWith | Method::RenderImage => Returns::Bytes,
+            Method::Fetch | Method::RenderImage => Returns::Bytes,
             _ => Returns::Nothing,
         }
     }
@@ -533,16 +534,25 @@ impl Bridge for JniBridge {
             Request::Fetch { url, token } => {
                 into_reply(self.call(Method::Fetch, &[Argument::Text(url), Argument::Text(token)]))
             }
-            Request::FetchWith { url, headers } => into_reply(self.call(
-                Method::FetchWith,
-                &[Argument::Text(url), Argument::Text(headers)],
+            Request::DiscordRequest {
+                request,
+                method,
+                path,
+                body,
+            } => into_reply(self.locked(
+                Method::DiscordRequest,
+                &[
+                    Argument::Long(signed(request)),
+                    Argument::Text(method),
+                    Argument::Text(path),
+                    Argument::Text(body),
+                ],
             )),
             Request::KeepAlive { .. }
             | Request::OfferPick { .. }
             | Request::DismissSheets
             | Request::RefreshSettings
-            | Request::InjectGateway { .. }
-            | Request::SessionToken => Reply::Unsupported,
+            | Request::InjectGateway { .. } => Reply::Unsupported,
         }
     }
 }

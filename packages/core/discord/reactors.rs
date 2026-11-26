@@ -1,12 +1,8 @@
-use core::ffi::{c_char, c_int};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::{Condvar, Mutex, Once};
 use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
-
-use super::{headers, session};
-use crate::support::bridge::{AstralRustString, bytes};
 
 const FACES: usize = 5;
 const MAX_ENTRIES: usize = 512;
@@ -14,7 +10,7 @@ const RETRY_AFTER: Duration = Duration::from_secs(3);
 const MAX_RATE_LIMIT_WAIT: Duration = Duration::from_secs(10);
 const REFRESH_COOLDOWN: Duration = Duration::from_secs(10);
 
-pub type Fetcher = unsafe extern "C" fn(*const c_char, usize, *const c_char, usize, *mut AstralRustString) -> c_int;
+pub type Fetcher = fn(&str) -> (i32, Vec<u8>);
 
 #[derive(Default)]
 struct Entry {
@@ -109,37 +105,6 @@ fn store(key: &str, count: u64, found: Option<Value>) {
     });
 }
 
-fn header_frames(token: &[u8]) -> Vec<u8> {
-    let mut frames = Vec::new();
-    let mut push = |value: &[u8]| {
-        frames.extend_from_slice(&(value.len() as u32).to_le_bytes());
-        frames.extend_from_slice(value);
-    };
-    push(b"Authorization");
-    push(token);
-    for (name, value) in headers::headers() {
-        push(name.as_bytes());
-        push(value.as_bytes());
-    }
-    frames
-}
-
-fn fetch(fetcher: Fetcher, url: &str, token: &[u8]) -> (c_int, Vec<u8>) {
-    let mut body = AstralRustString {
-        bytes: core::ptr::null_mut(),
-        length: 0,
-    };
-    let headers = header_frames(token);
-    let status = unsafe { fetcher(url.as_ptr().cast(), url.len(), headers.as_ptr().cast(), headers.len(), &mut body) };
-    let data = if body.bytes.is_null() {
-        Vec::new()
-    } else {
-        unsafe { core::slice::from_raw_parts(body.bytes, body.length) }.to_vec()
-    };
-    unsafe { crate::support::bridge::astral_rust_string_free(body) };
-    (status, data)
-}
-
 fn work() {
     loop {
         let (job, fetcher) = {
@@ -162,13 +127,11 @@ fn work() {
                 };
             }
         };
-        let token = session::current();
-        let Some(fetcher) = fetcher.filter(|_| !token.is_empty()) else {
+        let Some(fetcher) = fetcher else {
             store(&job.key, job.count, None);
             continue;
         };
-        let url = format!("https://discord.com/api/v{}{}", headers::api_version(), job.path);
-        let (status, body) = fetch(fetcher, &url, &token);
+        let (status, body) = fetcher(&job.path);
         store(
             &job.key,
             job.count,
@@ -236,39 +199,6 @@ pub extern "C" fn astral_reactors_invalidate() {
     invalidate();
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn astral_reactors_set_fetcher(fetcher: Option<Fetcher>) {
-    with_state(|state| state.fetcher = fetcher);
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn astral_reactors_lookup(
-    channel: *const c_char,
-    channel_length: usize,
-    message: *const c_char,
-    message_length: usize,
-    emoji: *const c_char,
-    emoji_length: usize,
-    burst: c_int,
-    count: u64,
-    fresh: *mut c_int,
-) -> AstralRustString {
-    let text = |data, length| String::from_utf8_lossy(bytes(data, length)).into_owned();
-    let (users, current) = lookup(
-        &text(channel, channel_length),
-        &text(message, message_length),
-        &text(emoji, emoji_length),
-        burst != 0,
-        count,
-    );
-    if let Some(fresh) = unsafe { fresh.as_mut() } {
-        *fresh = c_int::from(current);
-    }
-    users.map_or(
-        AstralRustString {
-            bytes: core::ptr::null_mut(),
-            length: 0,
-        },
-        |users| AstralRustString::new(users.to_string().into_bytes()),
-    )
+pub fn set_fetcher(fetcher: Fetcher) {
+    with_state(|state| state.fetcher = Some(fetcher));
 }

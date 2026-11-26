@@ -112,9 +112,11 @@ pub enum Request<'a> {
         url: &'a str,
         token: &'a str,
     },
-    FetchWith {
-        url: &'a str,
-        headers: &'a str,
+    DiscordRequest {
+        request: u64,
+        method: &'a str,
+        path: &'a str,
+        body: &'a str,
     },
     KeepAlive {
         on: bool,
@@ -129,7 +131,6 @@ pub enum Request<'a> {
     InjectGateway {
         message: &'a str,
     },
-    SessionToken,
 }
 
 pub enum Reply {

@@ -16,10 +16,8 @@ object NetworkHooks {
     private const val ENGINE_BUILDER = "org.chromium.net.CronetEngine\$Builder"
     private const val INTERCEPTOR = "okhttp3.Interceptor"
     private const val CLIENT_BUILDER = "okhttp3.OkHttpClient\$Builder"
-    private const val AUTHORIZATION = "authorization"
 
     private val hookedEngines = mutableSetOf<Class<*>>()
-    private val hookedBuilders = mutableSetOf<Class<*>>()
     private val blockedRequests = AtomicLong()
     @Volatile private var interceptor: Any? = null
 
@@ -64,29 +62,15 @@ object NetworkHooks {
         }
     }
 
-    @Synchronized
-    private fun hookBuilder(module: XposedModule, builder: Any) {
-        if (!hookedBuilders.add(builder.javaClass)) return
-        hookHeaders(module, builder.javaClass)
-        Log.info("Hooked " + builder.javaClass.name + ".addHeader")
-    }
-
     private fun hookNewRequest(module: XposedModule, method: java.lang.reflect.Method) {
         module.hook(method)
             .setExceptionMode(ExceptionMode.PROTECTIVE)
             .intercept { chain ->
                 val url = chain.getArg(0) as? String
                 val replacement = url?.let(::blockedReplacement)
-                val builder = if (replacement == null) {
-                    chain.proceed()
-                } else {
-                    recordBlocked(url)
-                    val args = chain.args.toTypedArray()
-                    args[0] = replacement
-                    chain.proceed(args)
-                }
-                if (builder != null) runCatching { hookBuilder(module, builder) }
-                builder
+                if (replacement == null) return@intercept chain.proceed()
+                recordBlocked(url)
+                chain.proceed(chain.args.toTypedArray().apply { this[0] = replacement })
             }
     }
 
@@ -202,7 +186,6 @@ object NetworkHooks {
             val urlType = url.javaClass
             val host = (urlType.getMethod("host").invoke(url) as? String)?.lowercase(Locale.ROOT) ?: return proceed(chain, request)
             val path = urlType.getMethod("encodedPath").invoke(url) as? String ?: "/"
-            if (host == "discord.com" || host.endsWith(".discord.com")) noteDiscordHeaders(request, requestType, host, path)
             if (Native.isTelemetry(host, path)) {
                 recordBlocked(url.toString())
                 return noContent(request, loader)
@@ -216,19 +199,6 @@ object NetworkHooks {
             return markCurrentUser(response, loader)
         } catch (error: InvocationTargetException) {
             throw error.targetException
-        }
-    }
-
-    private fun noteDiscordHeaders(request: Any, requestType: Class<*>, host: String, path: String) {
-        runCatching {
-            val headers = requestType.getMethod("headers").invoke(request) ?: return
-            val headersType = headers.javaClass
-            val count = headersType.getMethod("size").invoke(headers) as Int
-            val name = headersType.getMethod("name", Int::class.javaPrimitiveType)
-            val value = headersType.getMethod("value", Int::class.javaPrimitiveType)
-            val fields = org.json.JSONObject()
-            for (index in 0 until count) fields.put(name.invoke(headers, index) as String, value.invoke(headers, index) as String)
-            Native.noteDiscordRequest(host, path, fields.toString())
         }
     }
 
@@ -314,30 +284,6 @@ object NetworkHooks {
                     val message = chain.getArg(index) as? String ?: return@intercept chain.proceed()
                     val updated = Native.withStaffReady(message) ?: return@intercept chain.proceed()
                     chain.proceed(chain.args.toTypedArray().apply { this[index] = updated })
-                }
-        }
-    }
-
-    @Volatile private var tokenSeen = false
-
-    private fun captureToken(value: String) {
-        Native.setSessionToken(value)
-        if (!tokenSeen) {
-            tokenSeen = true
-            Log.info("Captured Discord's session from its API requests")
-        }
-    }
-
-    private fun hookHeaders(module: XposedModule, type: Class<*>) {
-        for (method in type.declaredMethods) {
-            if (method.name != "addHeader" || method.parameterTypes.size != 2 || method.isBridge) continue
-            module.hook(method)
-                .setExceptionMode(ExceptionMode.PROTECTIVE)
-                .intercept { chain ->
-                    val name = chain.getArg(0) as? String
-                    val value = chain.getArg(1) as? String
-                    if (name != null && value != null && name.lowercase(Locale.ROOT) == AUTHORIZATION) captureToken(value)
-                    chain.proceed()
                 }
         }
     }

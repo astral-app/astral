@@ -41,14 +41,13 @@ pub enum AstralRequestKind {
     EditText,
     EnvironmentFacts,
     Fetch,
-    FetchWith,
+    DiscordRequest,
     KeepAlive,
     OfferPick,
     DismissSheets,
     RefreshDecorations,
     RefreshSettings,
     InjectGateway,
-    SessionToken,
 }
 
 #[repr(C)]
@@ -254,9 +253,14 @@ fn outgoing<'a>(request: &Request<'a>) -> Outgoing<'a> {
             .texts(&[title, value]),
         Request::EnvironmentFacts => Outgoing::new(Kind::EnvironmentFacts),
         Request::Fetch { url, token } => Outgoing::new(Kind::Fetch).texts(&[url, token]),
-        Request::FetchWith { url, headers } => {
-            Outgoing::new(Kind::FetchWith).texts(&[url, headers])
-        }
+        Request::DiscordRequest {
+            request,
+            method,
+            path,
+            body,
+        } => Outgoing::new(Kind::DiscordRequest)
+            .identifier(request)
+            .texts(&[method, path, body]),
         Request::KeepAlive { on } => Outgoing::new(Kind::KeepAlive).flag(on),
         Request::OfferPick { name, data } => {
             Outgoing::new(Kind::OfferPick).texts(&[name]).data(data)
@@ -265,7 +269,6 @@ fn outgoing<'a>(request: &Request<'a>) -> Outgoing<'a> {
         Request::RefreshDecorations => Outgoing::new(Kind::RefreshDecorations),
         Request::RefreshSettings => Outgoing::new(Kind::RefreshSettings),
         Request::InjectGateway { message } => Outgoing::new(Kind::InjectGateway).texts(&[message]),
-        Request::SessionToken => Outgoing::new(Kind::SessionToken),
     }
 }
 

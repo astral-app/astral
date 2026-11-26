@@ -54,7 +54,7 @@ fn network_requests(work: &Path) {
     plugin(
         &root,
         "network",
-        &manifest("astral.network-test", &["network", "storage"]),
+        &manifest("astral.network-test", &["network", "storage", "discord.api"]),
         "local request = astral.net.request({ url = 'https://example.com/api', method = 'patch', timeout_ms = 30000, headers = { accept = 'application/json' }, body = 'request body' }, function(response) astral.storage.set('response', response) end)\nastral.storage.set('initial', request)\n",
     );
     plugin(
@@ -72,6 +72,12 @@ fn network_requests(work: &Path) {
     let record = cancelled.clone();
     on("cancelNetworkRequest", move |arguments| {
         push(&record, arguments[0].as_u64().unwrap_or(0));
+        Value::Null
+    });
+    let discord = recorder::<(u64, Value)>();
+    let record = discord.clone();
+    on("discordRequest", move |arguments| {
+        push(&record, (arguments[0].as_u64().unwrap_or(0), arguments[1].clone()));
         Value::Null
     });
     start_host(&root, developer_settings(&root), None);
@@ -138,7 +144,33 @@ fn network_requests(work: &Path) {
         ),
         "false"
     );
+    assert_eq!(
+        eval(
+            "astral.network-test",
+            "local ok = pcall(function() astral.net.request({ url = 'https://discord.com/api/v9/users/@me' }, function() end) end); return ok"
+        ),
+        "false"
+    );
     assert_eq!(recorded(&submitted).len(), before);
+    let edit = number(&eval(
+        "astral.network-test",
+        "return astral.discord.request({ method = 'patch', path = '/channels/1/messages/2', body = { flags = 4 } }, function(response) astral.storage.set('edited', response.status) end)",
+    ));
+    let (sent, options) = last(&discord).expect("discord request");
+    assert_eq!(sent, edit);
+    assert_eq!(
+        (options["method"].as_str(), options["path"].as_str(), options["body"].as_str()),
+        (Some("PATCH"), Some("/channels/1/messages/2"), Some(r#"{"flags":4}"#))
+    );
+    lua_host::complete_network_request(edit, &json!({"status": 200, "ok": true, "body": "{}"}));
+    assert_eq!(eval("astral.network-test", "return astral.storage.get('edited')"), "200");
+    assert_eq!(
+        eval(
+            "astral.network-test",
+            "local ok = pcall(function() astral.discord.request({ path = 'https://evil.example/x' }, function() end) end); return ok"
+        ),
+        "false"
+    );
     let stopped = number(&eval(
         "astral.network-test",
         "return astral.net.request({ url = 'https://example.com/stop' }, function() astral.storage.set('stopped_callback', true) end)",

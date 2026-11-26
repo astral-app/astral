@@ -26,11 +26,8 @@ object Http {
             .cache(null)
             .build()
 
-    fun get(url: String, token: String): ByteArray =
-        getWith(url, JSONObject().apply { if (token.isNotEmpty()) put("Authorization", token) }.toString())
-
-    fun getWith(url: String, encodedHeaders: String): ByteArray {
-        val headers = runCatching { JSONObject(encodedHeaders) }.getOrDefault(JSONObject())
+    fun get(url: String, token: String): ByteArray {
+        val headers = JSONObject().apply { if (token.isNotEmpty()) put("Authorization", token) }
         var status = 0
         val body =
             try {
