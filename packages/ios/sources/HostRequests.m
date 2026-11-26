@@ -1,5 +1,7 @@
 #import "HostRequests.h"
 
+#import "AstralRequestKinds.h"
+
 #import <AVFoundation/AVFoundation.h>
 #import <UIKit/UIKit.h>
 #import <UserNotifications/UserNotifications.h>
@@ -559,107 +561,219 @@ static AstralReply KeepAlive(BOOL on)
     return Flag(kept.boolValue);
 }
 
+static AstralReply HandleShowAlert(const AstralRequest *request)
+{
+    AstralShowAlert(AstralStringOfText(request->first), AstralStringOfText(request->second));
+    return Done();
+}
+
+static AstralReply HandleShowToast(const AstralRequest *request)
+{
+    AstralShowToast(AstralStringOfText(request->first), AstralStringOfText(request->second));
+    return Done();
+}
+
+static AstralReply HandleTriggerHaptic(const AstralRequest *request)
+{
+    return Haptic(AstralStringOfText(request->first));
+}
+
+static AstralReply HandleWriteClipboard(const AstralRequest *request)
+{
+    NSString *text = AstralStringOfText(request->first);
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIPasteboard.generalPasteboard.string = text;
+    });
+    return Flag(YES);
+}
+
+static AstralReply HandleReadClipboard(__unused const AstralRequest *request)
+{
+    return ReadClipboard();
+}
+
+static AstralReply HandleOpenUrl(const AstralRequest *request)
+{
+    return OpenLink(AstralStringOfText(request->first));
+}
+
+static AstralReply HandleNotify(const AstralRequest *request)
+{
+    return Notify(request);
+}
+
+static AstralReply HandleSpeak(const AstralRequest *request)
+{
+    return Speak(request);
+}
+
+static AstralReply HandlePlaySound(const AstralRequest *request)
+{
+    return PlaySound(request);
+}
+
+static AstralReply HandleStopAudio(__unused const AstralRequest *request)
+{
+    return StopAudio();
+}
+
+static AstralReply HandleWebAuth(const AstralRequest *request)
+{
+    return WebAuth(request);
+}
+
+static AstralReply HandleCancelWebAuth(const AstralRequest *request)
+{
+    AstralCancelPluginWebAuth(request->identifier);
+    return Done();
+}
+
+static AstralReply HandleConfirm(const AstralRequest *request)
+{
+    return Confirm(request);
+}
+
+static AstralReply HandleOpenSheet(const AstralRequest *request)
+{
+    return OpenSheet(request);
+}
+
+static AstralReply HandleUpdateSheet(const AstralRequest *request)
+{
+    return UpdateSheet(request);
+}
+
+static AstralReply HandleCloseSheet(const AstralRequest *request)
+{
+    AstralCloseSheet(request->identifier);
+    return Done();
+}
+
+static AstralReply HandlePickFile(const AstralRequest *request)
+{
+    return PickFile(request);
+}
+
+static AstralReply HandleCancelFilePick(const AstralRequest *request)
+{
+    AstralCancelPluginFile(request->identifier);
+    return Done();
+}
+
+static AstralReply HandlePickedMedia(const AstralRequest *request)
+{
+    return PickedMedia(request);
+}
+
+static AstralReply HandlePickedVideo(const AstralRequest *request)
+{
+    return Text(AstralPickedVideoURL((NSUInteger)request->identifier));
+}
+
+static AstralReply HandlePressNode(const AstralRequest *request)
+{
+    return PressNode(request);
+}
+
+static AstralReply HandleInsertComposerText(const AstralRequest *request)
+{
+    return InsertComposerText(request);
+}
+
+static AstralReply HandleDispatchGateway(const AstralRequest *request)
+{
+    return Flag(AstralDispatchLocalGatewayEvent(AstralStringOfText(request->first)));
+}
+
+static AstralReply HandleRefreshEmoji(__unused const AstralRequest *request)
+{
+    dispatch_async(dispatch_get_main_queue(), ^{
+        AstralRepaintEmojiComposers();
+    });
+    AstralPhoenixRefreshDecorations();
+    return Done();
+}
+
+static AstralReply HandleOpenReport(const AstralRequest *request)
+{
+    return OpenReport(request);
+}
+
+static AstralReply HandleExportBackup(__unused const AstralRequest *request)
+{
+    return ExportBackup();
+}
+
+static AstralReply HandleImportBackup(__unused const AstralRequest *request)
+{
+    return ImportBackup();
+}
+
+static AstralReply HandleRestartGatewaySession(__unused const AstralRequest *request)
+{
+    AstralRestartGatewaySession();
+    return Done();
+}
+
+static AstralReply HandleEditText(const AstralRequest *request)
+{
+    return EditText(request);
+}
+
+static AstralReply HandleEnvironmentFacts(__unused const AstralRequest *request)
+{
+    return EnvironmentFacts();
+}
+
+static AstralReply HandleDiscordRequest(const AstralRequest *request)
+{
+    AstralSendDiscordRequest(request->identifier, AstralStringOfText(request->first), AstralStringOfText(request->second),
+                             AstralStringOfText(request->third));
+    return Done();
+}
+
+static AstralReply HandleKeepAlive(const AstralRequest *request)
+{
+    return KeepAlive(request->flag);
+}
+
+static AstralReply HandleOfferPick(const AstralRequest *request)
+{
+    return Flag(AstralOfferPick(AstralDataOfText(request->second), AstralStringOfText(request->first)));
+}
+
+static AstralReply HandleDismissSheets(__unused const AstralRequest *request)
+{
+    return DismissSheets();
+}
+
+static AstralReply HandleRefreshDecorations(__unused const AstralRequest *request)
+{
+    AstralPhoenixRefreshDecorations();
+    dispatch_async(dispatch_get_main_queue(), ^{
+        AstralRepaintLuaComposers();
+    });
+    return Done();
+}
+
+static AstralReply HandleRefreshSettings(__unused const AstralRequest *request)
+{
+    return Done();
+}
+
+static AstralReply HandleInjectGateway(const AstralRequest *request)
+{
+    return Flag(AstralInjectGatewayMessage(AstralStringOfText(request->first)));
+}
+
+#define ASTRAL_REQUEST_HANDLER(kind) [AstralRequestKind_##kind] = Handle##kind,
+static AstralReply (*const kHandlers[])(const AstralRequest *) = {ASTRAL_REQUEST_KINDS(ASTRAL_REQUEST_HANDLER)};
+#undef ASTRAL_REQUEST_HANDLER
+
 static AstralReply Answer(const AstralRequest *request)
 {
-    switch (request->kind) {
-    case AstralRequestKind_ShowAlert:
-        AstralShowAlert(AstralStringOfText(request->first), AstralStringOfText(request->second));
-        return Done();
-    case AstralRequestKind_ShowToast:
-        AstralShowToast(AstralStringOfText(request->first), AstralStringOfText(request->second));
-        return Done();
-    case AstralRequestKind_TriggerHaptic:
-        return Haptic(AstralStringOfText(request->first));
-    case AstralRequestKind_WriteClipboard: {
-        NSString *text = AstralStringOfText(request->first);
-        dispatch_async(dispatch_get_main_queue(), ^{
-            UIPasteboard.generalPasteboard.string = text;
-        });
-        return Flag(YES);
-    }
-    case AstralRequestKind_ReadClipboard:
-        return ReadClipboard();
-    case AstralRequestKind_OpenUrl:
-        return OpenLink(AstralStringOfText(request->first));
-    case AstralRequestKind_Notify:
-        return Notify(request);
-    case AstralRequestKind_Speak:
-        return Speak(request);
-    case AstralRequestKind_PlaySound:
-        return PlaySound(request);
-    case AstralRequestKind_StopAudio:
-        return StopAudio();
-        return Done();
-    case AstralRequestKind_WebAuth:
-        return WebAuth(request);
-    case AstralRequestKind_CancelWebAuth:
-        AstralCancelPluginWebAuth(request->identifier);
-        return Done();
-    case AstralRequestKind_Confirm:
-        return Confirm(request);
-    case AstralRequestKind_OpenSheet:
-        return OpenSheet(request);
-    case AstralRequestKind_UpdateSheet:
-        return UpdateSheet(request);
-    case AstralRequestKind_CloseSheet:
-        AstralCloseSheet(request->identifier);
-        return Done();
-    case AstralRequestKind_PickFile:
-        return PickFile(request);
-    case AstralRequestKind_CancelFilePick:
-        AstralCancelPluginFile(request->identifier);
-        return Done();
-    case AstralRequestKind_PickedMedia:
-        return PickedMedia(request);
-    case AstralRequestKind_PickedVideo:
-        return Text(AstralPickedVideoURL((NSUInteger)request->identifier));
-    case AstralRequestKind_PressNode:
-        return PressNode(request);
-    case AstralRequestKind_InsertComposerText:
-        return InsertComposerText(request);
-    case AstralRequestKind_DispatchGateway:
-        return Flag(AstralDispatchLocalGatewayEvent(AstralStringOfText(request->first)));
-    case AstralRequestKind_RefreshEmoji:
-        dispatch_async(dispatch_get_main_queue(), ^{
-            AstralRepaintEmojiComposers();
-        });
-        AstralPhoenixRefreshDecorations();
-        return Done();
-    case AstralRequestKind_OpenReport:
-        return OpenReport(request);
-    case AstralRequestKind_ExportBackup:
-        return ExportBackup();
-    case AstralRequestKind_ImportBackup:
-        return ImportBackup();
-    case AstralRequestKind_RestartGatewaySession:
-        AstralRestartGatewaySession();
-        return Done();
-    case AstralRequestKind_EditText:
-        return EditText(request);
-    case AstralRequestKind_EnvironmentFacts:
-        return EnvironmentFacts();
-    case AstralRequestKind_DiscordRequest:
-        AstralSendDiscordRequest(request->identifier, AstralStringOfText(request->first), AstralStringOfText(request->second),
-                                 AstralStringOfText(request->third));
-        return Done();
-    case AstralRequestKind_KeepAlive:
-        return KeepAlive(request->flag);
-    case AstralRequestKind_OfferPick:
-        return Flag(AstralOfferPick(AstralDataOfText(request->second), AstralStringOfText(request->first)));
-    case AstralRequestKind_DismissSheets:
-        return DismissSheets();
-    case AstralRequestKind_RefreshDecorations:
-        AstralPhoenixRefreshDecorations();
-        dispatch_async(dispatch_get_main_queue(), ^{
-            AstralRepaintLuaComposers();
-        });
-        return Done();
-    case AstralRequestKind_RefreshSettings:
-        return Done();
-    case AstralRequestKind_InjectGateway:
-        return Flag(AstralInjectGatewayMessage(AstralStringOfText(request->first)));
-    }
-    return Unsupported();
+    if ((size_t)request->kind >= sizeof(kHandlers) / sizeof(kHandlers[0])) return Unsupported();
+    return kHandlers[request->kind](request);
 }
 
 static AstralReply HandleRequest(const AstralRequest *request)
