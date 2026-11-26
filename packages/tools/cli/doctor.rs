@@ -148,12 +148,12 @@ fn check_hooks() -> Result<String, String> {
 }
 
 fn check_vendor() -> Result<String, String> {
-    for file in ["lua/lua.h", "sqlite/sqlite3.c"] {
+    for file in ["lua/lua.h"] {
         if !repo::path(&["vendor", file]).exists() {
             return Err(format!("missing vendor/{file}"));
         }
     }
-    Ok("lua, sqlite".into())
+    Ok("lua".into())
 }
 
 fn check_theos() -> Result<String, String> {

@@ -30,28 +30,21 @@ fn main() {
     let compiler = tool("CC", "cc");
     let archiver = tool("AR", "ar");
     let lua = output.join("onelua.o");
-    let sqlite = output.join("sqlite3.o");
     compile(
         &compiler,
         &Path::new(VENDOR).join("lua/onelua.c"),
         &lua,
         &["-DMAKE_LIB", "-DLUA_USE_POSIX"],
     );
-    compile(
-        &compiler,
-        &Path::new(VENDOR).join("sqlite/sqlite3.c"),
-        &sqlite,
-        &["-DSQLITE_THREADSAFE=2", "-DSQLITE_OMIT_LOAD_EXTENSION"],
-    );
     let archive = output.join("libastral_vendor.a");
     let _ = std::fs::remove_file(&archive);
     let status = Command::new(&archiver)
         .arg("rcs")
         .arg(&archive)
-        .args([&lua, &sqlite])
+        .arg(&lua)
         .status()
         .unwrap_or_else(|error| panic!("{archiver}: {error}"));
-    assert!(status.success(), "could not archive the vendored C sources");
+    assert!(status.success(), "could not archive Lua");
     println!("cargo:rustc-link-search=native={}", output.display());
     println!("cargo:rustc-link-lib=static=astral_vendor");
     if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("android") {

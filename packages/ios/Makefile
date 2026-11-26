@@ -25,7 +25,6 @@ astral_CFLAGS := -fobjc-arc -flto=thin -Isources -I$(CORE)/wire -I$(GENERATED) -
 astral_CCFLAGS := -std=c++20 -fno-cxx-modules
 astral_LDFLAGS := -flto=thin $(RUST_LIBRARY)
 astral_FRAMEWORKS := Foundation UIKit Photos UserNotifications AVFoundation Security MetricKit UniformTypeIdentifiers ImageIO AuthenticationServices SafariServices WebKit
-astral_LIBRARIES := sqlite3
 
 include $(THEOS_MAKE_PATH)/tweak.mk
 

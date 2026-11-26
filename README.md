@@ -18,7 +18,7 @@ astral rewrites the ViewWire batches Discord's Rust guest sends to its native cl
 | `packages/assets` | Icon SVGs served as `res://astral_<name>` |
 | `packages/tools` | The `astral` command (Rust): tests, lint, signing, packaging, sideload IPAs and device helpers |
 | `keys/` | The public key plugins and the catalog are verified against |
-| `vendor/` | Lua 5.4 and toml++ (submodules), SQLite and nlohmann/json |
+| `vendor/` | Lua 5.4 and toml++ (submodules) and nlohmann/json; SQLite comes from the `libsqlite3-sys` crate |
 | `docs/` | How the Phoenix integration and plugins work |
 
 ## Build
