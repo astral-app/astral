@@ -12,9 +12,7 @@ pub use crate::bridge::{
     AstralBridge, AstralReply, AstralReplyKind, AstralRequest, AstralRequestKind,
 };
 pub use crate::network::{AstralMediaKind, AstralRequestPlan, AstralRequestProbe};
-pub use crate::shapes::{
-    AstralCutout, AstralCutoutKind, AstralPath, AstralPathSegment, AstralRect, AstralSegmentKind,
-};
+pub use crate::shapes::{AstralCutout, AstralCutoutKind, AstralRect};
 pub use crate::text::{AstralOwned, AstralText};
 
 #[repr(C)]

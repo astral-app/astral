@@ -159,6 +159,20 @@ pub extern "system" fn Java_app_astral_android_Native_markReady<'local>(
 }
 
 #[unsafe(no_mangle)]
+pub extern "system" fn Java_app_astral_android_Native_renderSvg<'local>(
+    mut env: JNIEnv<'local>,
+    _: JClass<'local>,
+    svg: JByteArray<'local>,
+    width: jint,
+    height: jint,
+) -> jbyteArray {
+    let svg = bytes(&mut env, &svg);
+    let size = |value: jint| u32::try_from(value).unwrap_or(0);
+    let png = astral_core::render::svg::png(&svg, size(width), size(height));
+    java_bytes(&mut env, png)
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_app_astral_android_Native_rewrite<'local>(
     mut env: JNIEnv<'local>,
     _: JClass<'local>,

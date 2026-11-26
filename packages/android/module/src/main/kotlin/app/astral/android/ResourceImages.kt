@@ -3,12 +3,9 @@ package app.astral.android
 import android.content.pm.ApplicationInfo
 import android.content.res.Resources
 import android.graphics.BitmapFactory
-import android.graphics.Bitmap
-import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.ColorDrawable
-import com.caverock.androidsvg.SVG
 import io.github.libxposed.api.XposedInterface.ExceptionMode
 import io.github.libxposed.api.XposedModule
 import java.io.File
@@ -85,11 +82,10 @@ object ResourceImages {
         BitmapDrawable(resources, bitmap)
     }.getOrNull()
 
-    private fun svgDrawable(resources: Resources, file: File): Drawable {
-        val svg = file.inputStream().buffered().use { SVG.getFromInputStream(it) }
+    private fun svgDrawable(resources: Resources, file: File): Drawable? {
         val size = (24 * resources.displayMetrics.density).toInt().coerceAtLeast(1)
-        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        Canvas(bitmap).drawPicture(svg.renderToPicture(size, size))
+        val png = Native.renderSvg(file.readBytes(), size, size) ?: return null
+        val bitmap = BitmapFactory.decodeByteArray(png, 0, png.size) ?: return null
         bitmap.density = resources.displayMetrics.densityDpi
         return BitmapDrawable(resources, bitmap)
     }

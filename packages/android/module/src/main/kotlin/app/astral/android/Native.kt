@@ -11,6 +11,7 @@ object Native {
     ): Int
 
     @JvmStatic external fun rewrite(ops: ByteArray, length: Int): ByteArray?
+    @JvmStatic external fun renderSvg(svg: ByteArray, width: Int, height: Int): ByteArray?
 
     @JvmStatic external fun plugins(): String
 

@@ -1,6 +1,6 @@
 use astral_core::render::cutout::{self as cutout, AstralCutoutFrame, Kind};
 
-use crate::text::AstralText;
+use crate::text::{AstralOwned, AstralText};
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
@@ -68,91 +68,8 @@ pub extern "C" fn astral_ios_cutout(system: AstralRect) -> AstralCutout {
     }
 }
 
-pub const ASTRAL_SEGMENT_VALUES: usize = 7;
-
-#[repr(u32)]
-#[derive(Clone, Copy)]
-pub enum AstralSegmentKind {
-    Move,
-    Line,
-    Cubic,
-    Quad,
-    Arc,
-    Close,
-}
-
-impl AstralSegmentKind {
-    fn parse(code: f64) -> Option<(AstralSegmentKind, usize)> {
-        use astral_core::render::svg as path;
-        let kinds = [
-            (path::MOVE, AstralSegmentKind::Move, 2),
-            (path::LINE, AstralSegmentKind::Line, 2),
-            (path::CUBIC, AstralSegmentKind::Cubic, 6),
-            (path::QUAD, AstralSegmentKind::Quad, 4),
-            (path::ARC, AstralSegmentKind::Arc, ASTRAL_SEGMENT_VALUES),
-            (path::CLOSE, AstralSegmentKind::Close, 0),
-        ];
-        kinds
-            .into_iter()
-            .find(|(value, _, _)| (*value - code).abs() < f64::EPSILON)
-            .map(|(_, kind, needed)| (kind, needed))
-    }
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct AstralPathSegment {
-    pub kind: AstralSegmentKind,
-    pub values: [f64; ASTRAL_SEGMENT_VALUES],
-}
-
-#[repr(C)]
-pub struct AstralPath {
-    pub segments: *mut AstralPathSegment,
-    pub count: usize,
-}
-
-fn segments(flat: &[f64]) -> Vec<AstralPathSegment> {
-    let mut parsed = Vec::new();
-    let mut index = 0;
-    while let Some(&code) = flat.get(index) {
-        let Some((kind, needed)) = AstralSegmentKind::parse(code) else {
-            break;
-        };
-        let Some(values) = flat.get(index + 1..index + 1 + needed) else {
-            break;
-        };
-        let mut segment = AstralPathSegment {
-            kind,
-            values: [0.0; ASTRAL_SEGMENT_VALUES],
-        };
-        segment.values[..needed].copy_from_slice(values);
-        parsed.push(segment);
-        index += 1 + needed;
-    }
-    parsed
-}
-
 #[unsafe(no_mangle)]
-pub extern "C" fn astral_ios_svg_path(data: AstralText) -> AstralPath {
-    let mut boxed = segments(&astral_core::render::svg::parse(data.bytes())).into_boxed_slice();
-    let path = AstralPath {
-        segments: boxed.as_mut_ptr(),
-        count: boxed.len(),
-    };
-    core::mem::forget(boxed);
-    path
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn astral_ios_free_path(path: AstralPath) {
-    if path.segments.is_null() {
-        return;
-    }
-    drop(unsafe {
-        Box::from_raw(core::ptr::slice_from_raw_parts_mut(
-            path.segments,
-            path.count,
-        ))
-    });
+pub extern "C" fn astral_ios_render_svg(svg: AstralText, pixels: u32) -> AstralOwned {
+    astral_core::render::svg::png(svg.bytes(), pixels, pixels)
+        .map_or(AstralOwned::NONE, AstralOwned::new)
 }
