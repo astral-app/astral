@@ -6,6 +6,7 @@
 #include <cmath>
 #include <string>
 #include <limits>
+#include <sqlite3.h>
 #include <sys/stat.h>
 
 #include "AstralNetworkPolicy.h"
@@ -140,6 +141,35 @@ static void testPluginStorage(const std::string &directory)
     assert(!storage.get("one", "count"));
     assert(storage.removeAll("one"));
     assert(storage.keys("one").empty());
+}
+
+static std::string paddedID(const std::string &id)
+{
+    return std::string(20 - id.size(), '0') + id;
+}
+
+static void writeDiscordStore(const std::filesystem::path &directory, const std::string &account,
+                              const std::vector<std::tuple<std::string, std::string, nlohmann::json>> &rows)
+{
+    auto store = directory / "store" / account;
+    std::filesystem::create_directories(store);
+    sqlite3 *database = nullptr;
+    assert(sqlite3_open((store / "cache.sqlite").c_str(), &database) == SQLITE_OK);
+    for (const char *table : {"messages", "members", "channels", "guilds", "users"}) {
+        std::string create = std::string("CREATE TABLE ") + table + " (k TEXT PRIMARY KEY, v BLOB)";
+        assert(sqlite3_exec(database, create.c_str(), nullptr, nullptr, nullptr) == SQLITE_OK);
+    }
+    for (const auto &[table, key, value] : rows) {
+        sqlite3_stmt *statement = nullptr;
+        std::string insert = "INSERT INTO " + table + " (k, v) VALUES (?, ?)";
+        std::string text = value.dump();
+        assert(sqlite3_prepare_v2(database, insert.c_str(), -1, &statement, nullptr) == SQLITE_OK);
+        sqlite3_bind_text(statement, 1, key.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(statement, 2, text.c_str(), -1, SQLITE_TRANSIENT);
+        assert(sqlite3_step(statement) == SQLITE_DONE);
+        sqlite3_finalize(statement);
+    }
+    sqlite3_close(database);
 }
 
 static void writeText(const std::filesystem::path &path, const std::string &text)
@@ -1081,22 +1111,21 @@ static void testGatewayMessageEventsAndHaptics(const std::string &work)
     settings.set("astral", "developer-mode", true);
     astral::LuaHostPlatform platform;
     platform.storagePath = (root / "storage.sqlite").string();
-    platform.message = [](const std::string &channel, const std::string &message) -> std::optional<nlohmann::json> {
-        if (channel != "200000000000000007") return std::nullopt;
-        if (message == "200000000000000010")
-            return nlohmann::json{{"content", "cached message text"}, {"author", {{"id", "100000000000000001"}}}};
-        if (message == "200000000000000011")
-            return nlohmann::json{{"author", {{"id", "200000000000000003"}}},
-                                  {"reference", {{"channel_id", channel}, {"message_id", "200000000000000010"}}}};
-        if (message == "200000000000000012")
-            return nlohmann::json{{"author", {{"id", "100000000000000001"}}},
-                                  {"reference", {{"channel_id", channel}, {"message_id", "200000000000000010"}}}};
-        return std::nullopt;
-    };
-    platform.member = [](const std::string &guild, const std::string &user) -> std::optional<nlohmann::json> {
-        if (guild != "200000000000000005" || user != "100000000000000001") return std::nullopt;
-        return nlohmann::json{{"roles", {"300000000000000001"}}};
-    };
+    std::string directMessages = paddedID("200000000000000007");
+    nlohmann::json referenceToCached = {{"channel_id", "200000000000000007"}, {"message_id", "200000000000000010"}};
+    writeDiscordStore(
+        root / "discord", "100000000000000001",
+        {{"messages",
+          directMessages + ":" + paddedID("200000000000000010"),
+          {{"content", "cached message text"}, {"author", {{"id", "100000000000000001"}}}}},
+         {"messages",
+          directMessages + ":" + paddedID("200000000000000011"),
+          {{"author", {{"id", "200000000000000003"}}}, {"message_reference", referenceToCached}}},
+         {"messages",
+          directMessages + ":" + paddedID("200000000000000012"),
+          {{"author", {{"id", "100000000000000001"}}}, {"message_reference", referenceToCached}}},
+         {"members", paddedID("200000000000000005") + ":" + paddedID("100000000000000001"), {{"roles", {"300000000000000001"}}}}});
+    platform.discordDirectory = (root / "discord").string();
     std::vector<std::string> strengths;
     platform.triggerHaptic = [&](const std::string &strength) {
         strengths.push_back(strength);

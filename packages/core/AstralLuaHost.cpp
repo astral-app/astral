@@ -34,6 +34,7 @@
 #include "LuaLocale.h"
 #include "LuaSandbox.h"
 #include "PluginPackage.h"
+#include "AstralDiscordCache.h"
 #include "AstralLuaHostApi.h"
 
 extern "C" {
@@ -194,6 +195,17 @@ static int Translate(lua_State *state);
 static void RequirePermission(lua_State *state, const char *permission);
 static bool ContainsControl(const std::string &value);
 static bool ValidUTF8(const std::string &value);
+
+struct DiscordReaders {
+    std::function<std::optional<nlohmann::json>(const std::string &)> guild = astral::discord::guild;
+    std::function<std::optional<nlohmann::json>(const std::string &, const std::string &)> member = astral::discord::member;
+    std::function<std::optional<std::string>(const std::string &, const std::string &)> memberNamed = astral::discord::memberNamed;
+    std::function<std::optional<std::string>(const std::string &)> channelGuild = astral::discord::channelGuild;
+    std::function<std::optional<nlohmann::json>(const std::string &)> user = astral::discord::user;
+    std::function<std::optional<std::string>(const std::string &)> messageChannel = astral::discord::messageChannel;
+    std::function<std::optional<nlohmann::json>(const std::string &, const std::string &)> message = astral::discord::message;
+};
+static const DiscordReaders gDiscord;
 
 static std::recursive_mutex gMutex;
 static std::vector<LuaPlugin *> gPlugins;
@@ -1098,7 +1110,7 @@ static int OpenChannel(lua_State *state)
     if (!SnowflakeText(channel)) return luaL_error(state, "astral.ui.open_channel: '%s' is not a channel id", channel.c_str());
     if (!message.empty() && !SnowflakeText(message))
         return luaL_error(state, "astral.ui.open_channel: '%s' is not a message id", message.c_str());
-    auto guild = gPlatform.channelGuild ? gPlatform.channelGuild(channel) : std::nullopt;
+    auto guild = gDiscord.channelGuild ? gDiscord.channelGuild(channel) : std::nullopt;
     std::string link = "https://discord.com/channels/" + (guild && SnowflakeText(*guild) ? *guild : std::string("@me")) + "/" + channel;
     if (!message.empty()) link += "/" + message;
     bool opened = gPlatform.openURL && gPlatform.openURL(link);
@@ -1354,7 +1366,7 @@ static int Notify(lua_State *state)
         return luaL_error(state, "astral.ui.notify: channel_id and message_id must be Discord ids");
     std::string link;
     if (!channel.empty()) {
-        auto guild = gPlatform.channelGuild ? gPlatform.channelGuild(channel) : std::nullopt;
+        auto guild = gDiscord.channelGuild ? gDiscord.channelGuild(channel) : std::nullopt;
         link = "https://discord.com/channels/" + (guild && SnowflakeText(*guild) ? *guild : std::string("@me")) + "/" + channel;
         if (!message.empty()) link += "/" + message;
     }
@@ -1789,8 +1801,8 @@ static std::optional<std::string> SendLocalMessageJSON(const std::string &channe
                            {"attachments", nlohmann::json::array()},
                            {"embeds", nlohmann::json::array()},
                            {"components", nlohmann::json::array()}};
-    if (gPlatform.channelGuild) {
-        auto guild = gPlatform.channelGuild(channel);
+    if (gDiscord.channelGuild) {
+        auto guild = gDiscord.channelGuild(channel);
         if (guild && SnowflakeText(*guild)) data["guild_id"] = *guild;
     }
     for (const auto &[key, value] : message.items())
@@ -2208,14 +2220,6 @@ static void PushObject(lua_State *state, const std::optional<nlohmann::json> &va
         lua_pushnil(state);
 }
 
-static void PushString(lua_State *state, const std::optional<std::string> &value)
-{
-    if (value)
-        lua_pushlstring(state, value->data(), value->size());
-    else
-        lua_pushnil(state);
-}
-
 static void RequirePermission(lua_State *state, const char *permission)
 {
     LuaPlugin *plugin = Self(state);
@@ -2262,98 +2266,6 @@ static std::string Argument(lua_State *state, int index)
     return luaL_checkstring(state, index);
 }
 
-static std::optional<std::string> OptionalArgument(lua_State *state, int index)
-{
-    const char *value = lua_tostring(state, index);
-    return value ? std::optional<std::string>(value) : std::nullopt;
-}
-
-static int Guild(lua_State *state)
-{
-    RequirePermission(state, "discord.guilds");
-    PushObject(state, gPlatform.guild ? gPlatform.guild(Argument(state, 1)) : std::nullopt);
-    return 1;
-}
-
-static int Guilds(lua_State *state)
-{
-    RequirePermission(state, "discord.guilds");
-    PushObject(state, gPlatform.guilds ? std::optional<nlohmann::json>(gPlatform.guilds()) : std::nullopt);
-    return 1;
-}
-
-static int CurrentUser(lua_State *state)
-{
-    PushString(state, gPlatform.currentUser ? gPlatform.currentUser() : std::nullopt);
-    return 1;
-}
-
-static int Emoji(lua_State *state)
-{
-    RequirePermission(state, "discord.messages");
-    PushObject(state, gPlatform.emoji ? gPlatform.emoji(Argument(state, 1)) : std::nullopt);
-    return 1;
-}
-
-static int Member(lua_State *state)
-{
-    RequirePermission(state, "discord.members");
-    PushObject(state, gPlatform.member ? gPlatform.member(Argument(state, 1), Argument(state, 2)) : std::nullopt);
-    return 1;
-}
-
-static int ChannelGuild(lua_State *state)
-{
-    RequirePermission(state, "discord.guilds");
-    PushString(state, gPlatform.channelGuild ? gPlatform.channelGuild(Argument(state, 1)) : std::nullopt);
-    return 1;
-}
-
-static int User(lua_State *state)
-{
-    RequirePermission(state, "discord.users");
-    PushObject(state, gPlatform.user ? gPlatform.user(Argument(state, 1)) : std::nullopt);
-    return 1;
-}
-
-static int Nickname(lua_State *state)
-{
-    RequirePermission(state, "discord.relationships");
-    PushString(state, gPlatform.friendNickname ? gPlatform.friendNickname(Argument(state, 1)) : std::nullopt);
-    return 1;
-}
-
-static int Relationship(lua_State *state)
-{
-    RequirePermission(state, "discord.relationships");
-    auto type = gPlatform.relationship ? gPlatform.relationship(Argument(state, 1)) : std::nullopt;
-    static const char *const names[] = {nullptr, "friend", "blocked", "incoming", "outgoing"};
-    if (!type || *type < 1 || *type > 4) {
-        lua_pushnil(state);
-        return 1;
-    }
-    lua_pushstring(state, names[*type]);
-    return 1;
-}
-
-static int Message(lua_State *state)
-{
-    RequirePermission(state, "discord.messages");
-    auto message = gPlatform.message ? gPlatform.message(Argument(state, 1), Argument(state, 2)) : std::nullopt;
-    if (message && !Self(state)->permissions.count("discord.messages.content")) message->erase("content");
-    PushObject(state, message);
-    return 1;
-}
-
-static int RawMessage(lua_State *state)
-{
-    RequirePermission(state, "discord.messages");
-    RequirePermission(state, "discord.messages.content");
-    auto message = gPlatform.rawMessage ? gPlatform.rawMessage(Argument(state, 1), Argument(state, 2)) : std::nullopt;
-    PushObject(state, message);
-    return 1;
-}
-
 static bool gReactorsStale;
 
 static int Reactors(lua_State *state)
@@ -2367,18 +2279,6 @@ static int Reactors(lua_State *state)
     }
     if (!fresh) gReactorsStale = true;
     PushObject(state, users);
-    return 1;
-}
-
-static int Permissions(lua_State *state)
-{
-    RequirePermission(state, "discord.permissions");
-    auto permissions =
-        gPlatform.permissions ? gPlatform.permissions(Argument(state, 1), Argument(state, 2), OptionalArgument(state, 3)) : std::nullopt;
-    if (permissions)
-        lua_pushinteger(state, (lua_Integer)*permissions);
-    else
-        lua_pushnil(state);
     return 1;
 }
 
@@ -2735,19 +2635,19 @@ static void InstallAPI(LuaPlugin *plugin)
     lua_setfield(state, -2, "storage");
 
     lua_newtable(state);
-    Function(state, plugin, "guild", Guild);
-    Function(state, plugin, "guilds", Guilds);
-    Function(state, plugin, "emoji", Emoji);
-    Function(state, plugin, "me", CurrentUser);
-    Function(state, plugin, "member", Member);
-    Function(state, plugin, "channel_guild", ChannelGuild);
-    Function(state, plugin, "permissions", Permissions);
-    Function(state, plugin, "message", Message);
-    Function(state, plugin, "raw_message", RawMessage);
+    Function(state, plugin, "guild", astral_lua_discord_guild);
+    Function(state, plugin, "guilds", astral_lua_discord_guilds);
+    Function(state, plugin, "emoji", astral_lua_discord_emoji);
+    Function(state, plugin, "me", astral_lua_discord_me);
+    Function(state, plugin, "member", astral_lua_discord_member);
+    Function(state, plugin, "channel_guild", astral_lua_discord_channel_guild);
+    Function(state, plugin, "permissions", astral_lua_discord_permissions);
+    Function(state, plugin, "message", astral_lua_discord_message);
+    Function(state, plugin, "raw_message", astral_lua_discord_raw_message);
     Function(state, plugin, "reactors", Reactors);
-    Function(state, plugin, "user", User);
-    Function(state, plugin, "nickname", Nickname);
-    Function(state, plugin, "relationship", Relationship);
+    Function(state, plugin, "user", astral_lua_discord_user);
+    Function(state, plugin, "nickname", astral_lua_discord_nickname);
+    Function(state, plugin, "relationship", astral_lua_discord_relationship);
     lua_newtable(state);
     Constant(state, "KICK_MEMBERS", 1ll << 1);
     Constant(state, "BAN_MEMBERS", 1ll << 2);
@@ -3040,6 +2940,7 @@ void start(const std::vector<std::string> &directories, SettingsStore *store, bo
     gDirectories = directories;
     gStartEnabled = startEnabled;
     gPlatform = std::move(platform);
+    if (!gPlatform.discordDirectory.empty()) astral::discord::setDataDirectory(gPlatform.discordDirectory);
     ConfigureRustAPI();
     Scan();
     RefreshDecorations();
@@ -3449,8 +3350,8 @@ struct MessageMentions {
 static bool MentionsMyRole(const nlohmann::json &data, const std::string &guild, const std::string &currentUser)
 {
     auto roles = data.find("mention_roles");
-    if (roles == data.end() || !roles->is_array() || roles->empty() || guild.empty() || !gPlatform.member) return false;
-    auto member = gPlatform.member(guild, currentUser);
+    if (roles == data.end() || !roles->is_array() || roles->empty() || guild.empty() || !gDiscord.member) return false;
+    auto member = gDiscord.member(guild, currentUser);
     if (!member || !member->is_object()) return false;
     auto mine = member->find("roles");
     if (mine == member->end() || !mine->is_array()) return false;
@@ -3766,8 +3667,8 @@ static std::optional<HttpDecision> HandleInteraction(HttpRequest &request)
                 local["type"] = 20;
                 local["application_id"] = kCommandApplication;
                 nlohmann::json user = {{"id", gCurrentUserID}};
-                if (gPlatform.user && !gCurrentUserID.empty()) {
-                    auto cached = gPlatform.user(gCurrentUserID);
+                if (gDiscord.user && !gCurrentUserID.empty()) {
+                    auto cached = gDiscord.user(gCurrentUserID);
                     if (cached && cached->is_object()) user = *cached;
                 }
                 local["interaction_metadata"] = {{"id", interaction}, {"type", 2}, {"name", name}, {"user", user}};
@@ -4499,7 +4400,7 @@ static std::string ResolveChannel(uint64_t channelID, const std::string &message
     static std::string lastChannel;
     std::string channel = Snowflake(channelID);
     if (channel.empty() && !message.empty()) {
-        auto found = gPlatform.messageChannel ? gPlatform.messageChannel(message) : std::nullopt;
+        auto found = gDiscord.messageChannel ? gDiscord.messageChannel(message) : std::nullopt;
         if (found) lastChannel = *found;
         channel = lastChannel;
     }
@@ -4508,8 +4409,8 @@ static std::string ResolveChannel(uint64_t channelID, const std::string &message
 
 static std::string MessageAuthor(const std::string &channel, const std::string &message)
 {
-    if (channel.empty() || message.empty() || !gPlatform.message) return "";
-    auto record = gPlatform.message(channel, message);
+    if (channel.empty() || message.empty() || !gDiscord.message) return "";
+    auto record = gDiscord.message(channel, message);
     if (!record || !record->is_object()) return "";
     const auto &author = record->value("author", nlohmann::json::object());
     std::string user = author.is_object() ? author.value("id", std::string()) : std::string();
@@ -4560,7 +4461,7 @@ int AstralLuaRelabel(const AstralLabelContext *context, const char *text, size_t
     std::string message = Snowflake(context->message_id);
     std::string channel = ResolveChannel(context->channel_id, message);
     std::string target = Snowflake(context->target_id);
-    auto guild = channel.empty() || !gPlatform.channelGuild ? std::nullopt : gPlatform.channelGuild(channel);
+    auto guild = channel.empty() || !gDiscord.channelGuild ? std::nullopt : gDiscord.channelGuild(channel);
     std::string wanted = LabelTarget(context->kind);
     std::string current(text, length);
     bool changed = false;
@@ -4617,7 +4518,7 @@ int AstralLuaMention(const AstralMentionContext *context, AstralMentionDecoratio
     }
     std::string message = Snowflake(context->message_id);
     std::string channel = ResolveChannel(context->channel_id, message);
-    auto guild = channel.empty() || !gPlatform.channelGuild ? std::nullopt : gPlatform.channelGuild(channel);
+    auto guild = channel.empty() || !gDiscord.channelGuild ? std::nullopt : gDiscord.channelGuild(channel);
     int decorated = 0;
     for (auto *plugin : gPlugins) {
         if (!plugin->state || plugin->failed) continue;
@@ -4686,8 +4587,8 @@ int AstralLuaMessageTextColor(uint64_t messageID, uint64_t channelID, uint32_t *
     if (!wanted) return 0;
     std::string message = Snowflake(messageID);
     std::string channel = ResolveChannel(channelID, message);
-    if (channel.empty() || !gPlatform.message) return -1;
-    auto messageRecord = gPlatform.message(channel, message);
+    if (channel.empty() || !gDiscord.message) return -1;
+    auto messageRecord = gDiscord.message(channel, message);
     if (!messageRecord) return -1;
     bool repliesToCurrentUser = false;
     if (wantsReplyContext && !gCurrentUserID.empty() && messageRecord->is_object()) {
@@ -4698,7 +4599,7 @@ int AstralLuaMessageTextColor(uint64_t messageID, uint64_t channelID, uint32_t *
             const auto referencedChannel = reference.value("channel_id", std::string());
             const auto referencedMessage = reference.value("message_id", std::string());
             if (!referencedChannel.empty() && !referencedMessage.empty()) {
-                auto target = gPlatform.message(referencedChannel, referencedMessage);
+                auto target = gDiscord.message(referencedChannel, referencedMessage);
                 if (target && target->is_object()) {
                     const auto &targetAuthor = target->value("author", nlohmann::json::object());
                     repliesToCurrentUser = targetAuthor.is_object() && targetAuthor.value("id", std::string()) == gCurrentUserID;
@@ -4706,7 +4607,7 @@ int AstralLuaMessageTextColor(uint64_t messageID, uint64_t channelID, uint32_t *
             }
         }
     }
-    auto guild = gPlatform.channelGuild ? gPlatform.channelGuild(channel) : std::nullopt;
+    auto guild = gDiscord.channelGuild ? gDiscord.channelGuild(channel) : std::nullopt;
     for (auto *plugin : gPlugins) {
         if (!plugin->state || plugin->failed) continue;
         for (int colorizer : plugin->colorizers) {
@@ -4822,8 +4723,8 @@ static void PushTargetChannel(lua_State *state, const AstralPatchTarget *target)
         PushSnowflakeField(state, "channel_id", target->channel_id);
         return;
     }
-    if (!target->message_id || !gPlatform.messageChannel) return;
-    auto channel = gPlatform.messageChannel(std::to_string(target->message_id));
+    if (!target->message_id || !gDiscord.messageChannel) return;
+    auto channel = gDiscord.messageChannel(std::to_string(target->message_id));
     if (!channel || channel->empty()) return;
     lua_pushstring(state, channel->c_str());
     lua_setfield(state, -2, "channel_id");
@@ -5570,8 +5471,8 @@ int AstralLuaTyping(const AstralNameContext *context, AstralMentionDecoration *d
     for (auto *plugin : gPlugins) wanted = wanted || (plugin->state && !plugin->failed && !plugin->typingDecorators.empty());
     if (!wanted) return 0;
     std::string channel = Snowflake(context->channel_id);
-    auto guild = channel.empty() || !gPlatform.channelGuild ? std::nullopt : gPlatform.channelGuild(channel);
-    auto user = guild && gPlatform.memberNamed ? gPlatform.memberNamed(*guild, context->text) : std::nullopt;
+    auto guild = channel.empty() || !gDiscord.channelGuild ? std::nullopt : gDiscord.channelGuild(channel);
+    auto user = guild && gDiscord.memberNamed ? gDiscord.memberNamed(*guild, context->text) : std::nullopt;
     if (!user) return 0;
     for (auto *plugin : gPlugins) {
         if (!plugin->state || plugin->failed) continue;
@@ -5638,7 +5539,7 @@ int AstralLuaReaction(const AstralReactionContext *context, AstralReactionDecora
     std::string channel = Snowflake(context->channel_id);
     std::string message = Snowflake(context->message_id);
     if (channel.empty() || message.empty()) return 0;
-    auto guild = gPlatform.channelGuild ? gPlatform.channelGuild(channel) : std::nullopt;
+    auto guild = gDiscord.channelGuild ? gDiscord.channelGuild(channel) : std::nullopt;
     for (auto *plugin : gPlugins) {
         if (!plugin->state || plugin->failed) continue;
         for (int decorator : plugin->reactionDecorators) {
@@ -5681,11 +5582,11 @@ int AstralLuaNameColor(const AstralNameContext *context, uint32_t *color)
         return 0;
     }
     std::string channel = Snowflake(context->channel_id);
-    auto guild = channel.empty() || !gPlatform.channelGuild ? std::nullopt : gPlatform.channelGuild(channel);
+    auto guild = channel.empty() || !gDiscord.channelGuild ? std::nullopt : gDiscord.channelGuild(channel);
     if (!guild) return 0;
     std::string user = Snowflake(context->user_id);
     if (user.empty() && context->kind == kAstralNameTyping) {
-        auto named = gPlatform.memberNamed ? gPlatform.memberNamed(*guild, context->text) : std::nullopt;
+        auto named = gDiscord.memberNamed ? gDiscord.memberNamed(*guild, context->text) : std::nullopt;
         if (!named) return 0;
         user = *named;
     }
@@ -5777,7 +5678,7 @@ static size_t DecorateWithLua(const AstralDecorationContext *context, AstralTag 
     std::string user = Snowflake(context->user_id), message = Snowflake(context->message_id);
     std::string channel = ResolveChannel(context->channel_id, message);
     if (user.empty()) user = MessageAuthor(channel, message);
-    auto guild = channel.empty() || !gPlatform.channelGuild ? std::nullopt : gPlatform.channelGuild(channel);
+    auto guild = channel.empty() || !gDiscord.channelGuild ? std::nullopt : gDiscord.channelGuild(channel);
     size_t count = 0;
     for (auto *plugin : gPlugins) {
         if (!plugin->state || plugin->failed) continue;
@@ -5914,10 +5815,10 @@ bool pressMessageAction(std::string_view identifier)
     if (!owner || !selected) return false;
     std::string channel = std::to_string(channelID);
     std::string message = std::to_string(messageID);
-    auto record = gPlatform.message ? gPlatform.message(channel, message) : std::nullopt;
+    auto record = gDiscord.message ? gDiscord.message(channel, message) : std::nullopt;
     if (!record && gPlatform.developerLog)
         gPlatform.developerLog("Message action " + std::to_string(actionID) + " found no cached message " + message);
-    auto guild = gPlatform.channelGuild ? gPlatform.channelGuild(channel) : std::nullopt;
+    auto guild = gDiscord.channelGuild ? gDiscord.channelGuild(channel) : std::nullopt;
     std::string user;
     if (record && record->is_object()) {
         const auto &author = record->value("author", nlohmann::json::object());
@@ -5953,7 +5854,7 @@ static bool ActionShows(LuaPlugin *plugin, const LuaMessageAction &action)
     if (!gMenuMessage) return false;
     std::string message = std::to_string(gMenuMessage);
     std::optional<std::string> channel = gMenuChannel ? std::optional<std::string>(std::to_string(gMenuChannel)) : std::nullopt;
-    if (!channel && gPlatform.messageChannel) channel = gPlatform.messageChannel(message);
+    if (!channel && gDiscord.messageChannel) channel = gDiscord.messageChannel(message);
     if (!channel || channel->empty()) return false;
     lua_State *state = plugin->state;
     int top = lua_gettop(state);

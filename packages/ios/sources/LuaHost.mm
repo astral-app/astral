@@ -261,36 +261,9 @@ static void AstralKeepPlayer(AVAudioPlayer *player)
 static astral::LuaHostPlatform Platform(void)
 {
     astral::LuaHostPlatform platform;
-    platform.guild = [](const std::string &guild) { return JSON(AstralDiscordGuild(Native(guild))); };
-    platform.guilds = [] { return AstralDiscordGuildList(); };
-    platform.emoji = [](const std::string &emoji) { return AstralDiscordEmoji(emoji); };
-    platform.currentUser = [] { return AstralDiscordCurrentUser(); };
-    platform.member = [](const std::string &guild, const std::string &user) {
-        return JSON(AstralDiscordMember(Native(guild), Native(user)));
-    };
-    platform.memberNamed = [](const std::string &guild, const std::string &name) {
-        return Text(AstralDiscordMemberNamed(Native(guild), Native(name)));
-    };
-    platform.channelGuild = [](const std::string &channel) { return Text(AstralDiscordChannelGuild(Native(channel))); };
-    platform.user = [](const std::string &user) { return JSON(AstralDiscordUser(Native(user))); };
-    platform.friendNickname = [](const std::string &user) { return Text(AstralDiscordFriendNickname(Native(user))); };
-    platform.relationship = [](const std::string &user) -> std::optional<int> {
-        NSInteger type = AstralDiscordRelationship(Native(user));
-        return type ? std::optional<int>(static_cast<int>(type)) : std::nullopt;
-    };
-    platform.messageChannel = [](const std::string &message) { return Text(AstralDiscordMessageChannel(Native(message))); };
-    platform.message = [](const std::string &channel, const std::string &message) {
-        return JSON(AstralDiscordMessage(Native(channel), Native(message)));
-    };
-    platform.rawMessage = [](const std::string &channel, const std::string &message) {
-        return JSON(AstralDiscordRawMessage(Native(channel), Native(message)));
-    };
-    platform.permissions = [](const std::string &guild, const std::string &user,
-                              const std::optional<std::string> &channel) -> std::optional<uint64_t> {
-        NSNumber *permissions = AstralDiscordPermissions(Native(guild), Native(user), channel ? Native(*channel) : nil);
-        if (!permissions) return std::nullopt;
-        return permissions.unsignedLongLongValue;
-    };
+    platform.discordDirectory =
+        [NSFileManager.defaultManager URLsForDirectory:NSApplicationSupportDirectory inDomains:NSUserDomainMask].firstObject.path.UTF8String
+            ?: "";
     platform.reactors = [](const std::string &channel, const std::string &message, const std::string &emoji, bool burst, uint64_t count,
                            bool &fresh) {
         BOOL current = NO;

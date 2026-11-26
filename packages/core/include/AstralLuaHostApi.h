@@ -23,4 +23,16 @@ int astral_lua_storage_get(lua_State *state);
 int astral_lua_storage_set(lua_State *state);
 int astral_lua_storage_remove(lua_State *state);
 int astral_lua_storage_keys(lua_State *state);
+int astral_lua_discord_guild(lua_State *state);
+int astral_lua_discord_guilds(lua_State *state);
+int astral_lua_discord_me(lua_State *state);
+int astral_lua_discord_emoji(lua_State *state);
+int astral_lua_discord_member(lua_State *state);
+int astral_lua_discord_channel_guild(lua_State *state);
+int astral_lua_discord_user(lua_State *state);
+int astral_lua_discord_nickname(lua_State *state);
+int astral_lua_discord_relationship(lua_State *state);
+int astral_lua_discord_message(lua_State *state);
+int astral_lua_discord_raw_message(lua_State *state);
+int astral_lua_discord_permissions(lua_State *state);
 }
