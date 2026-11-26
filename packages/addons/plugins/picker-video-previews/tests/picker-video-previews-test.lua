@@ -24,10 +24,11 @@ astral = {
 	},
 	media = {
 		picked = function(uri)
-			return media[uri]
-		end,
-		picked_url = function(uri)
-			return urls[uri]
+			local item = media[uri]
+			if item then
+				item.url = urls[uri]
+			end
+			return item
 		end,
 	},
 	ui = {

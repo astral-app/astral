@@ -995,14 +995,11 @@ function astral.media.on_save(callback) end
 ---@field size? integer bytes, when the photo library knows them
 ---@field duration number seconds, 0 for photos
 ---@field type astral.PickedMediaType
+---@field url? string for a video, an https URL that plays it, or nil until astral has found its file (it refreshes the screen once found)
 ---Describes a media picker item from its picked:// image URI.
 ---@param uri string
 ---@return astral.PickedMedia?
 function astral.media.picked(uri) end
----An https URL that plays a media picker video, or nil until astral has found its file.
----@param uri string
----@return string?
-function astral.media.picked_url(uri) end
 ---Answers Discord's next photo picker, opened within 20 seconds, with this image instead of showing the picker.
 ---@param bytes string the image file's bytes, up to 1 MiB
 ---@param name string a png, gif, webp or jpg file name

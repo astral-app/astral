@@ -22,8 +22,21 @@ local native = {
 	message_action = astral.ui.message_action,
 	permission = astral.discord.permission,
 	enums = astral.enums,
+	picked = astral.media and astral.media.picked,
+	picked_url = astral.media and astral.media.picked_url,
 }
 astral.enums = nil
+
+if astral.media then
+	astral.media.picked_url = nil
+	function astral.media.picked(uri)
+		local media = native.picked(uri)
+		if media and media.type == astral.PickedMediaType.Video then
+			media.url = native.picked_url(uri)
+		end
+		return media
+	end
+end
 
 function astral.enum(name, members)
 	local frozen = {}
