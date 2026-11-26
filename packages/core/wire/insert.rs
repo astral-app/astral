@@ -43,6 +43,7 @@ const IMAGE_SELECTOR: &[u8] = b"image:";
 const MAX_PREFIXES: usize = 32;
 const MAX_PREFIX_LENGTH: usize = 96;
 const TARGET_CAPACITY: usize = 256;
+const SEEN_CAPACITY: usize = 8192;
 const TARGET_CHILDREN: usize = 48;
 const PATH_BASES: usize = 32;
 
@@ -112,6 +113,7 @@ struct Target {
     at_start: bool,
     user: u64,
     built: u64,
+    seen: u64,
 }
 
 #[derive(Clone)]
@@ -127,6 +129,71 @@ struct State {
     prefixes: Vec<Vec<u8>>,
     targets: HashMap<i32, Target>,
     bases: Vec<PathBase>,
+    clock: u64,
+    seen: HashMap<i32, Vec<u8>>,
+}
+
+impl State {
+    fn has_room_for(&mut self, id: i32) -> bool {
+        if self.targets.contains_key(&id) || self.targets.len() < TARGET_CAPACITY {
+            return true;
+        }
+        let Some(oldest) = self.targets.iter().min_by_key(|(_, target)| target.seen).map(|(id, _)| *id) else {
+            return false;
+        };
+        self.targets.remove(&oldest);
+        unpublish(oldest);
+        true
+    }
+
+    fn note_seen(&mut self, bytes: *const u8, spans: &[Span]) {
+        for span in spans {
+            let data = batch_of(bytes, span);
+            match Op::parse(span.op) {
+                Some(Op::Remove) => {
+                    for position in 0..span.child_count {
+                        self.seen.remove(&child(data, span, position));
+                    }
+                }
+                Some(Op::Create | Op::Update) => {
+                    let Some(identifier) = super::identifiers::accessibility_id(data, span) else {
+                        continue;
+                    };
+                    if self.seen.len() >= SEEN_CAPACITY && !self.seen.contains_key(&span.id) {
+                        self.seen.clear();
+                    }
+                    self.seen.insert(span.id, identifier.to_vec());
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn adopt_seen(&mut self) {
+        let matching: Vec<(i32, Vec<u8>)> = self
+            .seen
+            .iter()
+            .filter(|(id, identifier)| prefix_length(&self.prefixes, identifier) > 0 && !self.targets.contains_key(id))
+            .map(|(id, identifier)| (*id, identifier.clone()))
+            .collect();
+        for (id, identifier) in matching {
+            if !self.has_room_for(id) {
+                break;
+            }
+            let target = Target {
+                identifier,
+                children: known_children(id).into_iter().take(TARGET_CHILDREN).collect(),
+                ..Target::default()
+            };
+            self.track(id, target);
+        }
+    }
+
+    fn track(&mut self, id: i32, mut target: Target) {
+        self.clock += 1;
+        target.seen = self.clock;
+        self.targets.insert(id, target);
+    }
 }
 
 static STATE: Mutex<Option<State>> = Mutex::new(None);
@@ -164,7 +231,10 @@ pub extern "C" fn astral_wire_set_node_inserter(inserter: Option<NodeInserter>) 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn astral_wire_set_insert_prefixes(prefixes: *const *const c_char, count: usize) {
     let prefixes = unsafe { c_strings(prefixes, count, MAX_PREFIXES, MAX_PREFIX_LENGTH) };
-    with_state(|state| state.prefixes = prefixes);
+    with_state(|state| {
+        state.prefixes = prefixes;
+        state.adopt_seen();
+    });
 }
 
 fn prefix_length(prefixes: &[Vec<u8>], identifier: &[u8]) -> usize {
@@ -522,7 +592,7 @@ fn insert_at_paths(state: &mut State, bytes: *const u8, spans: &[Span], base: &m
             continue;
         }
         base.resolved = resolved;
-        if state.targets.contains_key(&resolved) || state.targets.len() >= TARGET_CAPACITY {
+        if state.targets.contains_key(&resolved) || !state.has_room_for(resolved) {
             continue;
         }
         let mut target = Target {
@@ -543,7 +613,7 @@ fn insert_at_paths(state: &mut State, bytes: *const u8, spans: &[Span], base: &m
             writer.append(&staged);
         }
         staged.discard();
-        state.targets.insert(resolved, target);
+        state.track(resolved, target);
     }
 }
 
@@ -573,7 +643,7 @@ fn insert_at_image(state: &mut State, bytes: *const u8, spans: &[Span], span: &S
     }
     let parent = unsafe { wire_parent_of(bytes, spans.as_ptr(), spans.len(), span.id) };
     let parent = if parent > 0 { parent } else { wire_discord_parent(span.id) };
-    if parent <= 0 || state.targets.contains_key(&parent) || state.targets.len() >= TARGET_CAPACITY {
+    if parent <= 0 || state.targets.contains_key(&parent) || !state.has_room_for(parent) {
         return;
     }
     let creation = unsafe { wire_creation(spans.as_ptr(), spans.len(), parent).as_ref() };
@@ -598,7 +668,7 @@ fn insert_at_image(state: &mut State, bytes: *const u8, spans: &[Span], span: &S
         writer.append(&staged);
     }
     staged.discard();
-    state.targets.insert(parent, target);
+    state.track(parent, target);
 }
 
 fn note_bases(state: &mut State, bytes: *const u8, spans: &[Span]) {
@@ -632,6 +702,37 @@ fn note_bases(state: &mut State, bytes: *const u8, spans: &[Span]) {
     }
 }
 
+fn retarget(state: &mut State, prefixes: &[Vec<u8>], data: &[u8], span: &Span, writer: &mut Writer) {
+    let Some(identifier) = super::identifiers::accessibility_id(data, span) else {
+        return;
+    };
+    let tracked = state.targets.get(&span.id).map(|target| target.identifier.clone());
+    if tracked.as_deref() == Some(identifier) {
+        return;
+    }
+    if prefix_length(prefixes, identifier) == 0 {
+        if tracked.is_some() {
+            state.targets.remove(&span.id);
+            unpublish(span.id);
+        }
+        return;
+    }
+    if !state.has_room_for(span.id) {
+        return;
+    }
+    let mut target = state.targets.remove(&span.id).unwrap_or_else(|| Target {
+        children: known_children(span.id).into_iter().take(TARGET_CHILDREN).collect(),
+        ..Target::default()
+    });
+    target.identifier = identifier.to_vec();
+    let mut staged = Out::default();
+    if evaluate(&mut staged, prefixes, span.id, &mut target, false) {
+        writer.append(&staged);
+    }
+    staged.discard();
+    state.track(span.id, target);
+}
+
 #[unsafe(export_name = "wireInsertNodes")]
 pub unsafe extern "C" fn wire_insert_nodes(
     bytes: *const u8,
@@ -641,13 +742,14 @@ pub unsafe extern "C" fn wire_insert_nodes(
     changed: *mut c_int,
     length: usize,
 ) {
+    let spans = spans_of(pointer, count);
+    with_state(|state| state.note_seen(bytes, spans));
     if INSERTER.get::<NodeInserter>().is_none() {
         return;
     }
     let (Some(out), Some(changed)) = (unsafe { out.as_mut() }, unsafe { changed.as_mut() }) else {
         return;
     };
-    let spans = spans_of(pointer, count);
     let mut writer = Writer {
         out,
         changed,
@@ -691,7 +793,7 @@ pub unsafe extern "C" fn wire_insert_nodes(
                     if prefix_length(&prefixes, identifier) == 0 {
                         continue;
                     }
-                    if state.targets.len() >= TARGET_CAPACITY && !state.targets.contains_key(&span.id) {
+                    if !state.has_room_for(span.id) {
                         continue;
                     }
                     let mut target = state.targets.remove(&span.id).unwrap_or_default();
@@ -706,8 +808,9 @@ pub unsafe extern "C" fn wire_insert_nodes(
                         writer.append(&staged);
                     }
                     staged.discard();
-                    state.targets.insert(span.id, target);
+                    state.track(span.id, target);
                 }
+                Some(Op::Update) => retarget(state, &prefixes, data, span, &mut writer),
                 _ => {}
             }
         }

@@ -17,7 +17,7 @@ fn routable(text: &[u8]) -> bool {
     ROUTABLE.iter().any(|prefix| text.starts_with(prefix))
 }
 
-fn accessibility_id<'a>(bytes: &'a [u8], span: &Span) -> Option<&'a [u8]> {
+pub(crate) fn accessibility_id<'a>(bytes: &'a [u8], span: &Span) -> Option<&'a [u8]> {
     let wanted = properties::current().accessibility_id;
     let mut cursor = Cursor::new(bytes, span.start + 5);
     if span.op == Op::Create {
