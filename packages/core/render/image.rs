@@ -256,20 +256,38 @@ fn weight_of(item: &Value) -> f32 {
     }
 }
 
-fn draw_text(pixmap: &mut Pixmap, item: &Value, transform: Transform) {
+fn faces(mono: bool, weight: f32, size: f32) -> Vec<Styled<'static>> {
     let fonts = fonts();
-    let primary = if item.get("mono").and_then(Value::as_bool) == Some(true) {
+    let primary = if mono {
         fonts.mono.as_ref().or(fonts.sans.as_ref())
     } else {
         fonts.sans.as_ref()
     };
-    let weight = weight_of(item);
-    let size = number(item, "size", DEFAULT_TEXT_SIZE);
-    let faces: Vec<Styled> = [primary, fonts.fallback.as_ref()]
+    [primary, fonts.fallback.as_ref()]
         .into_iter()
         .flatten()
         .filter_map(|data| styled(data, weight, size))
-        .collect();
+        .collect()
+}
+
+pub fn measure(content: &str, size: f32, weight: FontWeight, mono: bool) -> f32 {
+    let weight = match weight {
+        FontWeight::Bold => BOLD_WEIGHT,
+        FontWeight::Semibold => SEMIBOLD_WEIGHT,
+        FontWeight::Regular => REGULAR_WEIGHT,
+    };
+    let faces = faces(mono, weight, size);
+    content
+        .chars()
+        .filter_map(|character| place(&faces, character, size))
+        .map(|glyph| glyph.advance)
+        .sum()
+}
+
+fn draw_text(pixmap: &mut Pixmap, item: &Value, transform: Transform) {
+    let weight = weight_of(item);
+    let size = number(item, "size", DEFAULT_TEXT_SIZE);
+    let faces = faces(item.get("mono").and_then(Value::as_bool) == Some(true), weight, size);
     let Some(main) = faces.first() else {
         return;
     };

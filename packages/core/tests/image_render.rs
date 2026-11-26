@@ -27,7 +27,15 @@ fn renders_shapes_and_text_at_scale() {
 
 #[test]
 fn renders_the_debug_card() {
-    let environment = json!({"astral": "0.0.1", "commit": "abc1234", "platform": "ios", "plugins": []});
+    let environment = json!({
+        "astral": "0.0.1", "commit": "e6cbc18", "discord": "357.0 (124376)", "discord_channel": "stable",
+        "compatibility": "ready", "image": "astral.dylib", "framework": "ElleKit 1.1.3-2", "jailbreak": "Dopamine",
+        "device_name": "iPhone SE (3rd generation)", "system": "iOS 18.5", "os_build": "22F76",
+        "source": "App Store", "signer": "Apple", "install": "rootless", "markers": ["120 Hz", "Developer Mode on"],
+        "binary": "encrypted · min 16.0 · arm64e · thinned for iPhone14,6 · PIE · hardened runtime off",
+        "https": {"issuer": "Google Trust Services"}, "phoenix": "a1b2c3d4e5f6", "crashes_24h": 0,
+        "plugin_list": [{"id": "a", "enabled": true}, {"id": "b", "enabled": false}],
+    });
     let png = render(&card(&environment, "2026-11-26 16:00")).expect("card png");
     assert_eq!(&png[..8], PNG_SIGNATURE);
     if let Ok(path) = std::env::var("ASTRAL_RENDER_OUT") {
