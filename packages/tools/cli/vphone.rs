@@ -49,7 +49,7 @@ fn home() -> PathBuf {
     PathBuf::from(environment("HOME"))
 }
 
-fn vphone_home() -> PathBuf {
+pub fn vphone_home() -> PathBuf {
     home().join(".vphone")
 }
 
@@ -373,7 +373,7 @@ pub fn setup(arguments: &[String]) -> Result<(), String> {
     Err("shells die under ElleKit; the VM needs the txm-exp-precheck_admission patch (see the vphone skill)".into())
 }
 
-fn free_gigabytes(directory: &Path) -> i64 {
+pub fn free_gigabytes(directory: &Path) -> i64 {
     let Ok(output) = Command::new("df")
         .args(["-g", &repo::text(directory)])
         .output()

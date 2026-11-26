@@ -29,6 +29,11 @@ impl Flags {
         self
     }
 
+    pub fn list(mut self, name: &str) -> Flags {
+        self.multiple.insert(name.into(), Vec::new());
+        self
+    }
+
     pub fn parse(mut self, arguments: &[String]) -> Result<Flags, String> {
         let mut index = 0;
         while index < arguments.len() {
@@ -83,6 +88,10 @@ impl Flags {
 
     pub fn get(&self, name: &str) -> String {
         self.values.get(name).cloned().unwrap_or_default()
+    }
+
+    pub fn all(&self, name: &str) -> Vec<String> {
+        self.multiple.get(name).cloned().unwrap_or_default()
     }
 
     pub fn flag(&self, name: &str) -> bool {

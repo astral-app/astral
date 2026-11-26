@@ -5,21 +5,6 @@ use crate::lint;
 use crate::repo::{self, strings};
 use crate::signing;
 
-fn core_library() -> Result<String, String> {
-    repo::run(
-        &repo::path(&["packages", "core"]),
-        "cargo",
-        &strings(&["build", "--quiet"]),
-    )?;
-    Ok(repo::text(&repo::path(&[
-        "packages",
-        "core",
-        "target",
-        "debug",
-        "libastral_core.a",
-    ])))
-}
-
 fn lua_platform() -> &'static str {
     if cfg!(target_os = "macos") {
         "-DLUA_USE_MACOSX"
@@ -44,7 +29,7 @@ pub fn test_wire(work: &Path) -> Result<(), String> {
         "-I{}",
         repo::text(&repo::path(&["packages", "core", "wire"]))
     ));
-    arguments.push(core_library()?);
+    arguments.push(crate::fuzz::core_library(false)?);
     arguments.extend(strings(&["-lm", "-o", &binary]));
     repo::run(&ios, "clang", &arguments)?;
     repo::run(&ios, &binary, &[])
@@ -101,7 +86,7 @@ pub fn test_core(work: &Path) -> Result<(), String> {
     }
     arguments.extend([
         object,
-        core_library()?,
+        crate::fuzz::core_library(false)?,
         "-lsqlite3".into(),
         "-o".into(),
         binary.clone(),
@@ -245,7 +230,11 @@ fn test_locator(work: &Path, phoenix: &str) -> Result<(), String> {
         "-I{}",
         repo::text(&repo::path(&["packages", "core", "wire"]))
     ));
-    arguments.extend([core_library()?, "-o".into(), binary.clone()]);
+    arguments.extend([
+        crate::fuzz::core_library(false)?,
+        "-o".into(),
+        binary.clone(),
+    ]);
     repo::run(&sources, "clang", &arguments)?;
     repo::run(&sources, &binary, &[phoenix.to_owned()])
 }

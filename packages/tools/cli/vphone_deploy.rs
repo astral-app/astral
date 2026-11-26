@@ -14,7 +14,7 @@ use crate::vphone_session;
 
 const CONTAINERS: &str = "/var/containers/Bundle/Application";
 
-fn jailbreak_root(client: &Client) -> Result<String, String> {
+pub fn jailbreak_root(client: &Client) -> Result<String, String> {
     client
         .names(CONTAINERS)
         .into_iter()
