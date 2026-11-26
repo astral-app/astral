@@ -300,20 +300,6 @@ void startDeveloperServer(const std::string &state)
 astral::LuaHostPlatform platform(const std::string &state, const std::string &resources, std::vector<std::string> languages)
 {
     astral::LuaHostPlatform platform;
-    platform.guild = astral::discord::guild;
-    platform.guilds = astral::discord::guilds;
-    platform.emoji = astral::discord::emoji;
-    platform.currentUser = astral::discord::currentUser;
-    platform.member = astral::discord::member;
-    platform.memberNamed = astral::discord::memberNamed;
-    platform.channelGuild = astral::discord::channelGuild;
-    platform.user = astral::discord::user;
-    platform.friendNickname = astral::discord::friendNickname;
-    platform.relationship = astral::discord::relationshipType;
-    platform.messageChannel = astral::discord::messageChannel;
-    platform.message = astral::discord::message;
-    platform.rawMessage = astral::discord::rawMessage;
-    platform.permissions = astral::discord::permissions;
     platform.networkRequest = startNetworkRequest;
     platform.cancelNetworkRequest = cancelNetworkRequest;
     platform.showAlert = [](const std::string &title, const std::string &message) { callBridge(gShowAlert, title, message); };

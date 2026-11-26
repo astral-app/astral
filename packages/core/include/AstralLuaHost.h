@@ -23,27 +23,12 @@ struct PickedMedia {
 };
 
 struct LuaHostPlatform {
-    std::function<std::optional<nlohmann::json>(const std::string &guild)> guild;
-    std::function<nlohmann::json()> guilds;
-    std::function<std::optional<std::string>()> currentUser;
-    std::function<std::optional<nlohmann::json>(const std::string &emoji)> emoji;
-    std::function<std::optional<nlohmann::json>(const std::string &guild, const std::string &user)> member;
-    std::function<std::optional<std::string>(const std::string &guild, const std::string &name)> memberNamed;
-    std::function<std::optional<std::string>(const std::string &channel)> channelGuild;
-    std::function<std::optional<nlohmann::json>(const std::string &user)> user;
-    std::function<std::optional<std::string>(const std::string &user)> friendNickname;
-    std::function<std::optional<int>(const std::string &user)> relationship;
-    std::function<std::optional<std::string>(const std::string &message)> messageChannel;
-    std::function<std::optional<nlohmann::json>(const std::string &channel, const std::string &message)> message;
-    std::function<std::optional<uint64_t>(const std::string &guild, const std::string &user, const std::optional<std::string> &channel)>
-        permissions;
     std::function<void(uint64_t request, const nlohmann::json &options)> networkRequest;
     std::function<void(uint64_t request)> cancelNetworkRequest;
     std::function<bool(uint64_t request, const std::string &url, const std::string &callbackURL)> webAuth;
     std::function<void(uint64_t request)> cancelWebAuth;
     std::function<void(const std::string &title, const std::string &message)> showAlert;
     std::function<bool(uint64_t request, const nlohmann::json &spec)> confirm;
-    std::function<std::optional<nlohmann::json>(const std::string &channel, const std::string &message)> rawMessage;
     std::function<bool(uint64_t sheet, const nlohmann::json &spec)> openSheet;
     std::function<void(uint64_t sheet, const nlohmann::json &spec)> updateSheet;
     std::function<void(uint64_t sheet)> closeSheet;
@@ -81,6 +66,7 @@ struct LuaHostPlatform {
     std::function<void()> refreshDecorations;
     std::vector<std::string> preferredLanguages;
     std::string storagePath;
+    std::string discordDirectory;
     std::string bundledDirectory;
 };
 
