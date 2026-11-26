@@ -874,6 +874,7 @@ function astral.ui.message_background(decorator) end
 function astral.ui.code_block(render, press) end
 ---@class astral.MessageActionOptions
 ---@field icon? string
+---@field danger? boolean draws the row in Discord's red destructive style, like Delete
 ---@field when? fun(node: astral.Node): boolean shows the action only for messages it returns true for
 ---@param label string
 ---@param callback fun(node: astral.Node)

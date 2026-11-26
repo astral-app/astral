@@ -1415,12 +1415,14 @@ pub unsafe fn message_action(state: *mut LuaState) -> Outcome {
     }
     let mut icon = "res://ic_mana_puzzle_piece".to_owned();
     let mut when = NOREF;
+    let mut danger = false;
     if unsafe { lua::is_table(state, 3) } {
         if let Some(chosen) = unsafe { crate::lua::host::api::table_text(state, 3, c"icon") }
             .filter(|chosen| chosen.starts_with("res://") && chosen.len() < 120)
         {
             icon = chosen;
         }
+        danger = unsafe { crate::lua::host::api::table_flag(state, 3, c"danger") };
         unsafe { lua::get_field(state, 3, "when") };
         if unsafe { lua::is_function(state, -1) } {
             when = unsafe { lua::reference(state) };
@@ -1437,6 +1439,7 @@ pub unsafe fn message_action(state: *mut LuaState) -> Outcome {
         identifier,
         label: String::from_utf8_lossy(&label).into_owned(),
         icon,
+        danger,
         reference,
         when,
     });

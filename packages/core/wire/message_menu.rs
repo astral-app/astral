@@ -18,6 +18,7 @@ pub struct AstralMenuEntry {
     pub action_id: [c_char; 64],
     pub label: [c_char; 64],
     pub icon: [c_char; 160],
+    pub danger: c_int,
 }
 
 pub type MenuProvider = unsafe extern "C" fn(*mut AstralMenuEntry, usize) -> usize;
@@ -405,6 +406,13 @@ fn build_row(out: &mut Out, batch: &Batch, template: i32, entry: &AstralMenuEntr
     row
 }
 
+fn action_row(batch: &Batch, wanted: &[u8]) -> Option<i32> {
+    batch.spans.iter().find_map(|span| {
+        let data = batch_of(batch.bytes, span);
+        (is_action_row(data, span) && find_string(data, span, properties::current().accessibility_id) == Some(wanted)).then_some(span.id)
+    })
+}
+
 fn template_row(batch: &Batch) -> i32 {
     let mut fallback = 0;
     for span in batch.spans {
@@ -440,6 +448,7 @@ fn menu_entries() -> Vec<AstralMenuEntry> {
             action_id: [0; 64],
             label: [0; 64],
             icon: [0; 160],
+            danger: 0,
         })
         .collect();
     let count = unsafe { provider(entries.as_mut_ptr(), MAX_ENTRIES) }.min(MAX_ENTRIES);
@@ -467,6 +476,7 @@ pub unsafe extern "C" fn wire_message_menu(
         spans: spans_of(pointer, count),
     };
     let template = template_row(&batch);
+    let danger_template = action_row(&batch, b"message.actions.delete").unwrap_or(template);
     let group = batch
         .spans
         .iter()
@@ -487,7 +497,8 @@ pub unsafe extern "C" fn wire_message_menu(
     let mut children = Vec::new();
     let mut update = Out::default();
     for (index, entry) in entries.iter().enumerate() {
-        let row = build_row(&mut update, &batch, template, entry, index == 0);
+        let source = if entry.danger != 0 { danger_template } else { template };
+        let row = build_row(&mut update, &batch, source, entry, index == 0);
         if row == 0 {
             break;
         }

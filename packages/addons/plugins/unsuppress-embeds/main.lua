@@ -80,6 +80,7 @@ for _, action in ipairs({ "suppress", "unsuppress" }) do
 		change(node, action)
 	end, {
 		icon = action == "suppress" and "res://ic_mana_eye_slash" or "res://ic_mana_eye",
+		danger = action == "suppress",
 		when = function(node)
 			return action_for(node) == action
 		end,

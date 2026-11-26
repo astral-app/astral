@@ -612,6 +612,7 @@ function astral.ui.message_action(label, callback, options)
 	if options and options.when then
 		wrapped = {
 			icon = options.icon,
+			danger = options.danger,
 			when = function(node)
 				return options.when(wrap_node(node)) == true
 			end,

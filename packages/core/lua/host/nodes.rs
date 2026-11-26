@@ -1072,12 +1072,20 @@ pub unsafe extern "C" fn astral_lua_message_menu(entries: *mut AstralMenuEntry, 
     let entries = unsafe { core::slice::from_raw_parts_mut(entries, capacity) };
     let mut count = 0;
     for plugin in running_plugins() {
-        let actions: Vec<(u64, String, String, c_int)> = unsafe { &*plugin }
+        let actions: Vec<(u64, String, String, bool, c_int)> = unsafe { &*plugin }
             .message_actions
             .iter()
-            .map(|action| (action.identifier, action.label.clone(), action.icon.clone(), action.when))
+            .map(|action| {
+                (
+                    action.identifier,
+                    action.label.clone(),
+                    action.icon.clone(),
+                    action.danger,
+                    action.when,
+                )
+            })
             .collect();
-        for (identifier, label, icon, when) in actions {
+        for (identifier, label, icon, danger, when) in actions {
             if count >= capacity {
                 return count;
             }
@@ -1089,6 +1097,7 @@ pub unsafe extern "C" fn astral_lua_message_menu(entries: *mut AstralMenuEntry, 
             write_text(&mut entry.action_id, &format!("astral.action.{identifier}"));
             write_text(&mut entry.label, &label);
             write_text(&mut entry.icon, &icon);
+            entry.danger = c_int::from(danger);
         }
     }
     count
