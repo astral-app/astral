@@ -21,7 +21,10 @@ fn picks_affected_steps() {
             "rust,rust magic numbers,lua tests",
         ),
         ("packages/tools/cli/check.rs", "rust,rust magic numbers"),
-        ("packages/ios/sources/Themes.mm", "clang-format"),
+        (
+            "packages/ios/sources/Themes.mm",
+            "clang-format,objc boolean boxing",
+        ),
         ("README.md", ""),
     ] {
         assert_eq!(planned(path, true), want, "{path}");

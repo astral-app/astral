@@ -18,6 +18,7 @@ pub mod lint;
 pub mod lua_casing;
 pub mod lua_enums;
 pub mod macho;
+pub mod objc_boxing;
 pub mod palette;
 pub mod phoenix;
 pub mod readme;
