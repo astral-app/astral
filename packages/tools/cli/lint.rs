@@ -60,7 +60,7 @@ pub fn lint_rust() -> Result<(), String> {
 
 pub fn test_rust() -> Result<(), String> {
     for directory in crates() {
-        repo::run(&directory, "cargo", &strings(&["test", "--quiet"]))?;
+        repo::rust(&directory, "test", &["test", "--quiet"])?;
     }
     Ok(())
 }

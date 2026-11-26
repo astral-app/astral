@@ -341,6 +341,12 @@ fn diagnoses(pins: &std::collections::BTreeMap<String, String>) -> Vec<Diagnosis
             "install Rust with rustup",
         ),
         diagnosis(
+            "blaze",
+            false,
+            check_tool("blaze", &["--version"]),
+            "optional: faster host builds with ASTRAL_BLAZE=1; install from https://ix.dev/blaze",
+        ),
+        diagnosis(
             "luacheck",
             true,
             check_tool("luacheck", &["--version"]),

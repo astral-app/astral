@@ -1,6 +1,7 @@
 # astral
 
 - Run `cargo astral format`, `lint` and `test` before committing (the pre-commit hook in `.githooks` runs lint and tests); the tests build the ViewWire host test under ASan and UBSan and run every plugin's Lua tests.
+- `ASTRAL_BLAZE=1` routes the host Rust test and check runs through [blaze](https://ix.dev/blaze) instead of cargo for faster incremental builds; it falls back to cargo when blaze is absent, and cross-compiled (`--target`) and `--release` builds always use cargo.
 - astral is always written lowercase in visible text, docs and commits.
 - Commit as `type(scope): subject`, with scope `ios`, `core`, `plugins`, `sdk`, `themes`, `catalog`, `tools` or `docs`.
 - Plugins are Lua only; new capabilities go into the `astral` API, never into native plugin code.
