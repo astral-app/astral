@@ -9,9 +9,10 @@ const HEADER_SIZE: usize = 32;
 const SEGMENT_SIZE: usize = 72;
 const SECTION_SIZE: usize = 80;
 const MAX_SEGMENTS: usize = 16;
-const MAX_TARGETS: usize = 8;
-const MAX_STRING_SECTIONS: usize = 4;
+const MAX_TARGETS: usize = 24;
+const MAX_STRING_SECTIONS: usize = 8;
 const MAX_DATA_SECTIONS: usize = 32;
+const POINTER_SLOTS: usize = 16;
 const PROPERTY_ANCHOR: [u8; 16] = [
     b't', b'e', b'x', b't', b'T', b'r', b'a', b'n', b's', b'f', b'o', b'r', b'm', 0, 0, 0xED,
 ];
@@ -192,6 +193,13 @@ fn parse(view: &AstralImageView) -> Option<Image<'_>> {
                 {
                     image.data.push(section);
                 }
+                if name(header, at) == b"__const"
+                    && !name(header, at + 16).starts_with(b"__DATA")
+                    && flags & SECTION_TYPE != S_ZEROFILL
+                    && image.strings.len() < MAX_STRING_SECTIONS
+                {
+                    image.strings.push(section);
+                }
                 if name(header, at + 16) != b"__TEXT" {
                     continue;
                 }
@@ -210,6 +218,25 @@ fn parse(view: &AstralImageView) -> Option<Image<'_>> {
     image.starts = starts?;
     image.slide = (image.base as i64).wrapping_sub(image.text_base as i64);
     Some(image)
+}
+
+fn needle_addresses(image: &Image, section: Section, needle: &[u8], out: &mut Vec<u64>) {
+    let Some(bytes) = image.bytes(section.addr, section.size) else {
+        return;
+    };
+    if needle.is_empty() || bytes.len() < needle.len() {
+        return;
+    }
+    let mut offset = 0;
+    while offset + needle.len() <= bytes.len() {
+        if &bytes[offset..offset + needle.len()] == needle {
+            out.push(section.addr + offset as u64);
+            if out.len() >= MAX_TARGETS {
+                return;
+            }
+        }
+        offset += 1;
+    }
 }
 
 fn find_string(image: &Image, section: Section, needle: &[u8]) -> u64 {
@@ -258,6 +285,21 @@ fn single_function(image: &Image, pcs: &[u64]) -> u64 {
     if found != 0 { found - image.text_base } else { 0 }
 }
 
+fn dominant_function(image: &Image, pcs: &[u64]) -> u64 {
+    use std::collections::HashMap;
+    let mut votes: HashMap<u64, usize> = HashMap::new();
+    for pc in pcs {
+        let function = image.function_start(*pc);
+        if function != 0 {
+            *votes.entry(function).or_default() += 1;
+        }
+    }
+    votes
+        .into_iter()
+        .max_by_key(|(function, count)| (*count, *function))
+        .map_or(0, |(function, _)| function - image.text_base)
+}
+
 fn decode_branch_target(pc: u64, word: u32) -> Option<u64> {
     if word & 0xfc00_0000 != 0x9400_0000 {
         return None;
@@ -280,6 +322,53 @@ fn unique_caller(image: &Image, callee: u64) -> u64 {
         decode_branch_target(text + index as u64 * 4, word) == Some(target)
     });
     single_function(image, &pcs)
+}
+
+fn callers(image: &Image, callee: u64) -> Vec<u64> {
+    if callee == 0 {
+        return Vec::new();
+    }
+    let Some(words) = image.text_words() else { return Vec::new() };
+    let target = image.text_base.wrapping_add(callee);
+    let text = image.text.addr;
+    let pcs = matching_pcs(image, words, |_, index, word| {
+        decode_branch_target(text + index as u64 * 4, word) == Some(target)
+    });
+    let mut functions = Vec::new();
+    for pc in pcs {
+        let function = image.function_start(pc);
+        if function != 0 {
+            let offset = function - image.text_base;
+            if !functions.contains(&offset) {
+                functions.push(offset);
+            }
+        }
+    }
+    functions
+}
+
+fn pointer_to(image: &Image, offset: u64) -> Vec<u64> {
+    if offset == 0 {
+        return Vec::new();
+    }
+    let target = (image.text_base.wrapping_add(offset) as i64).wrapping_add(image.slide) as u64;
+    let needle = target.to_le_bytes();
+    let mut found = Vec::new();
+    for section in &image.data {
+        let Some(bytes) = image.bytes(section.addr, section.size) else {
+            continue;
+        };
+        for (index, window) in bytes.as_chunks::<8>().0.iter().enumerate() {
+            if *window == needle {
+                let slot = section.addr + (index as u64) * 8;
+                found.push((slot as i64).wrapping_add(image.slide) as u64);
+                if found.len() >= POINTER_SLOTS {
+                    return found;
+                }
+            }
+        }
+    }
+    found
 }
 
 fn decode_address_reference(words: &[[u8; 4]], index: usize, word: u32, text: u64) -> Option<u64> {
@@ -324,6 +413,28 @@ fn function_referencing(image: &Image, needle: &[u8]) -> u64 {
         decode_address_reference(words, index, word, text).is_some_and(|target| targets.contains(&target))
     });
     single_function(image, &pcs)
+}
+
+fn const_referencing(image: &Image, needle: &[u8]) -> u64 {
+    if needle.is_empty() {
+        return 0;
+    }
+    let mut targets = Vec::new();
+    for section in &image.strings {
+        if targets.len() >= MAX_TARGETS {
+            break;
+        }
+        needle_addresses(image, *section, needle, &mut targets);
+    }
+    if targets.is_empty() {
+        return 0;
+    }
+    let Some(words) = image.text_words() else { return 0 };
+    let text = image.text.addr;
+    let pcs = matching_pcs(image, words, |words, index, word| {
+        decode_address_reference(words, index, word, text).is_some_and(|target| targets.contains(&target))
+    });
+    dominant_function(image, &pcs)
 }
 
 fn printable(bytes: &[u8]) -> bool {
@@ -406,6 +517,40 @@ pub unsafe extern "C" fn astral_locate_function_referencing(image: *const Astral
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn astral_locate_unique_caller(image: *const AstralImageView, callee: u64) -> u64 {
     view(image).map_or(0, |image| unique_caller(&image, callee))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn astral_locate_const_referencing(image: *const AstralImageView, needle: *const c_char) -> u64 {
+    if needle.is_null() {
+        return 0;
+    }
+    view(image).map_or(0, |image| const_referencing(&image, unsafe { CStr::from_ptr(needle) }.to_bytes()))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn astral_locate_callers(image: *const AstralImageView, callee: u64, out: *mut u64, capacity: usize) -> usize {
+    if out.is_null() {
+        return 0;
+    }
+    let Some(image) = view(image) else { return 0 };
+    let found = callers(&image, callee);
+    let out = unsafe { core::slice::from_raw_parts_mut(out, capacity) };
+    let count = found.len().min(capacity);
+    out[..count].copy_from_slice(&found[..count]);
+    count
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn astral_locate_pointer_to(image: *const AstralImageView, offset: u64, out: *mut u64, capacity: usize) -> usize {
+    if out.is_null() {
+        return 0;
+    }
+    let Some(image) = view(image) else { return 0 };
+    let found = pointer_to(&image, offset);
+    let out = unsafe { core::slice::from_raw_parts_mut(out, capacity) };
+    let count = found.len().min(capacity);
+    out[..count].copy_from_slice(&found[..count]);
+    count
 }
 
 #[unsafe(no_mangle)]
