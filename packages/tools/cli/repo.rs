@@ -159,3 +159,22 @@ pub fn extension(path: &str) -> &str {
         .and_then(|extension| extension.to_str())
         .unwrap_or_default()
 }
+
+pub fn output_bytes(directory: &Path, name: &str, arguments: &[String]) -> Result<Vec<u8>, String> {
+    let result = Command::new(name)
+        .args(arguments)
+        .current_dir(directory)
+        .stdin(Stdio::null())
+        .output()
+        .map_err(|error| format!("{}: {error}", describe(name, arguments)))?;
+    if result.status.success() {
+        Ok(result.stdout)
+    } else {
+        Err(format!(
+            "{}: {}: {}",
+            describe(name, arguments),
+            result.status,
+            String::from_utf8_lossy(&result.stderr).trim()
+        ))
+    }
+}
