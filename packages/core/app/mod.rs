@@ -341,25 +341,20 @@ pub fn pending_updates() -> Vec<u8> {
         collect(&mut merged, |buffer| unsafe {
             wire::decorate::astral_wire_refresh_message_backgrounds(buffer)
         });
-        let mut code_blocks = ffi::WireBuffer::new();
-        if unsafe { wire::code_blocks::astral_wire_refresh_code_blocks(code_blocks.pointer()) } != 0 {
-            let bytes = code_blocks.bytes();
-            unsafe { wire::identifiers::astral_wire_note_identifiers(bytes.as_ptr(), bytes.len()) };
-            ffi::append(&mut merged, &code_blocks);
-        }
+        collect(&mut merged, |buffer| unsafe {
+            wire::code_blocks::astral_wire_refresh_code_blocks(buffer)
+        });
         collect(&mut merged, |buffer| unsafe {
             wire::patch::astral_wire_refresh_node_patches(buffer)
         });
-        let mut inserts = ffi::WireBuffer::new();
-        if unsafe { wire::insert::astral_wire_refresh_node_inserts(inserts.pointer()) } != 0 {
-            let bytes = inserts.bytes();
-            unsafe { wire::identifiers::astral_wire_note_identifiers(bytes.as_ptr(), bytes.len()) };
-            ffi::append(&mut merged, &inserts);
-        }
+        collect(&mut merged, |buffer| unsafe {
+            wire::insert::astral_wire_refresh_node_inserts(buffer)
+        });
         if wire::patch::astral_wire_take_refresh_busy() != 0 {
             REFRESH_DECORATIONS.store(true, Ordering::Release);
         }
     }
+    unsafe { wire::identifiers::astral_wire_note_identifiers(merged.as_ptr(), merged.len()) };
     merged
 }
 

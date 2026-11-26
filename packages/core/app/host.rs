@@ -175,6 +175,7 @@ pub fn deliver(bytes: &[u8]) {
     if bytes.is_empty() {
         return;
     }
+    unsafe { crate::wire::identifiers::astral_wire_note_identifiers(bytes.as_ptr(), bytes.len()) };
     if let Some(bridge) = current() {
         bridge.deliver(bytes);
     }
