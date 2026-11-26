@@ -34,6 +34,8 @@ const FILL: u32 = 1 << 12;
 const MUTED: u32 = 1 << 13;
 const FILL_HEIGHT: u32 = 1 << 14;
 const ALIGN: u32 = 1 << 15;
+const COVER: u32 = 1 << 16;
+const FIXED: u32 = 1 << 17;
 
 const IMAGE_SELECTOR: &[u8] = b"image:";
 
@@ -289,6 +291,12 @@ fn put_node(out: &mut Out, id: i32, node: &AstralInsertNode) {
     }
     if has(MUTED) {
         out.prop_bool(properties.muted, true);
+    }
+    if has(COVER) {
+        out.prop_string(properties.scale, b"fill");
+    }
+    if has(FIXED) {
+        out.prop_number(properties.shrink, 0.0);
     }
     if has(ROW) {
         out.prop_string(properties.direction, b"row");

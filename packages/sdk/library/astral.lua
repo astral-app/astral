@@ -45,6 +45,7 @@
 ---@field content? string cached text; needs discord.messages.content
 ---@field flags integer Discord's message flags, such as 4 for suppressed embeds
 ---@field embeds integer how many embeds the message has
+---@field reactions { emoji_id?: astral.Snowflake, emoji_name?: string, count: integer, burst_count: integer, me: boolean }[]
 
 ---@class astral.Node
 ---@field kind astral.NodeKind
@@ -816,6 +817,8 @@ function astral.ui.patch(selector, patcher) end
 ---@field uri? string what a player plays: an https or content URL
 ---@field muted? boolean a player plays without sound
 ---@field fill_height? boolean take the full height of the parent
+---@field cover? boolean an image fills its box, cropping instead of fitting
+---@field fixed? boolean never shrink to make room for siblings
 ---@field text? string
 ---@field icon? string a Discord icon name, res:// URI, https URL or a png in the plugin folder
 ---@field color? astral.Color|integer|string text colour, or the tint of an image
@@ -880,11 +883,6 @@ function astral.ui.code_block(render, press) end
 ---@param callback fun(node: astral.Node)
 ---@param options? astral.MessageActionOptions
 function astral.ui.message_action(label, callback, options) end
----@class astral.ReactionDecoration
----@field images string[]
----@field total? integer
----@param decorator fun(node: astral.Node): astral.ReactionDecoration?
-function astral.ui.reaction(decorator) end
 ---Discord's current app background gradient, or the active theme's, as ARGB colours.
 ---@return { angle: number, colors: integer[] }?
 function astral.ui.app_background() end

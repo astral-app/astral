@@ -20,7 +20,6 @@ local native = {
 	cancel_web_auth = astral.ui.cancel_web_auth,
 	style_text = astral.ui.style_text,
 	message_action = astral.ui.message_action,
-	reaction = astral.ui.reaction,
 	permission = astral.discord.permission,
 	enums = astral.enums,
 }
@@ -675,12 +674,6 @@ function astral.ui.style_text(styler)
 			hide_at = style.hide_at,
 			after = style.after,
 		}
-	end)
-end
-
-function astral.ui.reaction(decorator)
-	return native.reaction(function(node)
-		return decorator(wrap_node(node))
 	end)
 end
 

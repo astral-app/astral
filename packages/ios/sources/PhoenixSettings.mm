@@ -251,7 +251,7 @@ static void ScheduleRetry(void)
     ScheduleTween();
     if (!gQueue) return;
     bool soon = astral_ios_decorations_pending();
-    bool later = astral_wire_pending_mentions() || astral_wire_pending_reactions();
+    bool later = astral_wire_pending_mentions();
     if ((!soon && !later) || gRetryScheduled.exchange(true)) return;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, soon ? NSEC_PER_SEC / 10 : NSEC_PER_SEC), gQueue, ^{
         gRetryScheduled = false;
