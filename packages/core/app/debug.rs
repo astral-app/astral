@@ -12,29 +12,25 @@ use crate::lua::host::http::{Attachment, CommandContext, CommandReply, NativeCom
 
 const WIDTH: f64 = 432.0;
 const SCALE: f64 = 3.0;
-const PADDING: f64 = 12.0;
-const HEADER_HEIGHT: f64 = 34.0;
-const FONT_SIZE: f64 = 11.5;
-const CHAR_WIDTH: f64 = FONT_SIZE * 0.6;
-const LINE_HEIGHT: f64 = 17.0;
-const LABEL_WIDTH: f64 = 66.0;
-const LABEL_SIZE: f64 = 11.0;
-const ALT_CLEARANCE: f64 = 64.0;
-const ALT_HEIGHT: f64 = 46.0;
+const PADDING: f64 = 8.0;
+const GAP: f64 = 4.0;
+const COLUMNS: usize = 3;
+const HEADER_HEIGHT: f64 = 30.0;
+const TITLE_SIZE: f64 = 15.0;
+const META_SIZE: f64 = 10.0;
+const META_BASELINE: f64 = 0.9;
+const LINE_BOX: f64 = 1.2;
+const TILE_HEIGHT: f64 = 22.0;
+const TILE_PADDING: f64 = 8.0;
+const TILE_RADIUS: f64 = 7.0;
 const CARD_RADIUS: f64 = 12.0;
-const STRIPE_INSET: f64 = 6.0;
-const STRIPE_RADIUS: f64 = 4.0;
-const TITLE_SIZE: f64 = 17.0;
-const TITLE_WIDTH: f64 = 60.0;
-const TITLE_ADVANCE: f64 = 56.0;
-const PILL_HEIGHT: f64 = 17.0;
-const PILL_SIZE: f64 = 10.0;
-const PILL_GLYPH: f64 = 0.62;
-const PILL_PADDING: f64 = 14.0;
-const PILL_GAP: f64 = 6.0;
-const STAMP_SIZE: f64 = 10.0;
-const MONO_GLYPH: f64 = 0.6;
-const MAX_SPANS: usize = 8;
+const LABEL_SIZE: f64 = 10.0;
+const VALUE_SIZE: f64 = 11.0;
+const LABEL_GAP: f64 = 8.0;
+const WRAP_LINE: f64 = 14.0;
+const MAX_TILE_LINES: usize = 4;
+const PILL_HEIGHT: f64 = 18.0;
+const PILL_PADDING: f64 = 8.0;
 const MAX_ALT_TEXT: usize = 1024;
 const SHORT_PHOENIX: usize = 8;
 const ALT_DROP_ORDER: [&str; 9] = [
@@ -64,16 +60,17 @@ const LOG_LIMIT: usize = 512 << 10;
 const STATE_LIMIT: u64 = 256 << 10;
 const PRIVATE_STATE: [&str; 3] = ["settings.json", "plugin-storage.sqlite", "dev-pairing-code"];
 
-const CARD: u32 = 0xFF1E_1F22;
-const STRIPE: u32 = 0xFF23_2428;
-const LABEL: u32 = 0xFF94_9BA4;
-const VALUE: u32 = 0xFFF2_F3F5;
-const DIM: u32 = 0xFF94_9BA4;
-const ACCENT: u32 = 0xFF58_65F2;
+const CARD: u32 = 0xFF0F_1115;
+const TILE: u32 = 0xFF17_1A21;
+const LABEL: u32 = 0xFF6B_7280;
+const VALUE: u32 = 0xFFF3_F4F6;
+const DIM: u32 = 0xFF9C_A3AF;
 const COMMIT: u32 = 0xFFA7_8BFA;
-const GOOD: u32 = 0xFF23_A55A;
-const WARN: u32 = 0xFFF0_B232;
-const BAD: u32 = 0xFFDA_373C;
+const GOOD: u32 = 0xFF34_D399;
+const GOOD_BACKGROUND: u32 = 0xFF11_231B;
+const WARN: u32 = 0xFFFB_BF24;
+const BAD: u32 = 0xFFF8_7171;
+const BAD_BACKGROUND: u32 = 0xFF2A_1215;
 
 #[derive(Clone)]
 struct Span {
@@ -110,14 +107,6 @@ fn text<'a>(environment: &'a Value, key: &str) -> &'a str {
 
 fn present(environment: &Value, key: &str) -> Option<String> {
     Some(text(environment, key)).filter(|value| !value.is_empty()).map(str::to_owned)
-}
-
-fn length(text: &str) -> usize {
-    text.chars().count()
-}
-
-fn spans_length(spans: &[Span]) -> usize {
-    spans.iter().map(|span| length(&span.text)).sum()
 }
 
 fn binary_text(binary: &str) -> String {
@@ -259,6 +248,12 @@ fn rows(environment: &Value) -> Vec<(&'static str, Vec<Span>)> {
         injection.push(span(format!(" · {}", framework_version(&framework)), DIM));
     }
     add("injection", injection);
+    add(
+        "jailbreak",
+        present(environment, "jailbreak")
+            .map(|jailbreak| vec![span(jailbreak.to_lowercase(), VALUE)])
+            .unwrap_or_default(),
+    );
     let details: Vec<String> = [discord.channel.clone(), discord.build.clone()].into_iter().flatten().collect();
     let mut discord_row = vec![
         span(discord.version.clone(), VALUE),
@@ -281,6 +276,8 @@ fn rows(environment: &Value) -> Vec<(&'static str, Vec<Span>)> {
         .unwrap_or_else(|| "?".to_owned());
     add("device", vec![span(device, VALUE)]);
     add("system", system_spans(environment));
+    let counts = plugin_counts(environment);
+    add("plugins", vec![span(format!("{}/{}", counts.enabled, counts.installed), VALUE)]);
     add(
         "install",
         present(environment, "install")
@@ -329,161 +326,227 @@ fn rows(environment: &Value) -> Vec<(&'static str, Vec<Span>)> {
     rows
 }
 
-fn kept_spans(spans: &[Span]) -> Vec<Span> {
-    spans.iter().take(MAX_SPANS).filter(|span| !span.text.is_empty()).cloned().collect()
+fn measure(text: &str, size: f64, weight: FontWeight) -> f64 {
+    f64::from(crate::render::image::measure(text, size as f32, weight, false))
 }
 
-fn byte_offset(text: &str, characters: usize) -> usize {
-    text.char_indices().nth(characters).map_or(text.len(), |(offset, _)| offset)
+fn spans_width(spans: &[Span]) -> f64 {
+    spans.iter().map(|span| measure(&span.text, VALUE_SIZE, FontWeight::Regular)).sum()
 }
 
-fn wrapped(spans: &[Span], room: usize) -> Vec<Vec<Span>> {
-    let mut lines = Vec::new();
-    let mut line: Vec<Span> = Vec::new();
-    let mut used = 0;
-    for item in spans {
-        let mut rest = item.text.clone();
-        while !rest.is_empty() {
-            let left = room.saturating_sub(used);
-            if length(&rest) <= left {
-                used += length(&rest);
-                line.push(span(std::mem::take(&mut rest), item.color));
-                continue;
-            }
-            let cut = byte_offset(&rest, left);
-            let mut head = rest[..cut].to_owned();
-            if !rest[cut..].starts_with(' ')
-                && let Some(space) = head.rfind(' ').filter(|space| *space > 0)
-            {
-                head.truncate(space);
-            }
-            if head.is_empty() && used > 0 {
-                lines.push(std::mem::take(&mut line));
-                used = 0;
-                continue;
-            }
-            rest = rest[head.len()..].strip_prefix(' ').unwrap_or(&rest[head.len()..]).to_owned();
-            if head.is_empty() {
-                head = rest.chars().next().map(String::from).unwrap_or_default();
-                rest = rest[head.len()..].to_owned();
-            }
-            line.push(span(head, item.color));
-            lines.push(std::mem::take(&mut line));
-            used = 0;
+fn push_piece(line: &mut Vec<Span>, piece: &str, color: u32) {
+    match line.last_mut() {
+        Some(last) if last.color == color => last.text.push_str(piece),
+        _ => line.push(span(piece, color)),
+    }
+}
+
+fn split_long(piece: &str, room: f64) -> Vec<String> {
+    let mut parts = vec![String::new()];
+    for character in piece.chars() {
+        let current = parts.last_mut().expect("one part");
+        current.push(character);
+        if measure(current, VALUE_SIZE, FontWeight::Regular) > room && current.chars().count() > 1 {
+            current.pop();
+            parts.push(character.to_string());
         }
     }
-    if !line.is_empty() {
-        lines.push(line);
+    parts
+}
+
+fn wrap(spans: &[Span], room: f64) -> Vec<Vec<Span>> {
+    let mut lines: Vec<Vec<Span>> = vec![Vec::new()];
+    let mut used = 0.0;
+    for item in spans {
+        for word in item.text.split_inclusive(' ') {
+            for piece in split_long(word, room) {
+                let width = measure(&piece, VALUE_SIZE, FontWeight::Regular);
+                let line = lines.last_mut().expect("one line");
+                if used + width > room && !line.is_empty() {
+                    lines.push(Vec::new());
+                    used = 0.0;
+                }
+                let piece = if used == 0.0 { piece.trim_start() } else { piece.as_str() };
+                push_piece(lines.last_mut().expect("one line"), piece, item.color);
+                used += measure(piece, VALUE_SIZE, FontWeight::Regular);
+            }
+        }
     }
+    lines.retain(|line| !line.is_empty());
     lines
+}
+
+struct Tile {
+    label: &'static str,
+    label_width: f64,
+    lines: Vec<Vec<Span>>,
+    columns: usize,
+}
+
+fn column_width() -> f64 {
+    (WIDTH - PADDING * 2.0 - GAP * (COLUMNS - 1) as f64) / COLUMNS as f64
+}
+
+fn columns_width(columns: usize) -> f64 {
+    column_width() * columns as f64 + GAP * columns.saturating_sub(1) as f64
+}
+
+fn tile(label: &'static str, spans: Vec<Span>) -> Tile {
+    let label_width = measure(label, LABEL_SIZE, FontWeight::Regular);
+    let needed = TILE_PADDING * 2.0 + label_width + LABEL_GAP + spans_width(&spans);
+    if let Some(columns) = (1..=COLUMNS).find(|columns| columns_width(*columns) >= needed) {
+        return Tile {
+            label,
+            label_width,
+            lines: vec![spans],
+            columns,
+        };
+    }
+    let room = columns_width(COLUMNS) - TILE_PADDING * 2.0 - label_width - LABEL_GAP;
+    let mut lines = wrap(&spans, room);
+    lines.truncate(MAX_TILE_LINES);
+    Tile {
+        label,
+        label_width,
+        lines,
+        columns: COLUMNS,
+    }
+}
+
+fn tile_height(tile: &Tile) -> f64 {
+    TILE_HEIGHT + tile.lines.len().saturating_sub(1) as f64 * WRAP_LINE
+}
+
+fn packed(tiles: Vec<Tile>) -> Vec<Vec<Tile>> {
+    let mut rows: Vec<Vec<Tile>> = Vec::new();
+    for tile in tiles {
+        let taken = |row: &Vec<Tile>| row.iter().map(|tile| tile.columns).sum::<usize>();
+        match rows.iter_mut().find(|row| taken(row) + tile.columns <= COLUMNS) {
+            Some(row) => row.push(tile),
+            None => rows.push(vec![tile]),
+        }
+    }
+    for row in &mut rows {
+        let taken: usize = row.iter().map(|tile| tile.columns).sum();
+        if let Some(last) = row.last_mut() {
+            last.columns += COLUMNS - taken;
+        }
+    }
+    rows
 }
 
 fn text_item(x: f64, y: f64, text: &str, size: f64, color: u32) -> Value {
     json!({"type": ImageItemType::Text.value(), "x": x, "y": y, "text": text, "size": size, "color": color})
 }
 
-fn runs(items: &mut Vec<Value>, spans: &[Span], mut x: f64, y: f64) {
+fn rect(x: f64, y: f64, width: f64, height: f64, radius: f64, color: u32) -> Value {
+    json!({"type": ImageItemType::Rect.value(), "x": x, "y": y, "w": width, "h": height, "radius": radius, "color": color})
+}
+
+fn line_top(top: f64, size: f64) -> f64 {
+    top + (TILE_HEIGHT - size * LINE_BOX) / 2.0
+}
+
+fn put_spans(items: &mut Vec<Value>, spans: &[Span], mut x: f64, y: f64) {
     for span in spans {
-        let mut item = text_item(x, y, &span.text, FONT_SIZE, span.color);
-        item["mono"] = json!(true);
-        items.push(item);
-        x += length(&span.text) as f64 * CHAR_WIDTH;
+        items.push(text_item(x, y, &span.text, VALUE_SIZE, span.color));
+        x += measure(&span.text, VALUE_SIZE, FontWeight::Regular);
     }
 }
 
-fn pill(items: &mut Vec<Value>, x: f64, y: f64, label: &str, color: u32) -> f64 {
-    let width = (length(label) as f64 * PILL_SIZE * PILL_GLYPH).ceil() + PILL_PADDING;
-    items.push(json!({"type": ImageItemType::Rect.value(), "x": x, "y": y, "w": width, "h": PILL_HEIGHT, "radius": PILL_HEIGHT / 2.0, "color": color}));
-    let mut item = text_item(x, y + 2.5, label, PILL_SIZE, VALUE);
-    item["width"] = json!(width);
-    item["weight"] = json!(FontWeight::Bold.value());
-    item["align"] = json!(TextAlign::Center.value());
-    items.push(item);
-    width
+fn draw_tile(items: &mut Vec<Value>, tile: &Tile, x: f64, top: f64, height: f64) {
+    let width = columns_width(tile.columns);
+    items.push(rect(x, top, width, height, TILE_RADIUS, TILE));
+    items.push(text_item(
+        x + TILE_PADDING,
+        line_top(top, LABEL_SIZE),
+        tile.label,
+        LABEL_SIZE,
+        LABEL,
+    ));
+    if let [single] = tile.lines.as_slice() {
+        let start = x + width - TILE_PADDING - spans_width(single);
+        put_spans(items, single, start, line_top(top, VALUE_SIZE));
+        return;
+    }
+    let start = x + TILE_PADDING + tile.label_width + LABEL_GAP;
+    for (index, line) in tile.lines.iter().enumerate() {
+        put_spans(items, line, start, line_top(top, VALUE_SIZE) + index as f64 * WRAP_LINE);
+    }
 }
 
-fn summary_spans(environment: &Value) -> Vec<Span> {
-    let counts = plugin_counts(environment);
-    let mut spans = Vec::new();
-    if let Some(jailbreak) = present(environment, "jailbreak") {
-        spans.push(span(format!("{}  ", jailbreak.to_lowercase()), DIM));
-    }
+fn status(environment: &Value) -> (String, u32, u32) {
+    let failed = plugin_counts(environment).failed.len();
     let crashes = environment.get("crashes_24h").and_then(Value::as_i64).unwrap_or(0);
-    spans.push(if !counts.failed.is_empty() {
-        span(format!("● {} failing  ", counts.failed.len()), BAD)
+    if failed > 0 {
+        (format!("● {failed} failing"), BAD, BAD_BACKGROUND)
     } else if crashes > 0 {
-        span("● crashing  ", BAD)
+        ("● crashing".to_owned(), BAD, BAD_BACKGROUND)
     } else {
-        span("● healthy  ", GOOD)
-    });
-    spans.push(span(format!("{}/{} plugins", counts.enabled, counts.installed), DIM));
-    spans
+        ("● healthy".to_owned(), GOOD, GOOD_BACKGROUND)
+    }
 }
 
 fn draw_header(items: &mut Vec<Value>, environment: &Value, stamp: &str) {
-    let mut title = text_item(PADDING, PADDING - 3.0, "astral", TITLE_SIZE, VALUE);
-    title["width"] = json!(TITLE_WIDTH);
+    let title_top = (HEADER_HEIGHT - TITLE_SIZE * LINE_BOX) / 2.0 + PADDING / 2.0;
+    let mut title = text_item(PADDING + TILE_PADDING / 2.0, title_top, "astral", TITLE_SIZE, VALUE);
     title["weight"] = json!(FontWeight::Bold.value());
     items.push(title);
+    let (label, color, background) = status(environment);
+    let pill_width = measure(&label, META_SIZE, FontWeight::Semibold) + PILL_PADDING * 2.0;
+    let pill_x = WIDTH - PADDING - pill_width;
+    let pill_top = (HEADER_HEIGHT - PILL_HEIGHT) / 2.0 + PADDING / 2.0;
+    items.push(rect(pill_x, pill_top, pill_width, PILL_HEIGHT, PILL_HEIGHT / 2.0, background));
+    let mut pill = text_item(
+        pill_x,
+        pill_top + (PILL_HEIGHT - META_SIZE * LINE_BOX) / 2.0,
+        &label,
+        META_SIZE,
+        color,
+    );
+    pill["width"] = json!(pill_width);
+    pill["weight"] = json!(FontWeight::Semibold.value());
+    pill["align"] = json!(TextAlign::Center.value());
+    items.push(pill);
     let version = present(environment, "astral").unwrap_or_else(|| "?".to_owned());
-    let mut x = PADDING + TITLE_ADVANCE + pill(items, PADDING + TITLE_ADVANCE, PADDING, &version, ACCENT) + PILL_GAP;
-    let commit = present(environment, "commit").map(|commit| span(format!("@{commit}"), COMMIT));
-    let mut trailing: Vec<Span> = commit.iter().cloned().collect();
-    trailing.push(span(format!("{}{stamp}", if commit.is_some() { "  " } else { "" }), DIM));
-    let room = ((WIDTH - PADDING - x) / (STAMP_SIZE * MONO_GLYPH)).floor() as usize;
-    if spans_length(&trailing) > room {
-        trailing.truncate(1);
+    let mut meta = vec![span(version, DIM)];
+    if let Some(commit) = present(environment, "commit") {
+        meta.push(span(format!(" · @{commit}"), COMMIT));
     }
-    for span in &trailing {
-        let mut item = text_item(x, PADDING + 3.0, &span.text, STAMP_SIZE, span.color);
-        item["mono"] = json!(true);
-        items.push(item);
-        x += length(&span.text) as f64 * STAMP_SIZE * MONO_GLYPH;
+    meta.push(span(format!(" · {stamp}"), DIM));
+    let x = PADDING + TILE_PADDING / 2.0 + measure("astral", TITLE_SIZE, FontWeight::Bold) + LABEL_GAP;
+    let room = pill_x - LABEL_GAP - x;
+    let meta_width = |meta: &[Span]| -> f64 { meta.iter().map(|span| measure(&span.text, META_SIZE, FontWeight::Regular)).sum() };
+    while meta.len() > 1 && meta_width(&meta) > room {
+        meta.pop();
     }
-}
-
-struct Line {
-    label: &'static str,
-    spans: Vec<Span>,
-    stripe: bool,
+    let meta_top = title_top + (TITLE_SIZE - META_SIZE) * META_BASELINE;
+    let mut item_x = x;
+    for span in &meta {
+        items.push(text_item(item_x, meta_top, &span.text, META_SIZE, span.color));
+        item_x += measure(&span.text, META_SIZE, FontWeight::Regular);
+    }
 }
 
 pub fn card(environment: &Value, stamp: &str) -> Value {
-    let room = ((WIDTH - PADDING * 2.0 - LABEL_WIDTH) / CHAR_WIDTH).floor() as usize;
-    let mut lines = Vec::new();
-    for (index, (label, spans)) in rows(environment).into_iter().enumerate() {
-        for (line_index, spans) in wrapped(&kept_spans(&spans), room).into_iter().enumerate() {
-            lines.push(Line {
-                label: if line_index == 0 { label } else { "" },
-                spans,
-                stripe: index % 2 == 1,
-            });
-        }
-    }
-    let summary = summary_spans(environment);
-    let summary_room = ((WIDTH - PADDING * 2.0 - ALT_CLEARANCE) / CHAR_WIDTH).floor() as usize;
-    let height = HEADER_HEIGHT + lines.len() as f64 * LINE_HEIGHT + ALT_HEIGHT;
-    let mut items =
-        vec![json!({"type": ImageItemType::Rect.value(), "x": 0, "y": 0, "w": WIDTH, "h": height, "radius": CARD_RADIUS, "color": CARD})];
+    let tiles: Vec<Tile> = rows(environment)
+        .into_iter()
+        .map(|(label, spans)| tile(label, spans.into_iter().filter(|span| !span.text.is_empty()).collect()))
+        .collect();
+    let mut items = Vec::new();
     draw_header(&mut items, environment, stamp);
-    for (index, line) in lines.iter().enumerate() {
-        let top = HEADER_HEIGHT + index as f64 * LINE_HEIGHT;
-        if line.stripe {
-            items.push(json!({
-                "type": ImageItemType::Rect.value(), "x": PADDING - STRIPE_INSET, "y": top,
-                "w": WIDTH - (PADDING - STRIPE_INSET) * 2.0, "h": LINE_HEIGHT, "radius": STRIPE_RADIUS, "color": STRIPE,
-            }));
+    let mut top = HEADER_HEIGHT + PADDING / 2.0;
+    for row in packed(tiles) {
+        let height = row.iter().map(tile_height).fold(TILE_HEIGHT, f64::max);
+        let mut x = PADDING;
+        for tile in &row {
+            draw_tile(&mut items, tile, x, top, height);
+            x += columns_width(tile.columns) + GAP;
         }
-        let mut label = text_item(PADDING, top + 2.5, line.label, LABEL_SIZE, LABEL);
-        label["width"] = json!(LABEL_WIDTH - STRIPE_INSET);
-        items.push(label);
-        runs(&mut items, &line.spans, PADDING + LABEL_WIDTH, top + 2.0);
+        top += height + GAP;
     }
-    if spans_length(&summary) <= summary_room {
-        let top = HEADER_HEIGHT + lines.len() as f64 * LINE_HEIGHT;
-        let x = WIDTH - PADDING - spans_length(&summary) as f64 * CHAR_WIDTH;
-        runs(&mut items, &summary, x, top + (ALT_HEIGHT - FONT_SIZE) / 2.0 - 2.0);
-    }
+    let height = top - GAP + PADDING;
+    items.insert(0, rect(0.0, 0.0, WIDTH, height, CARD_RADIUS, CARD));
     json!({"width": WIDTH, "height": height, "scale": SCALE, "items": items})
 }
 
@@ -692,17 +755,11 @@ pub fn register() {
 
 #[cfg(test)]
 mod tests {
-    use super::{VALUE, alt_text, binary_text, card, framework_version, span, wrapped};
+    use super::{alt_text, binary_text, card, framework_version};
     use serde_json::json;
 
     #[test]
-    fn wraps_and_trims_noise() {
-        let lines = wrapped(&[span("one two three", VALUE)], 7);
-        let texts: Vec<String> = lines
-            .iter()
-            .map(|line| line.iter().map(|span| span.text.clone()).collect())
-            .collect();
-        assert_eq!(texts, vec!["one two", "three"]);
+    fn trims_noise() {
         assert_eq!(binary_text("encrypted · min 16.0 · 107 dylibs · UUID 2F7"), "encrypted · min 16.0");
         assert_eq!(framework_version("ElleKit 1.1.3-2"), "ElleKit 1.1.3");
     }
