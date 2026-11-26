@@ -11,75 +11,26 @@ import android.os.PowerManager
 import android.os.Process
 import android.os.UserManager
 import android.provider.Settings
-import android.system.Os
-import android.system.OsConstants
 import android.text.TextUtils
 import android.view.View
 import android.view.WindowManager
 import android.webkit.WebView
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.File
 import java.security.MessageDigest
 import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
 import java.text.DecimalFormatSymbols
 import java.util.Locale
-import java.util.zip.ZipFile
 
 object EnvironmentFacts {
     private const val DISCORD_CERTIFICATE = "3c39d23cf9367849a5c699395647fe0e5bfea5a1f1f40d8c717ddc70f8bfa113"
     private const val LSPATCH_CONFIG = "lspatch/config.json"
     private const val NPATCH_CONFIG = "npatch/config.json"
-    private const val SELINUX_ENFORCE = "/sys/fs/selinux/enforce"
-    private const val NATIVE_LIBRARIES = "lib/"
     private const val USERS_PER_RANGE = 100_000
     private val ABI_SPLITS = setOf("config.arm64_v8a", "config.armeabi_v7a", "config.x86_64", "config.x86")
-    private val ROM_PROPERTIES = listOf(
-        "ro.lineage.version" to "LineageOS",
-        "ro.crdroid.version" to "crDroid",
-        "ro.evolution.version" to "Evolution X",
-        "ro.pixelexperience.version" to "PixelExperience",
-        "ro.grapheneos.version" to "GrapheneOS",
-        "ro.calyxos.version" to "CalyxOS",
-        "ro.aospa.version" to "Paranoid Android",
-        "ro.arrow.version" to "ArrowOS",
-        "ro.derp.version" to "DerpFest",
-        "ro.rising.version" to "RisingOS",
-        "ro.matrixx.version" to "Project Matrixx",
-        "ro.voltage.version" to "VoltageOS",
-        "ro.modversion" to "",
-    )
-
-    private val EMULATOR_FILES = listOf(
-        "/data/.bluestacks.prop" to "BlueStacks",
-        "/system/bin/bstfolderd" to "BlueStacks",
-        "/system/lib/egl/libGLES_bst.so" to "BlueStacks",
-        "/system/bin/nox-prop" to "Nox",
-        "/system/bin/ldinit" to "LDPlayer",
-        "/dev/socket/genyd" to "Genymotion",
-        "/system/bin/microvirt-prop" to "MEmu",
-        "/system/lib/libmicrovirt.so" to "MEmu",
-        "/system/bin/nemuVM-prop" to "MuMu",
-        "/system/lib/libnemuVMprop.so" to "MuMu",
-        "/system/bin/androVM-prop" to "Genymotion",
-    )
-    private val SKIN_PROPERTIES = listOf<Pair<String, (String) -> String>>(
-        "ro.mi.os.version.name" to { "HyperOS ${it.removePrefix("OS")}" },
-        "ro.miui.ui.version.name" to { "MIUI ${it.removePrefix("V")}" },
-        "ro.build.version.oneui" to { oneUI(it) },
-        "ro.build.version.oplusrom" to { "ColorOS ${it.removePrefix("V")}" },
-        "ro.build.version.opporom" to { "ColorOS ${it.removePrefix("V")}" },
-        "hw_sc.build.platform.version" to { "HarmonyOS $it" },
-        "ro.build.version.emui" to { "EMUI ${it.substringAfter('_')}" },
-        "ro.vivo.os.version" to { "${property("ro.vivo.os.name") ?: "Funtouch OS"} $it" },
-    )
     private const val CHROME_OS_FEATURE = "org.chromium.arc"
     private const val PLAY_GAMES_PC_FEATURE = "com.google.android.play.feature.HPE_EXPERIENCE"
-    private const val WAYDROID_PROPERTY = "waydroid.tools_version"
-    private const val ONE_UI_MAJOR = 10_000
-    private const val ONE_UI_MINOR = 100
-    private const val NATIVE_BRIDGE_PROPERTY = "ro.dalvik.vm.native.bridge"
     private const val ADOPTABLE_STORAGE = "/mnt/expand/"
     private const val UNFOLDED_WIDTH_DP = 600
     private const val FONT_WEIGHT_ADJUSTMENT = "font_weight_adjustment"
@@ -114,21 +65,17 @@ object EnvironmentFacts {
             .put("patch", patchMode(context))
             .put("splits", context.applicationInfo.splitNames?.size ?: 0)
             .put("missingSplits", JSONArray(missingSplits(context)))
-            .put("merged", isMergedApk(context))
+            .put("sourceDir", context.applicationInfo.sourceDir ?: "")
             .put("profile", profile(context))
     }
 
     private fun device(context: Context): JSONObject = JSONObject()
-        .put("selinux", selinuxEnforcing() ?: JSONObject.NULL)
-        .put("verifiedBoot", property("ro.boot.verifiedbootstate") ?: "")
+        .put("selinuxFallback", selinuxFallback() ?: JSONObject.NULL)
         .put("buildTags", Build.TAGS ?: "")
-        .put("rom", customROM())
-        .put("pageSize", Os.sysconf(OsConstants._SC_PAGESIZE))
         .put("webView", webView(context))
-        .put("host", hostPlatform(context))
-        .put("skin", vendorSkin())
+        .put("hostFeature", hostFeature(context))
+        .put("virtualHost", virtualHost(context) ?: "")
         .put("background", background(context))
-        .put("abiBridge", property(NATIVE_BRIDGE_PROPERTY) ?: "")
         .put("lowRam", context.getSystemService(ActivityManager::class.java)?.isLowRamDevice == true)
         .put("harmony", isHarmonyOS())
         .put("adoptable", context.applicationInfo.sourceDir?.startsWith(ADOPTABLE_STORAGE) == true)
@@ -198,18 +145,12 @@ object EnvironmentFacts {
         return if (useManager) "$name local" else "$name integrated"
     }
 
-    private fun hostPlatform(context: Context): String {
+    private fun hostFeature(context: Context): String {
         val packages = context.packageManager
         return when {
             packages.hasSystemFeature(PLAY_GAMES_PC_FEATURE) -> "Play Games PC"
-
             packages.hasSystemFeature(CHROME_OS_FEATURE) -> "ChromeOS"
-
-            property(WAYDROID_PROPERTY) != null -> "Waydroid"
-
-            else -> EMULATOR_FILES.firstOrNull { (path, _) -> File(path).exists() }?.second
-                ?: virtualHost(context)
-                ?: ""
+            else -> ""
         }
     }
 
@@ -232,14 +173,6 @@ object EnvironmentFacts {
         path.startsWith("/data/user/") || path.startsWith("/data/data/") || path.startsWith("/data/user_de/") ||
             path.startsWith("/mnt/expand/")
 
-    private fun oneUI(version: String): String {
-        val code = version.toIntOrNull() ?: return "One UI $version"
-        return "One UI ${code / ONE_UI_MAJOR}.${code % ONE_UI_MAJOR / ONE_UI_MINOR}"
-    }
-
-    private fun vendorSkin(): String =
-        SKIN_PROPERTIES.firstNotNullOfOrNull { (key, label) -> property(key)?.let(label) } ?: ""
-
     private fun background(context: Context): JSONObject = runCatching {
         val power = context.getSystemService(PowerManager::class.java)
         val activity = context.getSystemService(ActivityManager::class.java)
@@ -257,13 +190,6 @@ object EnvironmentFacts {
         return listOf("config." + abi.replace('-', '_'))
     }
 
-    private fun isMergedApk(context: Context): Boolean = runCatching {
-        if (!context.applicationInfo.splitNames.isNullOrEmpty()) return false
-        ZipFile(context.applicationInfo.sourceDir).use { zip ->
-            zip.entries().asSequence().any { it.name.startsWith(NATIVE_LIBRARIES) }
-        }
-    }.getOrDefault(false)
-
     private fun profile(context: Context): String {
         val users = context.getSystemService(UserManager::class.java)
         val user = Process.myUid() / USERS_PER_RANGE
@@ -279,19 +205,9 @@ object EnvironmentFacts {
         users != null && UserManager::class.java.getMethod("isPrivateProfile").invoke(users) == true
     }.getOrDefault(false)
 
-    private fun selinuxEnforcing(): Boolean? =
-        runCatching { File(SELINUX_ENFORCE).readText().trim() == "1" }.getOrNull()
-            ?: runCatching {
-                Class.forName("android.os.SELinux").getMethod("isSELinuxEnforced").invoke(null) as? Boolean
-            }.getOrNull()
-
-    private fun property(key: String): String? = runCatching {
-        Class.forName("android.os.SystemProperties").getMethod("get", String::class.java).invoke(null, key) as? String
-    }.getOrNull()?.takeIf { it.isNotBlank() }
-
-    private fun customROM(): String = ROM_PROPERTIES.firstNotNullOfOrNull { (key, name) ->
-        property(key)?.let { version -> listOf(name, version).filter { it.isNotBlank() }.joinToString(" ") }
-    } ?: ""
+    private fun selinuxFallback(): Boolean? = runCatching {
+        Class.forName("android.os.SELinux").getMethod("isSELinuxEnforced").invoke(null) as? Boolean
+    }.getOrNull()
 
     private fun webView(context: Context): String = runCatching {
         val webView = WebView.getCurrentWebViewPackage() ?: return ""
