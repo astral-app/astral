@@ -43,7 +43,13 @@ fn adopt(session: AstralPreviousSession) -> PreviousSession {
     PreviousSession {
         started: session.started,
         active: take(session.active),
-        running: serde_json::from_str(&running).unwrap_or(Value::Null),
+        running: Value::Array(
+            running
+                .split('\0')
+                .filter(|name| !name.is_empty())
+                .map(|name| json!(name))
+                .collect(),
+        ),
     }
 }
 
