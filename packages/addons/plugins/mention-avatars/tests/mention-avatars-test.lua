@@ -35,8 +35,11 @@ astral = {
 	ui = {
 		decorate = function() end,
 		relabel = function() end,
-		mention = function(fn)
-			mention = fn
+		style_text = function(fn)
+			mention = function(node)
+				node.kind = "mention"
+				return fn(node)
+			end
 		end,
 	},
 	discord = {

@@ -837,13 +837,13 @@ fn gateway_message_events_and_haptics(work: &Path) {
                 "storage",
             ],
         ),
-        "astral.events.on('message.filter', function(message) return message.content:find('filtered', 1, true) ~= nil end)\nastral.ui.message_color(function(message) if message.reply_to_me then return 0x805865F2 end end)\nastral.ui.message_action('Inspect', function(message) astral.storage.set('action', message.message_id .. ':' .. message.channel_id) end)\nastral.events.on('message.create', function(message)\n  astral.storage.set('event', message)\n  if not message.from_me and not (message.open and not astral.settings.get('open', false)) and (message.mentioned or message.direct) then astral.ui.haptic('medium') end\nend)\n",
+        "astral.events.on('message.filter', function(message) return message.content:find('filtered', 1, true) ~= nil end)\nastral.ui.style_text(function(message) if message.kind == astral.TextKind.Message and message.reply_to_me then return 0x805865F2 end end)\nastral.ui.message_action('Inspect', function(message) astral.storage.set('action', message.message_id .. ':' .. message.channel_id) end)\nastral.events.on('message.create', function(message)\n  astral.storage.set('event', message)\n  if not message.from_me and not (message.open and not astral.settings.get('open', false)) and (message.mentioned or message.direct) then astral.ui.haptic('medium') end\nend)\n",
     );
     plugin(
         &root,
         "restricted",
         &manifest("astral.gateway-events-restricted", &["storage"]),
-        "local events = pcall(function() astral.events.on('message.create', function() end) end)\nlocal filters = pcall(function() astral.events.on('message.filter', function() end) end)\nlocal haptics = pcall(function() astral.ui.haptic('light') end)\nlocal actions = pcall(function() astral.ui.message_action('Inspect', function() end) end)\nastral.ui.message_color(function(message) astral.storage.set('reply_context', tostring(message.reply_to_me)) end)\nastral.storage.set('permissions', {events = events, filters = filters, haptics = haptics, actions = actions})\n",
+        "local events = pcall(function() astral.events.on('message.create', function() end) end)\nlocal filters = pcall(function() astral.events.on('message.filter', function() end) end)\nlocal haptics = pcall(function() astral.ui.haptic('light') end)\nlocal actions = pcall(function() astral.ui.message_action('Inspect', function() end) end)\nastral.ui.style_text(function(message) astral.storage.set('reply_context', tostring(message.reply_to_me)) end)\nastral.storage.set('permissions', {events = events, filters = filters, haptics = haptics, actions = actions})\n",
     );
     plugin(
         &root,

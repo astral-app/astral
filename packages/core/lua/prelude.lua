@@ -18,11 +18,8 @@ local native = {
 	sheet_update = astral.ui.sheet_update,
 	sheet_close = astral.ui.sheet_close,
 	cancel_web_auth = astral.ui.cancel_web_auth,
-	mention = astral.ui.mention,
-	message_color = astral.ui.message_color,
+	style_text = astral.ui.style_text,
 	message_action = astral.ui.message_action,
-	name_color = astral.ui.name_color,
-	typing = astral.ui.typing,
 	reaction = astral.ui.reaction,
 	permission = astral.discord.permission,
 	enums = astral.enums,
@@ -593,32 +590,6 @@ function astral.ui.decorate(target, decorator)
 	end)
 end
 
-function astral.ui.mention(decorator)
-	return native.mention(function(node)
-		return decorator(wrap_node(node))
-	end)
-end
-
-function astral.ui.message_color(colorizer)
-	return native.message_color(function(node)
-		local color = colorizer(wrap_node(node))
-		if color == nil then
-			return nil
-		end
-		return astral.Color.from(color).value
-	end)
-end
-
-function astral.ui.author_color(colorizer)
-	return astral.ui.patch({ id = "message.author:", type = "text" }, function(node)
-		local color = colorizer(wrap_node(node))
-		if color == nil then
-			return nil
-		end
-		return { text_color = color }
-	end)
-end
-
 function astral.ui.message_background(decorator)
 	return native.message_background(function(node)
 		local style = decorator(wrap_node(node))
@@ -687,19 +658,22 @@ function astral.ui.cancel_web_auth(request)
 	return native.cancel_web_auth(request)
 end
 
-function astral.ui.name_color(colorizer)
-	return native.name_color(function(node)
-		local color = colorizer(wrap_node(node))
-		if color == nil then
+function astral.ui.style_text(styler)
+	return native.style_text(function(node)
+		local style = styler(wrap_node(node))
+		if style == nil then
 			return nil
 		end
-		return astral.Color.from(color).value
-	end)
-end
-
-function astral.ui.typing(decorator)
-	return native.typing(function(node)
-		return decorator(wrap_node(node))
+		if type(style) ~= "table" or astral.Color.is(style) then
+			style = { color = style }
+		end
+		return {
+			color = style.color ~= nil and astral.Color.from(style.color).value or nil,
+			image = style.image,
+			round = style.round,
+			hide_at = style.hide_at,
+			after = style.after,
+		}
 	end)
 end
 

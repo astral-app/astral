@@ -5,10 +5,7 @@ astral = {
 	ui = {
 		decorate = function() end,
 		relabel = function() end,
-		mention = function() end,
-		message_color = function() end,
-		name_color = function() end,
-		typing = function() end,
+		style_text = function() end,
 		reaction = function() end,
 	},
 	discord = { permission = {} },

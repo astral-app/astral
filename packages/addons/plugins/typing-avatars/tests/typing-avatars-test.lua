@@ -12,8 +12,11 @@ astral = {
 	ui = {
 		decorate = function() end,
 		relabel = function() end,
-		typing = function(fn)
-			typing = fn
+		style_text = function(fn)
+			typing = function(node)
+				node.kind = "typing"
+				return fn(node)
+			end
 		end,
 	},
 	discord = {

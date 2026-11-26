@@ -1,3 +1,5 @@
+use crate::lua::enums::TextKind;
+use crate::lua::host::text_style::{self, Field};
 use core::ffi::{CStr, c_char, c_int};
 
 use crate::lua::enums::{NodeKind, Target};
@@ -210,75 +212,31 @@ pub unsafe extern "C" fn astral_lua_mention(context: *const AstralMentionContext
     let (Some(context), Some(decoration)) = (unsafe { context.as_ref() }, unsafe { decoration.as_mut() }) else {
         return 0;
     };
+    if !text_style::wanted() {
+        return 0;
+    }
     let message = snowflake(context.message_id);
     let channel = resolve_channel(context.channel_id, &message);
-    let guild = guild_of(&channel);
+    let guild = guild_of(&channel).unwrap_or_default();
     let text = unsafe { c_text(context.text) };
-    let mut decorated = 0;
-    for plugin in running_plugins() {
-        let mentioners = unsafe { &*plugin }.mentioners.clone();
-        for reference in mentioners {
-            let state = unsafe { (*plugin).state() };
-            unsafe {
-                lua::push_reference(state, reference);
-                lua::lua_createtable(state, 0, 5);
-                set_text(state, "text", &text);
-                lua::lua_pushinteger(state, i64::from(context.index) + 1);
-                lua::set_field(state, -2, "index");
-                set_text(state, "message_id", &message);
-                set_optional(state, "channel_id", &channel);
-                if let Some(guild) = &guild {
-                    set_text(state, "guild_id", guild);
-                }
-            }
-            if host::call(plugin, 1, 1, "mention") {
-                if unsafe { lua::is_table(state, -1) } {
-                    unsafe {
-                        lua::get_field(state, -1, "after");
-                        if lua::lua_toboolean(state, -1) != 0 {
-                            decoration.after = 1;
-                        }
-                        lua::pop(state, 1);
-                        lua::get_field(state, -1, "color");
-                        if lua::lua_isinteger(state, -1) != 0 && decoration.color == 0 {
-                            decoration.color = opaque(lua::to_integer(state, -1));
-                        }
-                        lua::pop(state, 1);
-                        lua::get_field(state, -1, "image");
-                        lua::get_field(state, -2, "round");
-                        lua::get_field(state, -3, "hide_at");
-                        let image = lua::to_bytes(state, -3)
-                            .map(|image| String::from_utf8_lossy(image).into_owned())
-                            .unwrap_or_default();
-                        if !image.is_empty()
-                            && decoration.image[0] == 0
-                            && (image.starts_with("https://") || image.starts_with("res://astral_tinted_"))
-                        {
-                            write_text(&mut decoration.image, &image);
-                            decoration.round = if lua::lua_type(state, -2) == lua::TNIL {
-                                1
-                            } else {
-                                lua::lua_toboolean(state, -2)
-                            };
-                        }
-                        if lua::lua_toboolean(state, -1) != 0 {
-                            decoration.hide_at = 1;
-                        }
-                        lua::pop(state, 3);
-                    }
-                    decorated = 1;
-                }
-                unsafe { lua::pop(state, 1) };
-            }
-            if unsafe { (*plugin).failed } {
-                break;
-            }
-        }
-        if unsafe { (*plugin).failed } {
-            host::stop_plugin(plugin);
-        }
+    let fields = [
+        ("text", Field::Text(&text)),
+        ("index", Field::Integer(i64::from(context.index) + 1)),
+        ("message_id", Field::Text(&message)),
+        ("channel_id", Field::Text(&channel)),
+        ("guild_id", Field::Text(&guild)),
+    ];
+    let Some(style) = text_style::style(TextKind::Mention, &fields) else {
+        return 0;
+    };
+    decoration.after = c_int::from(style.after);
+    decoration.hide_at = c_int::from(style.hide_at);
+    decoration.color = style.color.unwrap_or(0);
+    if let Some((image, round)) = style.image.zip(style.round) {
+        write_text(&mut decoration.image, &image);
+        decoration.round = c_int::from(round);
     }
-    decorated
+    1
 }
 
 fn replies_to_current_user(record: &Value, current_user: &str) -> bool {
@@ -312,14 +270,14 @@ fn replies_to_current_user(record: &Value, current_user: &str) -> bool {
 #[unsafe(export_name = "AstralLuaMessageTextColor")]
 pub unsafe extern "C" fn astral_lua_message_text_color(message_id: u64, channel_id: u64, color: *mut u32) -> c_int {
     let Some(_held) = host::try_lock() else { return busy(0) };
-    let colorizing: Vec<*mut Plugin> = running_plugins()
+    let styling: Vec<*mut Plugin> = running_plugins()
         .into_iter()
-        .filter(|plugin| unsafe { !(**plugin).colorizers.is_empty() })
+        .filter(|plugin| unsafe { !(**plugin).text_stylers.is_empty() })
         .collect();
-    if colorizing.is_empty() {
+    if styling.is_empty() {
         return 0;
     }
-    let wants_reply_context = colorizing
+    let wants_reply_context = styling
         .iter()
         .any(|plugin| unsafe { (**plugin).permissions.contains(&Capability::DiscordMessages) });
     let message = snowflake(message_id);
@@ -332,43 +290,20 @@ pub unsafe extern "C" fn astral_lua_message_text_color(message_id: u64, channel_
     };
     let current_user = host::host().current_user_id.clone();
     let replies = wants_reply_context && !current_user.is_empty() && replies_to_current_user(&record, &current_user);
-    let guild = crate::discord::cache::channel_guild(&channel);
-    for plugin in running_plugins() {
-        let colorizers = unsafe { &*plugin }.colorizers.clone();
-        for reference in colorizers {
-            let state = unsafe { (*plugin).state() };
-            unsafe {
-                lua::push_reference(state, reference);
-                lua::lua_createtable(state, 0, 4);
-                set_text(state, "message_id", &message);
-                set_text(state, "channel_id", &channel);
-                if (*plugin).permissions.contains(&Capability::DiscordMessages) {
-                    lua::lua_pushboolean(state, c_int::from(replies));
-                    lua::set_field(state, -2, "reply_to_me");
-                }
-                if let Some(guild) = &guild {
-                    set_text(state, "guild_id", guild);
-                }
-            }
-            if host::call(plugin, 1, 1, "message_color") {
-                let found = unsafe { lua::lua_isinteger(state, -1) } != 0;
-                if found && let Some(color) = unsafe { color.as_mut() } {
-                    *color = unsafe { lua::to_integer(state, -1) } as u32;
-                }
-                unsafe { lua::pop(state, 1) };
-                if found {
-                    return 1;
-                }
-            }
-            if unsafe { (*plugin).failed } {
-                break;
-            }
-        }
-        if unsafe { (*plugin).failed } {
-            host::stop_plugin(plugin);
-        }
+    let guild = crate::discord::cache::channel_guild(&channel).unwrap_or_default();
+    let fields = [
+        ("message_id", Field::Text(&message)),
+        ("channel_id", Field::Text(&channel)),
+        ("guild_id", Field::Text(&guild)),
+        ("reply_to_me", Field::RepliesToMe(replies)),
+    ];
+    let Some(found) = text_style::style(TextKind::Message, &fields).and_then(|style| style.color) else {
+        return 0;
+    };
+    if let Some(color) = unsafe { color.as_mut() } {
+        *color = found;
     }
-    0
+    1
 }
 
 pub unsafe fn patch_color(state: *mut LuaState, field: &str) -> Option<u32> {

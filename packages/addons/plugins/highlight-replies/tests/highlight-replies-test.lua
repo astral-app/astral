@@ -1,6 +1,7 @@
 local callback
 
 astral = {
+	TextKind = { Message = "message" },
 	Color = {
 		Blurple = {
 			with_alpha = function(_, alpha)
@@ -9,7 +10,7 @@ astral = {
 		},
 	},
 	ui = {
-		message_color = function(value)
+		style_text = function(value)
 			callback = value
 		end,
 	},
@@ -17,7 +18,7 @@ astral = {
 
 dofile(arg[1])
 
-assert(callback({ reply_to_me = true }) == 0x605865F2)
-assert(callback({ reply_to_me = false }) == nil)
+assert(callback({ kind = "message", reply_to_me = true }) == 0x605865F2)
+assert(callback({ kind = "message", reply_to_me = false }) == nil)
 
 print("highlight-replies ok")

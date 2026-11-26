@@ -1,9 +1,9 @@
-signature = "Jk/D8LLsbmtKQoH1clk/7d1A6oFPaXE3HBICEhbE/BkNqWvX3Io+n9z7MS8HGnDI8rBwbsFBRHMV76BJn5C8Ag=="
+signature = "M9jJzIlBr1GEdwCA/sN0BCM6WubgYeN7BoTvk7qMx6pfeup1T/o2HaeAkylFjtVMZ91TxVKKWq9qdDjGxLm4Cg=="
 
 [files]
 "i18n/en-US.toml" = "fece5a3afa0d0f183428a6a06e939c6a7ae739e2aba5027d3c88cb038f54a3ba"
 "lib/xxhash64.lua" = "006f094ca085f4238d51c0d777cc27b6e4a463949ad2875a382f2b7ecd1f8662"
 "lib/xxhash64.luac" = "3de9b7e2b97ad1b3e1aa032f7296de7c5308053bb436196baf2ea84bd535ceab"
-"main.lua" = "c8dbb2e68906495d265f0631cea55a4176d48dad0920c000e7ed97b95123be0d"
-"main.luac" = "b416e8eb9a1c1ff1ecd425d36c667943f39aa40895a26fbb4091563870018591"
+"main.lua" = "e422a8f8f0c08f35a2a1e8a8f08382bc0123aa6889eea1d7ad7dd66ba1cc19d8"
+"main.luac" = "d18f6e8b96ffc53a97016adb1cb81f86a0357dca91245c2a3817f7044c052f78"
 "manifest.toml" = "ef735dd6c523031b3500c9870b8fcfde4c979d8aad592320292b8a102cc7e3ee"

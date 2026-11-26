@@ -1185,20 +1185,8 @@ pub unsafe fn register_message_background(state: *mut LuaState) -> Outcome {
     }
 }
 
-pub unsafe fn mention(state: *mut LuaState) -> Outcome {
-    unsafe { register_function(state, None, usize::MAX, "", |plugin| &mut plugin.mentioners) }
-}
-
-pub unsafe fn message_color(state: *mut LuaState) -> Outcome {
-    unsafe { register_function(state, None, usize::MAX, "", |plugin| &mut plugin.colorizers) }
-}
-
-pub unsafe fn name_color(state: *mut LuaState) -> Outcome {
-    unsafe { register_function(state, None, usize::MAX, "", |plugin| &mut plugin.name_colorizers) }
-}
-
-pub unsafe fn typing_decorator(state: *mut LuaState) -> Outcome {
-    unsafe { register_function(state, None, usize::MAX, "", |plugin| &mut plugin.typing_decorators) }
+pub unsafe fn style_text(state: *mut LuaState) -> Outcome {
+    unsafe { register_function(state, None, usize::MAX, "", |plugin| &mut plugin.text_stylers) }
 }
 
 pub unsafe fn reaction_decorator(state: *mut LuaState) -> Outcome {

@@ -57,16 +57,18 @@ local function has_role_color(guild_id, user_id)
 	return false
 end
 
-astral.ui.author_color(function(node)
+astral.ui.patch({ id = "message.author:", type = astral.PatchNodeType.Text }, function(node)
 	local values = astral.settings.values
 	if not node.author_id then
 		return nil
 	end
-	if node.guild_id and values.onlyInDms then
+	local guild_id = astral.discord.channel_guild(node.channel_id or "")
+	if guild_id and values.onlyInDms then
 		return nil
 	end
-	if node.guild_id and values.onlyWithoutColor and has_role_color(node.guild_id, node.author_id) then
+	if guild_id and values.onlyWithoutColor and has_role_color(guild_id, node.author_id) then
 		return nil
 	end
-	return user_color(node.author_id)
+	local color = user_color(node.author_id)
+	return color and { text_color = color } or nil
 end)
