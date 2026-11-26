@@ -12,6 +12,8 @@ use crate::support::sqlite_api::{self as sqlite, Database};
 const FRESHNESS: Duration = Duration::from_secs(30);
 const ADMINISTRATOR: u64 = 1 << 3;
 const ALL_PERMISSIONS: u64 = u64::MAX >> 11;
+const RELATIONSHIP_BLOCKED: i64 = 2;
+const TIMESTAMP_PREFIX: usize = 19;
 
 #[derive(Default)]
 struct State {
@@ -362,6 +364,32 @@ impl State {
             .as_i64()
     }
 
+    fn user_ignored(&mut self, user_id: &str) -> bool {
+        if !snowflake(user_id) {
+            return false;
+        }
+        self.record("SELECT v FROM relationships WHERE k = ?", &key(user_id), true)
+            .is_some_and(|record| {
+                record.get("user_ignored").and_then(Value::as_bool) == Some(true)
+                    && record.get("type").and_then(Value::as_i64) != Some(RELATIONSHIP_BLOCKED)
+            })
+    }
+
+    fn channel_muted(&mut self, channel_id: &str, now: &str) -> bool {
+        if !snowflake(channel_id) {
+            return false;
+        }
+        let guild = self.channel_guild(channel_id).map_or_else(|| key(""), |guild| key(&guild));
+        let Some(settings) = self.record("SELECT v FROM user_guild_settings WHERE k = ?", &guild, true) else {
+            return false;
+        };
+        muted_now(&settings, now)
+            || array(&settings, "channel_overrides")
+                .iter()
+                .find(|entry| entry.get("channel_id").and_then(Value::as_str) == Some(channel_id))
+                .is_some_and(|entry| muted_now(entry, now))
+    }
+
     fn message_containing(&mut self, text: &str) -> Option<(String, String)> {
         if !(16..=4096).contains(&text.len()) {
             return None;
@@ -579,6 +607,17 @@ fn apply_overwrites(mut permissions: u64, list: &Value, guild_id: &str, member: 
     permissions
 }
 
+fn muted_now(setting: &Value, now: &str) -> bool {
+    if setting.get("muted").and_then(Value::as_bool) != Some(true) {
+        return false;
+    }
+    let end = setting
+        .get("mute_config")
+        .and_then(|config| config.get("end_time"))
+        .and_then(Value::as_str);
+    end.is_none_or(|end| end.get(..TIMESTAMP_PREFIX).unwrap_or(end) > now.get(..TIMESTAMP_PREFIX).unwrap_or(now))
+}
+
 fn emoji_in_content(content: &str, emoji_id: &str) -> Option<Value> {
     let end = content.find(&format!(":{emoji_id}>"))?;
     let open = content[..end].rfind('<')?;
@@ -624,6 +663,14 @@ pub fn user(user_id: &str) -> Option<Value> {
 
 pub fn friend_nickname(user_id: &str) -> Option<String> {
     with(|state| state.friend_nickname(user_id))
+}
+
+pub fn user_ignored(user_id: &str) -> bool {
+    with(|state| state.user_ignored(user_id))
+}
+
+pub fn channel_muted(channel_id: &str, now: &str) -> bool {
+    with(|state| state.channel_muted(channel_id, now))
 }
 
 pub fn relationship_type(user_id: &str) -> Option<i64> {

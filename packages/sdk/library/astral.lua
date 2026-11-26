@@ -1073,6 +1073,12 @@ function astral.discord.nickname(id) end
 ---@param id astral.Snowflake
 ---@return astral.Relationship?
 function astral.discord.relationship(id) end
+---@param id astral.Snowflake
+---@return boolean ignored whether you ignore this user (blocked users count as blocked, not ignored)
+function astral.discord.ignored(id) end
+---@param channel astral.Snowflake
+---@return boolean muted whether the channel, or the server it belongs to, is muted right now
+function astral.discord.muted(channel) end
 
 astral.storage = {}
 ---@alias astral.StorageValue string|number|boolean|table

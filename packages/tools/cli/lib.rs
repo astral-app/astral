@@ -11,6 +11,7 @@ pub mod doctor;
 pub mod files;
 pub mod flags;
 pub mod fuzz;
+pub mod i18n;
 pub mod ipa;
 pub mod ipa_archive;
 pub mod ipa_groups;
