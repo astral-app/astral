@@ -72,6 +72,13 @@ pub fn patch_access_gate(mut data: Vec<u8>) -> Result<Vec<u8>, String> {
     Ok(data)
 }
 
+pub fn access_gate_evaluators(data: &[u8]) -> usize {
+    if little32(data, 0) != Some(MH_MAGIC_64) {
+        return 0;
+    }
+    evaluators(data).map_or(0, |evaluators| evaluators.len())
+}
+
 pub fn opens_access_gate(data: &[u8]) -> bool {
     little32(data, 0) == Some(MH_MAGIC_64)
         && evaluators(data)

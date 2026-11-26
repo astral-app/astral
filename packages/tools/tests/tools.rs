@@ -44,6 +44,27 @@ fn compat_report_lists_moved_properties() {
 }
 
 #[test]
+fn compat_seam_diff_lists_added_removed_and_gate_changes() {
+    let mut before = result("356.0", "a", 499);
+    before.access_gate = 2;
+    before.probe.host_call = 1;
+    let mut after = result("357.0", "b", 499);
+    after.probe.properties.remove("uri");
+    after.probe.properties.insert("src".to_owned(), 471);
+    after.access_gate = 0;
+    let report = compat::report(&after, Some(&before));
+    assert!(report.contains("View properties added: `src`"), "{report}");
+    assert!(
+        report.contains("View properties removed: `uri`"),
+        "{report}"
+    );
+    assert!(report.contains("Host-call entry is gone"), "{report}");
+    assert!(report.contains("Access gate evaluators 2 → 0"), "{report}");
+    assert!(report.contains("**not found**"), "{report}");
+    assert!(compat::seam_diff(&before, &before).is_empty());
+}
+
+#[test]
 fn scaffold_manifest_is_valid_toml() {
     let manifest: toml::Table = create::manifest("astral.sample", "Sample", "adrian")
         .parse()
