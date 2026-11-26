@@ -1,0 +1,4 @@
+CHANGE_FAILED = "{action} gagal: {reason}"
+CHANGE_REFUSED = "Discord menolak perubahan ini."
+SUPPRESS_EMBEDS = "Sembunyikan Embed"
+UNSUPPRESS_EMBEDS = "Tampilkan Kembali Embed"

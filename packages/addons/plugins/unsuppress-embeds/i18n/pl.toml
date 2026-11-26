@@ -1,0 +1,4 @@
+CHANGE_FAILED = "Nie udało się: {action} ({reason})"
+CHANGE_REFUSED = "Discord odrzucił zmianę."
+SUPPRESS_EMBEDS = "Ukryj osadzenia"
+UNSUPPRESS_EMBEDS = "Przywróć osadzenia"

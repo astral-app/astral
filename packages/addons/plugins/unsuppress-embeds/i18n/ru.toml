@@ -1,0 +1,4 @@
+CHANGE_FAILED = "{action}: ошибка — {reason}"
+CHANGE_REFUSED = "Discord отклонил изменение."
+SUPPRESS_EMBEDS = "Скрыть встраивания"
+UNSUPPRESS_EMBEDS = "Показать встраивания"

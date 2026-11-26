@@ -1,0 +1,4 @@
+CHANGE_FAILED = "Αποτυχία ({action}): {reason}"
+CHANGE_REFUSED = "Το Discord αρνήθηκε την αλλαγή."
+SUPPRESS_EMBEDS = "Απόκρυψη ενσωματώσεων"
+UNSUPPRESS_EMBEDS = "Εμφάνιση ενσωματώσεων"

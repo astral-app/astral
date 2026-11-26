@@ -1,0 +1,4 @@
+CHANGE_FAILED = "{action} ไม่สำเร็จ: {reason}"
+CHANGE_REFUSED = "Discord ปฏิเสธการเปลี่ยนแปลง"
+SUPPRESS_EMBEDS = "ซ่อนเอ็มเบด"
+UNSUPPRESS_EMBEDS = "แสดงเอ็มเบดอีกครั้ง"

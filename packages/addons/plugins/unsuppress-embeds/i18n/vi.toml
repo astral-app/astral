@@ -1,0 +1,4 @@
+CHANGE_FAILED = "{action} thất bại: {reason}"
+CHANGE_REFUSED = "Discord đã từ chối thay đổi."
+SUPPRESS_EMBEDS = "Ẩn nội dung nhúng"
+UNSUPPRESS_EMBEDS = "Hiện lại nội dung nhúng"

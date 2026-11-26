@@ -1,0 +1,4 @@
+CHANGE_FAILED = "Error en «{action}»: {reason}"
+CHANGE_REFUSED = "Discord rechazó el cambio."
+SUPPRESS_EMBEDS = "Ocultar inserciones"
+UNSUPPRESS_EMBEDS = "Mostrar inserciones"

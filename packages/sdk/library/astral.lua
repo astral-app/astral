@@ -43,6 +43,8 @@
 ---@field webhook_id? astral.Snowflake
 ---@field reference? astral.MessageReference
 ---@field content? string cached text; needs discord.messages.content
+---@field flags integer Discord's message flags, such as 4 for suppressed embeds
+---@field embeds integer how many embeds the message has
 
 ---@class astral.Node
 ---@field kind astral.NodeKind
@@ -309,6 +311,7 @@ local Permission = {
 	MANAGE_CHANNELS = 16,
 	MANAGE_GUILD = 32,
 	MANAGE_MESSAGES = 8192,
+	EMBED_LINKS = 16384,
 	MUTE_MEMBERS = 4194304,
 	DEAFEN_MEMBERS = 8388608,
 	MOVE_MEMBERS = 16777216,
@@ -1041,6 +1044,13 @@ function astral.discord.channel_guild(channel) end
 ---@param channel? astral.Snowflake
 ---@return integer?
 function astral.discord.permissions(guild, user, channel) end
+---Edits a message with your account: its `flags` or, for your own messages, its `content`. Needs `discord.messages.edit`.
+---@param channel astral.Snowflake
+---@param message astral.Snowflake
+---@param fields { flags?: integer, content?: string }
+---@param callback fun(response: { ok: boolean, status: integer, body: string, error?: string })
+---@return integer request
+function astral.discord.edit_message(channel, message, fields, callback) end
 ---The signed-in account's user ID.
 ---@return astral.Snowflake?
 function astral.discord.me() end

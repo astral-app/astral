@@ -473,6 +473,8 @@ impl State {
         if let Some(kind) = record.get("type").filter(|kind| kind.is_number()) {
             found.insert("type".into(), kind.clone());
         }
+        found.insert("flags".into(), json!(record.get("flags").and_then(Value::as_u64).unwrap_or(0)));
+        found.insert("embeds".into(), json!(array(&record, "embeds").len()));
         let mentions: Vec<Value> = array(&record, "mentions")
             .iter()
             .filter_map(|mentioned| {

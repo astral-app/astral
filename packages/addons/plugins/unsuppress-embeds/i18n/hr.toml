@@ -1,0 +1,4 @@
+CHANGE_FAILED = "{action} nije uspjelo: {reason}"
+CHANGE_REFUSED = "Discord je odbio promjenu."
+SUPPRESS_EMBEDS = "Sakrij ugrađeni sadržaj"
+UNSUPPRESS_EMBEDS = "Vrati ugrađeni sadržaj"

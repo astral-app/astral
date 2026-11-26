@@ -1,6 +1,6 @@
 # Plugins
 
-42 first-party plugins for astral, each in its own folder here.
+43 first-party plugins for astral, each in its own folder here.
 
 <!-- Generated from each manifest.toml by `astral readme`. Do not edit by hand. -->
 
@@ -45,4 +45,5 @@
 - <img src="../../assets/readme-icons/text-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Tone Indicators](tone-indicators/): Turns tone tags such as /j and /srs into pills that spell out what they mean.
 - <img src="../../assets/readme-icons/language-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Translate](translate/): Translates a message from its long-press menu with Unbound Translate, Google or MyMemory, into a toast or under the message.
 - <img src="../../assets/readme-icons/user-circle-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Typing Avatars](typing-avatars/): Shows the avatar of each person typing in front of their name.
+- <img src="../../assets/readme-icons/embed-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Unsuppress Embeds](unsuppress-embeds/): Adds a message long-press row that brings back suppressed link embeds, or suppresses them.
 - <img src="../../assets/readme-icons/text-icon.svg" width="20" height="20" align="absmiddle" alt=""> [View Raw](view-raw/): View and copy raw data for messages.

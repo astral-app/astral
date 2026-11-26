@@ -1,0 +1,4 @@
+CHANGE_FAILED = "{action} epäonnistui: {reason}"
+CHANGE_REFUSED = "Discord hylkäsi muutoksen."
+SUPPRESS_EMBEDS = "Piilota upotukset"
+UNSUPPRESS_EMBEDS = "Palauta upotukset"

@@ -42,6 +42,7 @@ capabilities! {
     DiscordPermissions = "discord.permissions", "Reads member permissions", "res://ic_mana_shield";
     DiscordMessages = "discord.messages", "Reads messages in the cache", "res://ic_mana_chat";
     DiscordMessagesContent = "discord.messages.content", "Reads cached message text", "res://ic_mana_chat";
+    DiscordMessagesEdit = "discord.messages.edit", "Edits messages and their embeds with your account", "res://ic_mana_pencil";
     DiscordMessagesSend = "discord.messages.send", "Transforms message text before sending", "res://ic_mana_chat";
     MessagesDisplay = "messages.display", "Changes how message text is shown on this device", "res://ic_mana_chat";
     EventsMessages = "events.messages", "Receives new message metadata while Discord is open", "res://ic_mana_chat";

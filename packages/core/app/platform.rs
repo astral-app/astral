@@ -8,6 +8,7 @@ use super::state::{REFRESH_DECORATIONS, signing_key};
 use crate::support::bridge::{AstralRustString, bytes};
 
 const PERMILLE: f64 = 1000.0;
+const DISCORD_REQUEST_TIMEOUT_MS: u32 = 15000;
 
 #[derive(Clone, Copy)]
 enum Method {
@@ -31,6 +32,7 @@ enum Method {
     RecordFailure,
     VerifySignature,
     NetworkRequest,
+    DiscordRequest,
     CancelNetworkRequest,
     Confirm,
     OpenSheet,
@@ -74,6 +76,7 @@ impl Method {
             "recordFailure" => Method::RecordFailure,
             "verifySignature" => Method::VerifySignature,
             "networkRequest" => Method::NetworkRequest,
+            "discordRequest" => Method::DiscordRequest,
             "cancelNetworkRequest" => Method::CancelNetworkRequest,
             "confirm" => Method::Confirm,
             "openSheet" => Method::OpenSheet,
@@ -100,7 +103,13 @@ impl Method {
         matches!(
             Method::parse(name),
             Some(
-                Method::Confirm | Method::OpenSheet | Method::PickFile | Method::WebAuth | Method::NetworkRequest | Method::DispatchGateway
+                Method::Confirm
+                    | Method::OpenSheet
+                    | Method::PickFile
+                    | Method::WebAuth
+                    | Method::NetworkRequest
+                    | Method::DiscordRequest
+                    | Method::DispatchGateway
             )
         )
     }
@@ -216,6 +225,31 @@ fn ensure_session_token() {
     if let Some(token) = host::request(Request::SessionToken).into_text() {
         super::set_session_token(&token);
     }
+}
+
+fn discord_request_options(options: &Value) -> Option<Value> {
+    let path = options
+        .get("path")
+        .and_then(Value::as_str)
+        .filter(|path| path.starts_with("/channels/"))?;
+    let method = options.get("method").and_then(Value::as_str)?;
+    ensure_session_token();
+    let token = String::from_utf8(crate::discord::session::current())
+        .ok()
+        .filter(|token| !token.is_empty())?;
+    let mut headers = serde_json::Map::new();
+    for (name, value) in crate::discord::headers::headers() {
+        headers.insert(name, json!(value));
+    }
+    headers.insert("authorization".into(), json!(token));
+    headers.insert("content-type".into(), json!("application/json"));
+    Some(json!({
+        "url": format!("https://discord.com/api/v{}{path}", crate::discord::headers::api_version()),
+        "method": method,
+        "headers": headers,
+        "body": options.get("body").cloned().unwrap_or(Value::Null),
+        "timeout_ms": DISCORD_REQUEST_TIMEOUT_MS,
+    }))
 }
 
 fn reactors(arguments: &Arguments) -> Value {
@@ -336,6 +370,16 @@ fn dispatch(method: Method, arguments: &Arguments) -> Value {
                 _ => threw(),
             }
         }
+        Method::DiscordRequest => match discord_request_options(arguments.at(1)) {
+            Some(options) => match host::request(Request::NetworkRequest {
+                request: arguments.identifier(0),
+                options: &host::json_text(&options),
+            }) {
+                Reply::Done | Reply::Flag(true) => done(),
+                _ => threw(),
+            },
+            None => threw(),
+        },
         Method::CancelNetworkRequest => match host::request(Request::CancelNetworkRequest {
             request: arguments.identifier(0),
         }) {

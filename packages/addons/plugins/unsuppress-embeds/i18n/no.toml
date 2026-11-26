@@ -1,0 +1,4 @@
+CHANGE_FAILED = "{action} mislyktes: {reason}"
+CHANGE_REFUSED = "Discord avviste endringen."
+SUPPRESS_EMBEDS = "Skjul innbygginger"
+UNSUPPRESS_EMBEDS = "Vis innbygginger igjen"

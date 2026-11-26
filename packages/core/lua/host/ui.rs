@@ -17,6 +17,9 @@ pub fn snowflake_text(value: &str) -> bool {
     !value.is_empty() && value.len() <= 20 && value.bytes().all(|byte| byte.is_ascii_digit())
 }
 
+const MESSAGE_CONTENT_LIMIT: usize = 4000;
+const MESSAGE_ACTION_LABEL_LIMIT: usize = 63;
+
 fn me(state: *mut LuaState) -> &'static mut Plugin {
     unsafe { &mut *host::plugin_of(state) }
 }
@@ -1406,8 +1409,8 @@ pub unsafe fn message_action(state: *mut LuaState) -> Outcome {
     unsafe { require_permission(state, Capability::UiMessageActions) }?;
     let label = unsafe { check_bytes(state, 1) }?.to_vec();
     unsafe { check_type(state, 2, lua::TFUNCTION) }?;
-    if label.is_empty() || label.len() > 24 {
-        return Err("astral.ui.message_action: label must be 1 to 24 bytes".into());
+    if label.is_empty() || label.len() > MESSAGE_ACTION_LABEL_LIMIT {
+        return Err("astral.ui.message_action: label must be 1 to 63 bytes".into());
     }
     if plugin.message_actions.len() >= 4 {
         return Err("astral.ui.message_action: at most 4 actions per plugin".into());
@@ -1566,6 +1569,61 @@ pub unsafe fn network_request(state: *mut LuaState) -> Outcome {
     ) {
         abandon_request(|plugin| &mut plugin.network_requests, me(state), state, request);
         return Err("astral.net.request: could not start the request".into());
+    }
+    unsafe { lua::lua_pushinteger(state, request as i64) };
+    Ok(1)
+}
+
+fn message_edit(fields: &Value) -> Result<Value, &'static str> {
+    let Some(fields) = fields.as_object().filter(|fields| !fields.is_empty()) else {
+        return Err("astral.discord.edit_message: fields must be a non-empty table");
+    };
+    let mut body = serde_json::Map::new();
+    for (name, value) in fields {
+        match name.as_str() {
+            "flags" => {
+                let Some(flags) = value.as_u64().filter(|flags| *flags <= u64::from(u32::MAX)) else {
+                    return Err("astral.discord.edit_message: flags must be a non-negative integer");
+                };
+                body.insert(name.clone(), json!(flags));
+            }
+            "content" => {
+                let Some(content) = value.as_str().filter(|content| content.chars().count() <= MESSAGE_CONTENT_LIMIT) else {
+                    return Err("astral.discord.edit_message: content must be a string of at most 4000 characters");
+                };
+                body.insert(name.clone(), json!(content));
+            }
+            _ => return Err("astral.discord.edit_message: only flags and content can be changed"),
+        }
+    }
+    Ok(Value::Object(body))
+}
+
+pub unsafe fn edit_message(state: *mut LuaState) -> Outcome {
+    unsafe { require_permission(state, Capability::DiscordMessagesEdit) }?;
+    if !host::platform_has("discordRequest") {
+        return Err("astral.discord.edit_message is unavailable on this client".into());
+    }
+    let channel = unsafe { check_text(state, 1) }?;
+    let message = unsafe { check_text(state, 2) }?;
+    if !snowflake_text(&channel) || !snowflake_text(&message) {
+        return Err("astral.discord.edit_message: channel and message must be snowflakes".into());
+    }
+    unsafe { check_type(state, 3, lua::TTABLE) }?;
+    unsafe { check_type(state, 4, lua::TFUNCTION) }?;
+    let body = message_edit(&unsafe { to_json(state, 3, 0) }.unwrap_or(Value::Null)).map_err(str::to_owned)?;
+    let options = json!({
+        "method": "PATCH",
+        "path": format!("/channels/{channel}/messages/{message}"),
+        "body": body.to_string(),
+    });
+    let request = start_request(|plugin| &mut plugin.network_requests, me(state), state, 4);
+    if matches!(
+        host::platform("discordRequest", &json!([request, options])),
+        Platform::Threw | Platform::Missing
+    ) {
+        abandon_request(|plugin| &mut plugin.network_requests, me(state), state, request);
+        return Err("astral.discord.edit_message: could not start the request".into());
     }
     unsafe { lua::lua_pushinteger(state, request as i64) };
     Ok(1)
