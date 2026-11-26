@@ -1,6 +1,7 @@
 #![allow(clippy::missing_safety_doc)]
 
 mod bridge;
+mod facts;
 mod network;
 mod shapes;
 mod text;

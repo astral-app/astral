@@ -487,7 +487,13 @@ impl Bridge for JniBridge {
                     Argument::Int(maximum),
                 ],
             )),
-            Request::EnvironmentFacts => into_reply(self.call(Method::EnvironmentFacts, &[])),
+            Request::EnvironmentFacts => match into_reply(self.call(Method::EnvironmentFacts, &[]))
+            {
+                Reply::Text(platform) => Reply::Text(Some(crate::facts::merge(
+                    platform.as_deref().unwrap_or("{}"),
+                ))),
+                reply => reply,
+            },
             Request::DiscordRequest {
                 request,
                 method,

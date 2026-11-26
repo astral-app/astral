@@ -290,8 +290,15 @@ impl Bridge for CallbackBridge {
     }
 
     fn request(&self, request: Request) -> Reply {
+        let facts = matches!(request, Request::EnvironmentFacts);
         let outgoing = outgoing(&request).request();
-        adopt(&unsafe { (self.0.handle)(&raw const outgoing) })
+        let reply = adopt(&unsafe { (self.0.handle)(&raw const outgoing) });
+        match reply {
+            Reply::Text(platform) if facts => Reply::Text(Some(crate::facts::merge(
+                platform.as_deref().unwrap_or("{}"),
+            ))),
+            reply => reply,
+        }
     }
 
     fn log(&self, line: &str) {

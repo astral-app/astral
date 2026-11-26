@@ -35,7 +35,9 @@ version = "0.0.1"
 dependencies = [
  "astral-core",
  "jni",
+ "libc",
  "serde_json",
+ "zip",
 ]
 
 [[package]]
