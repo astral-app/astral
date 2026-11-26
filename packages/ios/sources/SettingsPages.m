@@ -7,11 +7,6 @@ static NSDictionary *Dictionary(id value)
     return [value isKindOfClass:NSDictionary.class] ? value : @{};
 }
 
-NSDictionary *AstralSettingsCategory(void)
-{
-    return Dictionary(AstralTakeJSON(astral_ios_page_category()));
-}
-
 NSDictionary *AstralSettingsPageModel(NSString *route)
 {
     return Dictionary(AstralTakeJSON(astral_ios_page_model(AstralTextOf(route))));

@@ -729,7 +729,6 @@ static AstralReply Answer(const AstralRequest *request)
         });
         return Done();
     case AstralRequestKind_RefreshSettings:
-        AstralRefreshPhoenixSettings();
         return Done();
     case AstralRequestKind_InjectGateway:
         return Flag(AstralInjectGatewayMessage(AstralStringOfText(request->first)));

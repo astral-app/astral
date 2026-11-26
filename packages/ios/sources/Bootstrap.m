@@ -175,16 +175,7 @@ static void FallbackAction(NSString *key)
 static BOOL InstallSettings(void)
 {
     if (settingsIntegration) return YES;
-    NSString *refusal = AstralInstallPhoenixSettings(
-        AstralSettingsCategory(),
-        ^NSDictionary *(NSString *route) {
-            return AstralSettingsPageModel(route);
-        },
-        ^NSString *(NSString *route, NSString *key) {
-            NSString *next = AstralSettingsPageAction(route, key);
-            if ([key hasPrefix:@"switch."] || [key isEqualToString:@"uninstall"]) Status(@"settings-changed");
-            return next;
-        });
+    NSString *refusal = AstralInstallPhoenixSettings();
     if (!refusal) {
         settingsIntegration = @"phoenix";
         return YES;

@@ -4,7 +4,6 @@
 extern "C" {
 #endif
 
-NSDictionary *_Nonnull AstralSettingsCategory(void);
 NSDictionary *_Nonnull AstralSettingsPageModel(NSString *_Nonnull route);
 NSString *_Nullable AstralSettingsPageAction(NSString *_Nonnull route, NSString *_Nonnull key);
 
