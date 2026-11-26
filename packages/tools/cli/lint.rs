@@ -51,23 +51,54 @@ pub fn lint_rust() -> Result<(), String> {
     )
 }
 
+pub const CRANELIFT_TOOLCHAIN: &str = "nightly-2026-10-27";
+
+pub fn cranelift_ready() -> bool {
+    std::env::var("ASTRAL_CRANELIFT").as_deref() != Ok("0")
+        && repo::output(
+            &repo::path(&[]),
+            "rustup",
+            &strings(&[
+                "component",
+                "list",
+                "--installed",
+                "--toolchain",
+                CRANELIFT_TOOLCHAIN,
+            ]),
+        )
+        .is_ok_and(|installed| installed.contains("rustc-codegen-cranelift"))
+}
+
 pub fn test_rust() -> Result<(), String> {
     let root = repo::path(&[]);
-    if repo::has_command("cargo-nextest") {
-        return repo::run(
-            &root,
-            "cargo",
-            &strings(&[
-                "nextest",
-                "run",
-                "--workspace",
-                "--no-fail-fast",
-                "--status-level",
-                "fail",
-            ]),
-        );
+    let cranelift = cranelift_ready();
+    let target = repo::text(&root.join("target").join("cranelift"));
+    let environment: Vec<(&str, &str)> = if cranelift {
+        vec![
+            ("CARGO_UNSTABLE_CODEGEN_BACKEND", "true"),
+            ("CARGO_PROFILE_DEV_CODEGEN_BACKEND", "cranelift"),
+            ("CARGO_TARGET_DIR", &target),
+        ]
+    } else {
+        Vec::new()
+    };
+    let mut arguments = Vec::new();
+    if cranelift {
+        arguments.push(format!("+{CRANELIFT_TOOLCHAIN}"));
     }
-    repo::rust(&root, "test", &["test", "--quiet", "--workspace"])
+    if repo::has_command("cargo-nextest") {
+        arguments.extend(strings(&[
+            "nextest",
+            "run",
+            "--workspace",
+            "--no-fail-fast",
+            "--status-level",
+            "fail",
+        ]));
+    } else {
+        arguments.extend(strings(&["test", "--quiet", "--workspace"]));
+    }
+    repo::run_with_env(&root, &environment, "cargo", &arguments)
 }
 
 pub fn typecheck_lua() -> Result<(), String> {

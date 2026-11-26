@@ -701,10 +701,38 @@ fn format_number(value: f64) -> String {
     if value == value.floor() {
         return format!("{value:.0}");
     }
-    let mut buffer = [0u8; 32];
-    let written = unsafe { libc::snprintf(buffer.as_mut_ptr().cast(), buffer.len(), c"%g".as_ptr(), value) };
-    String::from_utf8_lossy(&buffer[..(written.max(0) as usize).min(buffer.len() - 1)]).into_owned()
+    general(value)
 }
+
+fn trim_fraction(text: &str) -> &str {
+    if text.contains('.') {
+        text.trim_end_matches('0').trim_end_matches('.')
+    } else {
+        text
+    }
+}
+
+pub fn general(value: f64) -> String {
+    if !value.is_finite() {
+        return value.to_string();
+    }
+    if value == 0.0 {
+        return "0".to_owned();
+    }
+    let exponent = value.abs().log10().floor() as i32;
+    if !(GENERAL_MIN_EXPONENT..GENERAL_DIGITS).contains(&exponent) {
+        let scientific = format!("{:.*e}", (GENERAL_DIGITS - 1) as usize, value);
+        let (mantissa, power) = scientific.split_once('e').unwrap_or((&scientific, "0"));
+        let power: i32 = power.parse().unwrap_or(0);
+        let sign = if power < 0 { '-' } else { '+' };
+        return format!("{}e{sign}{:02}", trim_fraction(mantissa), power.abs());
+    }
+    let decimals = (GENERAL_DIGITS - 1 - exponent).max(0) as usize;
+    trim_fraction(&format!("{value:.decimals$}")).to_owned()
+}
+
+const GENERAL_DIGITS: i32 = 6;
+const GENERAL_MIN_EXPONENT: i32 = -4;
 
 fn number_row(entry: &Value) -> Value {
     let (minimum, step, value) = (number(entry, "min"), number(entry, "step"), number(entry, "value"));
