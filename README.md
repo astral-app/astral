@@ -1,6 +1,6 @@
 <div align="center">
 
-<!-- TODO: add the logo here once it exists: <img src="./docs/assets/logo.png" width="120" alt="astral logo" /> -->
+<img src="./docs/assets/logo.png" width="120" alt="astral logo" />
 
 <h1>astral</h1>
 
