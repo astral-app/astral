@@ -195,6 +195,7 @@ fn picked_video(slot: &str) -> Value {
 }
 
 fn refresh_decorations() {
+    crate::lua::host::nodes::forget_tags();
     REFRESH_DECORATIONS.store(true, std::sync::atomic::Ordering::Release);
     host::request(Request::RefreshDecorations);
 }

@@ -664,9 +664,10 @@ pub unsafe extern "C" fn astral_lua_name_color(context: *const AstralNameContext
 }
 
 const REMEMBERED_TAG_ROWS: usize = 512;
+const FRESH_TAGS: std::time::Duration = std::time::Duration::from_secs(30);
 
 struct TagMemory {
-    rows: BTreeMap<(u64, u64), Vec<AstralTag>>,
+    rows: BTreeMap<(u64, u64), (Vec<AstralTag>, std::time::Instant)>,
     order: VecDeque<(u64, u64)>,
 }
 
@@ -686,12 +687,21 @@ fn remember_tags(context: &AstralDecorationContext, tags: &[AstralTag]) {
             memory.rows.remove(&oldest);
         }
     }
-    memory.rows.insert(row, tags.to_vec());
+    memory.rows.insert(row, (tags.to_vec(), std::time::Instant::now()));
 }
 
-fn remembered_tags(context: &AstralDecorationContext, tags: &mut [AstralTag]) -> Option<usize> {
+pub fn forget_tags() {
+    let mut memory = TAG_MEMORY.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    memory.rows.clear();
+    memory.order.clear();
+}
+
+fn remembered_tags(context: &AstralDecorationContext, tags: &mut [AstralTag], fresh: bool) -> Option<usize> {
     let memory = TAG_MEMORY.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-    let found = memory.rows.get(&(context.message_id, context.user_id))?;
+    let (found, stored) = memory.rows.get(&(context.message_id, context.user_id))?;
+    if fresh && stored.elapsed() > FRESH_TAGS {
+        return None;
+    }
     let count = tags.len().min(found.len());
     tags[..count].copy_from_slice(&found[..count]);
     Some(count)
@@ -819,8 +829,11 @@ pub unsafe extern "C" fn astral_lua_decorate(context: *const AstralDecorationCon
         return 0;
     }
     let tags = unsafe { core::slice::from_raw_parts_mut(tags, capacity) };
+    if let Some(remembered) = remembered_tags(context, tags, true) {
+        return remembered;
+    }
     let Some(_held) = host::try_lock() else {
-        if let Some(remembered) = remembered_tags(context, tags) {
+        if let Some(remembered) = remembered_tags(context, tags, false) {
             return remembered;
         }
         return busy(0);

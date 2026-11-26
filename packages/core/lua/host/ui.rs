@@ -1326,6 +1326,7 @@ pub unsafe fn decorate(state: *mut LuaState) -> Outcome {
     };
     let reference = unsafe { reference_at(state, 2) };
     me(state).decorators.push((target, reference));
+    crate::lua::host::nodes::forget_tags();
     Ok(0)
 }
 
