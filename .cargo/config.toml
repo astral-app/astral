@@ -1,0 +1,2 @@
+[alias]
+astral = "run --quiet --release --manifest-path packages/tools/Cargo.toml --"

@@ -36,7 +36,7 @@ abstract class StageResources : DefaultTask() {
         target.deleteRecursively()
         commands.exec {
             workingDir = repository.get().asFile
-            commandLine("go", "run", "./packages/tools/cmd/astral", "stage", target.absolutePath)
+            commandLine("cargo", "run", "--quiet", "--release", "--manifest-path", "packages/tools/Cargo.toml", "--", "stage", target.absolutePath)
         }
     }
 }

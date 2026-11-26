@@ -36,4 +36,4 @@ before-all::
 	IPHONEOS_DEPLOYMENT_TARGET=18.0 cargo build --release --quiet --target $(RUST_TARGET) --manifest-path "$(CORE)/Cargo.toml"
 
 before-package::
-	cd $(ROOT) && go run ./packages/tools/cmd/astral stage "$(THEOS_STAGING_DIR)/usr/lib/astral"
+	cd $(ROOT) && cargo run --quiet --release --manifest-path packages/tools/Cargo.toml -- stage "$(THEOS_STAGING_DIR)/usr/lib/astral"

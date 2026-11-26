@@ -112,7 +112,6 @@ pub fn run(_: &[String]) -> Result<(), String> {
     typecheck_lua()?;
     clang_format(&["--dry-run", "-Werror"])?;
     lint_rust()?;
-    lint_go()?;
     workflows::lint_all()
 }
 
@@ -124,53 +123,5 @@ pub fn format(_: &[String]) -> Result<(), String> {
     for directory in crates() {
         repo::run(&directory, "cargo", &strings(&["fmt"]))?;
     }
-    workflows::format_all()?;
-    let files = repo::tracked_files(&["packages/tools/*.go"])?;
-    if has_go() && !files.is_empty() {
-        let mut arguments = strings(&["-w"]);
-        arguments.extend(files);
-        repo::run(&root, "gofmt", &arguments)?;
-    }
-    Ok(())
-}
-
-pub fn has_go() -> bool {
-    repo::path(&["packages", "tools", "go.mod"]).is_file()
-}
-
-pub fn check_go_format(files: &[String]) -> Result<(), String> {
-    if files.is_empty() {
-        return Ok(());
-    }
-    let mut arguments = strings(&["-l"]);
-    arguments.extend(files.iter().cloned());
-    let unformatted = repo::output(&repo::path(&[]), "gofmt", &arguments)?;
-    if unformatted.trim().is_empty() {
-        Ok(())
-    } else {
-        Err(format!("gofmt would change:\n{unformatted}"))
-    }
-}
-
-pub fn lint_go() -> Result<(), String> {
-    if !has_go() {
-        return Ok(());
-    }
-    check_go_format(&repo::tracked_files(&["packages/tools/*.go"])?)?;
-    repo::run(
-        &repo::path(&["packages", "tools"]),
-        "go",
-        &strings(&["vet", "./..."]),
-    )
-}
-
-pub fn test_go() -> Result<(), String> {
-    if !has_go() {
-        return Ok(());
-    }
-    repo::run(
-        &repo::path(&["packages", "tools"]),
-        "go",
-        &strings(&["test", "./..."]),
-    )
+    workflows::format_all()
 }

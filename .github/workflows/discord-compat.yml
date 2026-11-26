@@ -40,10 +40,10 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
-        with:
-          go-version-file: packages/tools/go.mod
-          cache-dependency-path: packages/tools/go.sum
+      - name: Build the astral CLI
+        run: |
+          cargo build --quiet --release --manifest-path packages/tools/Cargo.toml
+          echo "$GITHUB_WORKSPACE/packages/tools/target/release" >> "$GITHUB_PATH"
 
       - name: Download Discord for iOS
         timeout-minutes: 42
@@ -70,7 +70,7 @@ jobs:
         id: scan
         run: |
           set +e
-          go run ./packages/tools/cmd/astral compat --ipa discord.ipa --channel "$CHANNEL" --baseline baseline/compat.json --results compat.json --report report.md
+          astral compat --ipa discord.ipa --channel "$CHANNEL" --baseline baseline/compat.json --results compat.json --report report.md
           status=$?
           set -e
           [ -f report.md ] && cat report.md >> "$GITHUB_STEP_SUMMARY"
@@ -125,10 +125,10 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
-        with:
-          go-version-file: packages/tools/go.mod
-          cache-dependency-path: packages/tools/go.sum
+      - name: Build the astral CLI
+        run: |
+          cargo build --quiet --release --manifest-path packages/tools/Cargo.toml
+          echo "$GITHUB_WORKSPACE/packages/tools/target/release" >> "$GITHUB_PATH"
 
       - name: Select Java 21
         run: echo "JAVA_HOME=$JAVA_HOME_21_X64" >> "$GITHUB_ENV"
@@ -137,7 +137,7 @@ jobs:
         id: scan
         run: |
           set +e
-          go run ./packages/tools/cmd/astral android-compat --channel "$CHANNEL" --results android-compat.json --report report.md
+          astral android-compat --channel "$CHANNEL" --results android-compat.json --report report.md
           status=$?
           set -e
           [ -f report.md ] && cat report.md >> "$GITHUB_STEP_SUMMARY"

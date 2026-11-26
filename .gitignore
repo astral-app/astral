@@ -15,3 +15,4 @@ packages/android/build/
 packages/ios/extensions/OpenInAstral/build/
 packages/core/target/
 packages/tools/target/
+/packages/tools/astral
