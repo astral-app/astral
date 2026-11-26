@@ -198,11 +198,13 @@ lua_enums! {
         Inline = "inline",
         Hidden = "hidden",
     }
-    NameColorKind {
+    TextKind {
         Avatar = "avatar",
         Header = "header",
         Voter = "voter",
         Typing = "typing",
+        Mention = "mention",
+        Message = "message",
     }
     ImageItemType {
         Rect = "rect",
@@ -277,7 +279,7 @@ impl OptionType {
     }
 }
 
-impl NameColorKind {
+impl TextKind {
     pub const fn from_wire(kind: i32) -> Self {
         match kind {
             crate::wire::abi::NAME_HEADER => Self::Header,

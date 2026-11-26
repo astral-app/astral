@@ -10,8 +10,8 @@ local function avatar_url(id)
 	return string.format("%s/embed/avatars/%d.png", CDN, (number >> 22) % DEFAULT_AVATARS)
 end
 
-astral.ui.typing(function(node)
-	if not node.user_id then
+astral.ui.style_text(function(node)
+	if node.kind ~= astral.TextKind.Typing or not node.user_id then
 		return nil
 	end
 	return { image = avatar_url(node.user_id), round = true }

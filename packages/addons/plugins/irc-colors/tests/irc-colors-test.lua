@@ -9,6 +9,7 @@ local values = { lightness = 70, saturation = 100, seed = "", onlyWithoutColor =
 local colorize
 
 astral = {
+	PatchNodeType = { Text = "text" },
 	i18n = {
 		t = function(key)
 			return key
@@ -27,10 +28,16 @@ astral = {
 		member = function()
 			return { roles = { "r" } }
 		end,
+		channel_guild = function(channel)
+			return channel == "gc" and "g" or nil
+		end,
 	},
 	ui = {
-		author_color = function(callback)
-			colorize = callback
+		patch = function(_, callback)
+			colorize = function(node)
+				local patch = callback(node)
+				return patch and patch.text_color
+			end
 		end,
 	},
 }
@@ -58,11 +65,11 @@ assert(math.abs(hue(color) - 109) <= 1)
 assert(colorize({}) == nil)
 
 values.onlyInDms = true
-assert(colorize({ author_id = "1", guild_id = "g" }) == nil)
+assert(colorize({ author_id = "1", channel_id = "gc" }) == nil)
 assert(colorize({ author_id = "1" }) ~= nil)
 values.onlyInDms = false
 values.onlyWithoutColor = true
-assert(colorize({ author_id = "1", guild_id = "g" }) == nil)
+assert(colorize({ author_id = "1", channel_id = "gc" }) == nil)
 
 values.seed = "shuffle"
 assert(colorize({ author_id = "224617799434108928" }) ~= color)

@@ -1185,20 +1185,20 @@ pub unsafe fn register_message_background(state: *mut LuaState) -> Outcome {
     }
 }
 
-pub unsafe fn mention(state: *mut LuaState) -> Outcome {
-    unsafe { register_function(state, None, usize::MAX, "", |plugin| &mut plugin.mentioners) }
+pub unsafe fn app_background(state: *mut LuaState) -> Outcome {
+    let mut colors = [0u32; crate::wire::abi::PATCH_GRADIENT_STOPS];
+    let mut angle = 0.0;
+    let count = unsafe { crate::wire::backdrop::astral_wire_app_gradient(colors.as_mut_ptr(), colors.len(), &mut angle) };
+    if count == 0 {
+        unsafe { lua::lua_pushnil(state) };
+        return Ok(1);
+    }
+    unsafe { crate::lua::json::push_json(state, &json!({ "angle": angle, "colors": colors[..count] }), 0) };
+    Ok(1)
 }
 
-pub unsafe fn message_color(state: *mut LuaState) -> Outcome {
-    unsafe { register_function(state, None, usize::MAX, "", |plugin| &mut plugin.colorizers) }
-}
-
-pub unsafe fn name_color(state: *mut LuaState) -> Outcome {
-    unsafe { register_function(state, None, usize::MAX, "", |plugin| &mut plugin.name_colorizers) }
-}
-
-pub unsafe fn typing_decorator(state: *mut LuaState) -> Outcome {
-    unsafe { register_function(state, None, usize::MAX, "", |plugin| &mut plugin.typing_decorators) }
+pub unsafe fn style_text(state: *mut LuaState) -> Outcome {
+    unsafe { register_function(state, None, usize::MAX, "", |plugin| &mut plugin.text_stylers) }
 }
 
 pub unsafe fn reaction_decorator(state: *mut LuaState) -> Outcome {
@@ -1442,21 +1442,6 @@ pub unsafe fn message_action(state: *mut LuaState) -> Outcome {
     });
     unsafe { lua::lua_pushinteger(state, identifier as i64) };
     Ok(1)
-}
-
-pub unsafe fn settings_backdrop(state: *mut LuaState) -> Outcome {
-    if unsafe { lua::is_none_or_nil(state, 1) } {
-        me(state).settings_backdrop = None;
-    } else {
-        unsafe { check_type(state, 1, lua::TTABLE) }?;
-        let dim = unsafe { field_number(state, 1, "dim", 0.0) };
-        if !dim.is_finite() || !(0.0..=90.0).contains(&dim) {
-            return Err("astral.ui.settings_backdrop: dim is a percentage from 0 to 90".into());
-        }
-        me(state).settings_backdrop = Some(dim / 100.0);
-    }
-    host::apply_settings_backdrop();
-    Ok(0)
 }
 
 fn discord_api_url(url: &str) -> bool {

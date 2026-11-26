@@ -2,7 +2,7 @@ use core::ffi::{c_int, c_uint, c_void};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicI32, AtomicU32, Ordering};
 
-use super::backdrop::wire_settings_backdrop;
+use super::backdrop::wire_observe_app_gradient;
 use super::children::wire_expand_child_edits;
 use super::code_blocks::wire_code_blocks;
 use super::composer::wire_track_composer;
@@ -41,7 +41,7 @@ const STAGES: [Stage; 12] = [
     wire_message_texts,
     wire_code_blocks,
     wire_reaction_avatars,
-    wire_settings_backdrop,
+    wire_observe_app_gradient,
     wire_observe_removals,
 ];
 
@@ -210,7 +210,8 @@ fn theme_page(buffer: &mut AstralWireBuffer, spans: &mut [Span]) -> c_int {
     let changed = c_int::from(wire_theme_active() != 0 && unsafe { wire_patch_colors(buffer.bytes, pointer, count) } != 0);
     let mut out = Out::default();
     let mut appended: c_int = 0;
-    unsafe { wire_settings_backdrop(buffer.bytes, pointer, count, &mut out, &mut appended, buffer.length) };
+    unsafe { wire_observe_app_gradient(buffer.bytes, pointer, count, &mut out, &mut appended, buffer.length) };
+    unsafe { wire_patch_nodes(buffer.bytes, pointer, count, &mut out, &mut appended, buffer.length) };
     if appended == 0 || out.failed != 0 || scans(out.bytes, out.length, spans).is_none() {
         out.discard();
         return changed;

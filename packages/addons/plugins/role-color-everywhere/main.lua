@@ -83,15 +83,15 @@ local function mention_color(node)
 	return color > 0 and color or nil
 end
 
-astral.ui.mention(function(node)
+local function style_mention(node)
 	if not astral.settings.values.chatMentions then
 		return nil
 	end
 	local color = mention_color(node)
 	return color and { color = color } or nil
-end)
+end
 
-astral.ui.message_color(function(node)
+local function style_message(node)
 	if not astral.settings.values.colorChatMessages then
 		return nil
 	end
@@ -103,7 +103,7 @@ astral.ui.message_color(function(node)
 	end
 	local intensity = math.floor((astral.settings.values.messageSaturation or 30) * 255 / 100 + 0.5)
 	return astral.Color.argb(color):with_alpha(intensity)
-end)
+end
 
 local COUNT_SEPARATOR = " \u{2014} "
 
@@ -120,8 +120,8 @@ local function header_role(guild, text)
 	return nil
 end
 
-astral.ui.name_color(function(node)
-	if node.kind == astral.NameColorKind.Header then
+local function style_name(node)
+	if node.kind == astral.TextKind.Header then
 		if not astral.settings.values.memberList then
 			return nil
 		end
@@ -134,4 +134,14 @@ astral.ui.name_color(function(node)
 		return nil
 	end
 	return member_color(node.guild_id, node:guild(), node.user_id)
+end
+
+astral.ui.style_text(function(node)
+	if node.kind == astral.TextKind.Mention then
+		return style_mention(node)
+	end
+	if node.kind == astral.TextKind.Message then
+		return style_message(node)
+	end
+	return style_name(node)
 end)

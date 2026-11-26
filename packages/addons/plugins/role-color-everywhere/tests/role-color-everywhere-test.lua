@@ -36,14 +36,22 @@ astral = {
 	ui = {
 		decorate = function() end,
 		relabel = function() end,
-		mention = function(fn)
-			mention = fn
-		end,
-		message_color = function(fn)
-			colorize = fn
-		end,
-		name_color = function(fn)
-			names = fn
+		style_text = function(fn)
+			local function as(kind)
+				return function(node)
+					node.kind = node.kind or kind
+					return fn(node)
+				end
+			end
+			mention = as("mention")
+			colorize = function(node)
+				local style = as("message")(node)
+				return style and style.color
+			end
+			names = function(node)
+				local style = fn(node)
+				return style and style.color
+			end
 		end,
 	},
 	discord = {
@@ -78,17 +86,17 @@ assert(colorize(node()) == ((77 << 24) | 0x277ECD))
 astral.on_setting("chatMentions", false)
 assert(mention(node("@Rae")) == nil)
 
-assert(names({ kind = astral.NameColorKind.Header, text = "Dev \u{2014} 1", guild_id = "g" }) == 0x277ECD)
-assert(names({ kind = astral.NameColorKind.Header, text = "Online \u{2014} 1", guild_id = "g" }) == nil)
-assert(names({ kind = astral.NameColorKind.Avatar, text = "adrian", user_id = "u1", guild_id = "g" }) == 0x277ECD)
-assert(names({ kind = astral.NameColorKind.Avatar, text = "nobody", user_id = "u9", guild_id = "g" }) == nil)
+assert(names({ kind = astral.TextKind.Header, text = "Dev \u{2014} 1", guild_id = "g" }) == 0x277ECD)
+assert(names({ kind = astral.TextKind.Header, text = "Online \u{2014} 1", guild_id = "g" }) == nil)
+assert(names({ kind = astral.TextKind.Avatar, text = "adrian", user_id = "u1", guild_id = "g" }) == 0x277ECD)
+assert(names({ kind = astral.TextKind.Avatar, text = "nobody", user_id = "u9", guild_id = "g" }) == nil)
 
-assert(names({ kind = astral.NameColorKind.Voter, text = "adrian", user_id = "u1", guild_id = "g" }) == 0x277ECD)
+assert(names({ kind = astral.TextKind.Voter, text = "adrian", user_id = "u1", guild_id = "g" }) == 0x277ECD)
 astral.on_setting("pollResults", false)
-assert(names({ kind = astral.NameColorKind.Voter, text = "adrian", user_id = "u1", guild_id = "g" }) == nil)
+assert(names({ kind = astral.TextKind.Voter, text = "adrian", user_id = "u1", guild_id = "g" }) == nil)
 
-assert(names({ kind = astral.NameColorKind.Typing, text = "adrian", user_id = "u1", guild_id = "g" }) == 0x277ECD)
+assert(names({ kind = astral.TextKind.Typing, text = "adrian", user_id = "u1", guild_id = "g" }) == 0x277ECD)
 astral.on_setting("typingUsers", false)
-assert(names({ kind = astral.NameColorKind.Typing, text = "adrian", user_id = "u1", guild_id = "g" }) == nil)
+assert(names({ kind = astral.TextKind.Typing, text = "adrian", user_id = "u1", guild_id = "g" }) == nil)
 
 print("role-color-everywhere ok")

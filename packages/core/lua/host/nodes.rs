@@ -1,4 +1,6 @@
+use crate::lua::enums::TextKind;
 use crate::lua::enums::{Align, InsertNodeType, InsertPosition, Justify, NamePlacement, ReplyPlacement, TimePlacement};
+use crate::lua::host::text_style::{self, Field};
 use core::ffi::{c_char, c_int};
 use std::collections::{BTreeMap, VecDeque};
 use std::sync::Mutex;
@@ -7,7 +9,7 @@ use serde_json::{Value, json};
 
 use crate::lua::api::{self as lua, LuaState, NOREF};
 use crate::lua::host::hooks::{
-    busy, c_text, guild_of, message_author, opaque, patch_color, patch_number, patch_quad, push_snowflake_field, push_target_author,
+    busy, c_text, guild_of, message_author, patch_color, patch_number, patch_quad, push_snowflake_field, push_target_author,
     push_target_channel, read_node_patch, resolve_channel, running_plugins, set_optional, set_text, snowflake, write_raw, write_text,
 };
 use crate::lua::host::{self as host, NodeInsert, Plugin};
@@ -569,10 +571,7 @@ pub unsafe extern "C" fn astral_lua_typing(context: *const AstralNameContext, de
         return 0;
     };
     let Some(_held) = host::try_lock() else { return busy(0) };
-    if !running_plugins()
-        .into_iter()
-        .any(|plugin| unsafe { !(*plugin).typing_decorators.is_empty() })
-    {
+    if !text_style::wanted() {
         return 0;
     }
     let channel = snowflake(context.channel_id);
@@ -581,51 +580,21 @@ pub unsafe extern "C" fn astral_lua_typing(context: *const AstralNameContext, de
     let Some(user) = crate::discord::cache::member_named(&guild, &text) else {
         return 0;
     };
-    for plugin in running_plugins() {
-        let decorators = unsafe { &*plugin }.typing_decorators.clone();
-        for reference in decorators {
-            let state = unsafe { (*plugin).state() };
-            unsafe {
-                lua::push_reference(state, reference);
-                lua::lua_createtable(state, 0, 4);
-                set_text(state, "text", &text);
-                set_text(state, "user_id", &user);
-                set_text(state, "channel_id", &channel);
-                set_text(state, "guild_id", &guild);
-            }
-            if host::call(plugin, 1, 1, "typing") {
-                if unsafe { lua::is_table(state, -1) } {
-                    unsafe {
-                        lua::get_field(state, -1, "image");
-                        lua::get_field(state, -2, "round");
-                        let image = lua::to_bytes(state, -2)
-                            .map(|image| String::from_utf8_lossy(image).into_owned())
-                            .unwrap_or_default();
-                        if image.starts_with("https://") {
-                            write_text(&mut decoration.image, &image);
-                            decoration.round = if lua::lua_type(state, -1) == lua::TNIL {
-                                1
-                            } else {
-                                lua::lua_toboolean(state, -1)
-                            };
-                        }
-                        lua::pop(state, 2);
-                    }
-                }
-                unsafe { lua::pop(state, 1) };
-                if decoration.image[0] != 0 {
-                    return 1;
-                }
-            }
-            if unsafe { (*plugin).failed } {
-                break;
-            }
-        }
-        if unsafe { (*plugin).failed } {
-            host::stop_plugin(plugin);
-        }
+    let fields = [
+        ("text", Field::Text(&text)),
+        ("user_id", Field::Text(&user)),
+        ("channel_id", Field::Text(&channel)),
+        ("guild_id", Field::Text(&guild)),
+    ];
+    let Some((image, round)) = text_style::style(TextKind::Typing, &fields).and_then(|style| style.image.zip(style.round)) else {
+        return 0;
+    };
+    if !image.starts_with("https://") {
+        return 0;
     }
-    0
+    write_text(&mut decoration.image, &image);
+    decoration.round = c_int::from(round);
+    1
 }
 
 unsafe fn read_reaction_images(state: *mut LuaState, decoration: &mut AstralReactionDecoration) {
@@ -710,6 +679,9 @@ pub unsafe extern "C" fn astral_lua_reaction(context: *const AstralReactionConte
 pub unsafe extern "C" fn astral_lua_name_color(context: *const AstralNameContext, color: *mut u32) -> c_int {
     let Some(context) = (unsafe { context.as_ref() }) else { return 0 };
     let Some(_held) = host::try_lock() else { return busy(0) };
+    if !text_style::wanted() {
+        return 0;
+    }
     let channel = snowflake(context.channel_id);
     let Some(guild) = guild_of(&channel) else { return 0 };
     let text = unsafe { c_text(context.text) };
@@ -720,39 +692,19 @@ pub unsafe extern "C" fn astral_lua_name_color(context: *const AstralNameContext
         };
         user = named;
     }
-    let kind = crate::lua::enums::NameColorKind::from_wire(context.kind).value();
-    for plugin in running_plugins() {
-        let colorizers = unsafe { &*plugin }.name_colorizers.clone();
-        for reference in colorizers {
-            let state = unsafe { (*plugin).state() };
-            unsafe {
-                lua::push_reference(state, reference);
-                lua::lua_createtable(state, 0, 5);
-                set_text(state, "kind", kind);
-                set_text(state, "text", &text);
-                set_optional(state, "user_id", &user);
-                set_text(state, "channel_id", &channel);
-                set_text(state, "guild_id", &guild);
-            }
-            if host::call(plugin, 1, 1, "name_color") {
-                let found = unsafe { lua::lua_isinteger(state, -1) } != 0;
-                if found && let Some(color) = unsafe { color.as_mut() } {
-                    *color = opaque(unsafe { lua::to_integer(state, -1) });
-                }
-                unsafe { lua::pop(state, 1) };
-                if found {
-                    return 1;
-                }
-            }
-            if unsafe { (*plugin).failed } {
-                break;
-            }
-        }
-        if unsafe { (*plugin).failed } {
-            host::stop_plugin(plugin);
-        }
+    let fields = [
+        ("text", Field::Text(&text)),
+        ("user_id", Field::Text(&user)),
+        ("channel_id", Field::Text(&channel)),
+        ("guild_id", Field::Text(&guild)),
+    ];
+    let Some(found) = text_style::style(TextKind::from_wire(context.kind), &fields).and_then(|style| style.color) else {
+        return 0;
+    };
+    if let Some(color) = unsafe { color.as_mut() } {
+        *color = found;
     }
-    0
+    1
 }
 
 const REMEMBERED_TAG_ROWS: usize = 512;

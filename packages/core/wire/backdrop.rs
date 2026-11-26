@@ -3,52 +3,26 @@ use core::ffi::c_int;
 use std::sync::Mutex;
 
 use super::cursor::Cursor;
-use super::format::{Span, batch_of, child, property_cursor, spans_of, type_is, wire_child_list, wire_color_property, wire_creation};
-use super::out::{Out, wire_prop_gradient};
+use super::format::{Span, batch_of, property_cursor, spans_of, type_is};
+use super::out::Out;
 use super::properties;
 
-use super::theme::{wire_background_stops, wire_theme_active};
+use super::theme::wire_background_stops;
 
-const DEPTH: u32 = 4;
 const STOPS: usize = 8;
-const TARGETS: usize = 64;
 const DEFAULT_ANGLE: f64 = 180.0;
-const MAX_DIM: f64 = 0.9;
 
 struct Backdrop {
-    enabled: bool,
-    dim: f64,
     gradient_node: i32,
     angle: f64,
     stops: Vec<u32>,
 }
 
 static BACKDROP: Mutex<Backdrop> = Mutex::new(Backdrop {
-    enabled: false,
-    dim: 0.0,
     gradient_node: 0,
     angle: DEFAULT_ANGLE,
     stops: Vec::new(),
 });
-
-#[unsafe(no_mangle)]
-pub extern "C" fn astral_wire_set_settings_backdrop(enabled: c_int, dim: f64) {
-    if let Ok(mut backdrop) = BACKDROP.lock() {
-        backdrop.enabled = enabled != 0;
-        backdrop.dim = dim.clamp(0.0, MAX_DIM);
-    }
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn astral_wire_settings_backdrop_enabled() -> c_int {
-    BACKDROP.lock().map_or(0, |backdrop| c_int::from(backdrop.enabled))
-}
-
-fn dimmed(color: u32, dim: f64) -> u32 {
-    let keep = 1.0 - dim;
-    let channel = |shift: u32| (f64::from((color >> shift) & 0xFF) * keep).round() as u32;
-    0xFF00_0000 | channel(16) << 16 | channel(8) << 8 | channel(0)
-}
 
 fn read_gradient(bytes: &[u8], span: &Span) -> Option<(f64, Vec<u32>)> {
     let properties = properties::current();
@@ -148,114 +122,38 @@ fn observe_app_gradient(backdrop: &mut Backdrop, bytes: *const u8, spans: &[Span
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn astral_wire_app_gradient(colors: *mut u32, capacity: usize) -> usize {
+pub unsafe extern "C" fn astral_wire_app_gradient(colors: *mut u32, capacity: usize, angle: *mut f64) -> usize {
     let Ok(backdrop) = BACKDROP.lock() else { return 0 };
-    let count = backdrop.stops.len().min(capacity);
-    if count > 0 && !colors.is_null() {
-        unsafe { core::ptr::copy_nonoverlapping(backdrop.stops.as_ptr(), colors, count) };
-    }
-    count
-}
-
-fn dimmed_stops(backdrop: &Backdrop) -> Vec<u32> {
     let mut stops = backdrop.stops.clone();
+    let mut chosen = backdrop.angle;
+    drop(backdrop);
     if stops.is_empty() {
         let mut theme = [0u32; STOPS];
         let count = unsafe { wire_background_stops(theme.as_mut_ptr(), STOPS) }.min(STOPS);
         stops = theme[..count].to_vec();
+        chosen = DEFAULT_ANGLE;
     }
-    stops.iter().map(|color| dimmed(*color, backdrop.dim)).collect()
-}
-
-fn collect_matching(bytes: *const u8, spans: &[Span], id: i32, background: u32, depth: u32, targets: &mut Vec<i32>) {
-    if depth > DEPTH || targets.len() >= TARGETS {
-        return;
+    let count = stops.len().min(capacity);
+    if count > 0 && !colors.is_null() {
+        unsafe { core::ptr::copy_nonoverlapping(stops.as_ptr(), colors, count) };
     }
-    let Some(list) = (unsafe { wire_child_list(bytes, spans.as_ptr(), spans.len(), id).as_ref() }) else {
-        return;
-    };
-    let background_property = properties::current().background;
-    let data = batch_of(bytes, list);
-    for position in 0..list.child_count {
-        if targets.len() >= TARGETS {
-            break;
-        }
-        let id = child(data, list, position);
-        let creation = unsafe { wire_creation(spans.as_ptr(), spans.len(), id) };
-        let mut color = 0;
-        if !creation.is_null()
-            && unsafe { wire_color_property(bytes, creation, background_property, &mut color) } != 0
-            && color == background
-        {
-            targets.push(id);
-        }
-        collect_matching(bytes, spans, id, background, depth + 1, targets);
+    if let Some(angle) = unsafe { angle.as_mut() } {
+        *angle = chosen;
     }
+    count
 }
 
-fn put_transparent(out: &mut Out, id: i32) {
-    out.update(id, 1);
-    out.put16(properties::current().background);
-    out.put_tag(Tag::Long);
-    out.put(&0i64.to_le_bytes());
-}
-
-fn put_backdrop(out: &mut Out, id: i32, angle: f64, stops: &[u32]) {
-    let properties = properties::current();
-    out.update(id, 2);
-    out.put16(properties.background);
-    out.put_tag(Tag::Long);
-    out.put(&0i64.to_le_bytes());
-    unsafe { wire_prop_gradient(out, properties.background_gradient, angle, stops.as_ptr(), stops.len() as u32) };
-}
-
-#[unsafe(export_name = "wireSettingsBackdrop")]
-pub unsafe extern "C" fn wire_settings_backdrop(
+#[unsafe(export_name = "wireObserveAppGradient")]
+pub unsafe extern "C" fn wire_observe_app_gradient(
     bytes: *const u8,
     pointer: *const Span,
     count: usize,
-    out: *mut Out,
-    changed: *mut c_int,
-    length: usize,
+    _out: *mut Out,
+    _changed: *mut c_int,
+    _length: usize,
 ) {
     let spans = spans_of(pointer, count);
-    let Ok(mut backdrop) = BACKDROP.lock() else { return };
-    observe_app_gradient(&mut backdrop, bytes, spans);
-    if !backdrop.enabled || (backdrop.stops.is_empty() && wire_theme_active() == 0) {
-        return;
-    }
-    let mut stops = dimmed_stops(&backdrop);
-    if stops.is_empty() {
-        return;
-    }
-    if stops.len() == 1 {
-        stops.push(stops[0]);
-    }
-    let angle = if backdrop.stops.is_empty() { DEFAULT_ANGLE } else { backdrop.angle };
-    drop(backdrop);
-    let (Some(out), Some(changed)) = (unsafe { out.as_mut() }, unsafe { changed.as_mut() }) else {
-        return;
-    };
-    let properties = properties::current();
-    for span in spans {
-        let data = batch_of(bytes, span);
-        let mut background = 0;
-        if span.op != Op::Create
-            || !type_is(data, span, b"view")
-            || super::format::find_string(data, span, properties.accessibility_id) != Some(b"settings-phone")
-            || unsafe { wire_color_property(bytes, span, properties.background, &mut background) } == 0
-        {
-            continue;
-        }
-        let mut targets = Vec::new();
-        collect_matching(bytes, spans, span.id, background, 1, &mut targets);
-        if *changed == 0 {
-            out.put(unsafe { core::slice::from_raw_parts(bytes, length) });
-        }
-        *changed = 1;
-        put_backdrop(out, span.id, angle, &stops);
-        for target in targets {
-            put_transparent(out, target);
-        }
+    if let Ok(mut backdrop) = BACKDROP.lock() {
+        observe_app_gradient(&mut backdrop, bytes, spans);
     }
 }

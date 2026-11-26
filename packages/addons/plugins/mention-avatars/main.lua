@@ -62,6 +62,9 @@ local function role_image(role)
 end
 
 local function decorate(node)
+	if node.kind ~= astral.TextKind.Mention then
+		return nil
+	end
 	local name = node.text:sub(2)
 	local message = node:message()
 	if not message then
@@ -79,4 +82,4 @@ local function decorate(node)
 	return nil
 end
 
-astral.ui.mention(decorate)
+astral.ui.style_text(decorate)

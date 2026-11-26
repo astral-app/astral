@@ -277,7 +277,9 @@ typedef enum {
     AstralPatchBorder = 1 << 5,
     AstralPatchTextColor = 1 << 6,
     AstralPatchHidden = 1 << 7,
-    AstralPatchTextScale = 1 << 8
+    AstralPatchTextScale = 1 << 8,
+    AstralPatchGradient = 1 << 9,
+    AstralPatchSeeThrough = 1 << 10
 } AstralPatchField;
 
 typedef struct {
@@ -291,6 +293,9 @@ typedef struct {
     double borderWidth;
     uint32_t textColor;
     double textScale;
+    double gradientAngle;
+    uint32_t gradientStops[8];
+    uint32_t gradientCount;
 } AstralNodePatch;
 
 typedef struct {
@@ -396,9 +401,7 @@ int astral_page_depth(void);
 const char *astral_page_template_status(void);
 unsigned astral_page_navigator_count(void);
 
-void astral_wire_set_settings_backdrop(int enabled, double dim);
-int astral_wire_settings_backdrop_enabled(void);
-size_t astral_wire_app_gradient(uint32_t *colors, size_t capacity);
+size_t astral_wire_app_gradient(uint32_t *colors, size_t capacity, double *angle);
 int astral_wire_theme_page(AstralWireBuffer *buffer);
 
 #ifdef __cplusplus

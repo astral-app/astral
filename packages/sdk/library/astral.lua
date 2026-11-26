@@ -214,12 +214,14 @@ local TimePlacement = {
 	Hidden = "hidden",
 }
 
----@enum astral.NameColorKind
-local NameColorKind = {
+---@enum astral.TextKind
+local TextKind = {
 	Avatar = "avatar",
 	Header = "header",
 	Voter = "voter",
 	Typing = "typing",
+	Mention = "mention",
+	Message = "message",
 }
 
 ---@enum astral.ImageItemType
@@ -492,7 +494,7 @@ astral.Align = Align
 astral.ReplyPlacement = ReplyPlacement
 astral.NamePlacement = NamePlacement
 astral.TimePlacement = TimePlacement
-astral.NameColorKind = NameColorKind
+astral.TextKind = TextKind
 astral.ImageItemType = ImageItemType
 astral.FontWeight = FontWeight
 astral.TextAlign = TextAlign
@@ -767,16 +769,15 @@ function astral.ui.decorate(target, decorator) end
 ---@param target astral.Target
 ---@param relabeler fun(node: astral.Node): string?
 function astral.ui.relabel(target, relabeler) end
----@class astral.MentionDecoration
----@field image? string
----@field round? boolean
----@field hide_at? boolean
----@field after? boolean
----@field color? integer
----@param decorator fun(node: astral.Node): astral.MentionDecoration?
-function astral.ui.mention(decorator) end
----@param colorizer fun(node: astral.Node): astral.Color|integer|string|nil
-function astral.ui.message_color(colorizer) end
+---@class astral.TextRunStyle
+---@field color? astral.Color|integer|string the run's text colour
+---@field image? string an https image shown beside the run (typing names and mentions)
+---@field round? boolean round the image; true by default
+---@field hide_at? boolean drop the @ of a mention
+---@field after? boolean put a mention's image after its text
+---Styles runs of Discord's text: message author names, member-list headers, poll voters, typing names, mentions and whole message text. `node.kind` says which; return a style, a colour, or nil.
+---@param styler fun(node: astral.Node): astral.TextRunStyle|astral.Color|integer|string|nil
+function astral.ui.style_text(styler) end
 ---@class astral.PatchSelector
 ---@field id string accessibilityId prefix, such as "message.content:"
 ---@field type? astral.PatchNodeType
@@ -804,6 +805,8 @@ function astral.ui.message_color(colorizer) end
 ---@field text_color? astral.Color|integer|string
 ---@field hidden? boolean
 ---@field text_scale? number 0.5 to 3, scales every text inside the node
+---@field gradient? { angle?: number, colors: (astral.Color|integer|string)[] } a background gradient of up to 8 colours
+---@field see_through? boolean children painted with this node's own background turn transparent, so a new background shows through
 
 ---@param selector string|astral.PatchSelector
 ---@param patcher fun(node: astral.PatchTarget): astral.NodePatch?
@@ -869,8 +872,6 @@ function astral.ui.message_background(decorator) end
 ---@param render fun(block: astral.CodeBlock): astral.CodeCard?
 ---@param press? fun(block: astral.CodeBlock, action: string)
 function astral.ui.code_block(render, press) end
----@param colorizer fun(node: astral.Node): astral.Color|integer|string|nil
-function astral.ui.author_color(colorizer) end
 ---@class astral.MessageActionOptions
 ---@field icon? string
 ---@field when? fun(node: astral.Node): boolean shows the action only for messages it returns true for
@@ -878,17 +879,14 @@ function astral.ui.author_color(colorizer) end
 ---@param callback fun(node: astral.Node)
 ---@param options? astral.MessageActionOptions
 function astral.ui.message_action(label, callback, options) end
----@param colorizer fun(node: astral.Node): astral.Color|integer|string|nil
-function astral.ui.name_color(colorizer) end
----@param decorator fun(node: astral.Node): { image: string, round?: boolean }?
-function astral.ui.typing(decorator) end
 ---@class astral.ReactionDecoration
 ---@field images string[]
 ---@field total? integer
 ---@param decorator fun(node: astral.Node): astral.ReactionDecoration?
 function astral.ui.reaction(decorator) end
----@param options? { dim: number }
-function astral.ui.settings_backdrop(options) end
+---Discord's current app background gradient, or the active theme's, as ARGB colours.
+---@return { angle: number, colors: integer[] }?
+function astral.ui.app_background() end
 
 astral.files = {}
 function astral.files.pick(extensions, callback) end
