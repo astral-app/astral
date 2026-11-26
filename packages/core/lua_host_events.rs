@@ -343,7 +343,7 @@ pub fn process_gateway_message(message: &[u8]) -> Option<String> {
 
 pub struct MediaSave {
     pub url: String,
-    pub kind: String,
+    pub kind: crate::lua_enums::MediaKind,
     pub channel_id: String,
     pub message_id: String,
 }
@@ -391,7 +391,7 @@ unsafe fn push_media_save(state: *mut LuaState, save: &MediaSave) {
     unsafe {
         lua::lua_createtable(state, 0, 4);
         set_text(state, "url", &save.url);
-        set_text(state, "kind", &save.kind);
+        set_text(state, "kind", save.kind.value());
         if !save.channel_id.is_empty() {
             set_text(state, "channel_id", &save.channel_id);
         }
@@ -415,7 +415,7 @@ fn advance_media_save(id: u64) {
             pending.next += 1;
             let save = MediaSave {
                 url: pending.save.url.clone(),
-                kind: pending.save.kind.clone(),
+                kind: pending.save.kind,
                 channel_id: pending.save.channel_id.clone(),
                 message_id: pending.save.message_id.clone(),
             };

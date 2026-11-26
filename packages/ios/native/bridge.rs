@@ -48,6 +48,7 @@ pub enum AstralRequestKind {
     RefreshDecorations,
     RefreshSettings,
     InjectGateway,
+    SessionToken,
 }
 
 #[repr(C)]
@@ -264,6 +265,7 @@ fn outgoing<'a>(request: &Request<'a>) -> Outgoing<'a> {
         Request::RefreshDecorations => Outgoing::new(Kind::RefreshDecorations),
         Request::RefreshSettings => Outgoing::new(Kind::RefreshSettings),
         Request::InjectGateway { message } => Outgoing::new(Kind::InjectGateway).texts(&[message]),
+        Request::SessionToken => Outgoing::new(Kind::SessionToken),
     }
 }
 

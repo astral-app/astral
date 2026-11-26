@@ -7,6 +7,8 @@ fn main() {
     println!("cargo:rerun-if-changed=lib.rs");
     println!("cargo:rerun-if-changed=bridge.rs");
     println!("cargo:rerun-if-changed=text.rs");
+    println!("cargo:rerun-if-changed=network.rs");
+    println!("cargo:rerun-if-changed=shapes.rs");
     println!("cargo:rerun-if-changed=cbindgen.toml");
     println!("cargo:rerun-if-changed={HEADER}");
     let manifest = PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"));

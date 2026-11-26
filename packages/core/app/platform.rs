@@ -209,7 +209,17 @@ fn verify_signature(directory: &str, main: &str) -> bool {
     })
 }
 
+fn ensure_session_token() {
+    if !crate::session::current().is_empty() {
+        return;
+    }
+    if let Some(token) = host::request(Request::SessionToken).into_text() {
+        super::set_session_token(&token);
+    }
+}
+
 fn reactors(arguments: &Arguments) -> Value {
+    ensure_session_token();
     let (users, fresh) = crate::reactors::lookup(
         arguments.text(0),
         arguments.text(1),

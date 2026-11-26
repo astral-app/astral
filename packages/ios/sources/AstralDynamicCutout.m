@@ -3,22 +3,21 @@
 #import <UIKit/UIKit.h>
 #import <objc/message.h>
 
-#include "AstralCutout.h"
+#import "AstralCore.h"
 
 static UIView *gOverlay;
 static UIWindow *gWindow;
 static BOOL gInitialized;
 
-static std::optional<astral::cutout::Shape> DeviceCutout(void)
+static CGRect SystemCutout(void)
 {
-    if (UIDevice.currentDevice.userInterfaceIdiom != UIUserInterfaceIdiomPhone) return std::nullopt;
+    if (UIDevice.currentDevice.userInterfaceIdiom != UIUserInterfaceIdiomPhone) return CGRectNull;
     SEL exclusionArea = NSSelectorFromString(@"_exclusionArea");
-    if (![UIScreen.mainScreen respondsToSelector:exclusionArea]) return std::nullopt;
+    if (![UIScreen.mainScreen respondsToSelector:exclusionArea]) return CGRectNull;
     id shape = ((id (*)(id, SEL))objc_msgSend)(UIScreen.mainScreen, exclusionArea);
     SEL rectSelector = NSSelectorFromString(@"rect");
-    if (![shape respondsToSelector:rectSelector]) return std::nullopt;
-    CGRect rect = ((CGRect (*)(id, SEL))objc_msgSend)(shape, rectSelector);
-    return astral::cutout::fromSystem(astral::cutout::Frame{rect.origin.x, rect.origin.y, rect.size.width, rect.size.height});
+    if (![shape respondsToSelector:rectSelector]) return CGRectNull;
+    return ((CGRect (*)(id, SEL))objc_msgSend)(shape, rectSelector);
 }
 
 static UIWindow *KeyWindow(void)
@@ -33,11 +32,11 @@ static UIWindow *KeyWindow(void)
 
 static void CreateOverlay(void)
 {
-    auto cutout = DeviceCutout();
+    CGRect frame = SystemCutout();
     UIWindow *window = KeyWindow();
-    if (!cutout || !window) return;
-    CGRect frame = CGRectMake(cutout->frame.x, cutout->frame.y, cutout->frame.width, cutout->frame.height);
-    if (!CGRectContainsRect(window.bounds, frame)) return;
+    if (CGRectIsNull(frame) || !window) return;
+    AstralCutout cutout = astral_ios_cutout((AstralRect){frame.origin.x, frame.origin.y, frame.size.width, frame.size.height});
+    if (cutout.kind == AstralCutoutKind_Missing || !CGRectContainsRect(window.bounds, frame)) return;
     if (gOverlay && gWindow == window) return;
     [gOverlay removeFromSuperview];
     gWindow = window;
@@ -47,15 +46,15 @@ static void CreateOverlay(void)
     gOverlay.hidden = YES;
     gOverlay.userInteractionEnabled = NO;
     UIRectCorner corners =
-        cutout->kind == astral::cutout::Kind::Notch ? UIRectCornerBottomLeft | UIRectCornerBottomRight : UIRectCornerAllCorners;
-    CGFloat radius = astral::cutout::cornerRadius(*cutout);
+        cutout.kind == AstralCutoutKind_Notch ? UIRectCornerBottomLeft | UIRectCornerBottomRight : UIRectCornerAllCorners;
+    CGFloat radius = cutout.corner_radius;
     UIBezierPath *path = [UIBezierPath bezierPathWithRoundedRect:gOverlay.bounds
                                                byRoundingCorners:corners
                                                      cornerRadii:CGSizeMake(radius, radius)];
     CAShapeLayer *mask = [CAShapeLayer layer];
     mask.path = path.CGPath;
     gOverlay.layer.mask = mask;
-    auto logo = astral::cutout::logoFrame(*cutout);
+    AstralRect logo = cutout.logo;
     UIImageView *image = [[UIImageView alloc] initWithFrame:CGRectMake(logo.x, logo.y, logo.width, logo.height)];
     image.image = [UIImage imageNamed:@"astral_galaxy"];
     image.tintColor = UIColor.whiteColor;
@@ -87,7 +86,7 @@ void AstralInitializeDynamicCutout(void)
 {
     if (gInitialized) return;
     gInitialized = YES;
-    if (!DeviceCutout()) return;
+    if (CGRectIsNull(SystemCutout())) return;
     NSNotificationCenter *center = NSNotificationCenter.defaultCenter;
     [center addObserverForName:UIApplicationDidBecomeActiveNotification
                         object:nil

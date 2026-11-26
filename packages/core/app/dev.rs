@@ -165,6 +165,7 @@ fn status() -> Value {
         unsafe { CStr::from_ptr(pages) }.to_string_lossy().into_owned()
     };
     json!({
+        "network": super::network::stats(),
         "wire": {
             "channel": crate::wire::ids::astral_wire_current_channel().to_string(),
             "authors": stats.authors,

@@ -18,29 +18,66 @@ pub struct AstralCutoutFrame {
     pub height: f64,
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn astral_cutout_kind(frame: AstralCutoutFrame) -> c_int {
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Kind {
+    Island,
+    Notch,
+    Hole,
+}
+
+impl Kind {
+    const fn code(self) -> c_int {
+        match self {
+            Kind::Island => KIND_ISLAND,
+            Kind::Notch => KIND_NOTCH,
+            Kind::Hole => KIND_HOLE,
+        }
+    }
+
+    const fn from_code(code: c_int) -> Kind {
+        match code {
+            KIND_NOTCH => Kind::Notch,
+            KIND_HOLE => Kind::Hole,
+            _ => Kind::Island,
+        }
+    }
+}
+
+pub fn kind(frame: AstralCutoutFrame) -> Option<Kind> {
     if frame.width <= 0.0 || frame.height <= 0.0 {
-        return -1;
+        return None;
     }
     if frame.y <= 0.0 {
-        return KIND_NOTCH;
+        return Some(Kind::Notch);
     }
-    if frame.width > frame.height { KIND_ISLAND } else { KIND_HOLE }
+    Some(if frame.width > frame.height { Kind::Island } else { Kind::Hole })
+}
+
+pub fn corner_radius(kind: Kind, frame: AstralCutoutFrame) -> f64 {
+    match kind {
+        Kind::Notch => frame.height * NOTCH_CORNER_RATIO,
+        Kind::Hole => frame.width.min(frame.height) / 2.0,
+        Kind::Island => frame.height / 2.0,
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn astral_cutout_kind(frame: AstralCutoutFrame) -> c_int {
+    kind(frame).map_or(-1, Kind::code)
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn astral_cutout_corner_radius(kind: c_int, frame: AstralCutoutFrame) -> f64 {
-    match kind {
-        KIND_NOTCH => frame.height * NOTCH_CORNER_RATIO,
-        KIND_HOLE => frame.width.min(frame.height) / 2.0,
-        _ => frame.height / 2.0,
-    }
+    corner_radius(Kind::from_code(kind), frame)
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn astral_cutout_logo_frame(kind: c_int, frame: AstralCutoutFrame) -> AstralCutoutFrame {
-    let ratio = if kind == KIND_HOLE { HOLE_LOGO_RATIO } else { LOGO_HEIGHT_RATIO };
+    logo_frame(Kind::from_code(kind), frame)
+}
+
+pub fn logo_frame(kind: Kind, frame: AstralCutoutFrame) -> AstralCutoutFrame {
+    let ratio = if kind == Kind::Hole { HOLE_LOGO_RATIO } else { LOGO_HEIGHT_RATIO };
     let height = frame.width.min(frame.height) * ratio;
     let width = (height * LOGO_ASPECT).min(frame.width);
     let fitted_height = width / LOGO_ASPECT;

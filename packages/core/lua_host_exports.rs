@@ -346,7 +346,7 @@ pub unsafe extern "C" fn astral_lua_host_resolve_media_save(save: *const c_char,
     let field = |name: &str| save.get(name).and_then(Value::as_str).unwrap_or_default().to_owned();
     let media = events::MediaSave {
         url: field("url"),
-        kind: field("kind"),
+        kind: crate::lua_enums::MediaKind::parse(&field("kind")).unwrap_or_default(),
         channel_id: field("channelID"),
         message_id: field("messageID"),
     };
