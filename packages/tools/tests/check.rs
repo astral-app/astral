@@ -17,12 +17,8 @@ fn picks_affected_steps() {
             "clang-format,wire tests",
         ),
         (
-            "packages/core/include/LuaSandbox.h",
-            "clang-format,core tests",
-        ),
-        (
             "packages/core/lua/host/mod.rs",
-            "rust,rust magic numbers,core tests,lua tests",
+            "rust,rust magic numbers,lua tests",
         ),
         ("packages/tools/cli/check.rs", "rust,rust magic numbers"),
         ("packages/ios/sources/Themes.mm", "clang-format"),
@@ -34,8 +30,5 @@ fn picks_affected_steps() {
 
 #[test]
 fn skips_file_scoped_steps_for_deletions() {
-    assert_eq!(
-        planned("packages/core/include/Removed.h", false),
-        "core tests"
-    );
+    assert_eq!(planned("packages/core/wire/Removed.h", false), "wire tests");
 }

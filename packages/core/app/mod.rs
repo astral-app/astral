@@ -97,7 +97,7 @@ fn install_category() {
     strings.push(title);
 }
 
-fn install_decorators() {
+pub fn install_decorators() {
     use crate::{lua::host::hooks, lua::host::nodes, lua::host::spans, wire};
     wire::decorate::astral_wire_set_decorator(Some(nodes::astral_lua_decorate));
     wire::decorate::astral_wire_set_message_background_decorator(Some(nodes::astral_lua_message_background));
@@ -191,6 +191,7 @@ pub fn start() -> usize {
     let Some(current) = app() else { return 0 };
     if !STARTED.swap(true, Ordering::AcqRel) {
         let safe_mode = current.flag("astral", "safe-mode", false);
+        lua_host::set_platform(Some(platform::platform_call));
         lua_host::start(
             vec![format!("{}/plugins", current.state), format!("{}/plugins", current.resources)],
             current.settings_handle(),
@@ -202,7 +203,6 @@ pub fn start() -> usize {
                 bundled_directory: current.resources.clone(),
             },
         );
-        lua_host::set_platform(Some(platform::platform_call));
         install_decorators();
         pages::configure(current);
         dev::start(current);

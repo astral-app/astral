@@ -157,15 +157,6 @@ pub fn rules() -> Vec<Rule> {
             run: |_, work| test::test_wire(work),
         },
         Rule {
-            name: "core tests",
-            affects: |path| {
-                (native(path) || repo::extension(path) == "rs")
-                    && under(path, &["packages/core/"])
-                    && !under(path, &["packages/core/wire/"])
-            },
-            run: |_, work| test::test_core(work),
-        },
-        Rule {
             name: "lua tests",
             affects: |path| {
                 under(

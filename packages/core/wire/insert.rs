@@ -66,7 +66,7 @@ pub struct AstralInsertNode {
 }
 
 impl AstralInsertNode {
-    fn empty() -> Self {
+    pub fn empty() -> Self {
         AstralInsertNode {
             kind: 0,
             parent: 0,

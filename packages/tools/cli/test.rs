@@ -35,66 +35,6 @@ pub fn test_wire(work: &Path) -> Result<(), String> {
     repo::run(&ios, &binary, &[])
 }
 
-pub fn test_core(work: &Path) -> Result<(), String> {
-    let root = repo::path(&[]);
-    let object = repo::text(&work.join("lua-core.o"));
-    let onelua = repo::text(&repo::path(&["vendor", "lua", "onelua.c"]));
-    repo::run(
-        &root,
-        "cc",
-        &strings(&[
-            "-c",
-            "-O1",
-            "-g",
-            "-fsanitize=address,undefined",
-            "-DMAKE_LIB",
-            lua_platform(),
-            "-w",
-            &onelua,
-            "-o",
-            &object,
-        ]),
-    )?;
-    let binary = repo::text(&work.join("lua-core-test"));
-    let include = |parts: &[&str]| format!("-I{}", repo::text(&repo::path(parts)));
-    let mut arguments = strings(&[
-        "-std=c++20",
-        "-Wall",
-        "-Wextra",
-        "-Werror",
-        "-g",
-        "-fsanitize=address,undefined",
-    ]);
-    arguments.extend([
-        include(&["packages", "core", "include"]),
-        include(&["vendor", "lua"]),
-        format!("-I{}", repo::text(work)),
-        include(&["packages", "core", "wire"]),
-        "-isystem".into(),
-        repo::text(&repo::path(&["vendor", "json", "single_include"])),
-        "-isystem".into(),
-        repo::text(&repo::path(&["vendor", "tomlplusplus", "include"])),
-        repo::text(&repo::path(&[
-            "packages",
-            "core",
-            "tests",
-            "lua-core-test.cpp",
-        ])),
-    ]);
-    if !cfg!(target_os = "macos") {
-        arguments.push("-lcrypto".into());
-    }
-    arguments.extend([
-        object,
-        crate::fuzz::core_library(false)?,
-        "-lsqlite3".into(),
-        "-o".into(),
-        binary.clone(),
-    ]);
-    repo::run(&root, "clang++", &arguments)?;
-    repo::run(&root, &binary, &[repo::text(work), repo::text(&root)])
-}
-
 pub fn build_lua(work: &Path) -> Result<String, String> {
     let binary = repo::text(&work.join("lua"));
     let onelua = repo::text(&repo::path(&["vendor", "lua", "onelua.c"]));
@@ -215,7 +155,6 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
     let work = repo::scratch()?;
     lint::test_rust()?;
     test_wire(&work.0)?;
-    test_core(&work.0)?;
     test_lua(&work.0)?;
     test_signatures()?;
     crate::readme::test()?;

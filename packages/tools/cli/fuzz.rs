@@ -170,55 +170,90 @@ pub fn replay(arguments: &[String]) -> Result<(), String> {
     if plugins.is_empty() || batches.is_empty() {
         return Err(usage());
     }
+    replay_batches(&plugins, &batches)
+}
+
+const SETTINGS_RECHECK_MS: u64 = 500;
+
+fn plugin_root(plugins: &[String]) -> Result<repo::Scratch, String> {
     let work = repo::scratch()?;
-    let lua = repo::text(&work.0.join("lua.o"));
-    let platform = if cfg!(target_os = "macos") {
-        "-DLUA_USE_MACOSX"
-    } else {
-        "-DLUA_USE_LINUX"
+    let root = work.0.join("plugins");
+    std::fs::create_dir_all(&root).map_err(|error| error.to_string())?;
+    for (index, plugin) in plugins.iter().enumerate() {
+        let source = std::fs::canonicalize(plugin).map_err(|error| format!("{plugin}: {error}"))?;
+        std::os::unix::fs::symlink(&source, root.join(index.to_string()))
+            .map_err(|error| error.to_string())?;
+    }
+    Ok(work)
+}
+
+fn replay_batches(plugins: &[String], batches: &[String]) -> Result<(), String> {
+    use astral_core::lua::host::{self as lua_host, Config};
+    let work = plugin_root(plugins)?;
+    let settings = repo::text(&work.0.join("settings.json"));
+    let handle = unsafe {
+        astral_core::settings::store::astral_settings_open(
+            settings.as_ptr().cast(),
+            settings.len(),
+            SETTINGS_RECHECK_MS,
+        )
     };
-    repo::run(
-        &repo::path(&[]),
-        "cc",
-        &strings(&[
-            "-c",
-            "-O1",
-            "-DMAKE_LIB",
-            platform,
-            "-w",
-            &repo::text(&repo::path(&["vendor", "lua", "onelua.c"])),
-            "-o",
-            &lua,
-        ]),
-    )?;
-    let binary = repo::text(&work.0.join("replay"));
-    let include = |parts: &[&str]| format!("-I{}", repo::text(&repo::path(parts)));
-    let mut build = strings(&["-std=c++20", "-O1"]);
-    build.extend([
-        include(&["packages", "core", "include"]),
-        include(&["vendor", "lua"]),
-        include(&["packages", "core", "wire"]),
-        "-isystem".into(),
-        repo::text(&repo::path(&["vendor", "json", "single_include"])),
-        "-isystem".into(),
-        repo::text(&repo::path(&["vendor", "tomlplusplus", "include"])),
-        repo::text(&repo::path(&["packages", "core", "replay", "replay.cpp"])),
-        lua,
-        core_library(false)?,
-        "-lsqlite3".into(),
-        "-lm".into(),
-        "-o".into(),
-        binary.clone(),
-    ]);
-    repo::run(&repo::path(&[]), "clang++", &build)?;
-    let mut replay = vec![repo::text(&repo::path(&[
-        "packages",
-        "core",
-        "lua",
-        "prelude.lua",
-    ]))];
-    replay.extend(plugins);
-    replay.push("--".into());
-    replay.extend(batches);
-    repo::run(&repo::path(&[]), &binary, &replay)
+    if let Some(mut store) = unsafe { astral_core::settings::store::store(handle) } {
+        store.set("astral", "developer-mode", serde_json::Value::Bool(true));
+        store.save();
+    }
+    lua_host::start(
+        vec![repo::text(&work.0.join("plugins"))],
+        handle,
+        true,
+        Config {
+            storage_path: repo::text(&work.0.join("storage.sqlite")),
+            ..Config::default()
+        },
+    );
+    astral_core::app::install_decorators();
+    let (mut replayed, mut rewritten) = (0usize, 0usize);
+    for batch in batches {
+        let bytes = std::fs::read(batch).map_err(|error| format!("{batch}: {error}"))?;
+        if bytes.is_empty() {
+            continue;
+        }
+        replayed += 1;
+        if let Some(_changed) = astral_core::app::rewrite(&bytes) {
+            rewritten += 1;
+        }
+    }
+    let stats = astral_core::wire::decorate::astral_wire_stats();
+    println!(
+        "replayed {replayed} batches ({rewritten} rewritten): {} authors, {} tagged",
+        stats.authors, stats.tagged
+    );
+    let failures: Vec<String> = lua_host::plugins_json()
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|plugin| {
+            plugin["failed"].as_bool() == Some(true)
+                || !plugin["running"].as_bool().unwrap_or(false)
+        })
+        .map(|plugin| {
+            format!(
+                "{}: {}",
+                plugin["id"].as_str().unwrap_or_default(),
+                plugin["error"].as_str().unwrap_or("not running")
+            )
+        })
+        .collect();
+    lua_host::stop();
+    for failure in &failures {
+        println!("error {failure}");
+    }
+    if failures.is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "{} plugin(s) failed during the replay",
+            failures.len()
+        ))
+    }
 }
