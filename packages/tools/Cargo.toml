@@ -16,11 +16,16 @@ path = "cli/main.rs"
 astral-core = { path = "../core" }
 base64 = "0.22"
 ed25519-dalek = { version = "2", features = ["pkcs8", "pem"] }
+glob = "0.3"
+plist = "1"
 regex = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
 toml = "0.8"
+tungstenite = { version = "0.24", default-features = false, features = ["handshake"] }
+ureq = { version = "2", default-features = false }
+zip = { version = "2", default-features = false, features = ["deflate"] }
 
 [profile.release]
 strip = true

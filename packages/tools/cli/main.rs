@@ -1,16 +1,38 @@
 use std::process::ExitCode;
 
-use astral_tools::{check, lint, readme, repo, signing, test};
+use astral_tools::{check, dev, device, lint, readme, repo, signing, stage, test, vphone};
 
 type Run = fn(&[String]) -> Result<(), String>;
 
 const COMMANDS: &[(&str, &str, Run)] = &[
     ("check", "check [--staged] [file ...]", check::run),
+    ("deploy", "deploy [--device <udid>]", device::deploy),
+    (
+        "dev",
+        "dev <status|push|watch|eval|logs|theme|backup> ...",
+        dev::run,
+    ),
     ("format", "format", lint::format),
     ("lint", "lint", lint::run),
+    (
+        "open-settings",
+        "open-settings [--device <udid>] [row]",
+        device::open_settings,
+    ),
     ("readme", "readme [--check]", readme::run),
     ("sign", "sign [--key <pem>]", signing::run),
+    ("stage", "stage <directory>", stage::run),
     ("test", "test [--phoenix <PhoenixFatClient>]", test::run),
+    (
+        "vphone",
+        "vphone <boot|status|install|launch|shell|push|pull|deploy> ...",
+        vphone::run,
+    ),
+    (
+        "wire-dump",
+        "wire-dump [--device <udid>] <output directory>",
+        device::wire_dump,
+    ),
 ];
 
 fn fall_back_to_go(arguments: &[String]) -> ExitCode {
