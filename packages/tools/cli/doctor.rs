@@ -347,6 +347,30 @@ fn diagnoses(pins: &std::collections::BTreeMap<String, String>) -> Vec<Diagnosis
             "optional: faster host builds with ASTRAL_BLAZE=1; install from https://ix.dev/blaze",
         ),
         diagnosis(
+            "cranelift",
+            false,
+            Box::new(|| {
+                if crate::lint::cranelift_ready() {
+                    Ok(crate::lint::CRANELIFT_TOOLCHAIN.to_owned())
+                } else {
+                    Err("not installed".to_owned())
+                }
+            }),
+            "optional: faster test builds; rustup component add rustc-codegen-cranelift-preview --toolchain nightly-2026-10-27",
+        ),
+        diagnosis(
+            "cargo-nextest",
+            false,
+            check_tool("cargo-nextest", &["--version"]),
+            "optional: faster test runs; brew install cargo-nextest",
+        ),
+        diagnosis(
+            "sccache",
+            false,
+            check_tool("sccache", &["--version"]),
+            "optional: shared compile cache; brew install sccache",
+        ),
+        diagnosis(
             "luacheck",
             true,
             check_tool("luacheck", &["--version"]),

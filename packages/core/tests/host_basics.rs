@@ -56,3 +56,20 @@ fn toml_becomes_json() {
     assert_eq!(value.to_string(), r#"{"name":"x","table":{"count":3,"list":[true],"ratio":1.5}}"#);
     assert!(parse("= broken").is_none());
 }
+
+#[test]
+fn formats_numbers_like_printf_general() {
+    use astral_core::settings::pages::general;
+    for (value, expected) in [
+        (0.5, "0.5"),
+        (0.25, "0.25"),
+        (1.0 / 3.0, "0.333333"),
+        (12.345_678, "12.3457"),
+        (0.000_123_4, "0.0001234"),
+        (0.000_012_34, "1.234e-05"),
+        (1_234_567.0, "1.23457e+06"),
+        (-2.5, "-2.5"),
+    ] {
+        assert_eq!(general(value), expected);
+    }
+}
