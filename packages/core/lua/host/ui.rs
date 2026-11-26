@@ -7,9 +7,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use serde_json::{Value, json};
 
 use crate::lua::api::{self as lua, LuaState, NOREF};
-use crate::lua::host::api::{
-    Outcome, check_bytes, check_integer, check_text, check_type, message_argument, opt_text, push_optional_json, require_permission,
-};
+use crate::lua::host::api::{Outcome, check_bytes, check_integer, check_text, check_type, message_argument, opt_text, require_permission};
 use crate::lua::host::{self as host, Platform, Plugin, SettingsButton, Switch, TextSetting};
 use crate::lua::json::to_json;
 
@@ -1459,31 +1457,6 @@ pub unsafe fn settings_backdrop(state: *mut LuaState) -> Outcome {
     }
     host::apply_settings_backdrop();
     Ok(0)
-}
-
-pub unsafe fn reactors(state: *mut LuaState) -> Outcome {
-    unsafe { require_permission(state, Capability::DiscordMessages) }?;
-    let channel = unsafe { check_text(state, 1) }?;
-    let message = unsafe { check_text(state, 2) }?;
-    let emoji = unsafe { check_text(state, 3) }?;
-    let burst = unsafe { lua::lua_toboolean(state, 4) } != 0;
-    let count = if unsafe { lua::is_none_or_nil(state, 5) } {
-        0
-    } else {
-        unsafe { check_integer(state, 5) }?.max(0)
-    };
-    let reply = host::platform_value("reactors", &json!([channel, message, emoji, burst, count]));
-    let fresh = reply
-        .as_ref()
-        .and_then(|reply| reply.get("fresh"))
-        .and_then(Value::as_bool)
-        .unwrap_or(false);
-    if !fresh {
-        host::host().reactors_stale = true;
-    }
-    let users = reply.and_then(|reply| reply.get("users").cloned()).filter(|users| !users.is_null());
-    unsafe { push_optional_json(state, users) };
-    Ok(1)
 }
 
 fn discord_api_url(url: &str) -> bool {

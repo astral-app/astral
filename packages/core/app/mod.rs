@@ -747,9 +747,6 @@ pub fn complete_network_request(request: u64, response: &str) {
         return;
     }
     let parsed: Value = serde_json::from_str(response).unwrap_or_else(|_| json!({ "error": "unreadable response" }));
-    if discord::complete(request, &parsed) {
-        return;
-    }
     lua_host::complete_network_request(request, &parsed);
 }
 

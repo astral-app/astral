@@ -1072,13 +1072,6 @@ function astral.discord.message(channel, message) end
 ---@param message_id string
 ---@return table?
 function astral.discord.raw_message(channel_id, message_id) end
----@param channel astral.Snowflake
----@param message astral.Snowflake
----@param emoji string
----@param burst? boolean
----@param count? integer
----@return astral.User[]?
-function astral.discord.reactors(channel, message, emoji, burst, count) end
 ---@param id astral.Snowflake
 ---@return astral.User?
 function astral.discord.user(id) end

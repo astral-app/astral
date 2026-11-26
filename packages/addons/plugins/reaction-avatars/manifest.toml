@@ -4,7 +4,7 @@ description = "Shows the people who reacted beside each message reaction."
 version = "0.0.1"
 icon = "ReactionIcon"
 main = "main.lua"
-permissions = ["discord.messages"]
+permissions = ["discord.api", "discord.messages"]
 
 [[authors]]
 name = "V"

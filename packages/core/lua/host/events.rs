@@ -235,9 +235,6 @@ pub fn needs_gateway_events() -> bool {
 fn known_gateway_events(envelope: &mut Value) -> Option<String> {
     let kind = envelope.get("t").and_then(Value::as_str)?.to_owned();
     let data = envelope.get("d").filter(|data| data.is_object())?.clone();
-    if kind == "READY" || kind == "RESUMED" {
-        crate::discord::reactors::astral_reactors_invalidate();
-    }
     if kind == "READY" {
         let current = data.get("user").and_then(|user| user.get("id")).and_then(Value::as_str)?;
         if !is_snowflake(current) {
