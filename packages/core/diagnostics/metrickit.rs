@@ -14,6 +14,27 @@ pub const DISK_WRITE: c_int = 2;
 pub type ImageCheck = unsafe extern "C" fn(*const c_char, usize) -> c_int;
 
 static IMAGE_CHECK: RwLock<Option<ImageCheck>> = RwLock::new(None);
+static APP_IMAGES: RwLock<Option<AppImages>> = RwLock::new(None);
+
+pub struct AppImages {
+    pub loaded: std::collections::BTreeSet<String>,
+    pub executable: String,
+    pub frameworks: String,
+}
+
+impl AppImages {
+    fn contains(&self, binary: &str) -> bool {
+        let frameworks = std::path::Path::new(&self.frameworks);
+        self.loaded.contains(binary)
+            || binary == self.executable
+            || frameworks.join(format!("{binary}.framework")).exists()
+            || frameworks.join(binary).exists()
+    }
+}
+
+pub fn set_app_images(images: AppImages) {
+    *APP_IMAGES.write().unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(images);
+}
 
 fn unsigned_member(object: &Value, key: &str) -> u64 {
     match object.get(key) {
@@ -42,6 +63,9 @@ fn from_this_app(frame: &Value) -> bool {
     let binary = text_member(frame, "binaryName");
     if binary.is_empty() {
         return true;
+    }
+    if let Some(images) = APP_IMAGES.read().unwrap_or_else(|poisoned| poisoned.into_inner()).as_ref() {
+        return images.contains(&binary);
     }
     let Some(check) = *IMAGE_CHECK.read().unwrap_or_else(|poisoned| poisoned.into_inner()) else {
         return true;

@@ -23,6 +23,7 @@ version = "0.0.1"
 dependencies = [
  "ed25519-dalek",
  "libc",
+ "plist",
  "regex-lite",
  "serde",
  "serde_json",

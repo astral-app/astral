@@ -556,7 +556,7 @@ static AstralReply EditText(const AstralRequest *request)
 
 static AstralReply EnvironmentFacts(void)
 {
-    NSMutableDictionary *facts = [AstralEnvironmentReport() mutableCopy];
+    NSMutableDictionary *facts = AstralEnvironmentFacts();
     facts[@"compatibility"] = AstralPhoenixCompatibility() ?: @"";
     facts[@"phoenix"] = AstralPhoenixUUID() ?: @"";
     NSData *json = [NSJSONSerialization dataWithJSONObject:facts options:0 error:nil];

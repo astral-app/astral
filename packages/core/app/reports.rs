@@ -224,7 +224,7 @@ fn device_report(platform: Platform) -> Value {
         return environment;
     }
     if platform == Platform::Ios {
-        return facts;
+        return crate::diagnostics::apple::report(&facts);
     }
     environment["install"] = json!(crate::diagnostics::env_report::android_install_line(
         facts.get("install").unwrap_or(&Value::Null)
@@ -257,4 +257,64 @@ pub fn environment() -> Value {
         target.extend(summary);
     }
     environment
+}
+
+#[derive(Clone, Copy)]
+enum DiagnosticKind {
+    Crash,
+    Hang,
+}
+
+impl DiagnosticKind {
+    const ALL: [DiagnosticKind; 2] = [DiagnosticKind::Crash, DiagnosticKind::Hang];
+
+    const fn payload_key(self) -> &'static str {
+        match self {
+            DiagnosticKind::Crash => "crashDiagnostics",
+            DiagnosticKind::Hang => "hangDiagnostics",
+        }
+    }
+
+    const fn name(self) -> &'static str {
+        match self {
+            DiagnosticKind::Crash => "crash",
+            DiagnosticKind::Hang => "hang",
+        }
+    }
+
+    const fn title(self) -> &'static str {
+        match self {
+            DiagnosticKind::Crash => "Crash",
+            DiagnosticKind::Hang => "Hang",
+        }
+    }
+
+    fn stack(self, diagnostic: &Value) -> Option<String> {
+        match self {
+            DiagnosticKind::Crash => crate::diagnostics::metrickit::crash_stack(diagnostic),
+            DiagnosticKind::Hang => crate::diagnostics::metrickit::hang_stack(diagnostic),
+        }
+    }
+}
+
+pub fn record_diagnostics(payload: &Value) -> usize {
+    let mut recorded = 0;
+    for kind in DiagnosticKind::ALL {
+        for diagnostic in payload.get(kind.payload_key()).and_then(Value::as_array).into_iter().flatten() {
+            let Some(stack) = kind.stack(diagnostic) else { continue };
+            let detail = sanitize(stack.as_bytes());
+            let first_line = detail.lines().next().unwrap_or_default().to_owned();
+            let now = std::time::UNIX_EPOCH.elapsed().map_or(0.0, |elapsed| elapsed.as_secs_f64());
+            let added = crate::diagnostics::reports::add(&json!({
+                "kind": kind.name(),
+                "time": now,
+                "title": format!("{}: {first_line}", kind.title()),
+                "fingerprint": crate::diagnostics::reports::fingerprint(&detail),
+                "detail": detail,
+                "environment": report_environment(),
+            }));
+            recorded += usize::from(added);
+        }
+    }
+    recorded
 }

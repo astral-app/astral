@@ -4,13 +4,7 @@
 extern "C" {
 #endif
 
-void AstralStartCrashReports(NSArray<NSString *> *_Nonnull (^_Nonnull runningPlugins)(void));
-void AstralRecordPluginFailure(NSString *_Nonnull pluginID, NSString *_Nonnull pluginName, NSString *_Nonnull error);
-void AstralRecordUnexpectedExit(NSString *_Nonnull pluginID, NSArray<NSString *> *_Nonnull running);
-NSArray<NSDictionary *> *_Nonnull AstralCrashReports(void);
-NSDictionary *_Nonnull AstralDiagnosticEnvironment(void);
-NSString *_Nonnull AstralCrashReportText(NSDictionary *_Nonnull report);
-NSURL *_Nullable AstralCrashReportIssueURL(NSDictionary *_Nonnull report);
+void AstralStartCrashReports(void);
 
 #ifdef __cplusplus
 }

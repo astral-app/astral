@@ -804,3 +804,25 @@ pub fn decorations_pending() -> bool {
 pub fn custom_emoji_pack() -> bool {
     app().is_some_and(|current| current.active_pack(PackKind::Emoji) != state::DEFAULT_PACK)
 }
+
+pub fn record_diagnostics(payload: &str, images: &str) -> usize {
+    let images: Value = serde_json::from_str(images).unwrap_or(Value::Null);
+    let text = |key: &str| images.get(key).and_then(Value::as_str).unwrap_or_default().to_owned();
+    crate::diagnostics::metrickit::set_app_images(crate::diagnostics::metrickit::AppImages {
+        loaded: images
+            .get("loaded")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+            .map(str::to_owned)
+            .collect(),
+        executable: text("executable"),
+        frameworks: text("frameworks"),
+    });
+    reports::record_diagnostics(&serde_json::from_str(payload).unwrap_or(Value::Null))
+}
+
+pub fn record_https_check(check: &str) {
+    crate::diagnostics::env_report::record_https_check(serde_json::from_str(check).unwrap_or(Value::Null));
+}

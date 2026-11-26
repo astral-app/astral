@@ -282,3 +282,13 @@ pub extern "C" fn astral_ios_recovering() -> bool {
 pub extern "C" fn astral_ios_custom_emoji_pack() -> bool {
     app::custom_emoji_pack()
 }
+
+#[unsafe(no_mangle)]
+pub extern "C" fn astral_ios_record_diagnostics(payload: AstralText, images: AstralText) -> usize {
+    app::record_diagnostics(&payload.text(), &images.text())
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn astral_ios_record_https_check(check: AstralText) {
+    app::record_https_check(&check.text());
+}
