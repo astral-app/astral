@@ -90,29 +90,4 @@ fn link_lua_for_host() {
     assert!(status.success(), "could not archive onelua.o");
     println!("cargo:rustc-link-search=native={}", directory.display());
     println!("cargo:rustc-link-lib=static=lua_host");
-    link_sqlite_for_host(&directory);
-}
-
-fn link_sqlite_for_host(directory: &std::path::Path) {
-    let source = PathBuf::from("../../vendor/sqlite/sqlite3.c");
-    println!("cargo:rerun-if-changed={}", source.display());
-    let object = directory.join("sqlite3.o");
-    let status = Command::new("cc")
-        .args(["-c", "-O1", "-w", "-DSQLITE_THREADSAFE=2", "-DSQLITE_OMIT_LOAD_EXTENSION"])
-        .arg(&source)
-        .arg("-o")
-        .arg(&object)
-        .status()
-        .expect("cc for sqlite3.c");
-    assert!(status.success(), "could not compile sqlite3.c for host tests");
-    let archive = directory.join("libsqlite_host.a");
-    let _ = fs::remove_file(&archive);
-    let status = Command::new("ar")
-        .arg("rcs")
-        .arg(&archive)
-        .arg(&object)
-        .status()
-        .expect("ar for libsqlite_host.a");
-    assert!(status.success(), "could not archive sqlite3.o");
-    println!("cargo:rustc-link-lib=static=sqlite_host");
 }

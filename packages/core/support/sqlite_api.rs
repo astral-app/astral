@@ -18,6 +18,8 @@ pub const OPEN_FULLMUTEX: c_int = 0x0001_0000;
 type Destructor = isize;
 const TRANSIENT: Destructor = -1;
 
+use libsqlite3_sys as _;
+
 unsafe extern "C" {
     fn sqlite3_open_v2(path: *const c_char, database: *mut *mut Sqlite3, flags: c_int, vfs: *const c_char) -> c_int;
     fn sqlite3_close(database: *mut Sqlite3) -> c_int;
