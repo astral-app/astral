@@ -1,3 +1,4 @@
+mod debug;
 mod dev;
 mod ffi;
 pub mod host;
@@ -204,6 +205,7 @@ pub fn start() -> usize {
             },
         );
         install_decorators();
+        debug::register();
         pages::configure(current);
         dev::start(current);
     }

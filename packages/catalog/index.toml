@@ -181,14 +181,6 @@ icon = "TextIcon"
 base = "plugins/astral.message-text-size/"
 
 [[plugins]]
-id = "astral.debug"
-name = "Debug"
-version = "0.0.1"
-description = "Adds /debug, which posts a status card with astral's versions, device details and plugin states, for support."
-icon = "BugIcon"
-base = "plugins/astral.debug/"
-
-[[plugins]]
 id = "astral.chat-bubbles"
 name = "Chat Bubbles"
 version = "0.0.2"

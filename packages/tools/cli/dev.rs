@@ -34,6 +34,7 @@ const USAGE: &str = "usage: astral dev <command>
   theme import <file>    convert an Unbound theme (JSON) into an astral theme and select it
   backup export [file]   write the device's settings backup (TOML) to a file or stdout
   backup import <file>   restore a settings backup on the device
+  debug <dir> [--diagnostics]  save the debug card (and the diagnostics zip) the device would post with /debug
 Needs Developer mode on. DEVICE=android (or android:<serial>) forwards the port with adb; another DEVICE value forwards it over USB; without it, over SSH to the vphone.";
 
 pub struct Dev {
@@ -441,6 +442,28 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
                 Some(file) => std::fs::write(file, backup).map_err(|error| error.to_string())?,
                 None => print!("{backup}"),
             }
+        }
+        ("debug", [directory, rest @ ..]) => {
+            let diagnostics = rest.iter().any(|flag| flag == "--diagnostics");
+            let reply = dev.json("POST", "/debug", &json!({"diagnostics": diagnostics}))?;
+            let reply: Value = serde_json::from_str(&reply).map_err(|error| error.to_string())?;
+            std::fs::create_dir_all(directory).map_err(|error| error.to_string())?;
+            for (key, name) in [
+                ("card", "astral-debug.png"),
+                ("diagnostics", "astral-diagnostics.zip"),
+            ] {
+                if let Some(encoded) = reply.get(key).and_then(Value::as_str) {
+                    let bytes = STANDARD
+                        .decode(encoded)
+                        .map_err(|_| format!("{key} is not base64"))?;
+                    std::fs::write(std::path::Path::new(directory).join(name), bytes)
+                        .map_err(|error| error.to_string())?;
+                }
+            }
+            println!(
+                "{}",
+                reply.get("alt").and_then(Value::as_str).unwrap_or_default()
+            );
         }
         ("backup", [import, file]) if import == "import" => {
             let text = String::from_utf8_lossy(&read(file)?).into_owned();

@@ -52,6 +52,7 @@ enum Route {
     ExportBackup,
     ImportBackup,
     Gateway,
+    Debug,
 }
 
 impl Route {
@@ -66,6 +67,7 @@ impl Route {
             ("GET", "/backup") => Route::ExportBackup,
             ("POST", "/backup") => Route::ImportBackup,
             ("POST", "/gateway") => Route::Gateway,
+            ("POST", "/debug") => Route::Debug,
             _ => return None,
         })
     }
@@ -144,6 +146,14 @@ fn route(current: &App, request: &Value) -> Value {
             }
             super::refresh_settings();
             response(OK, json!({ "imported": true }))
+        }
+        Route::Debug => {
+            let report = super::debug::report(parsed.get("diagnostics").and_then(Value::as_bool) == Some(true));
+            let encode = |bytes: Option<Vec<u8>>| bytes.map(|bytes| crate::lua::host::install::encode_base64(&bytes));
+            response(
+                OK,
+                json!({ "card": encode(report.card), "alt": report.alt, "diagnostics": encode(report.diagnostics) }),
+            )
         }
         Route::Gateway => {
             let queued = !body.is_empty() && host::request(host::Request::InjectGateway { message: &body }).flag();

@@ -531,3 +531,14 @@ pub unsafe extern "C" fn astral_dev_append_log(line: *const c_char, length: usiz
 pub extern "C" fn astral_dev_pairing_code() -> AstralRustString {
     AstralRustString::new(pairing_code().into_bytes())
 }
+
+pub fn log_lines() -> Vec<String> {
+    let log = LOG.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    log.0
+        .iter()
+        .map(|entry| {
+            let time = entry["time"].as_f64().unwrap_or(0.0);
+            format!("{time:.3} {}", entry["line"].as_str().unwrap_or_default())
+        })
+        .collect()
+}
