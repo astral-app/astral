@@ -149,12 +149,6 @@ pub struct NodeInsert {
     pub press: c_int,
 }
 
-pub struct CodeBlock {
-    pub identifier: u64,
-    pub render: c_int,
-    pub press: c_int,
-}
-
 pub struct EventCallback {
     pub event: crate::lua::enums::Event,
     pub reference: c_int,
@@ -215,7 +209,6 @@ pub struct Plugin {
     pub message_background_decorators: Vec<c_int>,
     pub node_patches: Vec<NodePatch>,
     pub node_inserts: Vec<NodeInsert>,
-    pub code_blocks: Vec<CodeBlock>,
     pub message_actions: Vec<MessageAction>,
     pub menu_actions: Vec<MessageAction>,
     pub network_requests: BTreeMap<u64, c_int>,
@@ -604,7 +597,6 @@ pub(crate) fn stop_plugin(plugin: *mut Plugin) {
     sync_patch_prefixes();
     let plugin_ref = unsafe { &mut *plugin };
     plugin_ref.node_inserts.clear();
-    plugin_ref.code_blocks.clear();
     sync_insert_prefixes();
     trace_running();
 }

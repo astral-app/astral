@@ -839,6 +839,11 @@ function astral.ui.patch(selector, patcher) end
 ---@field action? string passed to on_press when the node is tapped
 ---@field position? astral.InsertPosition where the nodes go among the target's children
 ---@field children? astral.InsertNode[]
+---@field runs? { text: string, color?: astral.Color|integer|string, bold?: boolean, italic?: boolean, underline?: boolean }[] styled runs of a text node; code-block inserts only
+---@field font? "monospace" code-block inserts only
+---@field line_height? number code-block inserts only
+---@field max_lines? integer code-block inserts only
+---@field grow? boolean take the room left in a row; code-block inserts only
 
 ---@param selector string|astral.PatchSelector
 ---@param build fun(node: astral.PatchTarget): astral.InsertNode|astral.InsertNode[]|nil
@@ -853,29 +858,9 @@ function astral.ui.insert(selector, build, on_press) end
 ---@field time? astral.TimePlacement where the time sits: in the author line, beside the text, or nowhere
 ---@param decorator fun(node: astral.Node): astral.MessageBackgroundStyle?
 function astral.ui.message_background(decorator) end
----@class astral.CodeBlock
----@field message_id string
----@field channel_id? string
+---@class astral.CodeBlock : astral.PatchTarget
 ---@field index integer which code block of the message, from 0
 ---@field code string
----@class astral.CodeCardHeader
----@field label string
----@field icon? string image URI shown before the label
----@field iconTint? integer
----@field copy? string label of the copy button; the press handler receives the action "copy"
----@field background integer
----@field foreground integer
----@class astral.CodeCard
----@field background integer
----@field foreground integer
----@field lineNumbers? integer colour of the line numbers; leave out to hide them
----@field fontSize? number
----@field lineHeight? number
----@field lines {[1]: string, [2]: integer, [3]: integer}[][] runs of text, ARGB colour and `astral.TextStyle` flags combined with `|`
----@field header? astral.CodeCardHeader
----@param render fun(block: astral.CodeBlock): astral.CodeCard?
----@param press? fun(block: astral.CodeBlock, action: string)
-function astral.ui.code_block(render, press) end
 ---@class astral.MessageActionOptions
 ---@field icon? string
 ---@field danger? boolean draws the row in Discord's red destructive style, like Delete

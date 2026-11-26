@@ -28,6 +28,7 @@ pub mod patch;
 pub mod properties;
 pub mod rewrite;
 pub mod rewriter;
+pub mod rich;
 pub mod tag;
 pub mod theme;
 pub mod tween;

@@ -10,7 +10,7 @@ permissions = [
 	"network",
 	"storage",
 	"ui.clipboard",
-	"ui.code_blocks",
+	"ui.insert",
 	"ui.toasts",
 ]
 

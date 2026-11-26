@@ -743,6 +743,18 @@ local function insert_spec(spec)
 	for field, value in pairs(spec) do
 		if field == "color" or field == "background" then
 			converted[field] = astral.Color.from(value).value
+		elseif field == "runs" then
+			local runs = {}
+			for index, run in ipairs(value) do
+				runs[index] = {
+					text = run.text,
+					color = run.color ~= nil and astral.Color.from(run.color).value or nil,
+					bold = run.bold,
+					italic = run.italic,
+					underline = run.underline,
+				}
+			end
+			converted[field] = runs
 		elseif field == "children" or (type(field) == "number" and type(value) == "table") then
 			local items = {}
 			for index, child in ipairs(field == "children" and value or { value }) do

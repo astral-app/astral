@@ -17,7 +17,7 @@ astral is complete when every supported Phoenix behaviour works on iOS and Andro
 
 1. **Device acceptance.** Run every install mode on the vphone and the AVD, one at a time. Record the Phoenix version, plugin results, settings navigation, packs, backups, restarts and logs.
 2. **Phoenix unlock on a non-tester account.** The access-gate patch is verified to apply without crashing; opening Phoenix on an account outside the test group is still unproven.
-3. **Generic APIs.** Fold the last single-plugin hooks (reactions, code blocks, the media picker) into generic primitives, and give message actions a danger style.
+3. **Generic APIs.** Long-press on inserted nodes and Discord's markup view, once a plugin needs them.
 4. **API gaps.** Richer inserts (video, Lottie, markup, long-press), `files.info`, Discord settings overrides and a server long-press hook.
 5. **Port parity.** Close the gaps in [unbound-parity.md](unbound-parity.md#known-gaps) and mirror Unbound plugin fixes as they land.
 6. **Compatibility automation.** A per-build function map in CI, the guest kind in reports and a seam diff in compatibility scans.
