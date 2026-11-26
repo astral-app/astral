@@ -40,7 +40,7 @@ impl Ipa {
     pub fn names(&self) -> Vec<String> {
         self.archive
             .file_names()
-            .map(str::to_owned)
+            .filter_map(|name| name.ok().map(std::borrow::Cow::into_owned))
             .collect::<Vec<_>>()
     }
 
@@ -52,7 +52,8 @@ impl Ipa {
                     .by_index_raw(index)
                     .map_err(failure)?
                     .name()
-                    .to_owned())
+                    .map_err(failure)?
+                    .into_owned())
             })
             .collect()
     }
@@ -111,7 +112,8 @@ fn copy_entries(
             .by_index_raw(index)
             .map_err(failure)?
             .name()
-            .to_owned();
+            .map_err(failure)?
+            .into_owned();
         match decide(&name) {
             Action::Drop => {}
             Action::Keep => {

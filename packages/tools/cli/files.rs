@@ -56,7 +56,10 @@ pub fn unzip(archive: &Path, destination: &Path) -> Result<(), String> {
     for index in 0..zip.len() {
         let mut entry = zip.by_index(index).map_err(|error| error.to_string())?;
         let Some(relative) = entry.enclosed_name() else {
-            return Err(format!("unsafe path in IPA: {}", entry.name()));
+            return Err(format!(
+                "unsafe path in IPA: {}",
+                entry.name().unwrap_or_default()
+            ));
         };
         let target = destination.join(relative);
         if entry.is_dir() {

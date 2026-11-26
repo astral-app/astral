@@ -152,7 +152,10 @@ fn ready_ipa(source: &Path, work: &Path) -> Result<PathBuf, String> {
         zip::ZipWriter::new(std::fs::File::create(&target).map_err(|error| error.to_string())?);
     for index in 0..archive.len() {
         let entry = archive.by_index(index).map_err(|error| error.to_string())?;
-        let name = entry.name().to_owned();
+        let name = entry
+            .name()
+            .map_err(|error| error.to_string())?
+            .into_owned();
         let parts: Vec<&str> = name.split('/').collect();
         if parts.len() >= 3
             && parts[1].ends_with(".app")
