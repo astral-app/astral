@@ -1,4 +1,4 @@
-use astral_core::plugin_storage::{OVER_LIMIT, REMOVED, SAVED, Storage, UNAVAILABLE};
+use astral_core::plugins::storage::{OVER_LIMIT, REMOVED, SAVED, Storage, UNAVAILABLE};
 use serde_json::json;
 
 fn scratch(name: &str) -> String {

@@ -1,5 +1,5 @@
 use super::tag::{Op, Tag};
-use crate::lua_enums::{ReplyPlacement, TimePlacement};
+use crate::lua::enums::{ReplyPlacement, TimePlacement};
 use core::ffi::{c_char, c_int};
 use std::collections::{HashMap, HashSet};
 use std::os::unix::ffi::OsStrExt;

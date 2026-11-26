@@ -8,10 +8,10 @@ use serde_json::{Value, json};
 use super::host::{self, Request};
 use super::state::{App, PackKind, app, wire};
 use super::{reports, select_pack, soft_restart, theme};
-use crate::bridge::{AstralRustString, bytes};
-use crate::host_callback::{AstralCallback, Changed, Reply, adopt_reply};
-use crate::lua_host;
-use crate::settings_navigator::Work;
+use crate::lua::host as lua_host;
+use crate::settings::navigator::Work;
+use crate::support::bridge::{AstralRustString, bytes};
+use crate::support::host_callback::{AstralCallback, Changed, Reply, adopt_reply};
 
 const READY: &str = "ready";
 
@@ -201,23 +201,23 @@ fn dispatch(current: &App, method: Method, arguments: &Arguments, reply: Option<
             Value::Null
         }
         Method::SetSwitch => {
-            crate::lua_host_ui::set_switch(arguments.text(0), arguments.text(1), arguments.flag(2));
+            crate::lua::host::ui::set_switch(arguments.text(0), arguments.text(1), arguments.flag(2));
             Value::Null
         }
         Method::SetChoice => {
-            crate::lua_host_ui::set_choice(arguments.text(0), arguments.text(1), arguments.text(2));
+            crate::lua::host::ui::set_choice(arguments.text(0), arguments.text(1), arguments.text(2));
             Value::Null
         }
         Method::SetNumber => {
-            crate::lua_host_ui::set_number(arguments.text(0), arguments.text(1), arguments.at(2).as_f64().unwrap_or(0.0));
+            crate::lua::host::ui::set_number(arguments.text(0), arguments.text(1), arguments.at(2).as_f64().unwrap_or(0.0));
             Value::Null
         }
         Method::SetText => {
-            crate::lua_host_ui::set_text(arguments.text(0), arguments.text(1), arguments.text(2));
+            crate::lua::host::ui::set_text(arguments.text(0), arguments.text(1), arguments.text(2));
             Value::Null
         }
         Method::PressSettingsButton => {
-            crate::lua_host_ui::press_settings_button(arguments.text(0), arguments.text(1));
+            crate::lua::host::ui::press_settings_button(arguments.text(0), arguments.text(1));
             Value::Null
         }
         Method::ResetSettings => {
@@ -225,7 +225,7 @@ fn dispatch(current: &App, method: Method, arguments: &Arguments, reply: Option<
             Value::Null
         }
         Method::RemoveStorage => {
-            crate::lua_host_api::remove_storage(arguments.text(0));
+            crate::lua::host::api::remove_storage(arguments.text(0));
             Value::Null
         }
         Method::Remove => {
@@ -236,7 +236,7 @@ fn dispatch(current: &App, method: Method, arguments: &Arguments, reply: Option<
             lua_host::rescan();
             Value::Null
         }
-        Method::PairingCode => json!(crate::dev_server::pairing_code()),
+        Method::PairingCode => json!(crate::support::dev_server::pairing_code()),
         Method::CrashReports => reports::plugin_reports(),
         Method::BlockedRequests => json!(current.blocked_requests()),
         Method::Themes => theme::list(current),
@@ -246,10 +246,10 @@ fn dispatch(current: &App, method: Method, arguments: &Arguments, reply: Option<
         Method::EmojiPacks => current.packs(PackKind::Emoji),
         Method::ActiveEmojiPack => json!(current.active_pack(PackKind::Emoji)),
         Method::EmojiAnimated => json!(current.emoji_animated()),
-        Method::Catalog => crate::marketplace::current_catalog(),
-        Method::CatalogState => marketplace_text(crate::marketplace::astral_marketplace_state),
-        Method::CatalogError => marketplace_text(crate::marketplace::astral_marketplace_error),
-        Method::CatalogUrl => marketplace_text(crate::marketplace::astral_marketplace_url),
+        Method::Catalog => crate::plugins::marketplace::current_catalog(),
+        Method::CatalogState => marketplace_text(crate::plugins::marketplace::astral_marketplace_state),
+        Method::CatalogError => marketplace_text(crate::plugins::marketplace::astral_marketplace_error),
+        Method::CatalogUrl => marketplace_text(crate::plugins::marketplace::astral_marketplace_url),
         Method::ApplyTheme => {
             theme::apply(current, arguments.text(0));
             Value::Null
@@ -269,7 +269,7 @@ fn dispatch(current: &App, method: Method, arguments: &Arguments, reply: Option<
         }
         Method::InstallStatus => {
             let (pointer, length) = super::ffi::raw(arguments.text(0));
-            super::ffi::take_optional(unsafe { crate::marketplace::astral_marketplace_install_status(pointer, length) })
+            super::ffi::take_optional(unsafe { crate::plugins::marketplace::astral_marketplace_install_status(pointer, length) })
                 .map_or(Value::Null, Value::String)
         }
         Method::InstallPackage => {
@@ -352,11 +352,11 @@ unsafe extern "C" fn with_wire(work: Work, context: *mut c_void) {
 }
 
 pub fn configure(current: &App) {
-    crate::settings_pages::configure(Some(pages_host_call), current.settings_handle(), current.version.clone());
-    crate::settings_navigator::configure(Some(deliver_navigator), Some(with_wire));
+    crate::settings::pages::configure(Some(pages_host_call), current.settings_handle(), current.version.clone());
+    crate::settings::navigator::configure(Some(deliver_navigator), Some(with_wire));
     refresh_catalog_if_due(true);
 }
 
 pub fn refresh_catalog_if_due(force: bool) {
-    crate::settings_pages::refresh_catalog_if_due(super::now_seconds(), force, std::sync::Arc::new(super::refresh_settings));
+    crate::settings::pages::refresh_catalog_if_due(super::now_seconds(), force, std::sync::Arc::new(super::refresh_settings));
 }

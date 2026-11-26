@@ -6,7 +6,7 @@ mod shapes;
 mod text;
 
 use astral_core::app::{self, Launch, state::Platform};
-use astral_core::lua_enums::Event;
+use astral_core::lua::enums::Event;
 
 pub use crate::bridge::{
     AstralBridge, AstralReply, AstralReplyKind, AstralRequest, AstralRequestKind,

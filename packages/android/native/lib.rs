@@ -4,7 +4,7 @@ use std::sync::{Arc, OnceLock};
 
 use astral_core::app::state::Platform;
 use astral_core::app::{self, CompletedRequest, Launch};
-use astral_core::lua_host_http::{HttpRequest, HttpResponse};
+use astral_core::lua::host::http::{HttpRequest, HttpResponse};
 use jni::JNIEnv;
 use jni::JavaVM;
 use jni::objects::{JByteArray, JClass, JObject, JObjectArray, JString};

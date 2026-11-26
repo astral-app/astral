@@ -1,5 +1,5 @@
 use super::tag::{Op, Tag};
-use crate::lua_enums::{Align, Justify};
+use crate::lua::enums::{Align, Justify};
 use core::ffi::{c_char, c_int};
 use std::collections::HashMap;
 use std::ffi::CString;

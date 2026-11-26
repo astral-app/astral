@@ -4,8 +4,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use serde_json::{Value, json};
 
 use super::state::BLOCKED_REQUESTS;
-use crate::lua_host_http::{HttpRequest, HttpResponse};
-use crate::network_policy;
+use crate::lua::host::http::{HttpRequest, HttpResponse};
+use crate::network::policy as network_policy;
 
 const IMAGE_URL_CAPACITY: usize = 1024;
 const GET: &str = "GET";
@@ -68,9 +68,9 @@ pub fn plan(probe: &Probe) -> Plan {
         block: network_policy::is_telemetry_request(probe.host, probe.path),
         mark_staff: marks_staff(method, probe.host, probe.path),
         transform_message: probe.json_body
-            && crate::lua_host_events::has_outgoing_message_transforms()
+            && crate::lua::host::events::has_outgoing_message_transforms()
             && network_policy::outgoing_message_target(probe.host, probe.path, method).is_some(),
-        intercept: crate::lua_host_http::wants_http(method, &host, probe.path),
+        intercept: crate::lua::host::http::wants_http(method, &host, probe.path),
         rewrite_image: rewrite_image(method, &host, probe.url).is_some(),
     }
 }
@@ -81,7 +81,8 @@ pub fn rewrite_image(method: &str, host: &str, url: &str) -> Option<String> {
     }
     let uri = CString::new(url).ok()?;
     let mut rewritten = vec![0u8; IMAGE_URL_CAPACITY];
-    let changed = unsafe { crate::lua_host_nodes::astral_lua_image_rewrite(uri.as_ptr(), rewritten.as_mut_ptr().cast(), rewritten.len()) };
+    let changed =
+        unsafe { crate::lua::host::nodes::astral_lua_image_rewrite(uri.as_ptr(), rewritten.as_mut_ptr().cast(), rewritten.len()) };
     if changed == 0 {
         return None;
     }
@@ -91,7 +92,7 @@ pub fn rewrite_image(method: &str, host: &str, url: &str) -> Option<String> {
 }
 
 pub fn transform_outgoing(method: &str, host: &str, path: &str, body: &[u8]) -> Option<Vec<u8>> {
-    network_policy::transform_message_body(host, path, method, body, crate::lua_host_events::transform_outgoing_message)
+    network_policy::transform_message_body(host, path, method, body, crate::lua::host::events::transform_outgoing_message)
 }
 
 fn headers_of(value: &Value) -> Vec<(String, String)> {
@@ -111,7 +112,7 @@ fn body_of(value: &Value) -> Vec<u8> {
     value
         .get("body_base64")
         .and_then(Value::as_str)
-        .and_then(crate::lua_host_install::decode_base64)
+        .and_then(crate::lua::host::install::decode_base64)
         .unwrap_or_default()
 }
 
@@ -140,7 +141,7 @@ fn request_json(request: &HttpRequest) -> Value {
         "url": request.url,
         "path": request.path,
         "headers": headers_json(&request.headers),
-        "body_base64": crate::lua_host_install::encode_base64(&request.body),
+        "body_base64": crate::lua::host::install::encode_base64(&request.body),
     })
 }
 
@@ -148,7 +149,7 @@ fn response_json(response: &HttpResponse) -> Value {
     json!({
         "status": response.status,
         "headers": headers_json(&response.headers),
-        "body_base64": crate::lua_host_install::encode_base64(&response.body),
+        "body_base64": crate::lua::host::install::encode_base64(&response.body),
     })
 }
 
@@ -211,15 +212,15 @@ fn without_query(url: &str) -> &str {
 }
 
 pub fn has_media_save_handlers() -> bool {
-    crate::lua_host_events::has_media_save_handlers()
+    crate::lua::host::events::has_media_save_handlers()
 }
 
-pub fn replace_saved_media(url: &str, kind: crate::lua_enums::MediaKind) -> Option<String> {
-    let (channel_id, message_id) = crate::discord_cache::message_containing(without_query(url)).unwrap_or_default();
+pub fn replace_saved_media(url: &str, kind: crate::lua::enums::MediaKind) -> Option<String> {
+    let (channel_id, message_id) = crate::discord::cache::message_containing(without_query(url)).unwrap_or_default();
     let (sender, receiver) = std::sync::mpsc::channel();
     let sender = std::sync::Mutex::new(sender);
-    let request = crate::lua_host_events::resolve_media_save(
-        crate::lua_host_events::MediaSave {
+    let request = crate::lua::host::events::resolve_media_save(
+        crate::lua::host::events::MediaSave {
             url: url.to_owned(),
             kind,
             channel_id,
@@ -230,7 +231,7 @@ pub fn replace_saved_media(url: &str, kind: crate::lua_enums::MediaKind) -> Opti
         }),
     );
     receiver.recv_timeout(MEDIA_SAVE_WAIT).unwrap_or_else(|_| {
-        crate::lua_host_events::cancel_media_save(request);
+        crate::lua::host::events::cancel_media_save(request);
         None
     })
 }

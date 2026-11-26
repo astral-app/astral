@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use super::host::{self, Reply, Request};
 use super::reports;
 use super::state::{REFRESH_DECORATIONS, signing_key};
-use crate::bridge::{AstralRustString, bytes};
+use crate::support::bridge::{AstralRustString, bytes};
 
 const PERMILLE: f64 = 1000.0;
 
@@ -194,7 +194,7 @@ fn refresh_decorations() {
 }
 
 fn offer_pick(arguments: &Arguments) -> Value {
-    let Some(data) = crate::lua_host_install::decode_base64(arguments.text(0)) else {
+    let Some(data) = crate::lua::host::install::decode_base64(arguments.text(0)) else {
         return value(json!(false));
     };
     flag(&host::request(Request::OfferPick {
@@ -204,13 +204,13 @@ fn offer_pick(arguments: &Arguments) -> Value {
 }
 
 fn verify_signature(directory: &str, main: &str) -> bool {
-    crate::signatures::verify_directory(signing_key().as_bytes(), directory.as_bytes(), main, |contents| {
-        crate::crypto::hex(&crate::crypto::sha256(contents)).into_bytes()
+    crate::plugins::signatures::verify_directory(signing_key().as_bytes(), directory.as_bytes(), main, |contents| {
+        crate::support::crypto::hex(&crate::support::crypto::sha256(contents)).into_bytes()
     })
 }
 
 fn ensure_session_token() {
-    if !crate::session::current().is_empty() {
+    if !crate::discord::session::current().is_empty() {
         return;
     }
     if let Some(token) = host::request(Request::SessionToken).into_text() {
@@ -220,7 +220,7 @@ fn ensure_session_token() {
 
 fn reactors(arguments: &Arguments) -> Value {
     ensure_session_token();
-    let (users, fresh) = crate::reactors::lookup(
+    let (users, fresh) = crate::discord::reactors::lookup(
         arguments.text(0),
         arguments.text(1),
         arguments.text(2),
@@ -235,7 +235,7 @@ fn render_image(spec: &Value) -> Value {
         spec: &host::json_text(spec),
     })
     .into_bytes();
-    value(png.map_or(Value::Null, |png| json!(crate::lua_host_install::encode_base64(&png))))
+    value(png.map_or(Value::Null, |png| json!(crate::lua::host::install::encode_base64(&png))))
 }
 
 fn scaled(value: f64) -> i64 {
@@ -318,7 +318,7 @@ fn dispatch(method: Method, arguments: &Arguments) -> Value {
         Method::Environment => value(reports::environment()),
         Method::DeveloperLog => {
             host::log(arguments.text(0));
-            crate::dev_server::append_log(arguments.text(0));
+            crate::support::dev_server::append_log(arguments.text(0));
             done()
         }
         Method::RecordFailure => {

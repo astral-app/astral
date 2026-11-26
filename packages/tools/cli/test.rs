@@ -108,14 +108,14 @@ pub fn build_lua(work: &Path) -> Result<String, String> {
 
 pub fn enum_table() -> String {
     let mut out = String::from("{\n");
-    for (name, members) in astral_core::lua_enums::ALL {
+    for (name, members) in astral_core::lua::enums::ALL {
         out.push_str(&format!("\t{name} = {{\n"));
         for (member, value) in *members {
             out.push_str(&format!("\t\t{member} = {value:?},\n"));
         }
         out.push_str("\t},\n");
     }
-    for (name, members) in astral_core::lua_enums::ALL_NUMBERS {
+    for (name, members) in astral_core::lua::enums::ALL_NUMBERS {
         out.push_str(&format!("\t{name} = {{\n"));
         for (member, value) in *members {
             out.push_str(&format!("\t\t{member} = {value},\n"));

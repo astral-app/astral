@@ -17,9 +17,9 @@ use serde_json::{Value, json};
 use self::ffi::{collect, raw};
 use self::host::Request;
 use self::state::{App, BLOCKED_REQUESTS, PackKind, Platform, REFRESH_DECORATIONS, Setup, app, wire};
-use crate::lua_enums::Event;
-use crate::lua_host::{self, Config};
-use crate::lua_host_http::{HttpDecision, HttpRequest, HttpResponse};
+use crate::lua::enums::Event;
+use crate::lua::host::http::{HttpDecision, HttpRequest, HttpResponse};
+use crate::lua::host::{self as lua_host, Config};
 use crate::wire::pages::AstralRowSpec;
 
 pub use self::host::{Bridge, set_bridge};
@@ -69,7 +69,7 @@ fn resolve_properties(names: &[String]) -> usize {
 static CATEGORY_STRINGS: std::sync::Mutex<Vec<CString>> = std::sync::Mutex::new(Vec::new());
 
 fn install_category() {
-    let category = crate::settings_pages::category();
+    let category = crate::settings::pages::category();
     let rows = category.get("rows").and_then(Value::as_array).cloned().unwrap_or_default();
     let field = |row: &Value, key: &str| CString::new(row.get(key).and_then(Value::as_str).unwrap_or_default()).unwrap_or_default();
     let mut strings = CATEGORY_STRINGS.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -98,7 +98,7 @@ fn install_category() {
 }
 
 fn install_decorators() {
-    use crate::{lua_host_hooks as hooks, lua_host_nodes as nodes, lua_host_spans as spans, wire};
+    use crate::{lua::host::hooks, lua::host::nodes, lua::host::spans, wire};
     wire::decorate::astral_wire_set_decorator(Some(nodes::astral_lua_decorate));
     wire::decorate::astral_wire_set_message_background_decorator(Some(nodes::astral_lua_message_background));
     wire::code_blocks::astral_wire_set_code_block_decorator(Some(nodes::astral_lua_code_block));
@@ -158,13 +158,13 @@ pub fn prepare(launch: Launch) -> &'static App {
     let state = launch.state_directory.clone();
     let environment = launch_environment(&launch);
     let (directory, length) = raw(&state);
-    unsafe { crate::reports::astral_reports_configure(directory, length) };
+    unsafe { crate::diagnostics::reports::astral_reports_configure(directory, length) };
     let _ = std::fs::create_dir_all(format!("{state}/plugins"));
-    let previous_exit = unsafe { crate::exit_record::astral_exit_record_take(directory, length, 0) };
+    let previous_exit = unsafe { crate::diagnostics::exit_record::astral_exit_record_take(directory, length, 0) };
     let previous_session = reports::open_trace(&state, now_seconds());
-    let verdict = crate::launch_guard::begin(std::path::Path::new(&state), previous_exit);
+    let verdict = crate::diagnostics::launch_guard::begin(std::path::Path::new(&state), previous_exit);
     if !launch.discord_directory.is_empty() {
-        crate::discord_cache::set_data_directory(&launch.discord_directory);
+        crate::discord::cache::set_data_directory(&launch.discord_directory);
     }
     let current = state::install(Setup {
         platform: launch.platform,
@@ -178,7 +178,7 @@ pub fn prepare(launch: Launch) -> &'static App {
         recovering: verdict.enter_recovery != 0,
         environment,
     });
-    if current.platform == Platform::Ios && previous_exit == crate::exit_record::EXIT_UNKNOWN {
+    if current.platform == Platform::Ios && previous_exit == crate::diagnostics::exit_record::EXIT_UNKNOWN {
         reports::record_unexpected_exit(previous_session);
     }
     theme::configure_marketplace(current);
@@ -229,20 +229,20 @@ fn guard_file(update: unsafe extern "C" fn(*const c_char, usize) -> core::ffi::c
 }
 
 pub fn mark_visible() {
-    guard_file(crate::launch_guard::astral_launch_guard_mark_shown);
+    guard_file(crate::diagnostics::launch_guard::astral_launch_guard_mark_shown);
     if STARTED.load(Ordering::Acquire) {
-        guard_file(crate::exit_record::astral_exit_record_clear);
+        guard_file(crate::diagnostics::exit_record::astral_exit_record_clear);
     }
 }
 
 pub fn mark_hidden() {
-    guard_file(crate::launch_guard::astral_launch_guard_mark_hidden);
-    guard_file(crate::exit_record::astral_exit_record_mark_ended);
+    guard_file(crate::diagnostics::launch_guard::astral_launch_guard_mark_hidden);
+    guard_file(crate::diagnostics::exit_record::astral_exit_record_mark_ended);
 }
 
 pub fn mark_ready() {
-    guard_file(crate::launch_guard::astral_launch_guard_succeed);
-    guard_file(crate::exit_record::astral_exit_record_clear);
+    guard_file(crate::diagnostics::launch_guard::astral_launch_guard_succeed);
+    guard_file(crate::diagnostics::exit_record::astral_exit_record_clear);
 }
 
 pub fn rewrite(ops: &[u8]) -> Option<Vec<u8>> {
@@ -282,19 +282,19 @@ fn identifier_of(node: i32) -> Option<String> {
 
 pub fn press(node: i32) -> bool {
     let Some(identifier) = identifier_of(node) else { return false };
-    if !crate::settings_navigator::handles(&identifier) {
+    if !crate::settings::navigator::handles(&identifier) {
         return false;
     }
-    crate::settings_navigator::tap(&identifier);
+    crate::settings::navigator::tap(&identifier);
     true
 }
 
 pub fn press_inserted_node(node: i32) -> bool {
-    identifier_of(node).is_some_and(|identifier| crate::lua_host_nodes::press_inserted_node(&identifier))
+    identifier_of(node).is_some_and(|identifier| crate::lua::host::nodes::press_inserted_node(&identifier))
 }
 
 pub fn press_message_action(node: i32) -> bool {
-    identifier_of(node).is_some_and(|identifier| crate::lua_host_nodes::press_message_action(&identifier))
+    identifier_of(node).is_some_and(|identifier| crate::lua::host::nodes::press_message_action(&identifier))
 }
 
 pub fn composer_event(event: &[u8]) -> Option<Vec<u8>> {
@@ -318,7 +318,7 @@ pub fn touch_message(node: i32, row: i64) {
         (message, crate::wire::ids::astral_wire_current_channel())
     };
     if message != 0 {
-        crate::lua_host_nodes::set_menu_message(channel, message);
+        crate::lua::host::nodes::set_menu_message(channel, message);
     }
 }
 
@@ -390,16 +390,16 @@ pub fn slide(node: i32, payload: &[u8]) -> bool {
     if decoded == 0 || !identifier.starts_with(SLIDER_PREFIX) {
         return false;
     }
-    crate::settings_navigator::slide_position(&identifier, position);
+    crate::settings::navigator::slide_position(&identifier, position);
     true
 }
 
 pub fn back() -> bool {
-    crate::settings_navigator::back()
+    crate::settings::navigator::back()
 }
 
 pub fn page_open() -> bool {
-    crate::settings_navigator::open()
+    crate::settings::navigator::open()
 }
 
 pub fn refresh_decorations() {
@@ -418,7 +418,7 @@ pub fn note_discord_request(host_name: &str, path: &str, headers: &str) {
     let (host_pointer, host_length) = raw(host_name);
     let (path_pointer, path_length) = raw(path);
     unsafe {
-        crate::discord_headers::astral_discord_note_request(
+        crate::discord::headers::astral_discord_note_request(
             host_pointer,
             host_length,
             path_pointer,
@@ -521,23 +521,23 @@ pub fn apply_backup(contents: &str) -> Option<String> {
 
 pub fn set_session_token(token: &str) {
     let (pointer, length) = raw(token);
-    unsafe { crate::session::astral_session_set_token(pointer, length) };
+    unsafe { crate::discord::session::astral_session_set_token(pointer, length) };
 }
 
 pub fn wants_http(method: &str, host_name: &str, path: &str) -> bool {
-    crate::lua_host_http::wants_http(method, host_name, path)
+    crate::lua::host::http::wants_http(method, host_name, path)
 }
 
 pub fn intercept_http_request(request: &mut HttpRequest) -> HttpDecision {
-    crate::lua_host_http::intercept_request(request)
+    crate::lua::host::http::intercept_request(request)
 }
 
 pub fn intercept_http_response(request: &HttpRequest, response: &mut HttpResponse) -> bool {
-    crate::lua_host_http::intercept_response(request, response)
+    crate::lua::host::http::intercept_response(request, response)
 }
 
 fn parsed_host_request(frame: &[u8]) -> Option<HttpRequest> {
-    let parsed = crate::host_requests::parse(frame)?;
+    let parsed = crate::network::host_requests::parse(frame)?;
     Some(HttpRequest {
         method: parsed.method,
         url: parsed.url,
@@ -548,9 +548,9 @@ fn parsed_host_request(frame: &[u8]) -> Option<HttpRequest> {
 }
 
 fn rebuilt_host_request(frame: &[u8], request: &HttpRequest) -> Vec<u8> {
-    crate::host_requests::rebuild(
+    crate::network::host_requests::rebuild(
         frame,
-        &crate::host_requests::Request {
+        &crate::network::host_requests::Request {
             method: request.method.clone(),
             url: request.url.clone(),
             path: request.path.clone(),
@@ -562,7 +562,11 @@ fn rebuilt_host_request(frame: &[u8], request: &HttpRequest) -> Vec<u8> {
 
 pub fn host_request_wanted(frame: &[u8]) -> bool {
     parsed_host_request(frame).is_some_and(|request| {
-        crate::lua_host_http::wants_http(&request.method, &crate::host_requests::host_of(&request.url), &request.path)
+        crate::lua::host::http::wants_http(
+            &request.method,
+            &crate::network::host_requests::host_of(&request.url),
+            &request.path,
+        )
     })
 }
 
@@ -571,14 +575,14 @@ const SINK_DROPPED_HEADERS: [&str; 3] = ["authorization", "cookie", "content-typ
 pub fn intercept_host_request(frame: &[u8]) -> Option<Vec<u8>> {
     let parsed = parsed_host_request(frame)?;
     let mut request = parsed.clone();
-    let decision = crate::lua_host_http::intercept_request(&mut request);
+    let decision = crate::lua::host::http::intercept_request(&mut request);
     if let Some(response) = decision.response {
         let headers: Vec<(Vec<u8>, Vec<u8>)> = response
             .headers
             .iter()
             .map(|(name, value)| (name.clone().into_bytes(), value.clone().into_bytes()))
             .collect();
-        let sink = String::from_utf8_lossy(&crate::request_sink::respond_with(
+        let sink = String::from_utf8_lossy(&crate::network::sink::respond_with(
             i32::try_from(response.status).unwrap_or_default(),
             &headers,
             &response.body,
@@ -589,7 +593,7 @@ pub fn intercept_host_request(frame: &[u8]) -> Option<Vec<u8>> {
         }
         let answered = HttpRequest {
             method: "GET".to_owned(),
-            path: crate::host_requests::path_of(&sink),
+            path: crate::network::host_requests::path_of(&sink),
             url: sink,
             body: Vec::new(),
             headers: parsed
@@ -610,19 +614,19 @@ pub fn rewrite_host_call(frame: &[u8]) -> Option<Vec<u8>> {
 }
 
 pub fn needs_gateway_events() -> bool {
-    crate::lua_host_events::needs_gateway_events()
+    crate::lua::host::events::needs_gateway_events()
 }
 
 pub fn process_gateway_message(message: &str) -> Option<String> {
-    crate::lua_host_events::process_gateway_message(message.as_bytes())
+    crate::lua::host::events::process_gateway_message(message.as_bytes())
 }
 
 pub fn is_telemetry(host_name: &str, path: &str) -> bool {
-    crate::network_policy::is_telemetry_request(host_name, path)
+    crate::network::policy::is_telemetry_request(host_name, path)
 }
 
 pub fn is_current_user(host_name: &str, path: &str) -> bool {
-    crate::network_policy::is_current_user_request(host_name, path)
+    crate::network::policy::is_current_user_request(host_name, path)
 }
 
 pub fn staff_dev_tools_enabled() -> bool {
@@ -631,14 +635,14 @@ pub fn staff_dev_tools_enabled() -> bool {
 
 pub fn with_staff_user(body: &str) -> Option<String> {
     staff_dev_tools_enabled()
-        .then(|| crate::network_policy::with_staff_user(body.as_bytes()))
+        .then(|| crate::network::policy::with_staff_user(body.as_bytes()))
         .flatten()
         .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
 }
 
 pub fn with_staff_ready(message: &str) -> Option<String> {
     staff_dev_tools_enabled()
-        .then(|| crate::network_policy::with_staff_ready(message.as_bytes()))
+        .then(|| crate::network::policy::with_staff_ready(message.as_bytes()))
         .flatten()
         .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
 }
@@ -648,7 +652,7 @@ pub fn note_blocked_request() {
 }
 
 pub fn sink_url() -> String {
-    crate::request_sink::url()
+    crate::network::sink::url()
 }
 
 pub fn icon_path(name: &str) -> String {
@@ -664,7 +668,7 @@ pub fn emoji_url(codepoints: &str) -> String {
 }
 
 pub fn composer_styles(value: &str) -> String {
-    host::json_text(&crate::lua_host_events::composer_styles(value.as_bytes()))
+    host::json_text(&crate::lua::host::events::composer_styles(value.as_bytes()))
 }
 
 fn refresh_emoji() {
@@ -727,7 +731,7 @@ fn select_pack(current: &App, kind: PackKind, identifier: &str) -> bool {
 }
 
 pub fn refresh_settings() {
-    crate::settings_navigator::refresh();
+    crate::settings::navigator::refresh();
     host::request(Request::RefreshSettings);
 }
 
@@ -743,15 +747,15 @@ pub fn restart_softly() -> usize {
 }
 
 pub fn page_category() -> String {
-    host::json_text(&crate::settings_pages::category())
+    host::json_text(&crate::settings::pages::category())
 }
 
 pub fn page_model(route: &str) -> String {
-    host::json_text(&crate::settings_pages::model(route))
+    host::json_text(&crate::settings::pages::model(route))
 }
 
 pub fn page_action(route: &str, key: &str) -> Option<String> {
-    crate::settings_pages::action(route, key, std::sync::Arc::new(refresh_settings))
+    crate::settings::pages::action(route, key, std::sync::Arc::new(refresh_settings))
 }
 
 pub fn refresh_catalog(force: bool) {
@@ -760,7 +764,7 @@ pub fn refresh_catalog(force: bool) {
 
 pub fn stop_list_reason(phoenix: &str) -> Option<String> {
     let (pointer, length) = raw(phoenix);
-    ffi::take_optional(unsafe { crate::marketplace::astral_marketplace_stop_list_reason(pointer, length) })
+    ffi::take_optional(unsafe { crate::plugins::marketplace::astral_marketplace_stop_list_reason(pointer, length) })
 }
 
 pub fn complete_network_request(request: u64, response: &str) {
@@ -772,16 +776,16 @@ pub fn complete_network_request(request: u64, response: &str) {
 }
 
 pub fn press_inserted_identifier(identifier: &str) -> bool {
-    crate::lua_host_nodes::press_inserted_node(identifier)
+    crate::lua::host::nodes::press_inserted_node(identifier)
 }
 
 pub fn press_message_identifier(identifier: &str) -> bool {
-    crate::lua_host_nodes::press_message_action(identifier)
+    crate::lua::host::nodes::press_message_action(identifier)
 }
 
 pub fn set_menu_message(channel: u64, message: u64) {
     if message != 0 {
-        crate::lua_host_nodes::set_menu_message(channel, message);
+        crate::lua::host::nodes::set_menu_message(channel, message);
     }
 }
 
@@ -790,7 +794,7 @@ pub fn emoji_animated() -> bool {
 }
 
 pub fn developer_log(line: &str) {
-    crate::dev_server::append_log(line);
+    crate::support::dev_server::append_log(line);
 }
 
 pub fn decorations_pending() -> bool {

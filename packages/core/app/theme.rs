@@ -5,8 +5,8 @@ use serde_json::Value;
 use super::ffi::{collect, raw, take, take_json, take_optional};
 use super::host::{self, Request};
 use super::state::{App, app, signing_key, wire};
-use crate::bridge::AstralRustString;
-use crate::lua_host;
+use crate::lua::host as lua_host;
+use crate::support::bridge::AstralRustString;
 
 const DEFAULT_THEME: &str = "discord";
 const MARKETPLACE_THEME: c_int = 1;
@@ -22,7 +22,7 @@ pub fn active(current: &App) -> String {
 pub fn list(current: &App) -> Value {
     let (state, state_length) = raw(&current.state);
     let (resources, resources_length) = raw(&current.resources);
-    take_json(unsafe { crate::themes::astral_themes_list(state, state_length, resources, resources_length) })
+    take_json(unsafe { crate::plugins::themes::astral_themes_list(state, state_length, resources, resources_length) })
 }
 
 fn colors(style: &Value, key: &str) -> Vec<u32> {
@@ -78,7 +78,7 @@ pub fn apply(current: &App, identifier: &str) {
     let (resources, resources_length) = raw(&current.resources);
     let (pointer, length) = raw(identifier);
     let style = take_json(unsafe {
-        crate::themes::astral_themes_select(
+        crate::plugins::themes::astral_themes_select(
             current.settings_handle(),
             state,
             state_length,
@@ -106,7 +106,7 @@ pub fn import_unbound(current: &App, source: &str, fallback: &str) -> Option<Str
     let (source_pointer, source_length) = raw(source);
     let (fallback_pointer, fallback_length) = raw(fallback);
     take_optional(unsafe {
-        crate::themes::astral_themes_import_unbound(
+        crate::plugins::themes::astral_themes_import_unbound(
             current.settings_handle(),
             state,
             state_length,
@@ -137,7 +137,7 @@ pub fn fetch_with(url: &str, headers: &str) -> (c_int, Vec<u8>) {
 }
 
 unsafe extern "C" fn marketplace_fetch(_: *mut c_void, url: *const c_char, length: usize, body: *mut AstralRustString) -> c_int {
-    let url = String::from_utf8_lossy(crate::bridge::bytes(url, length)).into_owned();
+    let url = String::from_utf8_lossy(crate::support::bridge::bytes(url, length)).into_owned();
     let (status, bytes) = fetch(&url, "");
     if !body.is_null() {
         unsafe { *body = AstralRustString::new(bytes) };
@@ -146,7 +146,7 @@ unsafe extern "C" fn marketplace_fetch(_: *mut c_void, url: *const c_char, lengt
 }
 
 unsafe extern "C" fn marketplace_installed(_: *mut c_void, kind: c_int, identifier: *const c_char, length: usize) {
-    let identifier = String::from_utf8_lossy(crate::bridge::bytes(identifier, length)).into_owned();
+    let identifier = String::from_utf8_lossy(crate::support::bridge::bytes(identifier, length)).into_owned();
     let Some(current) = app() else { return };
     if kind == MARKETPLACE_THEME {
         if active(current) == identifier {
@@ -165,8 +165,8 @@ unsafe extern "C" fn reactors_fetch(
     headers_length: usize,
     body: *mut AstralRustString,
 ) -> c_int {
-    let url = String::from_utf8_lossy(crate::bridge::bytes(url, url_length)).into_owned();
-    let headers = header_object(crate::bridge::bytes(headers, headers_length));
+    let url = String::from_utf8_lossy(crate::support::bridge::bytes(url, url_length)).into_owned();
+    let headers = header_object(crate::support::bridge::bytes(headers, headers_length));
     let (status, bytes) = fetch_with(&url, &headers);
     if !body.is_null() {
         unsafe { *body = AstralRustString::new(bytes) };
@@ -203,7 +203,7 @@ pub fn configure_marketplace(current: &App) {
     let (resources, resources_length) = raw(&current.resources);
     let (key, key_length) = raw(signing_key());
     unsafe {
-        crate::marketplace::astral_marketplace_configure(
+        crate::plugins::marketplace::astral_marketplace_configure(
             current.settings_handle(),
             state,
             state_length,
@@ -217,7 +217,7 @@ pub fn configure_marketplace(current: &App) {
             core::ptr::null_mut(),
         );
     }
-    crate::reactors::astral_reactors_set_fetcher(Some(reactors_fetch));
+    crate::discord::reactors::astral_reactors_set_fetcher(Some(reactors_fetch));
 }
 
 pub fn export_backup(current: &App) -> String {
@@ -227,7 +227,7 @@ pub fn export_backup(current: &App) -> String {
     let (plugins_pointer, plugins_length) = raw(&plugins);
     let (themes_pointer, themes_length) = raw(&themes);
     take(unsafe {
-        crate::backup::astral_backup_export(
+        crate::plugins::backup::astral_backup_export(
             current.settings_handle(),
             version,
             version_length,
@@ -248,7 +248,7 @@ pub fn apply_backup(current: &App, contents: &str) -> Option<String> {
     let (themes_pointer, themes_length) = raw(&themes);
     let mut result = AstralRustString::new(Vec::new());
     let imported = unsafe {
-        crate::backup::astral_backup_import(
+        crate::plugins::backup::astral_backup_import(
             current.settings_handle(),
             contents_pointer,
             contents_length,
@@ -324,7 +324,7 @@ pub fn marketplace_install(package: &Value, kind: PackageKind, changed: Changed)
     let json = host::json_text(package);
     let (pointer, length) = raw(&json);
     unsafe {
-        crate::marketplace::astral_marketplace_install(
+        crate::plugins::marketplace::astral_marketplace_install(
             pointer,
             length,
             kind.code(),
@@ -336,14 +336,16 @@ pub fn marketplace_install(package: &Value, kind: PackageKind, changed: Changed)
 }
 
 pub fn marketplace_refresh(changed: Changed) {
-    unsafe { crate::marketplace::astral_marketplace_refresh(Some(notify_changed), changed_context(changed), Some(release_changed)) };
+    unsafe {
+        crate::plugins::marketplace::astral_marketplace_refresh(Some(notify_changed), changed_context(changed), Some(release_changed))
+    };
 }
 
 pub fn plugin_icon_path(name: &str) -> String {
     let Some(identifier) = name.strip_prefix(PLUGIN_ICON_PREFIX) else {
         return String::new();
     };
-    if !crate::plugin_package::valid_plugin_identifier(identifier) {
+    if !crate::plugins::package::valid_plugin_identifier(identifier) {
         return String::new();
     }
     let Some(current) = app() else { return String::new() };
@@ -364,7 +366,8 @@ pub fn plugin_icon_path(name: &str) -> String {
     let path = format!("{directory}/{identifier}.svg");
     let cached = std::fs::read_to_string(&path).ok();
     if cached.as_deref() != Some(svg)
-        && (std::fs::create_dir_all(&directory).is_err() || !crate::files::write_atomically(std::path::Path::new(&path), svg.as_bytes()))
+        && (std::fs::create_dir_all(&directory).is_err()
+            || !crate::support::files::write_atomically(std::path::Path::new(&path), svg.as_bytes()))
     {
         return String::new();
     }
@@ -374,7 +377,7 @@ pub fn plugin_icon_path(name: &str) -> String {
 pub fn plugin_icon_uri(plugin: &Value) -> Option<String> {
     let identifier = plugin.get("id").and_then(Value::as_str).unwrap_or_default();
     let svg = plugin.get("iconSvg").and_then(Value::as_str).unwrap_or_default();
-    (!svg.is_empty() && crate::plugin_package::valid_plugin_identifier(identifier))
+    (!svg.is_empty() && crate::plugins::package::valid_plugin_identifier(identifier))
         .then(|| format!("res://{PLUGIN_ICON_PREFIX}{identifier}"))
 }
 
@@ -386,7 +389,7 @@ pub fn author_avatar(user_id: &str, index: usize) -> String {
     if !SNOWFLAKE_LENGTHS.contains(&user_id.len()) || !user_id.bytes().all(|byte| byte.is_ascii_digit()) {
         return fallback;
     }
-    let Some(avatar) = crate::discord_cache::user(user_id)
+    let Some(avatar) = crate::discord::cache::user(user_id)
         .and_then(|user| user.get("avatar").and_then(Value::as_str).map(str::to_owned))
         .filter(|avatar| !avatar.is_empty())
     else {

@@ -1,4 +1,4 @@
-use astral_core::environment::*;
+use astral_core::diagnostics::environment::*;
 
 #[test]
 fn names_install_sources() {

@@ -1,5 +1,5 @@
 use super::tag::{Op, Tag};
-use crate::lua_enums::TextStyle;
+use crate::lua::enums::TextStyle;
 use core::ffi::{c_char, c_int};
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -13,7 +13,7 @@ use super::ids::current_channel;
 use super::out::{AstralWireBuffer, Out};
 use super::patch::wire_mark_refresh_busy;
 use super::properties;
-use crate::bridge::AstralRustString;
+use crate::support::bridge::AstralRustString;
 
 const CONTENT_PREFIX: &[u8] = b"message.content:";
 const MONOSPACE: &[u8] = b"monospace";
@@ -381,7 +381,7 @@ fn decorate(block: &mut Block) -> Option<Value> {
     };
     let outcome = unsafe { decorator(&context, &mut card) };
     let produced = (!card.bytes.is_null()).then(|| unsafe { core::slice::from_raw_parts(card.bytes, card.length) }.to_vec());
-    unsafe { crate::bridge::astral_rust_string_free(card) };
+    unsafe { crate::support::bridge::astral_rust_string_free(card) };
     if outcome < 0 {
         wire_mark_refresh_busy();
         return block.card.clone();

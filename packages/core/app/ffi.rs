@@ -1,6 +1,6 @@
 use core::ffi::c_char;
 
-use crate::bridge::AstralRustString;
+use crate::support::bridge::AstralRustString;
 use crate::wire::out::AstralWireBuffer;
 use crate::wire::rewrite::astral_wire_buffer_free;
 

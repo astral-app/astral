@@ -3,11 +3,11 @@ use serde_json::{Value, json};
 use super::ffi::{raw, take};
 use super::host::{self, Request};
 use super::state::{Platform, app};
-use crate::bridge::AstralRustString;
-use crate::env_report::{AndroidFacts, LocaleFacts};
-use crate::lua_host;
-use crate::plugin_trace::AstralPreviousSession;
-use crate::privacy::sanitize;
+use crate::diagnostics::env_report::{AndroidFacts, LocaleFacts};
+use crate::diagnostics::privacy::sanitize;
+use crate::lua::host as lua_host;
+use crate::plugins::trace::AstralPreviousSession;
+use crate::support::bridge::AstralRustString;
 
 const ENVIRONMENT_KEYS: [&str; 9] = [
     "device",
@@ -52,7 +52,7 @@ pub struct OpenedSession(Option<PreviousSession>);
 pub fn open_trace(state: &str, now: i64) -> OpenedSession {
     let (directory, length) = raw(state);
     let mut session = empty_session();
-    let found = unsafe { crate::plugin_trace::astral_trace_open(directory, length, now, &raw mut session) };
+    let found = unsafe { crate::plugins::trace::astral_trace_open(directory, length, now, &raw mut session) };
     let adopted = adopt(session);
     OpenedSession((found != 0).then_some(adopted))
 }
@@ -61,12 +61,12 @@ pub fn record_unexpected_exit(opened: OpenedSession) {
     let Some(session) = opened.0.filter(|session| !session.active.is_empty()) else {
         return;
     };
-    crate::reports::unexpected_exit(&session.active, report_environment(), session.running);
+    crate::diagnostics::reports::unexpected_exit(&session.active, report_environment(), session.running);
 }
 
 fn previous_session() -> Option<PreviousSession> {
     let mut session = empty_session();
-    let found = unsafe { crate::plugin_trace::astral_trace_previous(&raw mut session) };
+    let found = unsafe { crate::plugins::trace::astral_trace_previous(&raw mut session) };
     let adopted = adopt(session);
     (found != 0).then_some(adopted)
 }
@@ -100,7 +100,7 @@ pub fn report_environment() -> Value {
 }
 
 pub fn list() -> Value {
-    Value::Array(crate::reports::list())
+    Value::Array(crate::diagnostics::reports::list())
 }
 
 pub fn plugin_reports() -> Value {
@@ -112,7 +112,7 @@ pub fn plugin_reports() -> Value {
         let identifier = plugin.get("id").and_then(Value::as_str).unwrap_or_default();
         let name = plugin.get("name").and_then(Value::as_str).unwrap_or(identifier);
         let error = plugin.get("error").and_then(Value::as_str).unwrap_or_default();
-        crate::reports::plugin_failure(identifier, name, error, &report_environment());
+        crate::diagnostics::reports::plugin_failure(identifier, name, error, &report_environment());
     }
     list()
 }
@@ -123,7 +123,7 @@ pub fn record_plugin_failure(identifier: &str, name: &str, error: &str) {
         sanitize(identifier.as_bytes()),
         sanitize(error.as_bytes())
     ));
-    crate::reports::plugin_failure(identifier, name, error, &report_environment());
+    crate::diagnostics::reports::plugin_failure(identifier, name, error, &report_environment());
 }
 
 pub fn record_process_exit(kind: &str, timestamp: i64, reason: i64, description: &str, trace: &str) {
@@ -138,7 +138,7 @@ pub fn record_process_exit(kind: &str, timestamp: i64, reason: i64, description:
         Some(session) if session.started > 0 && timestamp >= session.started => (session.active, Some(session.running)),
         _ => (String::new(), None),
     };
-    crate::reports::process_exit(kind, timestamp, reason, &detail, report_environment(), &active, running);
+    crate::diagnostics::reports::process_exit(kind, timestamp, reason, &detail, report_environment(), &active, running);
 }
 
 fn report_text(report: &Value, key: &str) -> String {
@@ -167,7 +167,7 @@ pub fn open_report(index: usize) {
             content.push_str(&format!("\n{key}: {rendered}"));
         }
     }
-    let url = crate::reports::issue_url(report);
+    let url = crate::diagnostics::reports::issue_url(report);
     host::request(Request::OpenReport { text: &content, url: &url });
 }
 
@@ -226,14 +226,14 @@ fn device_report(platform: Platform) -> Value {
     if platform == Platform::Ios {
         return facts;
     }
-    environment["install"] = json!(crate::env_report::android_install_line(
+    environment["install"] = json!(crate::diagnostics::env_report::android_install_line(
         facts.get("install").unwrap_or(&Value::Null)
     ));
     environment["framework"] = json!(text(&facts, "framework"));
     environment["device_name"] = json!(text(&facts, "device_name"));
     let device = facts.get("device").cloned().unwrap_or(Value::Null);
-    let mut markers = crate::env_report::android_markers(&android_facts(&device));
-    let stack = take(crate::network_stack::astral_current_network_stack_marker());
+    let mut markers = crate::diagnostics::env_report::android_markers(&android_facts(&device));
+    let stack = take(crate::network::stack::astral_current_network_stack_marker());
     if !stack.is_empty() {
         markers.push(stack);
     }
@@ -250,7 +250,10 @@ pub fn environment() -> Value {
     environment["commit"] = json!(current.commit);
     environment["image"] = json!(current.platform.image_name());
     let now = std::time::UNIX_EPOCH.elapsed().map_or(0.0, |elapsed| elapsed.as_secs_f64());
-    if let (Some(target), Value::Object(summary)) = (environment.as_object_mut(), crate::env_report::crash_summary(&list(), now)) {
+    if let (Some(target), Value::Object(summary)) = (
+        environment.as_object_mut(),
+        crate::diagnostics::env_report::crash_summary(&list(), now),
+    ) {
         target.extend(summary);
     }
     environment

@@ -1,7 +1,7 @@
 use std::time::Duration;
 
-use astral_core::backup::{export, import};
-use astral_core::settings::Store;
+use astral_core::plugins::backup::{export, import};
+use astral_core::settings::store::Store;
 use serde_json::json;
 
 #[test]
