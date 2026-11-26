@@ -80,7 +80,7 @@ impl Sandbox {
         message
     }
 
-    unsafe fn load(&mut self, source: &[u8], chunk: &[u8], mode: &[u8]) -> Option<Vec<u8>> {
+    pub unsafe fn load(&mut self, source: &[u8], chunk: &[u8], mode: &[u8]) -> Option<Vec<u8>> {
         if self.state.is_null() {
             return Some(b"out of memory".to_vec());
         }
@@ -99,7 +99,7 @@ impl Sandbox {
         (status != lua::OK).then(|| unsafe { self.pop_error() })
     }
 
-    unsafe fn call(&mut self, arguments: c_int, results: c_int) -> Option<Vec<u8>> {
+    pub unsafe fn call(&mut self, arguments: c_int, results: c_int) -> Option<Vec<u8>> {
         if self.state.is_null() {
             return Some(b"out of memory".to_vec());
         }

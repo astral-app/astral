@@ -7,6 +7,7 @@ pub type Integer = i64;
 pub type Number = f64;
 pub type Alloc = unsafe extern "C" fn(*mut c_void, *mut c_void, usize, usize) -> *mut c_void;
 pub type Hook = unsafe extern "C" fn(*mut LuaState, *mut LuaDebug);
+pub type Writer = unsafe extern "C" fn(*mut LuaState, *const c_void, usize, *mut c_void) -> c_int;
 pub type CFunction = unsafe extern "C" fn(*mut LuaState) -> c_int;
 
 pub const OK: c_int = 0;
@@ -48,6 +49,25 @@ unsafe extern "C" {
     pub fn lua_next(state: *mut LuaState, index: c_int) -> c_int;
     pub fn lua_rawgeti(state: *mut LuaState, index: c_int, position: Integer) -> c_int;
     pub fn lua_rawseti(state: *mut LuaState, index: c_int, position: Integer);
+    pub fn lua_gettop(state: *mut LuaState) -> c_int;
+    pub fn lua_rotate(state: *mut LuaState, index: c_int, count: c_int);
+    pub fn lua_copy(state: *mut LuaState, from: c_int, to: c_int);
+    pub fn lua_isstring(state: *mut LuaState, index: c_int) -> c_int;
+    pub fn lua_isnumber(state: *mut LuaState, index: c_int) -> c_int;
+    pub fn lua_pushcclosure(state: *mut LuaState, function: CFunction, upvalues: c_int);
+    pub fn lua_pushlightuserdata(state: *mut LuaState, pointer: *mut c_void);
+    pub fn lua_getglobal(state: *mut LuaState, name: *const c_char) -> c_int;
+    pub fn lua_gettable(state: *mut LuaState, index: c_int) -> c_int;
+    pub fn lua_settable(state: *mut LuaState, index: c_int);
+    pub fn lua_rawget(state: *mut LuaState, index: c_int) -> c_int;
+    pub fn lua_rawset(state: *mut LuaState, index: c_int);
+    pub fn lua_callk(state: *mut LuaState, arguments: c_int, results: c_int, context: isize, continuation: *const c_void);
+    pub fn luaL_ref(state: *mut LuaState, table: c_int) -> c_int;
+    pub fn luaL_unref(state: *mut LuaState, table: c_int, reference: c_int);
+    pub fn luaL_len(state: *mut LuaState, index: c_int) -> Integer;
+    pub fn luaL_tolstring(state: *mut LuaState, index: c_int, length: *mut usize) -> *const c_char;
+    pub fn lua_dump(state: *mut LuaState, writer: Writer, data: *mut c_void, strip: c_int) -> c_int;
+    pub fn luaL_newstate() -> *mut LuaState;
     pub fn lua_touserdata(state: *mut LuaState, index: c_int) -> *mut c_void;
     pub fn lua_error(state: *mut LuaState) -> c_int;
     pub fn lua_pcallk(
@@ -93,4 +113,73 @@ pub unsafe fn to_bytes<'a>(state: *mut LuaState, index: c_int) -> Option<&'a [u8
 
 pub unsafe fn pcall(state: *mut LuaState, arguments: c_int, results: c_int) -> c_int {
     unsafe { lua_pcallk(state, arguments, results, 0, 0, core::ptr::null()) }
+}
+
+pub const TNONE: c_int = -1;
+pub const TLIGHTUSERDATA: c_int = 2;
+pub const TFUNCTION: c_int = 6;
+pub const NOREF: c_int = -2;
+pub const REFNIL: c_int = -1;
+
+pub fn upvalue_index(index: c_int) -> c_int {
+    REGISTRYINDEX - index
+}
+
+pub unsafe fn insert(state: *mut LuaState, index: c_int) {
+    unsafe { lua_rotate(state, index, 1) };
+}
+
+pub unsafe fn remove(state: *mut LuaState, index: c_int) {
+    unsafe {
+        lua_rotate(state, index, -1);
+        pop(state, 1);
+    }
+}
+
+pub unsafe fn call(state: *mut LuaState, arguments: c_int, results: c_int) {
+    unsafe { lua_callk(state, arguments, results, 0, core::ptr::null()) };
+}
+
+pub unsafe fn is_function(state: *mut LuaState, index: c_int) -> bool {
+    unsafe { lua_type(state, index) == TFUNCTION }
+}
+
+pub unsafe fn is_table(state: *mut LuaState, index: c_int) -> bool {
+    unsafe { lua_type(state, index) == TTABLE }
+}
+
+pub unsafe fn is_none_or_nil(state: *mut LuaState, index: c_int) -> bool {
+    unsafe { lua_type(state, index) <= TNIL }
+}
+
+pub unsafe fn push_bytes(state: *mut LuaState, bytes: &[u8]) {
+    unsafe { lua_pushlstring(state, bytes.as_ptr().cast(), bytes.len()) };
+}
+
+pub unsafe fn push_str(state: *mut LuaState, text: &str) {
+    unsafe { push_bytes(state, text.as_bytes()) };
+}
+
+pub unsafe fn set_field(state: *mut LuaState, index: c_int, key: &str) {
+    let key = std::ffi::CString::new(key).unwrap_or_default();
+    unsafe { lua_setfield(state, index, key.as_ptr()) };
+}
+
+pub unsafe fn get_field(state: *mut LuaState, index: c_int, key: &str) -> c_int {
+    let key = std::ffi::CString::new(key).unwrap_or_default();
+    unsafe { lua_getfield(state, index, key.as_ptr()) }
+}
+
+pub unsafe fn reference(state: *mut LuaState) -> c_int {
+    unsafe { luaL_ref(state, REGISTRYINDEX) }
+}
+
+pub unsafe fn release(state: *mut LuaState, reference: c_int) {
+    if !state.is_null() && reference != NOREF {
+        unsafe { luaL_unref(state, REGISTRYINDEX, reference) };
+    }
+}
+
+pub unsafe fn push_reference(state: *mut LuaState, reference: c_int) {
+    unsafe { lua_rawgeti(state, REGISTRYINDEX, Integer::from(reference)) };
 }

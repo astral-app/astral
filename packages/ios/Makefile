@@ -16,7 +16,6 @@ CORE_SOURCES := $(filter-out $(ANDROID_ONLY_SOURCES),$(basename $(notdir $(wildc
 GENERATED := $(abspath .theos/generated)
 RUST_TARGET := aarch64-apple-ios
 RUST_LIBRARY := $(CORE)/target/$(RUST_TARGET)/release/libastral_core.a
-PRELUDE := $(CORE)/lua/prelude.lua
 
 include $(THEOS)/makefiles/common.mk
 
@@ -34,7 +33,6 @@ include $(THEOS_MAKE_PATH)/tweak.mk
 $(THEOS_OBJ_DIR)/$(TWEAK_NAME).dylib: $(RUST_LIBRARY)
 
 before-all::
-	cd $(ROOT) && go run ./packages/tools/cmd/astral embed-prelude "$(PRELUDE)" "$(GENERATED)/AstralPrelude.h"
 	IPHONEOS_DEPLOYMENT_TARGET=18.0 cargo build --release --quiet --target $(RUST_TARGET) --manifest-path "$(CORE)/Cargo.toml"
 
 before-package::

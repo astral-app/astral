@@ -7,13 +7,6 @@ file(STRINGS ${ASTRAL_ROOT}/keys/plugin-signing.pub SIGNING_KEY LIMIT_COUNT 1)
 set(LUA_SOURCES lapi lcode lctype ldebug ldo ldump lfunc lgc llex lmem lobject lopcodes lparser lstate lstring ltable ltm lundump lvm lzio lauxlib lbaselib lstrlib ltablib lmathlib lutf8lib lcorolib)
 
 set(ASTRAL_GENERATED ${CMAKE_CURRENT_BINARY_DIR}/generated)
-set(PRELUDE ${CORE}/lua/prelude.lua)
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${PRELUDE})
-execute_process(COMMAND go run ./packages/tools/cmd/astral embed-prelude ${PRELUDE} ${ASTRAL_GENERATED}/AstralPrelude.h
-                WORKING_DIRECTORY ${ASTRAL_ROOT} RESULT_VARIABLE PRELUDE_RESULT)
-if(NOT PRELUDE_RESULT EQUAL 0)
-    message(FATAL_ERROR "astral embed-prelude failed")
-endif()
 
 file(GLOB CORE_SOURCES CONFIGURE_DEPENDS ${CORE}/*.cpp)
 list(TRANSFORM LUA_SOURCES PREPEND ${VENDOR}/lua/)
@@ -29,7 +22,7 @@ endif()
 find_program(CARGO cargo HINTS $ENV{HOME}/.cargo/bin REQUIRED)
 set(RUST_CRATE ${CORE})
 set(RUST_LIBRARY ${RUST_CRATE}/target/${RUST_TARGET}/release/libastral_core.a)
-file(GLOB_RECURSE RUST_SOURCES CONFIGURE_DEPENDS ${RUST_CRATE}/src/*.rs)
+file(GLOB RUST_SOURCES CONFIGURE_DEPENDS ${RUST_CRATE}/*.rs ${RUST_CRATE}/wire/*.rs ${RUST_CRATE}/lua/*.lua)
 add_custom_command(OUTPUT ${RUST_LIBRARY}
                    COMMAND ${CARGO} build --release --quiet --target ${RUST_TARGET} --manifest-path ${RUST_CRATE}/Cargo.toml
                    DEPENDS ${RUST_SOURCES} ${RUST_CRATE}/Cargo.toml

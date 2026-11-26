@@ -92,9 +92,6 @@ func buildAndroidCore(toolchain string, triple string, sources []string, directo
 	if err := os.MkdirAll(generated, 0o755); err != nil {
 		return "", err
 	}
-	if err := runEmbedPrelude([]string{repoPath("packages", "core", "lua", "prelude.lua"), filepath.Join(generated, "AstralPrelude.h")}); err != nil {
-		return "", err
-	}
 	includes := []string{"-I" + repoPath("packages", "core", "include"), "-I" + repoPath("packages", "core", "wire"), "-I" + generated,
 		"-I" + repoPath("vendor", "lua"), "-I" + repoPath("vendor", "sqlite"),
 		"-isystem", repoPath("vendor", "json", "single_include"), "-isystem", repoPath("vendor", "tomlplusplus", "include")}

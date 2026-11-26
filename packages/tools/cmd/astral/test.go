@@ -64,9 +64,6 @@ func testCore(work string) error {
 		repoPath("vendor", "lua", "onelua.c"), "-o", object); err != nil {
 		return err
 	}
-	if err := runEmbedPrelude([]string{repoPath("packages", "core", "lua", "prelude.lua"), filepath.Join(work, "AstralPrelude.h")}); err != nil {
-		return err
-	}
 	binary := filepath.Join(work, "lua-core-test")
 	arguments := []string{"-std=c++20", "-Wall", "-Wextra", "-Werror", "-g", "-fsanitize=address,undefined",
 		"-I" + repoPath("packages", "core", "include"), "-I" + repoPath("vendor", "lua"), "-I" + work, "-I" + repoPath("packages", "core", "wire"),
