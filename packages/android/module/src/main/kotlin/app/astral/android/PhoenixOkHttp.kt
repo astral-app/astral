@@ -286,9 +286,51 @@ object PhoenixOkHttp {
 
     private fun requestBody(request: Any, requestType: Class<*>): Any? = bodyField(requestType).get(request)
 
+    private fun heldBytes(body: Any, depth: Int = 0): ByteArray? {
+        val fields = instanceFields(body.javaClass)
+        val bytes = fields.firstOrNull { it.type == ByteArray::class.java }?.get(body) as? ByteArray
+            ?: return fields.firstOrNull { Modifier.isAbstract(it.type.modifiers) && !it.type.isInterface && it.type.isInstance(body) }
+                ?.get(body)
+                ?.takeIf { depth < MAX_BODY_WRAPPERS }
+                ?.let { inner -> heldBytes(inner, depth + 1) }
+        val numbers = fields.filter { it.type == Int::class.javaPrimitiveType }.map { it.getInt(body) }
+        val (offset, count) = when (numbers.size) {
+            2 -> numbers.sorted().let { (low, high) -> if (low + high <= bytes.size && low == 0) low to high else 0 to bytes.size }
+            else -> 0 to bytes.size
+        }
+        return bytes.copyOfRange(offset, (offset + count).coerceAtMost(bytes.size))
+    }
+
+    private const val MAX_BODY_WRAPPERS = 4
+    @Volatile private var bufferClass: Class<*>? = null
+
+    private fun obfuscatedNames(): Sequence<String> {
+        val letters = ('a'..'z').map(Char::toString)
+        return letters.asSequence() + letters.asSequence().flatMap { first -> letters.asSequence().map { first + it } }
+    }
+
+    private fun okioBuffer(loader: ClassLoader): Class<*> {
+        bufferClass?.let { return it }
+        val packageName = PhoenixClasses.OKIO.substringBeforeLast('.')
+        val found = obfuscatedNames()
+            .mapNotNull { name -> runCatching { loader.loadClass("$packageName.$name") }.getOrNull() }
+            .firstOrNull { type ->
+                !type.isInterface && java.nio.channels.ByteChannel::class.java.isAssignableFrom(type) &&
+                    type.declaredConstructors.any { it.parameterCount == 0 }
+            } ?: throw ClassNotFoundException("Phoenix's okio Buffer in $packageName")
+        bufferClass = found
+        return found
+    }
+
     private fun bodyBytes(body: Any, loader: ClassLoader): ByteArray {
-        val bufferType = loader.loadClass(PhoenixClasses.OKIO_BUFFER)
-        val buffer = bufferType.getConstructor().newInstance()
+        heldBytes(body)?.let { return it }
+        val bufferType = runCatching { okioBuffer(loader) }.getOrElse {
+            throw IllegalStateException(
+                "unreadable ${body.javaClass.name} body (${instanceFields(body.javaClass).joinToString { it.type.name }})",
+                it,
+            )
+        }
+        val buffer = bufferType.getDeclaredConstructor().apply { isAccessible = true }.newInstance()
         val bodyType = bodyField(loader.loadClass(PhoenixClasses.OKHTTP_REQUEST)).type
         bodyType.declaredMethods.first { method ->
             Modifier.isAbstract(method.modifiers) && method.parameterCount == 1 && method.returnType == Void.TYPE && method.parameterTypes[0].isAssignableFrom(bufferType)
@@ -413,7 +455,7 @@ object PhoenixOkHttp {
         responseBody(loader, contentType, content.toByteArray(StandardCharsets.UTF_8))
 
     private fun responseBody(loader: ClassLoader, contentType: String?, bytes: ByteArray): Any {
-        val bufferType = loader.loadClass(PhoenixClasses.OKIO_BUFFER)
+        val bufferType = loader.loadClass(PhoenixClasses.OKIO)
         val input = ByteArrayInputStream(bytes)
         val source = bufferType.getMethod("m", java.io.InputStream::class.java).invoke(null, input)
             ?: throw IllegalStateException("Phoenix returned no response source")

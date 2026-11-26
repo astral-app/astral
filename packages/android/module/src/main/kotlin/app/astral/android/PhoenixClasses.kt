@@ -10,6 +10,6 @@ object PhoenixClasses {
     const val OKHTTP_RESPONSE_BUILDER = "g90.p0"
     const val OKHTTP_RESPONSE_BODY = "g90.r0"
     const val OKHTTP_PROTOCOL = "g90.j0"
-    const val OKIO_BUFFER = "w90.b"
+    const val OKIO = "w90.b"
     const val OKIO_SOURCE = "w90.j"
 }
