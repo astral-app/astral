@@ -231,7 +231,7 @@ fn discord_request_options(options: &Value) -> Option<Value> {
     let path = options
         .get("path")
         .and_then(Value::as_str)
-        .filter(|path| path.starts_with("/channels/"))?;
+        .filter(|path| path.starts_with('/') && !path.starts_with("//"))?;
     let method = options.get("method").and_then(Value::as_str)?;
     ensure_session_token();
     let token = String::from_utf8(crate::discord::session::current())

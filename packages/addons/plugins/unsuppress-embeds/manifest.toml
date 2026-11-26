@@ -4,7 +4,7 @@ description = "Adds a message long-press row that brings back suppressed link em
 version = "0.0.1"
 icon = "EmbedIcon"
 main = "main.lua"
-permissions = ["discord.messages", "discord.messages.edit", "discord.permissions", "ui.message_actions", "ui.toasts"]
+permissions = ["discord.messages", "discord.api", "discord.permissions", "ui.message_actions", "ui.toasts"]
 
 [[authors]]
 name = "rad"

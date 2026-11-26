@@ -1044,13 +1044,15 @@ function astral.discord.channel_guild(channel) end
 ---@param channel? astral.Snowflake
 ---@return integer?
 function astral.discord.permissions(guild, user, channel) end
----Edits a message with your account: its `flags` or, for your own messages, its `content`. Needs `discord.messages.edit`.
----@param channel astral.Snowflake
----@param message astral.Snowflake
----@param fields { flags?: integer, content?: string }
+---@class astral.DiscordApiRequest
+---@field path string an API path such as "/channels/1/messages/2"; the version prefix is added
+---@field method? "GET"|"POST"|"PATCH"|"PUT"|"DELETE" defaults to GET
+---@field body? string|table a table is sent as JSON
+---Calls Discord's API as the signed-in account, with Discord's own headers. Needs `discord.api`.
+---@param options astral.DiscordApiRequest
 ---@param callback fun(response: { ok: boolean, status: integer, body: string, error?: string })
 ---@return integer request
-function astral.discord.edit_message(channel, message, fields, callback) end
+function astral.discord.request(options, callback) end
 ---The signed-in account's user ID.
 ---@return astral.Snowflake?
 function astral.discord.me() end

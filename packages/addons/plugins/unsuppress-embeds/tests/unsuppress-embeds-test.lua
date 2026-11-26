@@ -32,8 +32,8 @@ astral = {
 		permissions = function()
 			return granted
 		end,
-		edit_message = function(channel, message, fields, callback)
-			edits[#edits + 1] = { channel = channel, message = message, fields = fields, callback = callback }
+		request = function(options, callback)
+			edits[#edits + 1] = { options = options, callback = callback }
 			return #edits
 		end,
 	},
@@ -86,9 +86,10 @@ granted = astral.Permission.MANAGE_MESSAGES
 assert(suppress.options.when(node("4", "5")))
 
 suppress.fn(node("1"))
-assert(edits[1].channel == "9" and edits[1].message == "1" and edits[1].fields.flags == 4)
+assert(edits[1].options.method == "PATCH" and edits[1].options.path == "/channels/9/messages/1")
+assert(edits[1].options.body.flags == 4)
 unsuppress.fn(node("2"))
-assert(edits[2].fields.flags == 16)
+assert(edits[2].options.body.flags == 16)
 
 edits[1].callback({ ok = true, status = 200, body = "{}" })
 assert(#toasts == 0)

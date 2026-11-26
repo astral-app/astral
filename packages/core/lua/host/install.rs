@@ -146,7 +146,7 @@ entries! {
     release_held => http::release_held,
     respond_held => http::respond_held,
     reactors => ui::reactors,
-    edit_message => ui::edit_message,
+    discord_request => ui::discord_request,
     require => ui::require,
 }
 
@@ -363,7 +363,7 @@ pub(crate) fn install_api(plugin: *mut Plugin) {
             ("message", api::astral_lua_discord_message),
             ("raw_message", api::astral_lua_discord_raw_message),
             ("reactors", reactors),
-            ("edit_message", edit_message),
+            ("request", discord_request),
             ("user", api::astral_lua_discord_user),
             ("nickname", api::astral_lua_discord_nickname),
             ("relationship", api::astral_lua_discord_relationship),

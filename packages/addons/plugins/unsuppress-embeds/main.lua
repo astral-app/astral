@@ -61,7 +61,11 @@ local function change(node, action)
 	end
 	local flags = message.flags or 0
 	local wanted = action == "suppress" and flags | SUPPRESS_EMBEDS or flags & ~SUPPRESS_EMBEDS
-	astral.discord.edit_message(node.channel_id, node.message_id, { flags = wanted }, function(response)
+	astral.discord.request({
+		method = "PATCH",
+		path = "/channels/" .. node.channel_id .. "/messages/" .. node.message_id,
+		body = { flags = wanted },
+	}, function(response)
 		if not response.ok then
 			astral.ui.toast(
 				"Unsuppress Embeds",
