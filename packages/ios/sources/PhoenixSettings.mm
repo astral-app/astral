@@ -49,7 +49,6 @@ static HookPoints LocateHookPoints(const struct mach_header *image)
 }
 
 static NSString *const kOverviewRow = @"settings.row.astral";
-static NSString *const kOverviewRowPrefix = @"settings.row.astral.";
 static NSString *const kBack = @"astral.back";
 static const CGFloat kEdgeSwipeDistance = 60;
 static const CGFloat kEdgeSwipeStart = 24;
@@ -63,9 +62,8 @@ static pthread_mutex_t gLock = PTHREAD_MUTEX_INITIALIZER;
 static AstralHostCall gHostOriginal;
 static void *gHostContext;
 static dispatch_queue_t gQueue;
-static AstralSettingsPage gPageModel;
-static AstralSettingsAction gAction;
-static NSMutableArray<NSString *> *gRoutes;
+static BOOL gInstalled;
+static dispatch_queue_t gNavigatorQueue;
 static Class gGuestTap;
 static void (*originalSetIdentifier)(UIView *, SEL, NSString *);
 static BOOL (*originalShouldReceive)(id, SEL, UIGestureRecognizer *, UITouch *);
@@ -377,98 +375,6 @@ static void InstallHostCall(const struct mach_header *image, uint64_t hostCall)
     });
 }
 
-static const char *Text(NSDictionary *row, NSString *key)
-{
-    id value = row[key];
-    return [value isKindOfClass:NSString.class] && [value length] ? [value UTF8String] : NULL;
-}
-
-static void WithSpec(NSDictionary *model, void (^body)(const AstralPageSpec *page))
-{
-    NSArray<NSDictionary *> *sections = model[@"sections"];
-    std::vector<std::vector<AstralRowSpec>> rows(sections.count);
-    std::vector<AstralSectionSpec> specs;
-    for (NSUInteger index = 0; index < sections.count; index++) {
-        for (NSDictionary *row in sections[index][@"rows"]) {
-            rows[index].push_back({
-                Text(row, @"key") ?: "",
-                Text(row, @"title") ?: "",
-                Text(row, @"subtitle"),
-                Text(row, @"detail"),
-                Text(row, @"icon"),
-                (AstralRowKind)[row[@"kind"] intValue],
-                [row[@"on"] boolValue],
-                [row[@"steps"] intValue],
-                [row[@"position"] intValue],
-            });
-        }
-        specs.push_back({Text(sections[index], @"title") ?: "", rows[index].data(), rows[index].size()});
-    }
-    std::vector<AstralChipSpec> chips;
-    NSDictionary *toolbarModel = [model[@"toolbar"] isKindOfClass:NSDictionary.class] ? model[@"toolbar"] : nil;
-    for (NSDictionary *chip in toolbarModel[@"chips"]) {
-        chips.push_back({Text(chip, @"key") ?: "", Text(chip, @"title") ?: "", [chip[@"selected"] boolValue]});
-    }
-    AstralToolbarSpec toolbar = {chips.data(), chips.size(), Text(toolbarModel, @"buttonKey"), Text(toolbarModel, @"buttonIcon")};
-    std::vector<AstralCardSpec> cards;
-    for (NSDictionary *card in model[@"cards"]) {
-        AstralCardSpec spec = {};
-        spec.key = Text(card, @"key") ?: "";
-        spec.title = Text(card, @"title") ?: "";
-        spec.authors = Text(card, @"authors");
-        spec.description = Text(card, @"description");
-        spec.version = Text(card, @"version");
-        spec.icon = Text(card, @"icon");
-        spec.error = Text(card, @"error");
-        for (NSString *avatar in card[@"avatars"]) {
-            if (spec.avatarCount < 3 && [avatar isKindOfClass:NSString.class]) spec.avatars[spec.avatarCount++] = avatar.UTF8String;
-        }
-        spec.hasSettings = [card[@"hasSettings"] boolValue];
-        spec.on = [card[@"on"] boolValue];
-        spec.failed = [card[@"failed"] boolValue];
-        cards.push_back(spec);
-    }
-    AstralPageSpec page = {Text(model, @"title") ?: "",    specs.data(), specs.size(),
-                           toolbarModel ? &toolbar : NULL, cards.data(), cards.size()};
-    body(&page);
-}
-
-typedef enum { kPush, kRefresh, kPop } Delivery;
-
-static void Send(AstralWireBuffer *buffer)
-{
-    std::vector<uint8_t> frame(4 + buffer->length, 0);
-    memcpy(frame.data() + 4, buffer->bytes, buffer->length);
-    astral_wire_buffer_free(buffer);
-    gHostOriginal(gHostContext, frame.data(), frame.size(), NULL);
-}
-
-static void Deliver(Delivery delivery, NSDictionary *model, void (^failed)(void))
-{
-    dispatch_async(gQueue, ^{
-        pthread_mutex_lock(&gLock);
-        __block AstralWireBuffer buffer = {};
-        __block int built = 0;
-        if (delivery == kPop) {
-            built = astral_page_pop(&buffer);
-        } else {
-            WithSpec(model, ^(const AstralPageSpec *page) {
-                built = delivery == kPush ? astral_page_push(page, &buffer) : astral_page_refresh(page, &buffer);
-            });
-        }
-        int unsupported = astral_wire_unsupported_version();
-        if (unsupported && ![gRoute hasPrefix:@"unsupported-wire"])
-            SetRoute([NSString stringWithFormat:@"unsupported-wire-v%d", unsupported]);
-        if (built && gHostOriginal && gHostContext && !unsupported) {
-            if (delivery != kPop) astral_wire_theme_page(&buffer);
-            Send(&buffer);
-        } else if (built)
-            astral_wire_buffer_free(&buffer);
-        pthread_mutex_unlock(&gLock);
-        if (!built && failed) dispatch_async(dispatch_get_main_queue(), failed);
-    });
-}
-
 static bool Live(void)
 {
     return gHostOriginal && gHostContext && !astral_wire_unsupported_version() && !gRewriteDisabled.load();
@@ -479,6 +385,12 @@ static void SendBytes(const uint8_t *bytes, size_t length)
     std::vector<uint8_t> frame(4 + length, 0);
     memcpy(frame.data() + 4, bytes, length);
     gHostOriginal(gHostContext, frame.data(), frame.size(), NULL);
+}
+
+static void Send(AstralWireBuffer *buffer)
+{
+    SendBytes(buffer->bytes, buffer->length);
+    astral_wire_buffer_free(buffer);
 }
 
 void AstralPhoenixDeliver(const uint8_t *bytes, size_t length)
@@ -525,27 +437,9 @@ void AstralPhoenixRefreshDecorations(void)
     Flush();
 }
 
-static void Push(NSString *route)
+static void Navigate(void (^work)(void))
 {
-    [gRoutes addObject:route];
-    NSUInteger depth = gRoutes.count;
-    Deliver(kPush, gPageModel(route), ^{
-        if (gRoutes.count == depth) [gRoutes removeLastObject];
-    });
-}
-
-static void RefreshTop(void)
-{
-    if (!gRoutes.count) return;
-    Deliver(kRefresh, gPageModel(gRoutes.lastObject), nil);
-}
-
-static void Pop(void)
-{
-    if (!gRoutes.count) return;
-    [gRoutes removeLastObject];
-    Deliver(kPop, nil, nil);
-    RefreshTop();
+    dispatch_async(gNavigatorQueue, work);
 }
 
 @interface AstralSettingsTarget : NSObject <UIGestureRecognizerDelegate>
@@ -555,7 +449,10 @@ static void Pop(void)
 - (void)edgeSwiped:(UIPanGestureRecognizer *)recognizer
 {
     if (recognizer.state != UIGestureRecognizerStateEnded || astral_page_depth() == 0) return;
-    if ([recognizer translationInView:recognizer.view].x >= kEdgeSwipeDistance) Pop();
+    if ([recognizer translationInView:recognizer.view].x < kEdgeSwipeDistance) return;
+    Navigate(^{
+        astral_ios_navigator_back();
+    });
 }
 
 - (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)recognizer
@@ -576,14 +473,7 @@ static void Pop(void)
 {
     if (recognizer.state != UIGestureRecognizerStateEnded) return;
     NSString *identifier = recognizer.view.accessibilityIdentifier;
-    if ([identifier hasPrefix:kOverviewRowPrefix] || [identifier isEqualToString:kOverviewRow]) {
-        if (astral_page_depth() > 0) return;
-        [gRoutes removeAllObjects];
-        NSString *route = [identifier hasPrefix:kOverviewRowPrefix] ? [identifier substringFromIndex:kOverviewRowPrefix.length] : @"";
-        Push(route);
-    } else if ([identifier isEqualToString:kBack]) {
-        Pop();
-    } else if ([identifier hasPrefix:kTapPrefix]) {
+    if ([identifier hasPrefix:kTapPrefix]) {
         NSString *tap = [identifier copy];
         dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
             astral_ios_press_inserted_node(AstralTextOf(tap));
@@ -594,18 +484,11 @@ static void Pop(void)
         dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
             astral_ios_press_message_action(AstralTextOf(action));
         });
-    } else {
-        BOOL isSwitch = [identifier hasPrefix:kSwitchPrefix];
-        NSString *prefix = isSwitch ? kSwitchPrefix : kRowPrefix;
-        if (![identifier hasPrefix:prefix] || !gRoutes.count) return;
-        NSString *key = [identifier substringFromIndex:prefix.length];
-        NSString *next = gAction(gRoutes.lastObject, isSwitch ? [@"switch." stringByAppendingString:key] : key);
-        if ([next isEqualToString:@".."])
-            Pop();
-        else if (next.length)
-            Push(next);
-        else
-            RefreshTop();
+    } else if (identifier && astral_ios_navigator_handles(AstralTextOf(identifier))) {
+        NSString *pressed = [identifier copy];
+        Navigate(^{
+            astral_ios_navigator_tap(AstralTextOf(pressed));
+        });
     }
 }
 @end
@@ -637,19 +520,17 @@ static NSString *Hierarchy(UIView *view, NSUInteger depth)
 @end
 
 static const char gSliderKeyKey = 0;
-static const char gSliderStepsKey = 0;
 
 @implementation AstralSliderTarget
 - (void)changed:(UISlider *)slider
 {
-    NSString *key = objc_getAssociatedObject(slider, &gSliderKeyKey);
-    int steps = [objc_getAssociatedObject(slider, &gSliderStepsKey) intValue];
-    if (!key || steps <= 0 || !gRoutes.count) return;
+    NSString *identifier = objc_getAssociatedObject(slider, &gSliderKeyKey);
+    if (!identifier) return;
     float span = slider.maximumValue - slider.minimumValue;
-    float fraction = span > 0 ? (slider.value - slider.minimumValue) / span : 0;
-    long position = lroundf(fraction * steps);
-    gAction(gRoutes.lastObject, [NSString stringWithFormat:@"%@=%ld", key, position]);
-    RefreshTop();
+    double fraction = span > 0 ? (slider.value - slider.minimumValue) / span : 0;
+    Navigate(^{
+        astral_ios_navigator_slide(AstralTextOf(identifier), fraction);
+    });
 }
 @end
 
@@ -669,9 +550,7 @@ static void RouteSlider(UIView *view, NSString *identifier)
     Log([NSString stringWithFormat:@"phoenix: routed %@ (%@ in %@, %.0f to %.0f)", identifier, NSStringFromClass(slider.class),
                                    NSStringFromClass(view.class), slider.minimumValue, slider.maximumValue]);
     if (!gSliderTarget) gSliderTarget = [AstralSliderTarget new];
-    objc_setAssociatedObject(slider, &gSliderKeyKey, [rest substringFromIndex:dot.location + 1], OBJC_ASSOCIATION_COPY_NONATOMIC);
-    objc_setAssociatedObject(slider, &gSliderStepsKey, @([[rest substringToIndex:dot.location] intValue]),
-                             OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    objc_setAssociatedObject(slider, &gSliderKeyKey, identifier, OBJC_ASSOCIATION_COPY_NONATOMIC);
     [slider addTarget:gSliderTarget action:@selector(changed:) forControlEvents:UIControlEventTouchUpInside | UIControlEventTouchUpOutside];
 }
 
@@ -728,16 +607,6 @@ static BOOL ShouldReceive(id navigator, SEL selector, UIGestureRecognizer *recog
     return originalShouldReceive(navigator, selector, recognizer, touch);
 }
 
-static void InstallCategory(NSDictionary *category)
-{
-    NSArray<NSDictionary *> *entries = category[@"rows"];
-    std::vector<AstralRowSpec> rows;
-    for (NSDictionary *entry in entries) {
-        rows.push_back({Text(entry, @"key") ?: "", Text(entry, @"title") ?: "", NULL, NULL, Text(entry, @"icon"), kAstralRowLink, 0, 0, 0});
-    }
-    astral_wire_set_category(Text(category, @"title") ?: "astral", rows.data(), rows.size());
-}
-
 static NSString *gRouteRefusal;
 
 static NSString *StartRoute(void)
@@ -791,9 +660,9 @@ void AstralStartPhoenixRouteWhenLoaded(void (^started)(void))
     _dyld_register_func_for_add_image(PhoenixImageAdded);
 }
 
-NSString *AstralInstallPhoenixSettings(NSDictionary *category, AstralSettingsPage page, AstralSettingsAction action)
+NSString *AstralInstallPhoenixSettings(void)
 {
-    if (gPageModel) return nil;
+    if (gInstalled) return nil;
     NSString *routeRefusal = AstralStartPhoenixRoute();
     if (routeRefusal) return routeRefusal;
     gGuestTap = NSClassFromString(@"LibdiscordHost.GuestTapRecognizer");
@@ -802,25 +671,14 @@ NSString *AstralInstallPhoenixSettings(NSDictionary *category, AstralSettingsPag
     Method receive = navigator ? class_getInstanceMethod(navigator, @selector(gestureRecognizer:shouldReceiveTouch:)) : nullptr;
     if (!receive || strcmp(method_getTypeEncoding(receive), "B32@0:8@16@24") != 0) return @"navigator-unavailable";
 
-    gPageModel = [page copy];
-    gAction = [action copy];
-    gRoutes = [NSMutableArray array];
-    pthread_mutex_lock(&gLock);
-    InstallCategory(category);
-    pthread_mutex_unlock(&gLock);
+    gInstalled = YES;
+    gNavigatorQueue = dispatch_queue_create("app.astral.settings-navigator", DISPATCH_QUEUE_SERIAL);
     gTarget = [AstralSettingsTarget new];
     gQueue = dispatch_queue_create("app.astral.phoenix-settings", DISPATCH_QUEUE_SERIAL);
     originalShouldReceive = (BOOL (*)(id, SEL, UIGestureRecognizer *, UITouch *))method_setImplementation(receive, (IMP)ShouldReceive);
     Method identifier = class_getInstanceMethod(UIView.class, @selector(setAccessibilityIdentifier:));
     originalSetIdentifier = (void (*)(UIView *, SEL, NSString *))method_setImplementation(identifier, (IMP)SetIdentifier);
     return nil;
-}
-
-void AstralRefreshPhoenixSettings(void)
-{
-    dispatch_async(dispatch_get_main_queue(), ^{
-        if (gPageModel && astral_page_depth() > 0) RefreshTop();
-    });
 }
 
 void AstralPhoenixPluginsReady(void)

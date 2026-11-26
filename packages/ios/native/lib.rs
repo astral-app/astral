@@ -292,3 +292,23 @@ pub extern "C" fn astral_ios_record_diagnostics(payload: AstralText, images: Ast
 pub extern "C" fn astral_ios_record_https_check(check: AstralText) {
     app::record_https_check(&check.text());
 }
+
+#[unsafe(no_mangle)]
+pub extern "C" fn astral_ios_navigator_handles(identifier: AstralText) -> bool {
+    astral_core::settings::navigator::handles(&identifier.text())
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn astral_ios_navigator_tap(identifier: AstralText) {
+    astral_core::settings::navigator::tap(&identifier.text());
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn astral_ios_navigator_slide(identifier: AstralText, fraction: f64) {
+    astral_core::settings::navigator::slide(&identifier.text(), fraction);
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn astral_ios_navigator_back() -> bool {
+    astral_core::settings::navigator::back()
+}
