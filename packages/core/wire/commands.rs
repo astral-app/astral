@@ -1,5 +1,5 @@
 use super::tag::{Op, Tag};
-use crate::lua_enums::ScrollAlign;
+use crate::lua::enums::ScrollAlign;
 use core::ffi::{CStr, c_char, c_int};
 use std::sync::Mutex;
 

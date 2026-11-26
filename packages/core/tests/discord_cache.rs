@@ -1,5 +1,5 @@
-use astral_core::discord_cache as discord;
-use astral_core::sqlite_api::{self as sqlite, Database};
+use astral_core::discord::cache as discord;
+use astral_core::support::sqlite_api::{self as sqlite, Database};
 use serde_json::json;
 
 const GUILD: &str = "100000000000000001";

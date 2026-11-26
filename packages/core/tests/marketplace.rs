@@ -3,12 +3,12 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Sender, channel};
 use std::time::Duration;
 
-use astral_core::bridge::AstralRustString;
-use astral_core::marketplace::{
+use astral_core::plugins::marketplace::{
     astral_marketplace_catalog, astral_marketplace_configure, astral_marketplace_install, astral_marketplace_install_status,
     astral_marketplace_refresh, astral_marketplace_state, astral_marketplace_stop_list_reason,
 };
-use astral_core::settings::{astral_settings_open, astral_settings_set};
+use astral_core::settings::store::{astral_settings_open, astral_settings_set};
+use astral_core::support::bridge::AstralRustString;
 
 fn repository() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
@@ -19,7 +19,7 @@ fn take(string: AstralRustString) -> Option<String> {
         return None;
     }
     let text = String::from_utf8_lossy(unsafe { core::slice::from_raw_parts(string.bytes, string.length) }).into_owned();
-    unsafe { astral_core::bridge::astral_rust_string_free(string) };
+    unsafe { astral_core::support::bridge::astral_rust_string_free(string) };
     Some(text)
 }
 
@@ -66,7 +66,7 @@ fn wait_for(condition: impl Fn() -> bool) {
 
 #[test]
 fn installs_signed_plugins_and_themes_from_a_file_catalog() {
-    unsafe { astral_core::log::astral_set_log_sink(Some(print_log), core::ptr::null_mut(), None) };
+    unsafe { astral_core::support::log::astral_set_log_sink(Some(print_log), core::ptr::null_mut(), None) };
     let root = std::env::temp_dir().join(format!("astral-marketplace-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
     let catalog = root.join("catalog");

@@ -1,9 +1,9 @@
-use astral_core::crypto::{hex, sha256};
-use astral_core::files::{is_contained_relative, join_path, list_directory, resolve_inside, write_atomically};
-use astral_core::privacy::sanitize;
-use astral_core::session::plausible;
-use astral_core::strings::{set_strings, text};
-use astral_core::toml_json::parse;
+use astral_core::diagnostics::privacy::sanitize;
+use astral_core::discord::session::plausible;
+use astral_core::support::crypto::{hex, sha256};
+use astral_core::support::files::{is_contained_relative, join_path, list_directory, resolve_inside, write_atomically};
+use astral_core::support::strings::{set_strings, text};
+use astral_core::support::toml_json::parse;
 
 #[test]
 fn hashes_match_known_digests() {

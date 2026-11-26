@@ -1,4 +1,4 @@
-use astral_core::host_requests::{Request, host_of, parse, path_of, rebuild};
+use astral_core::network::host_requests::{Request, host_of, parse, path_of, rebuild};
 
 fn string(out: &mut Vec<u8>, value: &str) {
     out.push(6);

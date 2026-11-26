@@ -1,4 +1,4 @@
-use astral_core::reactors::{encoded, rate_limit_wait, users};
+use astral_core::discord::reactors::{encoded, rate_limit_wait, users};
 use std::time::Duration;
 
 #[test]
@@ -28,7 +28,7 @@ fn caps_the_rate_limit_wait() {
 
 #[test]
 fn keeps_discord_request_headers() {
-    use astral_core::discord_headers::{api_version, clear, headers, note};
+    use astral_core::discord::headers::{api_version, clear, headers, note};
     clear();
     note(
         "discord.com",

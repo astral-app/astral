@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
-use astral_core::settings::Store;
+use astral_core::settings::store::Store;
 use serde_json::{Value, json};
 
 fn directory(name: &str) -> PathBuf {

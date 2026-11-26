@@ -157,10 +157,10 @@ pub enum AstralMediaKind {
 }
 
 impl AstralMediaKind {
-    const fn kind(self) -> astral_core::lua_enums::MediaKind {
+    const fn kind(self) -> astral_core::lua::enums::MediaKind {
         match self {
-            AstralMediaKind::Image => astral_core::lua_enums::MediaKind::Image,
-            AstralMediaKind::Video => astral_core::lua_enums::MediaKind::Video,
+            AstralMediaKind::Image => astral_core::lua::enums::MediaKind::Image,
+            AstralMediaKind::Video => astral_core::lua::enums::MediaKind::Video,
         }
     }
 }

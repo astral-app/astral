@@ -112,7 +112,7 @@ pub fn rules() -> Vec<Rule> {
         Rule {
             name: "sdk enums",
             affects: |path| {
-                path == "packages/core/lua_enums.rs" || path == "packages/sdk/library/astral.lua"
+                path == "packages/core/lua/enums.rs" || path == "packages/sdk/library/astral.lua"
             },
             run: |_, _| crate::lua_enums::sync_sdk(true),
         },

@@ -1,4 +1,4 @@
-use astral_core::json_bounds::{nests_too_deeply, with_valid_utf8};
+use astral_core::support::json_bounds::{nests_too_deeply, with_valid_utf8};
 
 #[test]
 fn replaces_each_invalid_byte() {

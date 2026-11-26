@@ -144,7 +144,7 @@ fn plugin_files(folder: &Path) -> Result<BTreeMap<String, String>, String> {
 }
 
 unsafe extern "C" fn collect(
-    _: *mut astral_core::lua_api::LuaState,
+    _: *mut astral_core::lua::api::LuaState,
     data: *const core::ffi::c_void,
     size: usize,
     into: *mut core::ffi::c_void,
@@ -155,7 +155,7 @@ unsafe extern "C" fn collect(
 }
 
 pub fn compile_lua(chunk: &str, source: &[u8]) -> Result<Vec<u8>, String> {
-    use astral_core::lua_api as lua;
+    use astral_core::lua::api as lua;
     let state = unsafe { lua::luaL_newstate() };
     if state.is_null() {
         return Err("out of memory".into());

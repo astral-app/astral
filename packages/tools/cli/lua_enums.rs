@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use astral_core::lua_enums::{ALL, ALL_NUMBERS};
+use astral_core::lua::enums::{ALL, ALL_NUMBERS};
 use regex::Regex;
 
 use crate::repo;
@@ -127,7 +127,7 @@ pub fn sync_sdk(check: bool) -> Result<(), String> {
     }
     if check {
         return Err(
-            "the SDK enums differ from packages/core/lua_enums.rs; run astral sdk enums".into(),
+            "the SDK enums differ from packages/core/lua/enums.rs; run astral sdk enums".into(),
         );
     }
     std::fs::write(&path, rendered)

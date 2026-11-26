@@ -1,4 +1,4 @@
-use astral_core::highlight::{find_syntax, highlight};
+use astral_core::render::highlight::{find_syntax, highlight};
 
 const THEME: &str = r##"{"type":"dark","colors":{"editor.background":"#1E1E1E","editor.foreground":"#D4D4D4"},"tokenColors":[{"scope":["keyword","keyword.control"],"settings":{"foreground":"#C586C0","fontStyle":"bold"}},{"scope":"string","settings":{"foreground":"#CE9178"}}]}"##;
 

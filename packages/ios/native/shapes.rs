@@ -1,4 +1,4 @@
-use astral_core::cutout::{self, AstralCutoutFrame, Kind};
+use astral_core::render::cutout::{self as cutout, AstralCutoutFrame, Kind};
 
 use crate::text::AstralText;
 
@@ -83,7 +83,7 @@ pub enum AstralSegmentKind {
 
 impl AstralSegmentKind {
     fn parse(code: f64) -> Option<(AstralSegmentKind, usize)> {
-        use astral_core::svg_path as path;
+        use astral_core::render::svg as path;
         let kinds = [
             (path::MOVE, AstralSegmentKind::Move, 2),
             (path::LINE, AstralSegmentKind::Line, 2),
@@ -135,7 +135,7 @@ fn segments(flat: &[f64]) -> Vec<AstralPathSegment> {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn astral_ios_svg_path(data: AstralText) -> AstralPath {
-    let mut boxed = segments(&astral_core::svg_path::parse(data.bytes())).into_boxed_slice();
+    let mut boxed = segments(&astral_core::render::svg::parse(data.bytes())).into_boxed_slice();
     let path = AstralPath {
         segments: boxed.as_mut_ptr(),
         count: boxed.len(),

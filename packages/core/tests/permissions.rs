@@ -1,4 +1,4 @@
-use astral_core::capability::Capability;
+use astral_core::plugins::capability::Capability;
 
 #[test]
 fn every_capability_round_trips_and_is_described() {

@@ -1,4 +1,4 @@
-use astral_core::reports::{add, issue_url, list, plugin_failure, process_exit, text, unexpected_exit};
+use astral_core::diagnostics::reports::{add, issue_url, list, plugin_failure, process_exit, text, unexpected_exit};
 use serde_json::json;
 
 #[test]
@@ -7,7 +7,7 @@ fn reports_dedupe_cap_and_render() {
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(&root).unwrap();
     let directory = root.to_string_lossy().into_owned();
-    unsafe { astral_core::reports::astral_reports_configure(directory.as_ptr().cast(), directory.len()) };
+    unsafe { astral_core::diagnostics::reports::astral_reports_configure(directory.as_ptr().cast(), directory.len()) };
     std::fs::write(
         root.join("reports.json"),
         br#"[{"kind":"weird"},{"error":"token: secret123","title":"Old"}]"#,

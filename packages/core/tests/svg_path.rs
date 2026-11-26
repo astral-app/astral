@@ -1,4 +1,4 @@
-use astral_core::svg_path::{ARC, CLOSE, CUBIC, LINE, MOVE, QUAD, parse};
+use astral_core::render::svg::{ARC, CLOSE, CUBIC, LINE, MOVE, QUAD, parse};
 
 #[test]
 fn parses_relative_commands_and_shorthands() {

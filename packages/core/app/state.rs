@@ -5,8 +5,8 @@ use std::sync::{Mutex, MutexGuard};
 use serde_json::Value;
 
 use super::ffi::{raw, take, take_json};
-use crate::packs::{self, AstralPacksHandle};
-use crate::settings::{self, AstralSettingsHandle, Store};
+use crate::plugins::packs::{self as packs, AstralPacksHandle};
+use crate::settings::store::{self as settings, AstralSettingsHandle, Store};
 
 const SETTINGS_RECHECK_MS: u64 = 500;
 pub const DEFAULT_PACK: &str = "discord";

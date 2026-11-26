@@ -1,23 +1,23 @@
 use std::ffi::CString;
 
-use astral_core::lua_api as lua;
-use astral_core::lua_json::{push_json, to_json};
-use astral_core::lua_sandbox::{
+use astral_core::lua::api as lua;
+use astral_core::lua::json::{push_json, to_json};
+use astral_core::lua::sandbox::{
     astral_lua_sandbox_call, astral_lua_sandbox_free, astral_lua_sandbox_load, astral_lua_sandbox_memory, astral_lua_sandbox_new,
     astral_lua_sandbox_state,
 };
 use serde_json::json;
 
-fn taken(string: astral_core::bridge::AstralRustString) -> Option<String> {
+fn taken(string: astral_core::support::bridge::AstralRustString) -> Option<String> {
     if string.bytes.is_null() {
         return None;
     }
     let text = String::from_utf8_lossy(unsafe { std::slice::from_raw_parts(string.bytes, string.length) }).into_owned();
-    unsafe { astral_core::bridge::astral_rust_string_free(string) };
+    unsafe { astral_core::support::bridge::astral_rust_string_free(string) };
     Some(text)
 }
 
-fn run(sandbox: *mut astral_core::lua_sandbox::Sandbox, source: &str) -> Option<String> {
+fn run(sandbox: *mut astral_core::lua::sandbox::Sandbox, source: &str) -> Option<String> {
     let chunk = "test";
     unsafe {
         if let Some(error) = taken(astral_lua_sandbox_load(

@@ -1,4 +1,4 @@
-use astral_core::env_report::{
+use astral_core::diagnostics::env_report::{
     AndroidFacts, AppleFacts, HttpsCheck, android_install_line, android_markers, apple_markers, crash_summary, https_verdict, is_beta_build,
 };
 use serde_json::json;

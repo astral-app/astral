@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-use astral_core::plugin_package::{Limits, best_locale, fill_placeholders, load, valid_plugin_identifier};
+use astral_core::plugins::package::{Limits, best_locale, fill_placeholders, load, valid_plugin_identifier};
 
 fn plugin_directory(name: &str) -> PathBuf {
     let root = std::env::temp_dir().join(format!("astral-package-{name}-{}", std::process::id()));

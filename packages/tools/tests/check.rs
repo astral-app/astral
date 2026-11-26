@@ -21,8 +21,8 @@ fn picks_affected_steps() {
             "clang-format,core tests",
         ),
         (
-            "packages/core/lua_host.rs",
-            "rust,rust magic numbers,core tests",
+            "packages/core/lua/host/mod.rs",
+            "rust,rust magic numbers,core tests,lua tests",
         ),
         ("packages/tools/cli/check.rs", "rust,rust magic numbers"),
         ("packages/ios/sources/Themes.mm", "clang-format"),

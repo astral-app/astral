@@ -1,4 +1,4 @@
-use astral_core::metrickit::{crash_stack, disk_write_stack, hang_stack};
+use astral_core::diagnostics::metrickit::{crash_stack, disk_write_stack, hang_stack};
 use serde_json::json;
 
 fn diagnostic(binary: &str) -> serde_json::Value {
