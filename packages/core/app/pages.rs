@@ -358,5 +358,5 @@ pub fn configure(current: &App) {
 }
 
 pub fn refresh_catalog_if_due(force: bool) {
-    crate::settings_pages::refresh_catalog_if_due(super::now_seconds(), force, std::sync::Arc::new(crate::settings_navigator::refresh));
+    crate::settings_pages::refresh_catalog_if_due(super::now_seconds(), force, std::sync::Arc::new(super::refresh_settings));
 }

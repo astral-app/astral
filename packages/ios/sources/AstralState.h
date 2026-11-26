@@ -1,10 +1,6 @@
 #import <Foundation/Foundation.h>
 
 #ifdef __cplusplus
-namespace astral {
-class SettingsStore;
-}
-astral::SettingsStore *_Nonnull AstralSettings(void);
 extern "C" {
 #endif
 

@@ -3,7 +3,7 @@
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
 
-#include "AstralLuaHost.h"
+#import "AstralCore.h"
 #include "PhoenixWire.h"
 
 static void (*gOriginalSendEvent)(UIWindow *, SEL, UIEvent *);
@@ -56,7 +56,7 @@ static void SendEvent(UIWindow *self, SEL selector, UIEvent *event)
             if (touch.phase != UITouchPhaseBegan || !touch.view) continue;
             uint64_t message = MessageAt(touch.view);
             if (!message) message = MessageAtRow(touch.view);
-            if (message) astral::luahost::setMenuMessage(astral_wire_current_channel(), message);
+            if (message) astral_ios_set_menu_message(astral_wire_current_channel(), message);
             break;
         }
     }
@@ -92,6 +92,5 @@ void AstralInstallMessageMenu(void)
         gMessagePrefixes = @[ @"message.content:", @"message.author:", @"message.avatar:", @"message.timestamp:" ];
         Method method = class_getInstanceMethod(UIWindow.class, @selector(sendEvent:));
         gOriginalSendEvent = (void (*)(UIWindow *, SEL, UIEvent *))method_setImplementation(method, (IMP)SendEvent);
-        astral_wire_set_message_menu_provider(AstralLuaMessageMenu);
     });
 }

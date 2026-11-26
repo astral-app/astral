@@ -1,0 +1,46 @@
+[package]
+name = "astral-ios"
+version = "0.0.1"
+edition = "2024"
+publish = false
+build = "build.rs"
+
+[lib]
+name = "astral_ios"
+path = "lib.rs"
+crate-type = ["staticlib"]
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+opt-level = 3
+lto = true
+codegen-units = 1
+debug = false
+strip = "debuginfo"
+
+[dependencies]
+astral-core = { path = "../../core" }
+libc = "0.2"
+serde_json = "1"
+
+[build-dependencies]
+cbindgen = { version = "0.29", default-features = false }
+
+[lints.rust]
+nonstandard_style = "deny"
+unsafe_op_in_unsafe_fn = "deny"
+
+[lints.clippy]
+cast_lossless = "deny"
+enum_glob_use = "deny"
+many_single_char_names = "deny"
+match_same_arms = "deny"
+min_ident_chars = "deny"
+needless_pass_by_value = "deny"
+redundant_else = "deny"
+struct_field_names = "deny"
+unreadable_literal = "deny"
+wildcard_imports = "deny"

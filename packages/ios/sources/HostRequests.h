@@ -4,7 +4,7 @@
 extern "C" {
 #endif
 
-NSDictionary *_Nullable AstralParseTOML(NSData *_Nullable data);
+void AstralAttachBridge(void);
 
 #ifdef __cplusplus
 }

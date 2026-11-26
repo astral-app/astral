@@ -46,6 +46,9 @@ enum Method {
     PickedMedia,
     PickedVideoUrl,
     Reactors,
+    KeepAlive,
+    OfferPick,
+    DismissSheets,
 }
 
 impl Method {
@@ -86,6 +89,9 @@ impl Method {
             "pickedMedia" => Method::PickedMedia,
             "pickedVideoURL" => Method::PickedVideoUrl,
             "reactors" => Method::Reactors,
+            "keepAlive" => Method::KeepAlive,
+            "offerPick" => Method::OfferPick,
+            "dismissSheets" => Method::DismissSheets,
             _ => return None,
         })
     }
@@ -182,8 +188,19 @@ fn picked_video(slot: &str) -> Value {
     optional_text(host::request(Request::PickedVideo { index }).into_text())
 }
 
-fn refresh_emoji() {
-    host::request(Request::RefreshEmoji);
+fn refresh_decorations() {
+    REFRESH_DECORATIONS.store(true, std::sync::atomic::Ordering::Release);
+    host::request(Request::RefreshDecorations);
+}
+
+fn offer_pick(arguments: &Arguments) -> Value {
+    let Some(data) = crate::lua_host_install::decode_base64(arguments.text(0)) else {
+        return value(json!(false));
+    };
+    flag(&host::request(Request::OfferPick {
+        name: arguments.text(1),
+        data: &data,
+    }))
 }
 
 fn verify_signature(directory: &str, main: &str) -> bool {
@@ -269,14 +286,14 @@ fn dispatch(method: Method, arguments: &Arguments) -> Value {
                 )
             } != 0;
             if scrolled {
-                refresh_emoji();
+                refresh_decorations();
             }
             value(json!(scrolled))
         }
         Method::FocusComposer => {
             let focused = crate::wire::commands::astral_wire_focus_composer(core::ffi::c_int::from(arguments.flag(0))) != 0;
             if focused {
-                refresh_emoji();
+                refresh_decorations();
             }
             value(json!(focused))
         }
@@ -285,8 +302,7 @@ fn dispatch(method: Method, arguments: &Arguments) -> Value {
             replace: arguments.flag(1),
         })),
         Method::RefreshDecorations => {
-            REFRESH_DECORATIONS.store(true, std::sync::atomic::Ordering::Release);
-            refresh_emoji();
+            refresh_decorations();
             done()
         }
         Method::Environment => value(reports::environment()),
@@ -380,6 +396,9 @@ fn dispatch(method: Method, arguments: &Arguments) -> Value {
         Method::PickedMedia => picked_media(arguments.text(0)),
         Method::PickedVideoUrl => picked_video(arguments.text(0)),
         Method::Reactors => reactors(arguments),
+        Method::KeepAlive => flag(&host::request(Request::KeepAlive { on: arguments.flag(0) })),
+        Method::OfferPick => offer_pick(arguments),
+        Method::DismissSheets => flag(&host::request(Request::DismissSheets)),
     }
 }
 

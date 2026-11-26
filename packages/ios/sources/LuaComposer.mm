@@ -1,7 +1,6 @@
 #import "LuaComposer.h"
 
-#import "LuaHost.h"
-#import "DevServer.h"
+#import "AstralCore.h"
 #import <objc/runtime.h>
 #import <UIKit/UIKit.h>
 
@@ -139,7 +138,8 @@ static void Paint(UITextView *textView)
     if (!textView.window || textView.markedTextRange || !IsComposer(textView)) return;
     NSData *utf8 = [textView.text dataUsingEncoding:NSUTF8StringEncoding];
     if (!utf8) return;
-    NSArray<NSDictionary *> *runs = AstralLuaComposerStyles(textView.text ?: @"");
+    id styles = AstralTakeJSON(astral_ios_composer_styles(AstralTextOf(textView.text ?: @"")));
+    NSArray<NSDictionary *> *runs = [styles isKindOfClass:NSArray.class] ? styles : @[];
     NSMutableArray<NSDictionary *> *styled = [NSMutableArray array];
     for (NSDictionary *run in runs) {
         NSUInteger start = [run[@"start"] unsignedIntegerValue];

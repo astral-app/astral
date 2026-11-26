@@ -16,10 +16,11 @@ const NATIVE_PATTERNS: [&str; 5] = [
     "packages/*.mm",
     "packages/*.cpp",
 ];
-const RUST_CRATES: [&[&str]; 3] = [
+const RUST_CRATES: [&[&str]; 4] = [
     &["packages", "core"],
     &["packages", "tools"],
     &["packages", "android", "native"],
+    &["packages", "ios", "native"],
 ];
 
 pub fn taplo(arguments: &[String]) -> Result<(), String> {

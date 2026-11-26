@@ -28,6 +28,7 @@ fn rust(path: &str) -> bool {
             "packages/core/",
             "packages/tools/",
             "packages/android/native/",
+            "packages/ios/native/",
         ],
     ) && (repo::extension(path) == "rs"
         || path.ends_with("/Cargo.toml")

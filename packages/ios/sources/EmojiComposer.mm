@@ -5,6 +5,7 @@
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
 
+#import "AstralCore.h"
 #import "EmojiPacks.h"
 
 static const NSInteger kOverlayTag = 0x55454d4a;
@@ -201,7 +202,7 @@ static void Paint(UITextView *textView)
     if (textView.markedTextRange) return;
     RemoveOverlays(textView);
     NSString *text = textView.text;
-    if (!text.length || [AstralActiveEmojiPackID() isEqualToString:@"discord"]) {
+    if (!text.length || !astral_ios_custom_emoji_pack()) {
         HideRanges(textView, @[]);
         return;
     }
