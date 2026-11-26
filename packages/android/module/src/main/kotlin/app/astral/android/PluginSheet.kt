@@ -2,7 +2,6 @@ package app.astral.android
 
 import android.app.Activity
 import android.app.Dialog
-import android.content.res.Configuration
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.Typeface
@@ -427,8 +426,7 @@ object PluginSheet {
         else -> fallback
     }
 
-    private fun palette(activity: Activity) =
-        Palette(activity.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK != Configuration.UI_MODE_NIGHT_NO)
+    private fun palette(activity: Activity) = Palette(DiscordTheme.dark(activity))
 
     private fun rounded(fill: Int, radius: Float, topOnly: Boolean = false) = GradientDrawable().apply {
         setColor(fill)
