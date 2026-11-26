@@ -17,6 +17,9 @@ pub fn snowflake_text(value: &str) -> bool {
     !value.is_empty() && value.len() <= 20 && value.bytes().all(|byte| byte.is_ascii_digit())
 }
 
+const DISCORD_BODY_LIMIT: usize = 256 << 10;
+const MESSAGE_ACTION_LABEL_LIMIT: usize = 63;
+
 fn me(state: *mut LuaState) -> &'static mut Plugin {
     unsafe { &mut *host::plugin_of(state) }
 }
@@ -1406,8 +1409,8 @@ pub unsafe fn message_action(state: *mut LuaState) -> Outcome {
     unsafe { require_permission(state, Capability::UiMessageActions) }?;
     let label = unsafe { check_bytes(state, 1) }?.to_vec();
     unsafe { check_type(state, 2, lua::TFUNCTION) }?;
-    if label.is_empty() || label.len() > 24 {
-        return Err("astral.ui.message_action: label must be 1 to 24 bytes".into());
+    if label.is_empty() || label.len() > MESSAGE_ACTION_LABEL_LIMIT {
+        return Err("astral.ui.message_action: label must be 1 to 63 bytes".into());
     }
     if plugin.message_actions.len() >= 4 {
         return Err("astral.ui.message_action: at most 4 actions per plugin".into());
@@ -1566,6 +1569,68 @@ pub unsafe fn network_request(state: *mut LuaState) -> Outcome {
     ) {
         abandon_request(|plugin| &mut plugin.network_requests, me(state), state, request);
         return Err("astral.net.request: could not start the request".into());
+    }
+    unsafe { lua::lua_pushinteger(state, request as i64) };
+    Ok(1)
+}
+
+fn discord_path(path: &str) -> bool {
+    path.len() <= 2048
+        && path.starts_with('/')
+        && !path.starts_with("//")
+        && !path.contains("..")
+        && !path.contains('\\')
+        && !path.contains('#')
+        && !crate::lua::host::http::contains_control(path)
+}
+
+fn discord_request_options(mut options: Value) -> Result<Value, &'static str> {
+    if !options.is_object() {
+        return Err("astral.discord.request: options must be a table");
+    }
+    if !options.get("path").and_then(Value::as_str).is_some_and(discord_path) {
+        return Err("astral.discord.request: path must start with / and stay inside Discord's API");
+    }
+    let method = match options.get("method") {
+        None => "GET".to_owned(),
+        Some(Value::String(method)) => method.to_ascii_uppercase(),
+        Some(_) => return Err("astral.discord.request: method must be a string"),
+    };
+    if !["DELETE", "GET", "PATCH", "POST", "PUT"].contains(&method.as_str()) {
+        return Err("astral.discord.request: unsupported method");
+    }
+    options["method"] = json!(method);
+    match options.get("body") {
+        None | Some(Value::Null) => {}
+        Some(_) if method == "GET" => return Err("astral.discord.request: GET requests cannot have a body"),
+        Some(Value::String(body)) if body.len() <= DISCORD_BODY_LIMIT => {}
+        Some(Value::String(_)) => return Err("astral.discord.request: body must be no larger than 256 KiB"),
+        Some(body) => {
+            let encoded = body.to_string();
+            if encoded.len() > DISCORD_BODY_LIMIT {
+                return Err("astral.discord.request: body must be no larger than 256 KiB");
+            }
+            options["body"] = json!(encoded);
+        }
+    }
+    Ok(options)
+}
+
+pub unsafe fn discord_request(state: *mut LuaState) -> Outcome {
+    unsafe { require_permission(state, Capability::DiscordApi) }?;
+    if !host::platform_has("discordRequest") {
+        return Err("astral.discord.request is unavailable on this client".into());
+    }
+    unsafe { check_type(state, 1, lua::TTABLE) }?;
+    unsafe { check_type(state, 2, lua::TFUNCTION) }?;
+    let options = discord_request_options(unsafe { to_json(state, 1, 0) }.unwrap_or(Value::Null)).map_err(str::to_owned)?;
+    let request = start_request(|plugin| &mut plugin.network_requests, me(state), state, 2);
+    if matches!(
+        host::platform("discordRequest", &json!([request, options])),
+        Platform::Threw | Platform::Missing
+    ) {
+        abandon_request(|plugin| &mut plugin.network_requests, me(state), state, request);
+        return Err("astral.discord.request: could not start the request".into());
     }
     unsafe { lua::lua_pushinteger(state, request as i64) };
     Ok(1)

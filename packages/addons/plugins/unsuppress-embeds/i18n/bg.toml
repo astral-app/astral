@@ -1,0 +1,4 @@
+CHANGE_FAILED = "Неуспешно действие „{action}“: {reason}"
+CHANGE_REFUSED = "Discord отказа промяната."
+SUPPRESS_EMBEDS = "Потисни вгражданията"
+UNSUPPRESS_EMBEDS = "Възстанови вгражданията"

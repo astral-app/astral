@@ -1,0 +1,4 @@
+CHANGE_FAILED = "{action} mislykkedes: {reason}"
+CHANGE_REFUSED = "Discord afviste ændringen."
+SUPPRESS_EMBEDS = "Skjul indlejringer"
+UNSUPPRESS_EMBEDS = "Vis indlejringer igen"

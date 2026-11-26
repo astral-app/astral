@@ -1,0 +1,4 @@
+CHANGE_FAILED = "{action} ha fallado: {reason}"
+CHANGE_REFUSED = "Discord ha rechazado el cambio."
+SUPPRESS_EMBEDS = "Suprimir contenido insertado"
+UNSUPPRESS_EMBEDS = "Restaurar contenido insertado"

@@ -149,6 +149,14 @@ icon = "UserPlusIcon"
 base = "plugins/astral.new-user-sprout/"
 
 [[plugins]]
+id = "astral.unsuppress-embeds"
+name = "Unsuppress Embeds"
+version = "0.0.1"
+description = "Adds a message long-press row that brings back suppressed link embeds, or suppresses them."
+icon = "EmbedIcon"
+base = "plugins/astral.unsuppress-embeds/"
+
+[[plugins]]
 id = "astral.view-raw"
 name = "View Raw"
 version = "0.0.1"

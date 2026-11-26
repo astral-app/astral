@@ -1,0 +1,4 @@
+CHANGE_FAILED = "{action} se nezdařilo: {reason}"
+CHANGE_REFUSED = "Discord změnu odmítl."
+SUPPRESS_EMBEDS = "Skrýt náhledy odkazů"
+UNSUPPRESS_EMBEDS = "Zobrazit náhledy odkazů"

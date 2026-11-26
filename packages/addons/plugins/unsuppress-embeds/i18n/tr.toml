@@ -1,0 +1,4 @@
+CHANGE_FAILED = "{action} başarısız oldu: {reason}"
+CHANGE_REFUSED = "Discord değişikliği reddetti."
+SUPPRESS_EMBEDS = "Yerleştirmeleri Gizle"
+UNSUPPRESS_EMBEDS = "Yerleştirmeleri Göster"

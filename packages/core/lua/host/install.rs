@@ -146,6 +146,7 @@ entries! {
     release_held => http::release_held,
     respond_held => http::respond_held,
     reactors => ui::reactors,
+    discord_request => ui::discord_request,
     require => ui::require,
 }
 
@@ -167,13 +168,14 @@ unsafe fn group(state: *mut LuaState, plugin: *mut Plugin, name: &str, entries: 
     }
 }
 
-const PERMISSIONS: [(&str, i64); 13] = [
+const PERMISSIONS: [(&str, i64); 14] = [
     ("KICK_MEMBERS", 1 << 1),
     ("BAN_MEMBERS", 1 << 2),
     ("ADMINISTRATOR", 1 << 3),
     ("MANAGE_CHANNELS", 1 << 4),
     ("MANAGE_GUILD", 1 << 5),
     ("MANAGE_MESSAGES", 1 << 13),
+    ("EMBED_LINKS", 1 << 14),
     ("MUTE_MEMBERS", 1 << 22),
     ("DEAFEN_MEMBERS", 1 << 23),
     ("MOVE_MEMBERS", 1 << 24),
@@ -361,6 +363,7 @@ pub(crate) fn install_api(plugin: *mut Plugin) {
             ("message", api::astral_lua_discord_message),
             ("raw_message", api::astral_lua_discord_raw_message),
             ("reactors", reactors),
+            ("request", discord_request),
             ("user", api::astral_lua_discord_user),
             ("nickname", api::astral_lua_discord_nickname),
             ("relationship", api::astral_lua_discord_relationship),
