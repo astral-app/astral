@@ -132,14 +132,117 @@ local function lookup(node)
 	return entry and entry.users
 end
 
-astral.ui.reaction(function(node)
-	local users = lookup(node)
+local FACE_SIZE = 16.2
+local FACE_STEP = 4.5
+local BADGE_FONT_SIZE = 7.2
+local TRAILING_INSET = -2
+
+local function glyph(codepoints)
+	local characters = {}
+	for part in codepoints:gmatch("[^-]+") do
+		local code = tonumber(part, 16)
+		if not code then
+			return nil
+		end
+		characters[#characters + 1] = utf8.char(code)
+	end
+	return table.concat(characters)
+end
+
+local function parse_pill(key)
+	local message_id, kind, category, value = key:match("^(%d+):(%a+):(%a+):(.+)$")
+	if not message_id then
+		return nil
+	end
+	local pill = { message_id = message_id, burst = kind == "burst" }
+	if category == "unicode" then
+		pill.name = glyph(value)
+	else
+		pill.id = value:match("(%d+)$")
+	end
+	return (pill.name or pill.id) and pill or nil
+end
+
+local function find_reaction(message, pill)
+	for _, reaction in ipairs(message and message.reactions or {}) do
+		if (pill.id and reaction.emoji_id == pill.id) or (not pill.id and reaction.emoji_name == pill.name) then
+			return reaction
+		end
+	end
+	return nil
+end
+
+local function face(url, first)
+	return {
+		type = astral.InsertNodeType.Image,
+		icon = url,
+		width = FACE_SIZE,
+		height = FACE_SIZE,
+		radius = FACE_SIZE / 2,
+		cover = true,
+		fixed = true,
+		margin = { first and 0 or FACE_STEP - FACE_SIZE, 0, 0, 0 },
+	}
+end
+
+local function badge(overflow)
+	return {
+		type = astral.InsertNodeType.View,
+		background = 0xFF000000,
+		width = FACE_SIZE,
+		height = FACE_SIZE,
+		radius = FACE_SIZE / 2,
+		fixed = true,
+		justify = astral.Justify.Center,
+		align = astral.Align.Center,
+		margin = { FACE_STEP - FACE_SIZE, 0, 0, 0 },
+		children = {
+			{
+				type = astral.InsertNodeType.Text,
+				text = "+" .. overflow,
+				color = 0xFFFFFFFF,
+				size = BADGE_FONT_SIZE,
+				bold = true,
+			},
+		},
+	}
+end
+
+astral.ui.insert("message.reaction:", function(node)
+	local pill = parse_pill(node.key or "")
+	if not pill then
+		return nil
+	end
+	local message = astral.discord.message(node.channel_id or "", pill.message_id)
+	local reaction = find_reaction(message, pill)
+	local count = reaction and (pill.burst and reaction.burst_count or reaction.count) or 0
+	local emoji = pill.id and ((reaction and reaction.emoji_name or "_") .. ":" .. pill.id) or pill.name
+	local users = lookup({
+		channel_id = node.channel_id,
+		message_id = pill.message_id,
+		emoji = emoji,
+		burst = pill.burst,
+		count = count,
+	})
 	if not users or #users == 0 then
 		return nil
 	end
-	local images = {}
-	for _, user in ipairs(users) do
-		images[#images + 1] = avatar_url(user)
+	local faces = {}
+	for index, user in ipairs(users) do
+		faces[#faces + 1] = face(avatar_url(user), index == 1)
 	end
-	return { images = images, total = node.count }
+	if count > #users and #users == FACES then
+		faces[#faces + 1] = badge(count - #users)
+	end
+	return {
+		type = astral.InsertNodeType.View,
+		row = true,
+		fixed = true,
+		margin = { 0, 0, TRAILING_INSET, 0 },
+		children = faces,
+	}
 end)
+
+astral.events.on(astral.Event.Gateway, function()
+	astral.ui.refresh()
+end, { "MESSAGE_REACTION_ADD", "MESSAGE_REACTION_REMOVE" })

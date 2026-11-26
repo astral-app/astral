@@ -475,6 +475,10 @@ impl State {
         }
         found.insert("flags".into(), json!(record.get("flags").and_then(Value::as_u64).unwrap_or(0)));
         found.insert("embeds".into(), json!(array(&record, "embeds").len()));
+        found.insert(
+            "reactions".into(),
+            Value::Array(array(&record, "reactions").iter().filter_map(reaction_summary).collect()),
+        );
         let mentions: Vec<Value> = array(&record, "mentions")
             .iter()
             .filter_map(|mentioned| {
@@ -796,4 +800,25 @@ pub unsafe extern "C" fn astral_discord_permissions(
         *granted = permissions;
     }
     1
+}
+
+fn reaction_summary(reaction: &Value) -> Option<Value> {
+    let emoji = reaction.get("emoji")?;
+    let mut summary = Map::new();
+    if let Some(id) = emoji.get("id").filter(|id| id.is_string()) {
+        summary.insert("emoji_id".into(), id.clone());
+    }
+    if let Some(name) = emoji.get("name").filter(|name| name.is_string()) {
+        summary.insert("emoji_name".into(), name.clone());
+    }
+    let details = reaction.get("count_details");
+    let number = |value: Option<&Value>| value.and_then(Value::as_u64).unwrap_or(0);
+    let normal = details.and_then(|details| details.get("normal")).or_else(|| reaction.get("count"));
+    summary.insert("count".into(), json!(number(normal)));
+    summary.insert(
+        "burst_count".into(),
+        json!(number(details.and_then(|details| details.get("burst")))),
+    );
+    summary.insert("me".into(), json!(reaction.get("me").and_then(Value::as_bool).unwrap_or(false)));
+    Some(Value::Object(summary))
 }

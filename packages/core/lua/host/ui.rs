@@ -1201,10 +1201,6 @@ pub unsafe fn style_text(state: *mut LuaState) -> Outcome {
     unsafe { register_function(state, None, usize::MAX, "", |plugin| &mut plugin.text_stylers) }
 }
 
-pub unsafe fn reaction_decorator(state: *mut LuaState) -> Outcome {
-    unsafe { register_function(state, None, usize::MAX, "", |plugin| &mut plugin.reaction_decorators) }
-}
-
 fn picked_slot(uri: &str) -> Option<String> {
     let slot = uri.strip_prefix("picked://")?;
     let valid = (2..=12).contains(&slot.len()) && slot.starts_with('p') && slot[1..].bytes().all(|byte| byte.is_ascii_digit());

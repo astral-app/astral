@@ -117,7 +117,6 @@ pub fn install_decorators() {
     wire::mentions::astral_wire_set_message_text_colorizer(Some(hooks::astral_lua_message_text_color));
     wire::names::astral_wire_set_name_colorizer(Some(nodes::astral_lua_name_color));
     wire::names::astral_wire_set_typing_decorator(Some(nodes::astral_lua_typing));
-    wire::reactions::astral_wire_set_reaction_decorator(Some(nodes::astral_lua_reaction));
 }
 
 unsafe extern "C" fn resolve_emoji(codepoints: *const c_char, url: *mut c_char, capacity: usize) -> core::ffi::c_int {
@@ -331,13 +330,7 @@ pub fn pending_updates() -> Vec<u8> {
     let mut merged = Vec::new();
     collect(&mut merged, |buffer| unsafe { wire::commands::astral_wire_take_commands(buffer) });
     collect(&mut merged, |buffer| unsafe { wire::mentions::astral_wire_retry_mentions(buffer) });
-    collect(&mut merged, |buffer| unsafe {
-        wire::reactions::astral_wire_retry_reactions(buffer)
-    });
     if REFRESH_DECORATIONS.swap(false, Ordering::AcqRel) || wire::patch::astral_wire_take_refresh_busy() != 0 {
-        collect(&mut merged, |buffer| unsafe {
-            wire::reactions::astral_wire_refresh_reactions(buffer)
-        });
         collect(&mut merged, |buffer| unsafe {
             wire::message_text::astral_wire_refresh_message_texts(buffer)
         });

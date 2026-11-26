@@ -220,30 +220,6 @@ typedef int (*AstralTypingDecorator)(const AstralNameContext *context, AstralMen
 void astral_wire_set_typing_decorator(AstralTypingDecorator decorator);
 
 typedef struct {
-    uint64_t message_id;
-    uint64_t channel_id;
-    const char *emoji;
-    int burst;
-    uint32_t count;
-} AstralReactionContext;
-
-enum { kAstralReactionFaces = 5 };
-
-typedef struct {
-    char images[kAstralReactionFaces][512];
-    uint32_t image_count;
-    uint32_t total;
-    int stale;
-} AstralReactionDecoration;
-
-typedef int (*AstralReactionDecorator)(const AstralReactionContext *context, AstralReactionDecoration *decoration);
-
-void astral_wire_set_reaction_decorator(AstralReactionDecorator decorator);
-int astral_wire_pending_reactions(void);
-int astral_wire_retry_reactions(AstralWireBuffer *buffer);
-int astral_wire_refresh_reactions(AstralWireBuffer *buffer);
-
-typedef struct {
     char action_id[64];
     char label[64];
     char icon[160];

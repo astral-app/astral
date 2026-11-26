@@ -20,7 +20,6 @@ use crate::wire::code_blocks::AstralCodeBlockContext;
 use crate::wire::decorate::{AstralDecorationContext, AstralMessageBackgroundContext, AstralMessageBackgroundStyle, AstralTag};
 use crate::wire::insert::{AstralInsertNode, INSERT_IMAGE, INSERT_PLAYER, INSERT_TEXT};
 use crate::wire::message_menu::AstralMenuEntry;
-use crate::wire::reactions::{AstralReactionContext, AstralReactionDecoration, FACES};
 
 const INSERT_VIEW: c_int = 2;
 const INSERT_COLOR: u32 = 1 << 0;
@@ -38,6 +37,8 @@ const INSERT_JUSTIFY: u32 = 1 << 11;
 const INSERT_FILL: u32 = 1 << 12;
 const INSERT_MUTED: u32 = 1 << 13;
 const INSERT_FILL_HEIGHT: u32 = 1 << 14;
+const INSERT_COVER: u32 = 1 << 16;
+const INSERT_FIXED: u32 = 1 << 17;
 const INSERT_ALIGN: u32 = 1 << 15;
 const TAG_PILL: c_int = 0;
 const TAG_ORIGINAL_POSTER: c_int = 1;
@@ -261,6 +262,12 @@ unsafe fn read_insert_style(state: *mut LuaState, node: &mut AstralInsertNode) {
         }
         if node.kind == INSERT_PLAYER && field_flag(state, "muted") {
             node.fields |= INSERT_MUTED;
+        }
+        if node.kind == INSERT_IMAGE && field_flag(state, "cover") {
+            node.fields |= INSERT_COVER;
+        }
+        if field_flag(state, "fixed") {
+            node.fields |= INSERT_FIXED;
         }
         if let Some(justify) = field_text(state, "justify").as_deref().and_then(Justify::parse) {
             node.justify = justify;
@@ -595,84 +602,6 @@ pub unsafe extern "C" fn astral_lua_typing(context: *const AstralNameContext, de
     write_text(&mut decoration.image, &image);
     decoration.round = c_int::from(round);
     1
-}
-
-unsafe fn read_reaction_images(state: *mut LuaState, decoration: &mut AstralReactionDecoration) {
-    unsafe { lua::get_field(state, -1, "images") };
-    if unsafe { lua::is_table(state, -1) } {
-        let length = unsafe { lua::lua_rawlen(state, -1) } as i64;
-        let mut index = 1;
-        while index <= length && (decoration.image_count as usize) < FACES {
-            unsafe { lua::lua_rawgeti(state, -1, index) };
-            let image = unsafe { lua::to_bytes(state, -1) }
-                .map(|image| String::from_utf8_lossy(image).into_owned())
-                .unwrap_or_default();
-            if image.starts_with("https://") {
-                write_text(&mut decoration.images[decoration.image_count as usize], &image);
-                decoration.image_count += 1;
-            }
-            unsafe { lua::pop(state, 1) };
-            index += 1;
-        }
-    }
-    unsafe { lua::pop(state, 1) };
-    unsafe { lua::get_field(state, -1, "total") };
-    if unsafe { lua::lua_isinteger(state, -1) } != 0 {
-        decoration.total = unsafe { lua::to_integer(state, -1) }.max(0) as u32;
-    }
-    unsafe { lua::pop(state, 1) };
-}
-
-#[unsafe(export_name = "AstralLuaReaction")]
-pub unsafe extern "C" fn astral_lua_reaction(context: *const AstralReactionContext, decoration: *mut AstralReactionDecoration) -> c_int {
-    let (Some(context), Some(decoration)) = (unsafe { context.as_ref() }, unsafe { decoration.as_mut() }) else {
-        return 0;
-    };
-    let Some(_held) = host::try_lock() else { return busy(0) };
-    let channel = snowflake(context.channel_id);
-    let message = snowflake(context.message_id);
-    if channel.is_empty() || message.is_empty() {
-        return 0;
-    }
-    let guild = crate::discord::cache::channel_guild(&channel);
-    let emoji = unsafe { c_text(context.emoji) };
-    for plugin in running_plugins() {
-        let decorators = unsafe { &*plugin }.reaction_decorators.clone();
-        for reference in decorators {
-            let state = unsafe { (*plugin).state() };
-            unsafe {
-                lua::push_reference(state, reference);
-                lua::lua_createtable(state, 0, 6);
-                set_text(state, "channel_id", &channel);
-                set_text(state, "message_id", &message);
-                if let Some(guild) = &guild {
-                    set_text(state, "guild_id", guild);
-                }
-                set_text(state, "emoji", &emoji);
-                lua::lua_pushboolean(state, context.burst);
-                lua::set_field(state, -2, "burst");
-                lua::lua_pushinteger(state, i64::from(context.count));
-                lua::set_field(state, -2, "count");
-            }
-            if host::call(plugin, 1, 1, "reaction") {
-                if unsafe { lua::is_table(state, -1) } {
-                    unsafe { read_reaction_images(state, decoration) };
-                }
-                unsafe { lua::pop(state, 1) };
-                decoration.stale = 0;
-                if decoration.image_count != 0 {
-                    return 1;
-                }
-            }
-            if unsafe { (*plugin).failed } {
-                break;
-            }
-        }
-        if unsafe { (*plugin).failed } {
-            host::stop_plugin(plugin);
-        }
-    }
-    0
 }
 
 #[unsafe(export_name = "AstralLuaNameColor")]

@@ -209,7 +209,6 @@ pub struct Plugin {
     pub decorators: Vec<(crate::lua::enums::Target, c_int)>,
     pub relabelers: Vec<(crate::lua::enums::Target, c_int)>,
     pub text_stylers: Vec<c_int>,
-    pub reaction_decorators: Vec<c_int>,
     pub outgoing_message_transforms: Vec<c_int>,
     pub media_save_handlers: Vec<c_int>,
     pub composer_decorators: Vec<c_int>,
@@ -590,7 +589,6 @@ pub(crate) fn stop_plugin(plugin: *mut Plugin) {
     plugin_ref.decorators.clear();
     plugin_ref.relabelers.clear();
     plugin_ref.text_stylers.clear();
-    plugin_ref.reaction_decorators.clear();
     plugin_ref.composer_decorators.clear();
     plugin_ref.message_background_decorators.clear();
     plugin_ref.node_patches.clear();

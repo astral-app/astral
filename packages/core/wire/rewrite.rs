@@ -20,7 +20,6 @@ use super::names::wire_color_names;
 use super::out::{AstralWireBuffer, Out, WIRE_VERSION};
 use super::pages::{wire_rewrite_pages, wire_set_template_source};
 use super::patch::wire_patch_nodes;
-use super::reactions::wire_reaction_avatars;
 use super::theme::{wire_patch_colors, wire_theme_active, wire_track_colors};
 
 unsafe extern "C" {
@@ -30,7 +29,7 @@ unsafe extern "C" {
 type Stage = unsafe extern "C" fn(*const u8, *const Span, usize, *mut Out, *mut c_int, usize);
 type Expansion = unsafe extern "C" fn(*const u8, usize, *mut Span, *mut usize, *mut usize) -> *mut u8;
 
-const STAGES: [Stage; 12] = [
+const STAGES: [Stage; 11] = [
     wire_decorate,
     wire_patch_nodes,
     wire_insert_nodes,
@@ -40,7 +39,6 @@ const STAGES: [Stage; 12] = [
     wire_reaction_emoji,
     wire_message_texts,
     wire_code_blocks,
-    wire_reaction_avatars,
     wire_observe_app_gradient,
     wire_observe_removals,
 ];

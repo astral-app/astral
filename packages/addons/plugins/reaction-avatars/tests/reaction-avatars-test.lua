@@ -1,6 +1,15 @@
-local reaction = nil
+local build, gateway = nil, nil
 local requests, refreshes, timers = {}, 0, {}
 local now = 0
+local messages = {
+	["2"] = {
+		id = "2",
+		reactions = {
+			{ emoji_name = "🔥", count = 7, burst_count = 1, me = false },
+			{ emoji_id = "3", emoji_name = "name", count = 2, burst_count = 0, me = true },
+		},
+	},
+}
 
 astral = {
 	log = function() end,
@@ -31,18 +40,27 @@ astral = {
 			timers[#timers + 1] = { delay = delay, callback = callback }
 		end,
 	},
+	events = {
+		on = function(_, callback, types)
+			gateway = { callback = callback, types = types }
+		end,
+	},
 	ui = {
 		decorate = function() end,
 		relabel = function() end,
 		refresh = function()
 			refreshes = refreshes + 1
 		end,
-		reaction = function(fn)
-			reaction = fn
+		insert = function(selector, _, fn)
+			assert(selector == "message.reaction:")
+			build = fn
 		end,
 	},
 	discord = {
 		permission = {},
+		message = function(_, id)
+			return messages[id]
+		end,
 		request = function(options, callback)
 			requests[#requests + 1] = { options = options, callback = callback }
 		end,
@@ -52,34 +70,38 @@ astral = {
 dofile(arg[2])
 dofile(arg[1])
 
-local node = { channel_id = "1", message_id = "2", emoji = "name:3", count = 7 }
-assert(reaction(node) == nil)
+local fire = { channel_id = "1", key = "2:normal:unicode:1f525" }
+assert(build(fire) == nil)
 assert(#requests == 1)
-assert(requests[1].options.path == "/channels/1/messages/2/reactions/name%3A3?limit=5&type=0")
-assert(reaction(node) == nil and #requests == 1)
+assert(requests[1].options.path == "/channels/1/messages/2/reactions/%F0%9F%94%A5?limit=5&type=0")
 
 requests[1].callback({
 	ok = true,
 	status = 200,
-	body = '[{"id":"11","avatar":"abc"},{"id":"263689920210534400","avatar":null}]',
+	body = table.concat({
+		'[{"id":"11","avatar":"abc"},{"id":"12","avatar":"b"},{"id":"13","avatar":"c"},',
+		'{"id":"14","avatar":"d"},{"id":"263689920210534400","avatar":null}]',
+	}),
 })
 assert(refreshes == 1)
-local shown = reaction(node)
-assert(#shown.images == 2)
-assert(shown.images[1] == "https://cdn.discordapp.com/avatars/11/abc.webp?size=48")
-assert(shown.images[2] == "https://cdn.discordapp.com/embed/avatars/" .. ((263689920210534400 >> 22) % 6) .. ".png")
-assert(shown.total == 7)
-assert(#requests == 1)
+local stack = build(fire)
+assert(stack.row and stack.fixed and #stack.children == 6)
+assert(stack.children[1].icon == "https://cdn.discordapp.com/avatars/11/abc.webp?size=48")
+assert(stack.children[1].margin[1] == 0 and stack.children[2].margin[1] < 0)
+assert(stack.children[1].cover and stack.children[1].fixed)
+assert(stack.children[6].children[1].text == "+2")
 
-local other = { channel_id = "1", message_id = "9", emoji = "🔥", count = 1, burst = true }
-assert(reaction(other) == nil)
-assert(requests[2].options.path == "/channels/1/messages/9/reactions/%F0%9F%94%A5?limit=5&type=1")
-local third = { channel_id = "1", message_id = "10", emoji = "x", count = 1 }
-reaction(third)
-assert(#requests == 2)
+assert(build({ channel_id = "1", key = "2:burst:unicode:1f525" }) == nil)
+assert(requests[2].options.path:find("type=1", 1, true))
+assert(build({ channel_id = "1", key = "2:normal:custom:name:3" }) == nil)
 requests[2].callback({ ok = false, status = 429, body = '{"retry_after":1.5}' })
-assert(#timers == 1 and timers[1].delay == 1500 and #requests == 2)
+assert(#timers == 1 and timers[1].delay == 1500)
 timers[1].callback()
-assert(#requests == 3 and requests[3].options.path:find("/messages/10/", 1, true))
+assert(requests[3].options.path == "/channels/1/messages/2/reactions/name%3A3?limit=5&type=0")
+assert(build({ channel_id = "1", key = "nonsense" }) == nil)
+
+assert(gateway.types[1] == "MESSAGE_REACTION_ADD")
+gateway.callback({ type = "MESSAGE_REACTION_ADD" })
+assert(refreshes == 2)
 
 print("reaction-avatars ok")
