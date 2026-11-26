@@ -55,6 +55,13 @@ pub fn rules() -> Vec<Rule> {
             run: |files, _| with_files("clang-format", &["--dry-run", "-Werror"], files),
         },
         Rule {
+            name: "objc boolean boxing",
+            affects: |path| {
+                matches!(repo::extension(path), "m" | "mm") && under(path, &["packages/"])
+            },
+            run: |files, _| crate::objc_boxing::check(files),
+        },
+        Rule {
             name: "rust",
             affects: rust,
             run: |_, _| {
@@ -189,6 +196,7 @@ fn file_scoped(name: &str) -> bool {
     matches!(
         name,
         "clang-format"
+            | "objc boolean boxing"
             | "stylua"
             | "luacheck"
             | "lua casing"
