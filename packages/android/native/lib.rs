@@ -114,7 +114,7 @@ pub extern "system" fn Java_app_astral_android_Native_initialize<'local>(
         environment: serde_json::from_str(&text(&mut env, &environment))
             .unwrap_or(serde_json::Value::Null),
     };
-    jint::try_from(app::initialize(launch)).unwrap_or(jint::MAX)
+    jint::try_from(app::initialize_in_background(launch)).unwrap_or(jint::MAX)
 }
 
 #[unsafe(no_mangle)]

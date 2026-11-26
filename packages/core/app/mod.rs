@@ -217,11 +217,28 @@ pub fn initialize(launch: Launch) -> usize {
     let resolved = resolve_properties(&launch.property_names);
     let current = prepare(launch);
     let plugins = start();
-    host::log(&format!(
-        "astral {} resolved {resolved} Phoenix properties; {plugins} plugins",
-        current.version
-    ));
+    log_start(&current.version, resolved, plugins);
     resolved
+}
+
+pub fn initialize_in_background(launch: Launch) -> usize {
+    let resolved = resolve_properties(&launch.property_names);
+    let version = prepare(launch).version.clone();
+    let spawned = std::thread::Builder::new().name("astral-start".into()).spawn(move || {
+        let plugins = start();
+        log_start(&version, resolved, plugins);
+        lua_host::refresh_decorations();
+    });
+    if let Err(error) = spawned {
+        host::log(&format!("Failed to start plugins in the background: {error}"));
+    }
+    resolved
+}
+
+fn log_start(version: &str, resolved: usize, plugins: usize) {
+    host::log(&format!(
+        "astral {version} resolved {resolved} Phoenix properties; {plugins} plugins"
+    ));
 }
 
 fn guard_file(update: unsafe extern "C" fn(*const c_char, usize) -> core::ffi::c_int) {
