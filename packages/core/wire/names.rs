@@ -7,7 +7,9 @@ use super::abi::{
     prefixed,
 };
 use super::cursor::Cursor;
-use super::format::{Span, batch_of, child, find_string, property_cursor, spans_of, type_is, wireChildList, wireCreation, wireParentOf};
+use super::format::{
+    Span, batch_of, child, find_string, property_cursor, spans_of, type_is, wire_child_list, wire_creation, wire_parent_of,
+};
 use super::out::Out;
 use super::properties;
 
@@ -40,16 +42,16 @@ struct Batch<'a> {
 
 impl Batch<'_> {
     fn parent(&self, id: i32) -> i32 {
-        unsafe { wireParentOf(self.bytes, self.spans.as_ptr(), self.spans.len(), id) }
+        unsafe { wire_parent_of(self.bytes, self.spans.as_ptr(), self.spans.len(), id) }
     }
 
     fn children(&self, id: i32) -> Option<(&Span, &[u8])> {
-        let list = unsafe { wireChildList(self.bytes, self.spans.as_ptr(), self.spans.len(), id).as_ref() }?;
+        let list = unsafe { wire_child_list(self.bytes, self.spans.as_ptr(), self.spans.len(), id).as_ref() }?;
         Some((list, batch_of(self.bytes, list)))
     }
 
     fn creation(&self, id: i32) -> Option<(&Span, &[u8])> {
-        let creation = unsafe { wireCreation(self.spans.as_ptr(), self.spans.len(), id).as_ref() }?;
+        let creation = unsafe { wire_creation(self.spans.as_ptr(), self.spans.len(), id).as_ref() }?;
         Some((creation, batch_of(self.bytes, creation)))
     }
 
@@ -96,7 +98,7 @@ fn voter_row(batch: &Batch, id: i32) -> u64 {
     if parent == 0 || !batch.first_child_is(parent, id) {
         return 0;
     }
-    let accessibility = properties::current().accessibilityId;
+    let accessibility = properties::current().accessibility_id;
     let mut ancestor = parent;
     for _ in 0..3 {
         ancestor = batch.parent(ancestor);
@@ -373,8 +375,8 @@ fn put_color(out: &mut Out, id: i32, color: u32) {
     out.put(&i64::from(color).to_le_bytes());
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireColorNames(
+#[unsafe(export_name = "wireColorNames")]
+pub unsafe extern "C" fn wire_color_names(
     bytes: *const u8,
     pointer: *const Span,
     count: usize,

@@ -147,8 +147,8 @@ pub fn clone_creation(out: &mut Out, bytes: &[u8], span: &Span, id: i32, changes
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireCloneCreation(
+#[unsafe(export_name = "wireCloneCreation")]
+pub unsafe extern "C" fn wire_clone_creation(
     out: *mut Out,
     bytes: *const u8,
     span: *const Span,

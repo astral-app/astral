@@ -33,8 +33,8 @@ fn observe(images: &mut HashMap<i32, Vec<u8>>, bytes: &[u8], span: &Span) {
     images.insert(span.id, name.to_vec());
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireTrackImages(bytes: *const u8, pointer: *const Span, count: usize) {
+#[unsafe(export_name = "wireTrackImages")]
+pub unsafe extern "C" fn wire_track_images(bytes: *const u8, pointer: *const Span, count: usize) {
     let Ok(mut images) = IMAGES.lock() else { return };
     let images = images.get_or_insert_with(HashMap::new);
     for span in spans_of(pointer, count) {

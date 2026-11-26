@@ -1,4 +1,4 @@
-use super::format::{Span, find_string, property_cursor, type_is, wireScan};
+use super::format::{Span, find_string, property_cursor, type_is, wire_scan};
 use super::out::Out;
 use super::properties;
 use super::rewriter::{ImageRewriter, Slot};
@@ -23,7 +23,7 @@ fn put_rewritten(out: &mut Out, bytes: &[u8], span: &Span, uri: &[u8]) {
         let property = cursor.read16();
         let tag = cursor.read8();
         cursor.skip_value(tag, 0);
-        if (property == properties.uri || property == properties.cacheKey) && tag == 6 {
+        if (property == properties.uri || property == properties.cache_key) && tag == 6 {
             out.prop_string(property, uri);
         } else {
             out.put(&bytes[start..cursor.offset().min(bytes.len())]);
@@ -45,8 +45,8 @@ fn rewritten_uri(bytes: &[u8], span: &Span) -> Option<Vec<u8>> {
     REWRITER.rewrite(uri)
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireRewriteImages(
+#[unsafe(export_name = "wireRewriteImages")]
+pub unsafe extern "C" fn wire_rewrite_images(
     bytes: *const u8,
     length: usize,
     spans: *mut Span,
@@ -73,9 +73,9 @@ pub unsafe extern "C" fn wireRewriteImages(
         return core::ptr::null_mut();
     }
     out.put(&data[copied..]);
-    if out.failed != 0 || unsafe { wireScan(out.bytes, out.length, spans, count) } != 0 {
+    if out.failed != 0 || unsafe { wire_scan(out.bytes, out.length, spans, count) } != 0 {
         out.discard();
-        unsafe { wireScan(bytes, length, spans, count) };
+        unsafe { wire_scan(bytes, length, spans, count) };
         return core::ptr::null_mut();
     }
     unsafe { *new_length = out.length };

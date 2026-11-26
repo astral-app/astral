@@ -29,7 +29,7 @@ pub fn event_value(bytes: &[u8]) -> Option<f64> {
             return None;
         }
         let number = match tag {
-            3 => cursor.read32() as i32 as f64,
+            3 => f64::from(cursor.read32() as i32),
             4 => i64::from_le_bytes(cursor.take(8)?.try_into().ok()?) as f64,
             5 => f64::from_le_bytes(cursor.take(8)?.try_into().ok()?),
             _ => return None,

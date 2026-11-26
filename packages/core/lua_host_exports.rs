@@ -257,9 +257,9 @@ pub unsafe extern "C" fn astral_lua_host_complete_file_pick(
     let error = present(error, error_length, has_error).map(|error| String::from_utf8_lossy(&error).into_owned());
     host::complete_file_pick(
         request,
-        present(name, name_length, has_name),
-        present(data, data_length, has_data),
-        error,
+        present(name, name_length, has_name).as_deref(),
+        present(data, data_length, has_data).as_deref(),
+        error.as_deref(),
     );
 }
 

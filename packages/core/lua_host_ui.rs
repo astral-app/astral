@@ -525,7 +525,7 @@ pub unsafe fn show_alert(state: *mut LuaState) -> Outcome {
     if title.len() > 120 || message.len() > 2048 {
         return Err("astral.ui.alert: text exceeds its limit".into());
     }
-    match host::platform("showAlert", json!([title, message])) {
+    match host::platform("showAlert", &json!([title, message])) {
         Platform::Missing => Err("astral.ui.alert: dialogs are unavailable on this build".into()),
         Platform::Threw => Err("astral.ui.alert: could not show the dialog".into()),
         Platform::Value(_) => Ok(0),
@@ -600,7 +600,7 @@ pub unsafe fn confirm(state: *mut LuaState) -> Outcome {
         return Err("astral.ui.confirm: dialogs are unavailable on this build".into());
     }
     let request = start_request(|plugin| &mut plugin.confirm_requests, plugin, state, 2);
-    if !host::platform_flag("confirm", json!([request, spec])) {
+    if !host::platform_flag("confirm", &json!([request, spec])) {
         abandon_request(|plugin| &mut plugin.confirm_requests, me(state), state, request);
         return Err("astral.ui.confirm: could not show the dialog".into());
     }
@@ -640,7 +640,7 @@ pub unsafe fn open_sheet(state: *mut LuaState) -> Outcome {
         return Err("astral.ui.sheet: sheets are unavailable on this build".into());
     }
     let sheet = start_request(|plugin| &mut plugin.sheets, plugin, state, 2);
-    if !host::platform_flag("openSheet", json!([sheet, spec])) {
+    if !host::platform_flag("openSheet", &json!([sheet, spec])) {
         abandon_request(|plugin| &mut plugin.sheets, me(state), state, sheet);
         return Err("astral.ui.sheet: could not show the sheet".into());
     }
@@ -651,13 +651,13 @@ pub unsafe fn open_sheet(state: *mut LuaState) -> Outcome {
 pub unsafe fn update_sheet(state: *mut LuaState) -> Outcome {
     let sheet = unsafe { sheet_id(state, "astral.ui.sheet_update") }?;
     let spec = unsafe { sheet_spec(state, 2, "astral.ui.sheet_update") }?;
-    host::platform("updateSheet", json!([sheet, spec]));
+    host::platform("updateSheet", &json!([sheet, spec]));
     Ok(0)
 }
 
 pub unsafe fn close_sheet(state: *mut LuaState) -> Outcome {
     let sheet = unsafe { sheet_id(state, "astral.ui.sheet_close") }?;
-    host::platform("closeSheet", json!([sheet]));
+    host::platform("closeSheet", &json!([sheet]));
     Ok(0)
 }
 
@@ -675,7 +675,7 @@ pub unsafe fn press_node(state: *mut LuaState) -> Outcome {
     if wanted.bytes().any(|byte| byte < 0x20 || byte == 0x7f) {
         return Err("astral.ui.press: identifier has control characters".into());
     }
-    unsafe { push_flag(state, host::platform_flag("pressNode", json!([wanted, prefix]))) }
+    unsafe { push_flag(state, host::platform_flag("pressNode", &json!([wanted, prefix]))) }
 }
 
 pub unsafe fn register_image_rewrite(state: *mut LuaState) -> Outcome {
@@ -814,7 +814,7 @@ pub unsafe fn render_image(state: *mut LuaState) -> Outcome {
     if !spec.get("items").and_then(Value::as_array).is_some_and(|items| items.len() <= 2000) {
         return Err("astral.image.render: items must be a list of at most 2000 shapes".into());
     }
-    let Some(Value::String(png)) = host::platform_value("renderImage", json!([spec])) else {
+    let Some(Value::String(png)) = host::platform_value("renderImage", &json!([spec])) else {
         return Ok(0);
     };
     let Some(bytes) = crate::lua_host_install::decode_base64(&png) else {
@@ -859,7 +859,7 @@ pub unsafe fn pick_file(state: *mut LuaState) -> Outcome {
         return Err("astral.files.pick: file selection is unavailable on this build".into());
     }
     let request = start_request(|plugin| &mut plugin.file_picks, plugin, state, 2);
-    if !host::platform_flag("pickFile", json!([request, extensions])) {
+    if !host::platform_flag("pickFile", &json!([request, extensions])) {
         abandon_request(|plugin| &mut plugin.file_picks, me(state), state, request);
         return Err("astral.files.pick: could not open the file picker".into());
     }
@@ -883,7 +883,7 @@ unsafe fn cancel_request(
         return unsafe { push_flag(state, false) };
     };
     unsafe { lua::release(state, reference) };
-    host::platform(method, json!([request]));
+    host::platform(method, &json!([request]));
     unsafe { push_flag(state, true) }
 }
 
@@ -970,7 +970,7 @@ pub unsafe fn web_auth(state: *mut LuaState) -> Outcome {
         return Err("astral.ui.web_auth: browser authorization is unavailable on this client".into());
     }
     let request = start_request(|plugin| &mut plugin.web_auth_requests, plugin, state, 3);
-    if !host::platform_flag("webAuth", json!([request, url, callback])) {
+    if !host::platform_flag("webAuth", &json!([request, url, callback])) {
         abandon_request(|plugin| &mut plugin.web_auth_requests, me(state), state, request);
         return Err("astral.ui.web_auth: could not open the authorization window".into());
     }
@@ -1064,7 +1064,7 @@ pub unsafe fn dispatch_gateway_event(state: *mut LuaState) -> Outcome {
     if message.len() > 1 << 20 {
         return Err("astral.gateway.dispatch: event exceeds 1 MB".into());
     }
-    unsafe { push_flag(state, host::platform_flag("dispatchGateway", json!([message]))) }
+    unsafe { push_flag(state, host::platform_flag("dispatchGateway", &json!([message]))) }
 }
 
 static LOCAL_SEQUENCE: AtomicU64 = AtomicU64::new(0);
@@ -1087,7 +1087,7 @@ pub fn send_local_message_json(channel: &str, message: &Value) -> Option<String>
         }
     }
     let text = json!({"op": 0, "t": "MESSAGE_CREATE", "s": null, "d": data}).to_string();
-    if text.len() > 1 << 20 || !host::platform_flag("dispatchGateway", json!([text])) {
+    if text.len() > 1 << 20 || !host::platform_flag("dispatchGateway", &json!([text])) {
         return None;
     }
     data["id"].as_str().map(str::to_owned)
@@ -1218,7 +1218,7 @@ pub unsafe fn picked_media(state: *mut LuaState) -> Outcome {
     let Some(slot) = picked_slot(&unsafe { check_text(state, 1) }?) else {
         return Ok(0);
     };
-    let Some(media) = host::platform_value("pickedMedia", json!([slot])).filter(Value::is_object) else {
+    let Some(media) = host::platform_value("pickedMedia", &json!([slot])).filter(Value::is_object) else {
         return Ok(0);
     };
     unsafe {
@@ -1240,7 +1240,7 @@ pub unsafe fn picked_video_url(state: *mut LuaState) -> Outcome {
     let Some(slot) = picked_slot(&unsafe { check_text(state, 1) }?) else {
         return Ok(0);
     };
-    let Some(Value::String(url)) = host::platform_value("pickedVideoURL", json!([slot])) else {
+    let Some(Value::String(url)) = host::platform_value("pickedVideoURL", &json!([slot])) else {
         return Ok(0);
     };
     unsafe { lua::push_str(state, &url) };
@@ -1274,7 +1274,7 @@ pub unsafe fn offer_pick(state: *mut LuaState) -> Outcome {
         return Err("astral.media.offer_pick: name is a png, gif, webp or jpg file name".into());
     }
     let encoded = crate::lua_host_install::encode_base64(&bytes);
-    unsafe { push_flag(state, host::platform_flag("offerPick", json!([encoded, name]))) }
+    unsafe { push_flag(state, host::platform_flag("offerPick", &json!([encoded, name]))) }
 }
 
 unsafe fn prefixed_registration(state: *mut LuaState, permission: &str, function: &str) -> Result<(String, String), String> {
@@ -1475,7 +1475,7 @@ pub unsafe fn reactors(state: *mut LuaState) -> Outcome {
     } else {
         unsafe { check_integer(state, 5) }?.max(0)
     };
-    let reply = host::platform_value("reactors", json!([channel, message, emoji, burst, count]));
+    let reply = host::platform_value("reactors", &json!([channel, message, emoji, burst, count]));
     let fresh = reply
         .as_ref()
         .and_then(|reply| reply.get("fresh"))
@@ -1567,7 +1567,7 @@ pub unsafe fn network_request(state: *mut LuaState) -> Outcome {
     let options = network_options(unsafe { to_json(state, 1, 0) }.unwrap_or(Value::Null)).map_err(str::to_owned)?;
     let request = start_request(|plugin| &mut plugin.network_requests, me(state), state, 2);
     if matches!(
-        host::platform("networkRequest", json!([request, options])),
+        host::platform("networkRequest", &json!([request, options])),
         Platform::Threw | Platform::Missing
     ) {
         abandon_request(|plugin| &mut plugin.network_requests, me(state), state, request);

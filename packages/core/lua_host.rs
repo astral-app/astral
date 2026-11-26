@@ -341,7 +341,7 @@ pub fn set_platform(call: Option<PlatformCall>) {
     *PLATFORM.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = call;
 }
 
-pub fn platform(method: &str, arguments: Value) -> Platform {
+pub fn platform(method: &str, arguments: &Value) -> Platform {
     let Some(call) = *PLATFORM.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) else {
         return Platform::Missing;
     };
@@ -357,30 +357,30 @@ pub fn platform(method: &str, arguments: Value) -> Platform {
     Platform::Value(reply.get("value").cloned().unwrap_or(Value::Null))
 }
 
-pub fn platform_value(method: &str, arguments: Value) -> Option<Value> {
+pub fn platform_value(method: &str, arguments: &Value) -> Option<Value> {
     match platform(method, arguments) {
         Platform::Value(value) => Some(value),
         _ => None,
     }
 }
 
-pub fn platform_flag(method: &str, arguments: Value) -> bool {
+pub fn platform_flag(method: &str, arguments: &Value) -> bool {
     matches!(platform(method, arguments), Platform::Value(Value::Bool(true)))
 }
 
 pub fn platform_has(method: &str) -> bool {
     !matches!(
-        platform("has", json!([method])),
+        platform("has", &json!([method])),
         Platform::Value(Value::Bool(false)) | Platform::Missing
     )
 }
 
 pub fn developer_log(line: &str) {
-    platform("developerLog", json!([line]));
+    platform("developerLog", &json!([line]));
 }
 
 pub fn refresh_decorations() {
-    platform("refreshDecorations", json!([]));
+    platform("refreshDecorations", &json!([]));
 }
 
 pub fn redraw_after_busy() {
@@ -440,7 +440,7 @@ pub fn stepped_number(entry: &Switch, value: f64) -> f64 {
 pub fn record_failure(plugin: &Plugin) {
     platform(
         "recordFailure",
-        json!([plugin.identifier(), plugin.package.name, plugin.last_error]),
+        &json!([plugin.identifier(), plugin.package.name, plugin.last_error]),
     );
 }
 
@@ -523,20 +523,20 @@ pub(crate) fn stop_plugin(plugin: *mut Plugin) {
     let timers = core::mem::take(&mut plugin_ref.timers);
     release_all(state, timers.values().map(|timer| timer.reference));
     for (request, reference) in core::mem::take(&mut plugin_ref.network_requests) {
-        platform("cancelNetworkRequest", json!([request]));
+        platform("cancelNetworkRequest", &json!([request]));
         unsafe { lua::release(state, reference) };
     }
     for (sheet, reference) in core::mem::take(&mut plugin_ref.sheets) {
-        platform("closeSheet", json!([sheet]));
+        platform("closeSheet", &json!([sheet]));
         unsafe { lua::release(state, reference) };
     }
     release_all(state, core::mem::take(&mut plugin_ref.confirm_requests).into_values());
     for (request, reference) in core::mem::take(&mut plugin_ref.web_auth_requests) {
-        platform("cancelWebAuth", json!([request]));
+        platform("cancelWebAuth", &json!([request]));
         unsafe { lua::release(state, reference) };
     }
     for (request, reference) in core::mem::take(&mut plugin_ref.file_picks) {
-        platform("cancelFilePick", json!([request]));
+        platform("cancelFilePick", &json!([request]));
         unsafe { lua::release(state, reference) };
     }
     crate::lua_host_http::release_hooks(plugin);
@@ -713,7 +713,7 @@ fn load(directory: &str) -> Option<Box<Plugin>> {
         ..Limits::default()
     };
     let package = plugin_package::load(directory, &host().config.preferred_languages, limits)?;
-    let signed = platform_flag("verifySignature", json!([directory, package.main]));
+    let signed = platform_flag("verifySignature", &json!([directory, package.main]));
     let permissions = package.permissions.iter().cloned().collect();
     Some(Box::new(Plugin {
         package,
@@ -1113,7 +1113,7 @@ pub fn complete_web_auth(request: u64, url: Option<String>, cookies: Option<Stri
     call_or_stop(plugin, 3, 0, "web authorization callback");
 }
 
-pub fn complete_file_pick(request: u64, name: Option<Vec<u8>>, data: Option<Vec<u8>>, error: Option<String>) {
+pub fn complete_file_pick(request: u64, name: Option<&[u8]>, data: Option<&[u8]>, error: Option<&str>) {
     let _held = lock();
     let Some((plugin, reference)) = take_callback(|plugin| plugin.file_picks.remove(&request)) else {
         return;
@@ -1126,20 +1126,15 @@ pub fn complete_file_pick(request: u64, name: Option<Vec<u8>>, data: Option<Vec<
     if picked {
         unsafe {
             lua::lua_createtable(state, 0, 2);
-            lua::push_bytes(state, name.as_deref().unwrap_or_default());
+            lua::push_bytes(state, name.unwrap_or_default());
             lua::set_field(state, -2, "name");
-            lua::push_bytes(state, data.as_deref().unwrap_or_default());
+            lua::push_bytes(state, data.unwrap_or_default());
             lua::set_field(state, -2, "data");
         }
     } else {
         let too_large = data.as_ref().is_some_and(|data| data.len() > 1 << 20);
-        let reason = error.unwrap_or_else(|| {
-            if too_large {
-                "file exceeds 1 MiB".into()
-            } else {
-                "cancelled".into()
-            }
-        });
+        let fallback = if too_large { "file exceeds 1 MiB" } else { "cancelled" };
+        let reason = error.unwrap_or(fallback);
         unsafe {
             lua::lua_pushnil(state);
             lua::push_bytes(state, &reason.as_bytes()[..reason.len().min(256)]);

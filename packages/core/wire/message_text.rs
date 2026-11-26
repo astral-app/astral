@@ -3,16 +3,17 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use super::format::{Span, batch_of, find_string, property_cursor, spans_of, type_is, wireCreation, wireParentOf};
+use super::format::{Span, batch_of, find_string, property_cursor, spans_of, type_is, wire_creation, wire_parent_of};
 use super::out::{AstralWireBuffer, Out};
 use super::properties;
-use super::tween::wireTweenFade;
+use super::tween::wire_tween_fade;
 
 pub type TextProvider = unsafe extern "C" fn(u64, *mut c_char, usize, *mut c_char, usize) -> c_int;
 pub type SpanTransformer = unsafe extern "C" fn(u64, *const u8, usize, *mut *mut u8, *mut usize) -> c_int;
 
 unsafe extern "C" {
-    fn wireMarkRefreshBusy();
+    #[link_name = "wireMarkRefreshBusy"]
+    fn wire_mark_refresh_busy();
     fn free(pointer: *mut core::ffi::c_void);
 }
 
@@ -20,10 +21,10 @@ const MAX_TRACKED: usize = 512;
 const MAX_OVERRIDE: usize = 8192;
 const MAX_NOTE: usize = 64;
 const MAX_TIME: usize = 48;
-const NOTE_COLOR: u32 = 0x99FFFFFF;
+const NOTE_COLOR: u32 = 0x99FF_FFFF;
 const TIME_SCALE: f64 = 0.75;
-const FNV_OFFSET: u64 = 1469598103934665603;
-const FNV_PRIME: u64 = 1099511628211;
+const FNV_OFFSET: u64 = 1_469_598_103_934_665_603;
+const FNV_PRIME: u64 = 1_099_511_628_211;
 
 #[derive(Default)]
 struct TrackedText {
@@ -90,14 +91,14 @@ fn text_for(texts: &mut HashMap<u64, TrackedText>, message: u64) -> &mut Tracked
 }
 
 fn content_message(bytes: *const u8, spans: &[Span], id: i32) -> u64 {
-    let parent = unsafe { wireParentOf(bytes, spans.as_ptr(), spans.len(), id) };
+    let parent = unsafe { wire_parent_of(bytes, spans.as_ptr(), spans.len(), id) };
     if parent == 0 {
         return 0;
     }
-    let Some(creation) = (unsafe { wireCreation(spans.as_ptr(), spans.len(), parent).as_ref() }) else {
+    let Some(creation) = (unsafe { wire_creation(spans.as_ptr(), spans.len(), parent).as_ref() }) else {
         return 0;
     };
-    let Some(identifier) = find_string(batch_of(bytes, creation), creation, properties::current().accessibilityId) else {
+    let Some(identifier) = find_string(batch_of(bytes, creation), creation, properties::current().accessibility_id) else {
         return 0;
     };
     super::ids::prefixed(identifier, b"message.content:").unwrap_or(0)
@@ -182,7 +183,7 @@ fn put_spans(out: &mut Out, node: i32, spans: &[u8]) {
 fn start_fade(out: &mut Out, node: i32) {
     out.update(node, 1);
     out.prop_number(properties::current().opacity, 0.0);
-    wireTweenFade(node);
+    wire_tween_fade(node);
 }
 
 fn provided_text(message: u64) -> Option<(Vec<u8>, Vec<u8>)> {
@@ -219,7 +220,7 @@ fn transformed_spans(text: &mut TrackedText, message: u64) -> Option<Vec<u8>> {
     let source = hash_bytes(&text.original);
     match (outcome, produced) {
         (outcome, _) if outcome < 0 => {
-            unsafe { wireMarkRefreshBusy() };
+            unsafe { wire_mark_refresh_busy() };
             text.transformed
                 .as_ref()
                 .filter(|(from, _)| *from == source)
@@ -284,8 +285,8 @@ fn apply(out: &mut Out, text: &mut TrackedText, message: u64, force: bool) -> bo
     true
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireApplyMessageText(out: *mut Out, message: u64) {
+#[unsafe(export_name = "wireApplyMessageText")]
+pub unsafe extern "C" fn wire_apply_message_text(out: *mut Out, message: u64) {
     let Some(out) = (unsafe { out.as_mut() }) else { return };
     if message == 0 {
         return;
@@ -304,8 +305,8 @@ fn tracked_message(texts: &HashMap<u64, TrackedText>, node: i32) -> Option<u64> 
     texts.iter().find(|(_, text)| text.node == node).map(|(message, _)| *message)
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireMessageTexts(
+#[unsafe(export_name = "wireMessageTexts")]
+pub unsafe extern "C" fn wire_message_texts(
     bytes: *const u8,
     pointer: *const Span,
     count: usize,
@@ -378,5 +379,5 @@ pub unsafe extern "C" fn astral_wire_refresh_message_texts(buffer: *mut AstralWi
         out.discard();
         return 0;
     }
-    out.finish(buffer) as c_int
+    c_int::from(out.finish(buffer))
 }

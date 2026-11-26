@@ -51,7 +51,7 @@ fn version() -> String {
     platform(|platform| platform.version.clone())
 }
 
-fn call_host(method: &str, arguments: Value, callback: AstralCallback) -> Value {
+fn call_host(method: &str, arguments: &Value, callback: AstralCallback) -> Value {
     let Some(host) = platform(|platform| platform.host) else {
         drop(crate::host_callback::adopt_reply(callback));
         return Value::Null;
@@ -73,28 +73,28 @@ fn call_host(method: &str, arguments: Value, callback: AstralCallback) -> Value 
     serde_json::from_slice(&text).unwrap_or(Value::Null)
 }
 
-fn host(method: &str, arguments: Value) -> Value {
+fn host(method: &str, arguments: &Value) -> Value {
     call_host(method, arguments, AstralCallback::none())
 }
 
-fn host_with(method: &str, arguments: Value, changed: Changed) -> Value {
+fn host_with(method: &str, arguments: &Value, changed: Changed) -> Value {
     call_host(method, arguments, AstralCallback::from_changed(changed))
 }
 
-fn host_reply(method: &str, arguments: Value, reply: Reply) -> Value {
+fn host_reply(method: &str, arguments: &Value, reply: Reply) -> Value {
     call_host(method, arguments, AstralCallback::from_reply(reply))
 }
 
 fn capable(name: &str) -> bool {
-    host("capabilities", json!([]))[name].as_bool().unwrap_or(false)
+    host("capabilities", &json!([]))[name].as_bool().unwrap_or(false)
 }
 
 fn host_text(method: &str) -> String {
-    host(method, json!([])).as_str().unwrap_or_default().to_owned()
+    host(method, &json!([])).as_str().unwrap_or_default().to_owned()
 }
 
 fn host_list(method: &str) -> Vec<Value> {
-    match host(method, json!([])) {
+    match host(method, &json!([])) {
         Value::Array(list) => list,
         _ => Vec::new(),
     }
@@ -131,7 +131,7 @@ fn toggle(key: &str) {
 }
 
 fn plugins() -> Vec<Value> {
-    match host("plugins", json!([])) {
+    match host("plugins", &json!([])) {
         Value::Array(list) => list,
         _ => Vec::new(),
     }
@@ -242,7 +242,7 @@ struct Context {
 }
 
 fn context() -> Context {
-    let value = host("context", json!([]));
+    let value = host("context", &json!([]));
     Context {
         recovering: flag(&value, "recovering"),
         discord_version: string(&value, "discordVersion"),
@@ -253,7 +253,7 @@ fn context() -> Context {
 fn general_page(context: &Context) -> Value {
     let stats = astral_wire_stats();
     let developer = setting("developer-mode");
-    let blocked = host("blockedRequests", json!([])).as_u64().unwrap_or(0).to_string();
+    let blocked = host("blockedRequests", &json!([])).as_u64().unwrap_or(0).to_string();
     let developer_subtitle = if developer {
         format!("Pairing code {} for astral dev", host_text("pairingCode"))
     } else {
@@ -393,7 +393,7 @@ pub fn mana_asset(name: &str) -> String {
 
 fn plugin_icon(plugin: &Value) -> String {
     if !string(plugin, "iconSvg").is_empty()
-        && let Some(registered) = host("pluginIconSVG", json!([plugin])).as_str()
+        && let Some(registered) = host("pluginIconSVG", &json!([plugin])).as_str()
     {
         return registered.to_owned();
     }
@@ -470,10 +470,12 @@ fn author_avatars(plugin: &Value) -> Vec<Value> {
         .iter()
         .take(3)
         .enumerate()
-        .map(|(index, author)| match host("authorAvatar", json!([string(author, "id"), index])) {
-            Value::String(avatar) => Value::String(avatar),
-            _ => Value::String(format!("https://cdn.discordapp.com/embed/avatars/{}.png", index % 6)),
-        })
+        .map(
+            |(index, author)| match host("authorAvatar", &json!([string(author, "id"), index])) {
+                Value::String(avatar) => Value::String(avatar),
+                _ => Value::String(format!("https://cdn.discordapp.com/embed/avatars/{}.png", index % 6)),
+            },
+        )
         .collect()
 }
 
@@ -628,20 +630,20 @@ fn setting_icon(entry: &Value) -> String {
 }
 
 const COLOR_PRESETS: [(&str, u32); 14] = [
-    ("Blurple", 0xFF5865F2),
-    ("Blue", 0xFF3B82F6),
-    ("Cyan", 0xFF06B6D4),
-    ("Teal", 0xFF14B8A6),
-    ("Green", 0xFF23A55A),
-    ("Lime", 0xFF84CC16),
-    ("Yellow", 0xFFF0B232),
-    ("Orange", 0xFFF97316),
-    ("Red", 0xFFF23F43),
-    ("Pink", 0xFFEC4899),
-    ("Purple", 0xFF8B5CF6),
-    ("Grey", 0xFF80848E),
-    ("White", 0xFFFFFFFF),
-    ("Black", 0xFF000000),
+    ("Blurple", 0xFF58_65F2),
+    ("Blue", 0xFF3B_82F6),
+    ("Cyan", 0xFF06_B6D4),
+    ("Teal", 0xFF14_B8A6),
+    ("Green", 0xFF23_A55A),
+    ("Lime", 0xFF84_CC16),
+    ("Yellow", 0xFFF0_B232),
+    ("Orange", 0xFFF9_7316),
+    ("Red", 0xFFF2_3F43),
+    ("Pink", 0xFFEC_4899),
+    ("Purple", 0xFF8B_5CF6),
+    ("Grey", 0xFF80_848E),
+    ("White", 0xFFFF_FFFF),
+    ("Black", 0xFF00_0000),
 ];
 
 fn swatch(argb: u32) -> String {
@@ -728,7 +730,7 @@ fn plugin_color_action(target: &str, key: &str, changed: &Changed) -> Option<Str
         let (identifier, setting_key, changed) = (identifier.to_owned(), setting_key.to_owned(), changed.clone());
         host_reply(
             "editText",
-            json!([string(&entry, "title"), string(&entry, "value"), 9]),
+            &json!([string(&entry, "title"), string(&entry, "value"), 9]),
             Arc::new(move |edited: Option<String>| {
                 if let Some(edited) = edited.filter(|edited| is_color_text(edited)) {
                     set_text(&identifier, &setting_key, &edited);
@@ -741,7 +743,7 @@ fn plugin_color_action(target: &str, key: &str, changed: &Changed) -> Option<Str
 }
 
 fn set_text(identifier: &str, key: &str, value: &str) {
-    host("setText", json!([identifier, key, value]));
+    host("setText", &json!([identifier, key, value]));
 }
 
 fn format_number(value: f64) -> String {
@@ -914,7 +916,7 @@ fn design_page() -> Value {
     );
     emoji.push(with(
         row("emoji-animated", "Animated emoji", "res://ic_mana_sparkles", ROW_SWITCH),
-        json!({"on": host("emojiAnimated", json!([])).as_bool().unwrap_or(false), "subtitle": "Use a pack's animated emoji where it has them"}),
+        json!({"on": host("emojiAnimated", &json!([])).as_bool().unwrap_or(false), "subtitle": "Use a pack's animated emoji where it has them"}),
     ));
     page(
         "Design",
@@ -959,7 +961,7 @@ fn installed_version(identifier: &str, kind: &str) -> Option<String> {
 }
 
 fn install_status(identifier: &str) -> Option<String> {
-    host("installStatus", json!([identifier])).as_str().map(str::to_owned)
+    host("installStatus", &json!([identifier])).as_str().map(str::to_owned)
 }
 
 fn package_icon(package: &Value, identifier: &str) -> String {
@@ -1009,7 +1011,7 @@ fn catalog_status_rows() -> Vec<Value> {
 }
 
 fn catalog() -> Value {
-    let value = host("catalog", json!([]));
+    let value = host("catalog", &json!([]));
     if value.is_object() { value } else { json!({}) }
 }
 
@@ -1080,7 +1082,7 @@ fn notice_astral_update() {
     store_setting("update-notice", json!(latest));
     host(
         "notify",
-        json!([format!("astral {latest} is available"), "See Settings, astral, Updates"]),
+        &json!([format!("astral {latest} is available"), "See Settings, astral, Updates"]),
     );
 }
 
@@ -1089,7 +1091,7 @@ fn install_pending_updates(changed: &Changed) {
         return;
     }
     for (package, kind) in pending_updates() {
-        host_with("installPackage", json!([package, kind]), changed.clone());
+        host_with("installPackage", &json!([package, kind]), changed.clone());
     }
 }
 
@@ -1186,12 +1188,12 @@ fn install_from_key(key: &str, changed: &Changed) {
     let Some(package) = catalog_package(kind, identifier) else { return };
     let installed = installed_version(identifier, kind);
     if installed.is_none_or(|installed| version_is_newer(&string(&package, "version"), &installed)) {
-        host_with("installPackage", json!([package, kind]), changed.clone());
+        host_with("installPackage", &json!([package, kind]), changed.clone());
     }
 }
 
 fn set_enabled(identifier: &str, enabled: bool) {
-    host("setEnabled", json!([identifier, enabled]));
+    host("setEnabled", &json!([identifier, enabled]));
 }
 
 fn toggle_enabled(identifier: &str, plugin: &Value) {
@@ -1209,10 +1211,10 @@ fn plugin_action(identifier: &str, key: &str, changed: &Changed) -> Option<Strin
             .iter()
             .filter(|entry| string(entry, "key") == setting_key)
         {
-            host("setSwitch", json!([identifier, setting_key, !flag(entry, "on")]));
+            host("setSwitch", &json!([identifier, setting_key, !flag(entry, "on")]));
         }
     } else if let Some(button) = key.strip_prefix("button.") {
-        host("pressSettingsButton", json!([identifier, button]));
+        host("pressSettingsButton", &json!([identifier, button]));
         changed();
     } else if let Some(rest) = key.strip_prefix("number.") {
         if let Some((setting_key, position)) = rest.rsplit_once('=') {
@@ -1223,7 +1225,7 @@ fn plugin_action(identifier: &str, key: &str, changed: &Changed) -> Option<Strin
             {
                 host(
                     "setNumber",
-                    json!([
+                    &json!([
                         identifier,
                         setting_key,
                         number(entry, "min") + position as f64 * number(entry, "step")
@@ -1241,7 +1243,7 @@ fn plugin_action(identifier: &str, key: &str, changed: &Changed) -> Option<Strin
             let (identifier, setting_key, changed) = (identifier.to_owned(), setting_key.to_owned(), changed.clone());
             host_reply(
                 "editText",
-                json!([string(&entry, "title"), string(&entry, "value"), maximum]),
+                &json!([string(&entry, "title"), string(&entry, "value"), maximum]),
                 Arc::new(move |edited: Option<String>| {
                     if let Some(edited) = edited {
                         set_text(&identifier, &setting_key, &edited);
@@ -1254,15 +1256,15 @@ fn plugin_action(identifier: &str, key: &str, changed: &Changed) -> Option<Strin
         return Some(format!("{PLUGIN_COLOR_ROUTE}{identifier}:{setting_key}"));
     } else if let Some(rest) = key.strip_prefix("choice.") {
         if let Some((setting_key, value)) = rest.split_once('.') {
-            host("setChoice", json!([identifier, setting_key, value]));
+            host("setChoice", &json!([identifier, setting_key, value]));
         }
     } else if key == "reset" {
-        host("resetSettings", json!([identifier]));
+        host("resetSettings", &json!([identifier]));
     } else if key == "uninstall" && !flag(&plugin, "bundled") {
         let _ = std::fs::remove_dir_all(string(&plugin, "directory"));
-        host("removeStorage", json!([identifier]));
-        host("remove", json!([identifier]));
-        host("rescan", json!([]));
+        host("removeStorage", &json!([identifier]));
+        host("remove", &json!([identifier]));
+        host("rescan", &json!([]));
         changed();
         return Some("..".into());
     }
@@ -1289,7 +1291,7 @@ pub fn refresh_catalog_if_due(now: i64, force: bool, changed: Changed) {
         return;
     }
     store_setting("catalog-refreshed-at", json!(now));
-    host_with("refreshCatalog", json!([]), Arc::new(move || catalog_refreshed(&changed)));
+    host_with("refreshCatalog", &json!([]), Arc::new(move || catalog_refreshed(&changed)));
 }
 
 pub fn category() -> Value {
@@ -1310,30 +1312,31 @@ pub fn version_is_newer(candidate: &str, installed: &str) -> bool {
         return true;
     }
     let (left, right) = (candidate.as_bytes(), installed.as_bytes());
-    let (mut l, mut r) = (0, 0);
-    while l < left.len() || r < right.len() {
-        if l < left.len() && r < right.len() && left[l].is_ascii_digit() && right[r].is_ascii_digit() {
-            let left_end = l + left[l..].iter().take_while(|byte| byte.is_ascii_digit()).count();
-            let right_end = r + right[r..].iter().take_while(|byte| byte.is_ascii_digit()).count();
-            let a = digits_value(&left[l..left_end]);
-            let b = digits_value(&right[r..right_end]);
-            if a != b {
-                return a > b;
+    let (mut left_index, mut right_index) = (0, 0);
+    while left_index < left.len() || right_index < right.len() {
+        if left_index < left.len() && right_index < right.len() && left[left_index].is_ascii_digit() && right[right_index].is_ascii_digit()
+        {
+            let left_end = left_index + left[left_index..].iter().take_while(|byte| byte.is_ascii_digit()).count();
+            let right_end = right_index + right[right_index..].iter().take_while(|byte| byte.is_ascii_digit()).count();
+            let left_value = digits_value(&left[left_index..left_end]);
+            let right_value = digits_value(&right[right_index..right_end]);
+            if left_value != right_value {
+                return left_value > right_value;
             }
-            (l, r) = (left_end, right_end);
+            (left_index, right_index) = (left_end, right_end);
             continue;
         }
-        if l >= left.len() {
+        if left_index >= left.len() {
             return false;
         }
-        if r >= right.len() {
+        if right_index >= right.len() {
             return true;
         }
-        if left[l] != right[r] {
-            return left[l] > right[r];
+        if left[left_index] != right[right_index] {
+            return left[left_index] > right[right_index];
         }
-        l += 1;
-        r += 1;
+        left_index += 1;
+        right_index += 1;
     }
     false
 }
@@ -1370,7 +1373,7 @@ pub fn model(route: &str) -> Value {
     }
 }
 
-fn simple(method: &str, arguments: Value) -> Option<String> {
+fn simple(method: &str, arguments: &Value) -> Option<String> {
     host(method, arguments);
     None
 }
@@ -1406,12 +1409,12 @@ pub fn action(route: &str, key: &str, changed: Changed) -> Option<String> {
     }
     match key {
         "import-unbound-theme" => {
-            host_with("importUnboundTheme", json!([]), changed);
+            host_with("importUnboundTheme", &json!([]), changed);
             return None;
         }
-        "export-backup" => return simple("exportBackup", json!([])),
+        "export-backup" => return simple("exportBackup", &json!([])),
         "import-backup" => {
-            host_with("importBackup", json!([]), changed);
+            host_with("importBackup", &json!([]), changed);
             return None;
         }
         "switch.developer-mode" => {
@@ -1429,13 +1432,13 @@ pub fn action(route: &str, key: &str, changed: Changed) -> Option<String> {
         }
         "switch.staff-devtools" => {
             toggle("staff-devtools");
-            return simple("restartGatewaySession", json!([]));
+            return simple("restartGatewaySession", &json!([]));
         }
         "switch.safe-mode" => {
             toggle("safe-mode");
             return None;
         }
-        "soft-restart" => return simple("softRestart", json!([])),
+        "soft-restart" => return simple("softRestart", &json!([])),
         "reload" => {
             for plugin in plugins().iter().filter(|plugin| flag(plugin, "enabled")) {
                 set_enabled(&string(plugin, "id"), true);
@@ -1453,21 +1456,21 @@ pub fn action(route: &str, key: &str, changed: Changed) -> Option<String> {
         _ => {}
     }
     if let Some(index) = key.strip_prefix("report.") {
-        return simple("openReport", json!([leading_integer(index).max(0)]));
+        return simple("openReport", &json!([leading_integer(index).max(0)]));
     }
     if route == "design" {
         if let Some(pack) = key.strip_prefix("emoji-pack.") {
-            return simple("selectEmojiPack", json!([pack]));
+            return simple("selectEmojiPack", &json!([pack]));
         }
         if key == "switch.emoji-animated" {
-            let animated = host("emojiAnimated", json!([])).as_bool().unwrap_or(false);
-            return simple("setEmojiAnimated", json!([!animated]));
+            let animated = host("emojiAnimated", &json!([])).as_bool().unwrap_or(false);
+            return simple("setEmojiAnimated", &json!([!animated]));
         }
         if let Some(pack) = key.strip_prefix("icon-pack.") {
-            return simple("selectIconPack", json!([pack]));
+            return simple("selectIconPack", &json!([pack]));
         }
         if let Some(theme) = key.strip_prefix("theme.") {
-            return simple("applyTheme", json!([theme]));
+            return simple("applyTheme", &json!([theme]));
         }
     }
     if route == "marketplace" || route == "updates" {

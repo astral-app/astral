@@ -64,7 +64,7 @@ fn hooks<T>(read: impl FnOnce(&Hooks) -> T) -> T {
     read(&HOOKS.read().unwrap_or_else(|poisoned| poisoned.into_inner()))
 }
 
-fn call_host(method: &str, arguments: Value, callback: AstralCallback) -> Value {
+fn call_host(method: &str, arguments: &Value, callback: AstralCallback) -> Value {
     let Some(host) = hooks(|hooks| hooks.host) else {
         drop(crate::host_callback::adopt_reply(callback));
         return Value::Null;
@@ -85,20 +85,20 @@ fn call_host(method: &str, arguments: Value, callback: AstralCallback) -> Value 
     serde_json::from_slice(&crate::bridge::take(result)).unwrap_or(Value::Null)
 }
 
-fn host(method: &str, arguments: Value) -> Value {
+fn host(method: &str, arguments: &Value) -> Value {
     call_host(method, arguments, AstralCallback::none())
 }
 
 fn on_main(work: impl Fn() + Send + Sync + 'static) {
-    call_host("onMain", json!([]), AstralCallback::from_changed(Arc::new(work)));
+    call_host("onMain", &json!([]), AstralCallback::from_changed(Arc::new(work)));
 }
 
 fn changed() {
-    host("changed", json!([]));
+    host("changed", &json!([]));
 }
 
 fn plugins() -> Vec<Value> {
-    match host("plugins", json!([])) {
+    match host("plugins", &json!([])) {
         Value::Array(list) => list,
         _ => Vec::new(),
     }
@@ -242,7 +242,7 @@ fn put_plugin(request: &Request) -> Response {
     let _ = std::fs::remove_file(directory.join("signature"));
     let reloaded = identifier.clone();
     on_main(move || {
-        host("reload", json!([reloaded]));
+        host("reload", &json!([reloaded]));
         changed();
     });
     match plugin_named(&identifier) {
@@ -267,7 +267,7 @@ fn logs(request: &Request) -> Response {
 }
 
 fn status() -> Response {
-    let mut body = host("status", json!([]));
+    let mut body = host("status", &json!([]));
     if !body.is_object() {
         body = json!({});
     }
@@ -283,7 +283,7 @@ fn eval(request: &Request) -> Response {
     };
     response(
         200,
-        json!({"result": host("eval", json!([plugin, code])).as_str().unwrap_or_default()}),
+        json!({"result": host("eval", &json!([plugin, code])).as_str().unwrap_or_default()}),
     )
 }
 
@@ -294,7 +294,7 @@ fn set_plugin_enabled(request: &Request) -> Response {
     };
     let target = identifier.to_owned();
     on_main(move || {
-        host("setEnabled", json!([target, enabled]));
+        host("setEnabled", &json!([target, enabled]));
         changed();
     });
     match plugin_named(identifier) {
@@ -314,14 +314,14 @@ fn set_plugin_enabled(request: &Request) -> Response {
 fn platform_route(request: &Request) -> Option<Response> {
     let reply = host(
         "routes",
-        json!({"method": request.method, "route": request.route, "query": request.query, "body": request.body}),
+        &json!({"method": request.method, "route": request.route, "query": request.query, "body": request.body}),
     );
     let status = reply.get("status").and_then(Value::as_u64)?;
     Some(response(status as u16, reply.get("body").cloned().unwrap_or_else(|| json!({}))))
 }
 
 pub fn handle(request: &mut Request, pairing: &str) -> Response {
-    if !host("enabled", json!([])).as_bool().unwrap_or(false) {
+    if !host("enabled", &json!([])).as_bool().unwrap_or(false) {
         return error(403, "turn on developer mode in astral's settings");
     }
     if !pairing_matches(pairing) {

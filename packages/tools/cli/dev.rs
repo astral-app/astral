@@ -255,7 +255,7 @@ impl Dev {
         Ok(text)
     }
 
-    fn json(&self, method: &str, path: &str, body: Value) -> Result<String, String> {
+    fn json(&self, method: &str, path: &str, body: &Value) -> Result<String, String> {
         self.request(method, path, Some(body.to_string().into_bytes()))
     }
 
@@ -293,7 +293,7 @@ impl Dev {
                 assets.insert(repo::text(relative), STANDARD.encode(data));
             }
         });
-        println!("{}", self.json("PUT", "/plugin", json!({"manifest": manifest_text, "main": main, "modules": modules, "assets": assets}))?);
+        println!("{}", self.json("PUT", "/plugin", &json!({"manifest": manifest_text, "main": main, "modules": modules, "assets": assets}))?);
         Ok(())
     }
 
@@ -360,7 +360,7 @@ fn print_indented(reply: &str) {
 pub fn reload_in_place() -> Result<String, String> {
     let mut dev = Dev::new();
     dev.forward()?;
-    let reply = dev.json("POST", "/reload", json!({}))?;
+    let reply = dev.json("POST", "/reload", &json!({}))?;
     if !reply.contains("\"theme\"") {
         return Err(reply.trim().to_owned());
     }
@@ -392,7 +392,7 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
             dev.json(
                 "POST",
                 "/plugin/enabled",
-                json!({"id": id, "enabled": command == "enable"})
+                &json!({"id": id, "enabled": command == "enable"})
             )?
             .trim()
         ),
@@ -400,7 +400,7 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
             return Err(format!("usage: astral dev {command} <plugin id>"));
         }
         ("eval", [plugin, code, ..]) => {
-            let reply = dev.json("POST", "/eval", json!({"plugin": plugin, "code": code}))?;
+            let reply = dev.json("POST", "/eval", &json!({"plugin": plugin, "code": code}))?;
             let parsed: Value = serde_json::from_str(&reply).map_err(|error| error.to_string())?;
             println!(
                 "{}",
@@ -412,16 +412,16 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
         }
         ("logs", _) => dev.logs(rest.first().is_some_and(|flag| flag == "-f"))?,
         ("emoji", [use_, id]) if use_ == "use" => {
-            println!("{}", dev.json("POST", "/emoji-pack", json!({"id": id}))?)
+            println!("{}", dev.json("POST", "/emoji-pack", &json!({"id": id}))?)
         }
         ("icons", [use_, id]) if use_ == "use" => {
-            println!("{}", dev.json("POST", "/icon-pack", json!({"id": id}))?)
+            println!("{}", dev.json("POST", "/icon-pack", &json!({"id": id}))?)
         }
         ("gateway", [file]) => println!("{}", dev.request("POST", "/gateway", Some(read(file)?))?),
-        ("restart", _) => println!("{}", dev.json("POST", "/reload", json!({}))?),
+        ("restart", _) => println!("{}", dev.json("POST", "/reload", &json!({}))?),
         ("theme", [list]) if list == "list" => println!("{}", dev.request("GET", "/themes", None)?),
         ("theme", [use_, id]) if use_ == "use" => {
-            println!("{}", dev.json("POST", "/theme", json!({"id": id}))?)
+            println!("{}", dev.json("POST", "/theme", &json!({"id": id}))?)
         }
         ("theme", [import, file, ..]) if import == "import" => println!(
             "{}",
@@ -442,7 +442,7 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
         }
         ("backup", [import, file]) if import == "import" => {
             let text = String::from_utf8_lossy(&read(file)?).into_owned();
-            println!("{}", dev.json("POST", "/backup", json!({"backup": text}))?);
+            println!("{}", dev.json("POST", "/backup", &json!({"backup": text}))?);
         }
         _ => return Err(USAGE.into()),
     }

@@ -145,7 +145,7 @@ pub fn tracked_author(id: i32) -> Option<u64> {
     super::decorate::tracked_value(id, super::decorate::TRACK_AUTHOR)
 }
 
-pub use super::decorate::{wireMessageAuthor, wireRowMessage};
+pub use super::decorate::{wire_message_author, wire_row_message};
 
 pub use super::ids::{avatar_user, current_channel};
 

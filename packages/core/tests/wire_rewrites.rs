@@ -1,8 +1,8 @@
 use core::ffi::{c_char, c_int};
 
-use astral_core::wire::children::{wireDiscordChildren, wireExpandChildEdits};
-use astral_core::wire::emoji::{astral_wire_set_emoji_resolver, glyph, wireEmojiBatch};
-use astral_core::wire::format::{MAX_SPANS, Span, wireScan};
+use astral_core::wire::children::{wire_discord_children, wire_expand_child_edits};
+use astral_core::wire::emoji::{astral_wire_set_emoji_resolver, glyph, wire_emoji_batch};
+use astral_core::wire::format::{MAX_SPANS, Span, wire_scan};
 use astral_core::wire::out::Out;
 use astral_core::wire::properties::current;
 
@@ -29,7 +29,7 @@ fn bytes_of(out: Out) -> Vec<u8> {
 fn scanned(bytes: &[u8]) -> (Vec<Span>, usize) {
     let mut spans = vec![Span::default(); MAX_SPANS];
     let mut count = 0;
-    assert_eq!(unsafe { wireScan(bytes.as_ptr(), bytes.len(), spans.as_mut_ptr(), &mut count) }, 0);
+    assert_eq!(unsafe { wire_scan(bytes.as_ptr(), bytes.len(), spans.as_mut_ptr(), &mut count) }, 0);
     (spans, count)
 }
 
@@ -58,7 +58,7 @@ fn replaces_emoji_uris_with_resolved_images() {
     let bytes = bytes_of(out);
     let (mut spans, mut count) = scanned(&bytes);
     let mut length = 0;
-    let rewritten = unsafe { wireEmojiBatch(bytes.as_ptr(), bytes.len(), spans.as_mut_ptr(), &mut count, &mut length) };
+    let rewritten = unsafe { wire_emoji_batch(bytes.as_ptr(), bytes.len(), spans.as_mut_ptr(), &mut count, &mut length) };
     assert!(!rewritten.is_null());
     let result = unsafe { core::slice::from_raw_parts(rewritten, length) }.to_vec();
     unsafe { free(rewritten.cast()) };
@@ -85,10 +85,10 @@ fn expands_child_edits_against_remembered_lists() {
     let bytes = bytes_of(out);
     let (mut spans, mut count) = scanned(&bytes);
     let mut length = 0;
-    let rewritten = unsafe { wireExpandChildEdits(bytes.as_ptr(), bytes.len(), spans.as_mut_ptr(), &mut count, &mut length) };
+    let rewritten = unsafe { wire_expand_child_edits(bytes.as_ptr(), bytes.len(), spans.as_mut_ptr(), &mut count, &mut length) };
     assert!(!rewritten.is_null());
     unsafe { free(rewritten.cast()) };
     let mut children: *const i32 = core::ptr::null();
-    let total = unsafe { wireDiscordChildren(91, &mut children) };
+    let total = unsafe { wire_discord_children(91, &mut children) };
     assert_eq!(unsafe { core::slice::from_raw_parts(children, total as usize) }, &[1, 9, 3]);
 }

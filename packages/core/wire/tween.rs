@@ -45,12 +45,12 @@ fn put_frame(out: &mut Out, tween: &Tween, amount: f64) {
     }
     out.update(tween.node, 3);
     out.prop_number(properties.opacity, amount);
-    out.prop_number(properties.maxWidth, tween.width * amount);
+    out.prop_number(properties.max_width, tween.width * amount);
     out.prop_quad(properties.margin, [0.0, 0.0, (tween.inset * amount) as f32, 0.0]);
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn wireTweenIn(node: i32, width: f64, inset: f64) {
+#[unsafe(export_name = "wireTweenIn")]
+pub extern "C" fn wire_tween_in(node: i32, width: f64, inset: f64) {
     start(Tween {
         node,
         width,
@@ -60,8 +60,8 @@ pub extern "C" fn wireTweenIn(node: i32, width: f64, inset: f64) {
     });
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn wireTweenFade(node: i32) {
+#[unsafe(export_name = "wireTweenFade")]
+pub extern "C" fn wire_tween_fade(node: i32) {
     forget(node);
     start(Tween {
         node,
@@ -72,8 +72,8 @@ pub extern "C" fn wireTweenFade(node: i32) {
     });
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn wireTweenForget(node: i32) {
+#[unsafe(export_name = "wireTweenForget")]
+pub extern "C" fn wire_tween_forget(node: i32) {
     forget(node);
 }
 
@@ -100,5 +100,5 @@ pub unsafe extern "C" fn astral_wire_tween_frame(buffer: *mut AstralWireBuffer, 
         put_frame(&mut out, tween, eased(progress));
         progress < 1.0
     });
-    out.finish(buffer) as c_int
+    c_int::from(out.finish(buffer))
 }

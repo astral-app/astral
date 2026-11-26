@@ -12,19 +12,19 @@ fn highlights_lua_with_a_vscode_theme() {
     );
     eprintln!("first highlight {:?}", started.elapsed());
     assert_eq!(result["found"], true);
-    assert_eq!(result["background"], 0xFF1E1E1Eu32);
+    assert_eq!(result["background"], 0xFF1E_1E1E_u32);
     let lines = result["lines"].as_array().unwrap();
     assert_eq!(lines.len(), 2);
     let first = &lines[1][0];
     assert_eq!(first[0], "for");
-    assert_eq!(first[1], 0xFFC586C0u32);
+    assert_eq!(first[1], 0xFFC5_86C0_u32);
     assert_eq!(first[2], 1);
     assert!(
         lines[0]
             .as_array()
             .unwrap()
             .iter()
-            .any(|run| run[0] == "hi" && run[1] == 0xFFCE9178u32)
+            .any(|run| run[0] == "hi" && run[1] == 0xFFCE_9178_u32)
     );
     let text: String = lines[1].as_array().unwrap().iter().map(|run| run[0].as_str().unwrap()).collect();
     assert_eq!(text, "for i = 1, 3 do print(greeting, i) end");

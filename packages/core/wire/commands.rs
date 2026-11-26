@@ -5,8 +5,10 @@ use super::out::{AstralWireBuffer, Out};
 use super::properties;
 
 unsafe extern "C" {
-    fn wireRowOfMessage(message: u64, list: *mut i32, index: *mut i64) -> c_int;
-    fn wireComposerNode() -> i32;
+    #[link_name = "wireRowOfMessage"]
+    fn wire_row_of_message(message: u64, list: *mut i32, index: *mut i64) -> c_int;
+    #[link_name = "wireComposerNode"]
+    fn wire_composer_node() -> i32;
 }
 
 static PENDING: Mutex<Vec<u8>> = Mutex::new(Vec::new());
@@ -43,12 +45,12 @@ fn command(build: impl FnOnce(&mut Out)) -> bool {
 pub unsafe extern "C" fn astral_wire_scroll_to_message(message: u64, animated: c_int, align: *const c_char) -> c_int {
     let mut list = 0;
     let mut index = 0;
-    if message == 0 || unsafe { wireRowOfMessage(message, &mut list, &mut index) } == 0 || !(0..=i64::from(i32::MAX)).contains(&index) {
+    if message == 0 || unsafe { wire_row_of_message(message, &mut list, &mut index) } == 0 || !(0..=i64::from(i32::MAX)).contains(&index) {
         return 0;
     }
     let properties = properties::current();
     let align = alignment(align);
-    command(|out| {
+    c_int::from(command(|out| {
         out.put8(7);
         out.put(&list.to_le_bytes());
         out.put8(8);
@@ -58,22 +60,22 @@ pub unsafe extern "C" fn astral_wire_scroll_to_message(message: u64, animated: c
         out.prop_number(properties.offset, 0.0);
         out.put16(properties.animated);
         out.put8(if animated != 0 { 2 } else { 1 });
-    }) as c_int
+    }))
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn astral_wire_focus_composer(focus: c_int) -> c_int {
-    let composer = unsafe { wireComposerNode() };
+    let composer = unsafe { wire_composer_node() };
     if focus != 0 && composer == 0 {
         return 0;
     }
-    command(|out| {
+    c_int::from(command(|out| {
         out.put8(6);
         out.put8(u8::from(focus != 0));
         if focus != 0 {
             out.put(&composer.to_le_bytes());
         }
-    }) as c_int
+    }))
 }
 
 #[unsafe(no_mangle)]
@@ -92,7 +94,7 @@ pub unsafe extern "C" fn astral_wire_take_commands(buffer: *mut AstralWireBuffer
     }
     let mut out = Out::batch();
     out.put(&pending);
-    out.finish(buffer) as c_int
+    c_int::from(out.finish(buffer))
 }
 
 #[unsafe(no_mangle)]

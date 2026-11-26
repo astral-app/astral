@@ -17,12 +17,12 @@ impl Hasher for IdHasher {
 
     fn write(&mut self, bytes: &[u8]) {
         for byte in bytes {
-            self.0 = (self.0 ^ u64::from(*byte)).wrapping_mul(0x100000001b3);
+            self.0 = (self.0 ^ u64::from(*byte)).wrapping_mul(0x0100_0000_01b3);
         }
     }
 
     fn write_i32(&mut self, value: i32) {
-        self.0 = (value as u32 as u64).wrapping_mul(0x9E3779B97F4A7C15);
+        self.0 = u64::from(value as u32).wrapping_mul(0x9E37_79B9_7F4A_7C15);
     }
 }
 

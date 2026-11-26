@@ -33,7 +33,7 @@ struct ComposerText {
 struct Composer {
     typed: ComposerText,
     send_node: i32,
-    composer_node: i32,
+    input_node: i32,
     value: Vec<u8>,
 }
 
@@ -62,9 +62,9 @@ fn note_value(composer: &mut Composer, bytes: &[u8], span: &Span) {
     composer.value = if value.len() < MAX_TEXT { value.to_vec() } else { Vec::new() };
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireTrackComposer(bytes: *const u8, pointer: *const Span, count: usize) {
-    let accessibility = properties::current().accessibilityId;
+#[unsafe(export_name = "wireTrackComposer")]
+pub unsafe extern "C" fn wire_track_composer(bytes: *const u8, pointer: *const Span, count: usize) {
+    let accessibility = properties::current().accessibility_id;
     with_composer(|composer| {
         for span in spans_of(pointer, count).iter().filter(|span| span.op == 1 || span.op == 2) {
             let data = batch_of(bytes, span);
@@ -73,10 +73,10 @@ pub unsafe extern "C" fn wireTrackComposer(bytes: *const u8, pointer: *const Spa
                 composer.send_node = span.id;
             }
             if span.op == 1 && identifier == Some(b"composer") {
-                composer.composer_node = span.id;
+                composer.input_node = span.id;
                 composer.value.clear();
             }
-            if span.id == composer.composer_node {
+            if span.id == composer.input_node {
                 note_value(composer, data, span);
             }
         }
@@ -164,9 +164,9 @@ fn composer_event(event: &[u8]) -> Option<Out> {
     let properties = properties::current();
     let kind = event_kind(event);
     let node = event_node(event);
-    if kind == properties.changeText {
+    if kind == properties.change_text {
         with_composer(|composer| {
-            if node == composer.composer_node
+            if node == composer.input_node
                 && let Some(typed) = typed_text(event)
             {
                 composer.typed = typed;
@@ -179,8 +179,8 @@ fn composer_event(event: &[u8]) -> Option<Out> {
         let ready = kind == properties.press
             && composer.send_node != 0
             && node == composer.send_node
-            && composer.composer_node != 0
-            && composer.typed.node == composer.composer_node
+            && composer.input_node != 0
+            && composer.typed.node == composer.input_node
             && composer.typed.text == composer.value;
         ready.then(|| composer.typed.clone())
     })??;
@@ -199,14 +199,14 @@ pub unsafe extern "C" fn astral_wire_composer_event(event: *const u8, length: us
         return 0;
     }
     match composer_event(unsafe { core::slice::from_raw_parts(event, length) }) {
-        Some(out) => out.finish(before) as c_int,
+        Some(out) => c_int::from(out.finish(before)),
         None => 0,
     }
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn wireComposerNode() -> i32 {
-    with_composer(|composer| composer.composer_node).unwrap_or(0)
+#[unsafe(export_name = "wireComposerNode")]
+pub extern "C" fn wire_composer_node() -> i32 {
+    with_composer(|composer| composer.input_node).unwrap_or(0)
 }
 
 #[unsafe(no_mangle)]

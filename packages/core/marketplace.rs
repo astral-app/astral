@@ -65,7 +65,7 @@ struct Catalog {
     loading: bool,
     state: &'static str,
     error: String,
-    catalog: Value,
+    entries: Value,
     installs: HashMap<String, &'static str>,
 }
 
@@ -82,7 +82,7 @@ fn catalog_state() -> MutexGuard<'static, Option<Catalog>> {
         loading: false,
         state: "idle",
         error: String::new(),
-        catalog: Value::Object(Map::new()),
+        entries: Value::Object(Map::new()),
         installs: HashMap::new(),
     });
     guard
@@ -94,7 +94,7 @@ fn with_catalog<T>(work: impl FnOnce(&mut Catalog) -> T) -> T {
 }
 
 pub fn current_catalog() -> Value {
-    with_catalog(|catalog| catalog.catalog.clone())
+    with_catalog(|catalog| catalog.entries.clone())
 }
 
 pub fn valid_package_identifier(identifier: &str) -> bool {
@@ -421,9 +421,9 @@ fn refresh(notify: Notify) {
         }
         with_catalog(|catalog| {
             if let Some(result) = result {
-                catalog.catalog = result;
+                catalog.entries = result;
             }
-            let empty = catalog.catalog.as_object().is_none_or(Map::is_empty);
+            let empty = catalog.entries.as_object().is_none_or(Map::is_empty);
             catalog.state = if empty { "failed" } else { "ready" };
             catalog.error = failure;
             catalog.loading = false;
@@ -516,7 +516,7 @@ pub unsafe extern "C" fn astral_marketplace_configure(
 
 #[unsafe(no_mangle)]
 pub extern "C" fn astral_marketplace_catalog() -> AstralRustString {
-    AstralRustString::new(with_catalog(|catalog| catalog.catalog.to_string()).into_bytes())
+    AstralRustString::new(with_catalog(|catalog| catalog.entries.to_string()).into_bytes())
 }
 
 #[unsafe(no_mangle)]

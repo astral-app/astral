@@ -7,12 +7,12 @@ use std::sync::{Mutex, MutexGuard};
 use super::abi::{Callback, Tracked};
 use super::children::discord_children;
 use super::cursor::Cursor;
-use super::format::{Span, child, find_string, property_cursor, spans_of, type_is, wireChildList, wireCreation};
-use super::ids::{avatar_user, current_channel, prefixed, wireSetCurrentChannel};
-use super::insert::{INSERT_CAPACITY, wireInsertedChildren};
-use super::message_text::wireApplyMessageText;
+use super::format::{Span, child, find_string, property_cursor, spans_of, type_is, wire_child_list, wire_creation};
+use super::ids::{avatar_user, current_channel, prefixed, wire_set_current_channel};
+use super::insert::{INSERT_CAPACITY, wire_inserted_children};
+use super::message_text::wire_apply_message_text;
 use super::out::{AstralWireBuffer, Out};
-use super::patch::{message_of_identifier, read_identifier, wireMarkRefreshBusy, wirePatchingActive};
+use super::patch::{message_of_identifier, read_identifier, wire_mark_refresh_busy, wire_patching_active};
 use super::properties;
 
 pub const TRACK_NONE: u8 = 0;
@@ -306,8 +306,8 @@ pub fn author_of(message: u64) -> u64 {
         .map_or(0, |entry| entry.1)
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn wireMessageAuthor(message: u64) -> u64 {
+#[unsafe(export_name = "wireMessageAuthor")]
+pub extern "C" fn wire_message_author(message: u64) -> u64 {
     author_of(message)
 }
 
@@ -343,13 +343,13 @@ fn tag_id() -> i32 {
         .unwrap_or(FIRST_TAG_ID)
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn wireAllocateNode() -> i32 {
+#[unsafe(export_name = "wireAllocateNode")]
+pub extern "C" fn wire_allocate_node() -> i32 {
     tag_id()
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn wireRowMessage(row: i32) -> u64 {
+#[unsafe(export_name = "wireRowMessage")]
+pub extern "C" fn wire_row_message(row: i32) -> u64 {
     with_backgrounds(|backgrounds| {
         backgrounds
             .rows
@@ -378,11 +378,11 @@ struct Batch<'a> {
 
 impl<'a> Batch<'a> {
     fn creation(&self, id: i32) -> Option<&'a Span> {
-        unsafe { wireCreation(self.spans.as_ptr(), self.spans.len(), id).as_ref() }
+        unsafe { wire_creation(self.spans.as_ptr(), self.spans.len(), id).as_ref() }
     }
 
     fn list(&self, id: i32) -> Option<&'a Span> {
-        unsafe { wireChildList(self.bytes.as_ptr(), self.spans.as_ptr(), self.spans.len(), id).as_ref() }
+        unsafe { wire_child_list(self.bytes.as_ptr(), self.spans.as_ptr(), self.spans.len(), id).as_ref() }
     }
 
     fn child(&self, span: &Span, position: u32) -> i32 {
@@ -462,15 +462,15 @@ fn observe_properties(bytes: &[u8], span: &Span) {
         }
         let property = cursor.read16();
         let tag = cursor.read8();
-        if tag == 6 && (property == properties.accessibilityId || property == properties.uri) {
+        if tag == 6 && (property == properties.accessibility_id || property == properties.uri) {
             let length = cursor.read32() as usize;
             let Some(text) = cursor.take(length) else { return };
-            if let Some((kind, value)) = observed_kind(property == properties.accessibilityId, text) {
+            if let Some((kind, value)) = observed_kind(property == properties.accessibility_id, text) {
                 with_tracked(|tracked| track(tracked, span.id, kind, value));
             }
             continue;
         }
-        if property == properties.accessibilitySelected && (tag == 1 || tag == 2) {
+        if property == properties.accessibility_selected && (tag == 1 || tag == 2) {
             selected = Some(tag == 2);
             continue;
         }
@@ -481,9 +481,9 @@ fn observe_properties(bytes: &[u8], span: &Span) {
         return;
     };
     if selected {
-        wireSetCurrentChannel(channel);
+        wire_set_current_channel(channel);
     } else if current_channel() == channel {
-        wireSetCurrentChannel(0);
+        wire_set_current_channel(0);
     }
 }
 
@@ -608,10 +608,16 @@ fn write_corners(out: &mut Out, state: &Row, shown: bool, radius: f64) {
     let corners = if state.corners != 0 { state.corners } else { CORNERS_ALL };
     for block in state.blocks.iter().filter(|block| block.card == 0) {
         out.update(block.id, 4);
-        put_corner(out, properties.radiusTopLeft, shown, corners & CORNER_TOP_LEFT != 0, radius);
-        put_corner(out, properties.radiusTopRight, shown, corners & CORNER_TOP_RIGHT != 0, radius);
-        put_corner(out, properties.radiusBottomLeft, shown, corners & CORNER_BOTTOM_LEFT != 0, radius);
-        put_corner(out, properties.radiusBottomRight, shown, corners & CORNER_BOTTOM_RIGHT != 0, radius);
+        put_corner(out, properties.radius_top_left, shown, corners & CORNER_TOP_LEFT != 0, radius);
+        put_corner(out, properties.radius_top_right, shown, corners & CORNER_TOP_RIGHT != 0, radius);
+        put_corner(out, properties.radius_bottom_left, shown, corners & CORNER_BOTTOM_LEFT != 0, radius);
+        put_corner(
+            out,
+            properties.radius_bottom_right,
+            shown,
+            corners & CORNER_BOTTOM_RIGHT != 0,
+            radius,
+        );
     }
 }
 
@@ -860,7 +866,7 @@ fn leading_children(state: &Row) -> Vec<i32> {
 fn write_host_layout(out: &mut Out, state: &Row, text: &Block) {
     let mut inserted = [0i32; INSERT_CAPACITY];
     let mut at_start: c_int = 0;
-    let count = unsafe { wireInsertedChildren(text.id, inserted.as_mut_ptr(), INSERT_CAPACITY as u32, &mut at_start) } as usize;
+    let count = unsafe { wire_inserted_children(text.id, inserted.as_mut_ptr(), INSERT_CAPACITY as u32, &mut at_start) } as usize;
     let inserted = &inserted[..count.min(INSERT_CAPACITY)];
     let leading = leading_children(state);
     let mut children = leading.clone();
@@ -996,7 +1002,7 @@ fn write_header_layout(out: &mut Out, state: &mut Row, inside: &mut Vec<i32>, te
     }
     track_inside(inside, state, shows_inside(state));
     if state.message != 0 {
-        unsafe { wireApplyMessageText(out, state.message) };
+        unsafe { wire_apply_message_text(out, state.message) };
     }
 }
 
@@ -1015,8 +1021,8 @@ fn host_row(backgrounds: &Backgrounds, parent: i32) -> Option<i32> {
         .find(|row| backgrounds.rows.get(row).is_some_and(|state| state.quoted_in == parent))
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireWriteHostLayout(out: *mut Out, parent: i32) -> c_int {
+#[unsafe(export_name = "wireWriteHostLayout")]
+pub unsafe extern "C" fn wire_write_host_layout(out: *mut Out, parent: i32) -> c_int {
     let Some(out) = (unsafe { out.as_mut() }) else { return 0 };
     with_backgrounds(|backgrounds| {
         let Some(state) = host_row(backgrounds, parent).and_then(|row| backgrounds.rows.get(&row)) else {
@@ -1283,7 +1289,7 @@ fn background_style(state: &Row) -> Option<(c_int, AstralMessageBackgroundStyle)
     };
     let result = unsafe { decorator(&context, &mut style) };
     if result < 0 {
-        wireMarkRefreshBusy();
+        wire_mark_refresh_busy();
         return None;
     }
     Some((result, style))
@@ -1473,10 +1479,10 @@ fn message_backgrounds(batch: &Batch, out: &mut Out, changed: &mut c_int) {
             }
         } else if span.op == 1
             && contents.len() < ROW_CAPACITY
-            && find_string(batch.bytes, span, properties.accessibilityId).is_some_and(|text| text.starts_with(CONTENT_PREFIX))
+            && find_string(batch.bytes, span, properties.accessibility_id).is_some_and(|text| text.starts_with(CONTENT_PREFIX))
         {
             contents.push(span.id);
-        } else if span.op == 1 && listed.len() < ROW_CAPACITY && string_is(batch.bytes, span, properties.accessibilityId, b"message-row") {
+        } else if span.op == 1 && listed.len() < ROW_CAPACITY && string_is(batch.bytes, span, properties.accessibility_id, b"message-row") {
             listed.push(ListedRow {
                 id: span.id,
                 ..ListedRow::default()
@@ -1647,9 +1653,9 @@ fn build_icon_tag(out: &mut Out, tag: &AstralTag, nodes: &mut Vec<i32>) -> i32 {
     out.prop_string(properties.scale, b"fit");
     out.prop_number(properties.shrink, 0.0);
     if field(&tag.action_id).is_empty() {
-        out.prop_bool(properties.accessibilityHidden, true);
+        out.prop_bool(properties.accessibility_hidden, true);
     } else {
-        out.prop_string(properties.accessibilityLabel, field(&tag.text));
+        out.prop_string(properties.accessibility_label, field(&tag.text));
     }
     if tag.tint != 0 {
         out.prop_long(properties.tint, i64::from(tag.tint));
@@ -1671,7 +1677,7 @@ fn build_tag(out: &mut Out, tag: &AstralTag, nodes: &mut Vec<i32>) -> i32 {
     out.prop_string(properties.align, b"center");
     if tag.gradient_count >= 2 {
         let count = tag.gradient_count.min(3) as usize;
-        out.prop_gradient(properties.backgroundGradient, 90.0, &tag.gradient[..count]);
+        out.prop_gradient(properties.background_gradient, 90.0, &tag.gradient[..count]);
     } else {
         out.prop_long(properties.background, i64::from(tag.background));
     }
@@ -1681,21 +1687,21 @@ fn build_tag(out: &mut Out, tag: &AstralTag, nodes: &mut Vec<i32>) -> i32 {
     out.prop_quad(properties.padding, [inset, 0.0, inset, 0.0]);
     out.prop_number(properties.radius, if original_poster { 8.0 } else { 4.0 });
     if !action.is_empty() {
-        out.prop_string(properties.accessibilityId, action);
-        out.prop_string(properties.accessibilityLabel, text);
+        out.prop_string(properties.accessibility_id, action);
+        out.prop_string(properties.accessibility_label, text);
         out.prop_events(properties.on, b"press");
     }
     let label = tag_id();
     out.create(label, b"text", if original_poster { 8 } else { 7 });
     out.prop_long(properties.color, i64::from(tag.foreground));
-    out.prop_number(properties.fontSize, if original_poster { 10.0 } else { 12.0 });
-    out.prop_int(properties.fontWeight, if original_poster { 700 } else { 600 });
-    out.prop_number(properties.lineHeight, if original_poster { 13.0 } else { 16.0 });
-    out.prop_int(properties.maxLines, 1);
+    out.prop_number(properties.font_size, if original_poster { 10.0 } else { 12.0 });
+    out.prop_int(properties.font_weight, if original_poster { 700 } else { 600 });
+    out.prop_number(properties.line_height, if original_poster { 13.0 } else { 16.0 });
+    out.prop_int(properties.max_lines, 1);
     out.prop_string(properties.text, text);
-    out.prop_bool(properties.notoFallback, true);
+    out.prop_bool(properties.noto_fallback, true);
     if original_poster {
-        out.prop_string(properties.textTransform, b"uppercase");
+        out.prop_string(properties.text_transform, b"uppercase");
     }
     out.put_children(pill, &[label]);
     nodes.push(pill);
@@ -1703,8 +1709,8 @@ fn build_tag(out: &mut Out, tag: &AstralTag, nodes: &mut Vec<i32>) -> i32 {
     pill
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireBuildTag(out: *mut Out, tag: *const AstralTag, slot: *mut Decorated) -> i32 {
+#[unsafe(export_name = "wireBuildTag")]
+pub unsafe extern "C" fn wire_build_tag(out: *mut Out, tag: *const AstralTag, slot: *mut Decorated) -> i32 {
     let (Some(out), Some(tag), Some(slot)) = (unsafe { out.as_mut() }, unsafe { tag.as_ref() }, unsafe { slot.as_mut() }) else {
         return 0;
     };
@@ -1838,8 +1844,8 @@ fn batch_of_length<'a>(bytes: *const u8, pointer: *const Span, count: usize, len
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireDecorate(
+#[unsafe(export_name = "wireDecorate")]
+pub unsafe extern "C" fn wire_decorate(
     bytes: *const u8,
     pointer: *const Span,
     count: usize,
@@ -1851,7 +1857,7 @@ pub unsafe extern "C" fn wireDecorate(
         return;
     };
     let decorator = DECORATOR.get::<AstralDecorator>();
-    if decorator.is_none() && BACKGROUND_DECORATOR.get::<AstralMessageBackgroundDecorator>().is_none() && wirePatchingActive() == 0 {
+    if decorator.is_none() && BACKGROUND_DECORATOR.get::<AstralMessageBackgroundDecorator>().is_none() && wire_patching_active() == 0 {
         return;
     }
     let batch = batch_of_length(bytes, pointer, count, length);
@@ -1910,8 +1916,8 @@ pub unsafe extern "C" fn astral_wire_refresh_author_tags(buffer: *mut AstralWire
     c_int::from(out.finish(buffer))
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireObserveRemovals(
+#[unsafe(export_name = "wireObserveRemovals")]
+pub unsafe extern "C" fn wire_observe_removals(
     bytes: *const u8,
     pointer: *const Span,
     count: usize,
@@ -1929,7 +1935,7 @@ pub unsafe extern "C" fn wireObserveRemovals(
             if let Some(channel) = tracked_value(id, TRACK_CHANNEL)
                 && current_channel() == channel
             {
-                wireSetCurrentChannel(0);
+                wire_set_current_channel(0);
             }
             with_tracked(|tracked| tracked.remove(&id));
             with_backgrounds(|backgrounds| {
@@ -1950,8 +1956,8 @@ pub unsafe extern "C" fn wireObserveRemovals(
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireObserve(bytes: *const u8, pointer: *const Span, count: usize) {
+#[unsafe(export_name = "wireObserve")]
+pub unsafe extern "C" fn wire_observe(bytes: *const u8, pointer: *const Span, count: usize) {
     for span in spans_of(pointer, count) {
         if span.op == 1 || span.op == 2 {
             observe_properties(super::format::batch_of(bytes, span), span);

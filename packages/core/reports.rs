@@ -141,7 +141,7 @@ fn now() -> f64 {
         .map_or(0.0, |elapsed| elapsed.as_secs_f64())
 }
 
-pub fn plugin_failure(identifier: &str, name: &str, error: &str, environment: Value) -> bool {
+pub fn plugin_failure(identifier: &str, name: &str, error: &str, environment: &Value) -> bool {
     let detail = sanitize(error.as_bytes());
     add(&json!({
         "kind": "plugin",
@@ -319,7 +319,7 @@ pub unsafe extern "C" fn astral_reports_plugin_failure(
         string_of(identifier, identifier_length),
         string_of(name, name_length),
         string_of(error, error_length),
-        json_of(environment, environment_length),
+        &json_of(environment, environment_length),
     ))
 }
 

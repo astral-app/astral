@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use super::cursor::Cursor;
-use super::format::{Span, child, wireScan};
+use super::format::{Span, child, wire_scan};
 use super::out::Out;
 
 const MAX_LIST_CHILDREN: usize = 1 << 16;
@@ -88,8 +88,8 @@ fn put_children(out: &mut Out, parent: i32, children: &[i32]) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireExpandChildEdits(
+#[unsafe(export_name = "wireExpandChildEdits")]
+pub unsafe extern "C" fn wire_expand_child_edits(
     bytes: *const u8,
     length: usize,
     spans: *mut Span,
@@ -120,9 +120,9 @@ pub unsafe extern "C" fn wireExpandChildEdits(
         return core::ptr::null_mut();
     }
     out.put(&data[copied..]);
-    if out.failed != 0 || unsafe { wireScan(out.bytes, out.length, spans, count) } != 0 {
+    if out.failed != 0 || unsafe { wire_scan(out.bytes, out.length, spans, count) } != 0 {
         out.discard();
-        unsafe { wireScan(bytes, length, spans, count) };
+        unsafe { wire_scan(bytes, length, spans, count) };
         return core::ptr::null_mut();
     }
     unsafe { *new_length = out.length };
@@ -133,8 +133,8 @@ pub fn discord_children(parent: i32) -> Vec<i32> {
     with_lists(|lists| lists.get(&parent).cloned()).flatten().unwrap_or_default()
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireDiscordChildren(parent: i32, children: *mut *const i32) -> u32 {
+#[unsafe(export_name = "wireDiscordChildren")]
+pub unsafe extern "C" fn wire_discord_children(parent: i32, children: *mut *const i32) -> u32 {
     with_lists(|lists| match lists.get(&parent) {
         Some(list) if !children.is_null() => {
             unsafe { *children = list.as_ptr() };
@@ -145,8 +145,8 @@ pub unsafe extern "C" fn wireDiscordChildren(parent: i32, children: *mut *const 
     .unwrap_or(0)
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn wireDiscordParent(id: i32) -> i32 {
+#[unsafe(export_name = "wireDiscordParent")]
+pub extern "C" fn wire_discord_parent(id: i32) -> i32 {
     with_lists(|lists| {
         lists
             .iter()
@@ -156,7 +156,7 @@ pub extern "C" fn wireDiscordParent(id: i32) -> i32 {
     .unwrap_or(0)
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn wireResetChildLists() {
+#[unsafe(export_name = "wireResetChildLists")]
+pub extern "C" fn wire_reset_child_lists() {
     with_lists(HashMap::clear);
 }

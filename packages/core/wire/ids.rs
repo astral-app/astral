@@ -47,21 +47,21 @@ pub extern "C" fn astral_wire_current_channel() -> u64 {
     current_channel()
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn wireSetCurrentChannel(channel: u64) {
+#[unsafe(export_name = "wireSetCurrentChannel")]
+pub extern "C" fn wire_set_current_channel(channel: u64) {
     CURRENT_CHANNEL.store(channel, Ordering::Relaxed);
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireAvatarUser(text: *const u8, length: usize) -> u64 {
+#[unsafe(export_name = "wireAvatarUser")]
+pub unsafe extern "C" fn wire_avatar_user(text: *const u8, length: usize) -> u64 {
     if text.is_null() {
         return 0;
     }
     avatar_user(unsafe { core::slice::from_raw_parts(text, length) })
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wirePrefixed(text: *const u8, length: usize, prefix: *const c_char, suffix: *mut u64) -> c_int {
+#[unsafe(export_name = "wirePrefixed")]
+pub unsafe extern "C" fn wire_prefixed(text: *const u8, length: usize, prefix: *const c_char, suffix: *mut u64) -> c_int {
     if text.is_null() || prefix.is_null() || suffix.is_null() {
         return 0;
     }

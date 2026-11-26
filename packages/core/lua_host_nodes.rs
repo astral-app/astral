@@ -59,8 +59,8 @@ fn plugin_icon_uri(plugin: &Plugin, icon: &str) -> Option<String> {
     full.is_file().then(|| format!("file://{}", full.display()))
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn AstralLuaImageRewrite(uri: *const c_char, rewritten: *mut c_char, capacity: usize) -> c_int {
+#[unsafe(export_name = "AstralLuaImageRewrite")]
+pub unsafe extern "C" fn astral_lua_image_rewrite(uri: *const c_char, rewritten: *mut c_char, capacity: usize) -> c_int {
     if uri.is_null() || rewritten.is_null() || capacity == 0 {
         return 0;
     }
@@ -136,8 +136,8 @@ unsafe fn push_patch_target(state: *mut LuaState, target: &AstralPatchTarget, pr
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn AstralLuaPatchNode(target: *const AstralPatchTarget, patch: *mut AstralNodePatch) -> c_int {
+#[unsafe(export_name = "AstralLuaPatchNode")]
+pub unsafe extern "C" fn astral_lua_patch_node(target: *const AstralPatchTarget, patch: *mut AstralNodePatch) -> c_int {
     let (Some(target), Some(patch)) = (unsafe { target.as_ref() }, unsafe { patch.as_mut() }) else {
         return 0;
     };
@@ -343,8 +343,8 @@ unsafe fn read_insert_node(
     unsafe { lua::pop(state, 1) };
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn AstralLuaInsertNodes(
+#[unsafe(export_name = "AstralLuaInsertNodes")]
+pub unsafe extern "C" fn astral_lua_insert_nodes(
     target: *const AstralPatchTarget,
     nodes: *mut AstralInsertNode,
     capacity: usize,
@@ -414,8 +414,8 @@ pub unsafe extern "C" fn AstralLuaInsertNodes(
     count as c_int
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn AstralLuaCodeBlock(context: *const AstralCodeBlockContext, card: *mut AstralRustString) -> c_int {
+#[unsafe(export_name = "AstralLuaCodeBlock")]
+pub unsafe extern "C" fn astral_lua_code_block(context: *const AstralCodeBlockContext, card: *mut AstralRustString) -> c_int {
     let (Some(context), Some(card)) = (unsafe { context.as_ref() }, unsafe { card.as_mut() }) else {
         return 0;
     };
@@ -473,8 +473,8 @@ pub unsafe extern "C" fn AstralLuaCodeBlock(context: *const AstralCodeBlockConte
     0
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn AstralLuaMessageBackground(
+#[unsafe(export_name = "AstralLuaMessageBackground")]
+pub unsafe extern "C" fn astral_lua_message_background(
     context: *const AstralMessageBackgroundContext,
     style: *mut AstralMessageBackgroundStyle,
 ) -> c_int {
@@ -563,8 +563,8 @@ pub unsafe extern "C" fn AstralLuaMessageBackground(
     0
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn AstralLuaTyping(context: *const AstralNameContext, decoration: *mut AstralMentionDecoration) -> c_int {
+#[unsafe(export_name = "AstralLuaTyping")]
+pub unsafe extern "C" fn astral_lua_typing(context: *const AstralNameContext, decoration: *mut AstralMentionDecoration) -> c_int {
     let (Some(context), Some(decoration)) = (unsafe { context.as_ref() }, unsafe { decoration.as_mut() }) else {
         return 0;
     };
@@ -654,8 +654,8 @@ unsafe fn read_reaction_images(state: *mut LuaState, decoration: &mut AstralReac
     unsafe { lua::pop(state, 1) };
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn AstralLuaReaction(context: *const AstralReactionContext, decoration: *mut AstralReactionDecoration) -> c_int {
+#[unsafe(export_name = "AstralLuaReaction")]
+pub unsafe extern "C" fn astral_lua_reaction(context: *const AstralReactionContext, decoration: *mut AstralReactionDecoration) -> c_int {
     let (Some(context), Some(decoration)) = (unsafe { context.as_ref() }, unsafe { decoration.as_mut() }) else {
         return 0;
     };
@@ -707,8 +707,8 @@ pub unsafe extern "C" fn AstralLuaReaction(context: *const AstralReactionContext
     0
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn AstralLuaNameColor(context: *const AstralNameContext, color: *mut u32) -> c_int {
+#[unsafe(export_name = "AstralLuaNameColor")]
+pub unsafe extern "C" fn astral_lua_name_color(context: *const AstralNameContext, color: *mut u32) -> c_int {
     let Some(context) = (unsafe { context.as_ref() }) else { return 0 };
     let Some(_held) = host::try_lock() else { return busy(0) };
     let channel = snowflake(context.channel_id);
@@ -908,8 +908,8 @@ fn decorate_with_lua(context: &AstralDecorationContext, tags: &mut [AstralTag]) 
     count
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn AstralLuaDecorate(context: *const AstralDecorationContext, tags: *mut AstralTag, capacity: usize) -> usize {
+#[unsafe(export_name = "AstralLuaDecorate")]
+pub unsafe extern "C" fn astral_lua_decorate(context: *const AstralDecorationContext, tags: *mut AstralTag, capacity: usize) -> usize {
     let Some(context) = (unsafe { context.as_ref() }) else { return 0 };
     if tags.is_null() {
         return 0;
@@ -1115,8 +1115,8 @@ fn action_shows(plugin: *mut Plugin, when: c_int) -> bool {
     shows
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn AstralLuaMessageMenu(entries: *mut AstralMenuEntry, capacity: usize) -> usize {
+#[unsafe(export_name = "AstralLuaMessageMenu")]
+pub unsafe extern "C" fn astral_lua_message_menu(entries: *mut AstralMenuEntry, capacity: usize) -> usize {
     if entries.is_null() {
         return 0;
     }
@@ -1146,8 +1146,8 @@ pub unsafe extern "C" fn AstralLuaMessageMenu(entries: *mut AstralMenuEntry, cap
     count
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn AstralLuaMessageText(
+#[unsafe(export_name = "AstralLuaMessageText")]
+pub unsafe extern "C" fn astral_lua_message_text(
     message_id: u64,
     text: *mut c_char,
     text_capacity: usize,
@@ -1165,8 +1165,8 @@ pub unsafe extern "C" fn AstralLuaMessageText(
     1
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn AstralLuaSendTransform(channel_id: u64, text: *const c_char, rewritten: *mut c_char, capacity: usize) -> c_int {
+#[unsafe(export_name = "AstralLuaSendTransform")]
+pub unsafe extern "C" fn astral_lua_send_transform(channel_id: u64, text: *const c_char, rewritten: *mut c_char, capacity: usize) -> c_int {
     let content = unsafe { c_text(text) };
     let Some(changed) = crate::lua_host_events::transform_outgoing_message(&snowflake(channel_id), "send", &content) else {
         return 0;

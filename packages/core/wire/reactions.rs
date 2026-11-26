@@ -6,10 +6,10 @@ use std::sync::atomic::{AtomicI32, Ordering};
 
 use super::abi::{Callback, current_channel};
 use super::emoji::glyph;
-use super::format::{Span, batch_of, child, find_string, spans_of, type_is, wireChildList, wireCreation};
+use super::format::{Span, batch_of, child, find_string, spans_of, type_is, wire_child_list, wire_creation};
 use super::out::{AstralWireBuffer, Out};
 use super::properties;
-use super::tween::{wireTweenForget, wireTweenIn};
+use super::tween::{wire_tween_forget, wire_tween_in};
 
 pub const FACES: usize = 5;
 
@@ -35,15 +35,15 @@ pub type ReactionDecorator = unsafe extern "C" fn(*const AstralReactionContext, 
 const MAX_PILLS: usize = 256;
 const MAX_PILL_CHILDREN: usize = 8;
 const MAX_RETRIES: u8 = 20;
-const FIRST_STACK_ID: i32 = 0x7c000000;
-const STACK_ID_RANGE: i32 = 0x00f00000;
+const FIRST_STACK_ID: i32 = 0x7c00_0000;
+const STACK_ID_RANGE: i32 = 0x00f0_0000;
 const REACTION_PREFIX: &[u8] = b"message.reaction:";
 const FACE_SIZE: f64 = 16.2;
 const FACE_STEP: f64 = 4.5;
 const BADGE_FONT_SIZE: f64 = 7.2;
 const TRAILING_INSET: f64 = -2.0;
-const FNV_OFFSET: u64 = 1469598103934665603;
-const FNV_PRIME: u64 = 1099511628211;
+const FNV_OFFSET: u64 = 1_469_598_103_934_665_603;
+const FNV_PRIME: u64 = 1_099_511_628_211;
 
 #[derive(Clone, Default)]
 struct Pill {
@@ -92,7 +92,7 @@ fn parse_count(text: &[u8]) -> u32 {
 }
 
 fn parse_reaction(bytes: &[u8], span: &Span) -> Option<Pill> {
-    let identifier = find_string(bytes, span, properties::current().accessibilityId)?;
+    let identifier = find_string(bytes, span, properties::current().accessibility_id)?;
     if identifier.len() >= 256 {
         return None;
     }
@@ -121,7 +121,7 @@ fn parse_reaction(bytes: &[u8], span: &Span) -> Option<Pill> {
 }
 
 fn first_text(bytes: *const u8, spans: &[Span], id: i32, depth: u32) -> i32 {
-    if let Some(creation) = unsafe { wireCreation(spans.as_ptr(), spans.len(), id).as_ref() }
+    if let Some(creation) = unsafe { wire_creation(spans.as_ptr(), spans.len(), id).as_ref() }
         && type_is(batch_of(bytes, creation), creation, b"text")
     {
         return id;
@@ -129,7 +129,7 @@ fn first_text(bytes: *const u8, spans: &[Span], id: i32, depth: u32) -> i32 {
     if depth >= 3 {
         return 0;
     }
-    let Some(list) = (unsafe { wireChildList(bytes, spans.as_ptr(), spans.len(), id).as_ref() }) else {
+    let Some(list) = (unsafe { wire_child_list(bytes, spans.as_ptr(), spans.len(), id).as_ref() }) else {
         return 0;
     };
     let data = batch_of(bytes, list);
@@ -153,7 +153,7 @@ fn locate_count(pill: &mut Pill, bytes: *const u8, spans: &[Span]) {
     };
     let text = first_text(bytes, spans, last, 0);
     let Some(creation) = (text != 0)
-        .then(|| unsafe { wireCreation(spans.as_ptr(), spans.len(), text).as_ref() })
+        .then(|| unsafe { wire_creation(spans.as_ptr(), spans.len(), text).as_ref() })
         .flatten()
     else {
         return;
@@ -171,7 +171,7 @@ fn register(pills: &mut HashMap<i32, Pill>, bytes: *const u8, spans: &[Span], sp
     if pills.len() >= MAX_PILLS && !pills.contains_key(&span.id) {
         return;
     }
-    if let Some(list) = unsafe { wireChildList(bytes, spans.as_ptr(), spans.len(), span.id).as_ref() } {
+    if let Some(list) = unsafe { wire_child_list(bytes, spans.as_ptr(), spans.len(), span.id).as_ref() } {
         adopt_children(&mut pill, batch_of(bytes, list), list);
     }
     locate_count(&mut pill, bytes, spans);
@@ -202,7 +202,7 @@ fn remove_stack(out: &mut Out, pill: &mut Pill) {
         return;
     }
     for node in &pill.nodes {
-        wireTweenForget(*node);
+        wire_tween_forget(*node);
     }
     out.put8(4);
     out.put32(pill.nodes.len() as u32);
@@ -273,15 +273,15 @@ fn put_face(out: &mut Out, pill: &mut Pill, image: &[u8], first: bool) -> i32 {
 fn put_badge(out: &mut Out, pill: &mut Pill, overflow: u32) -> i32 {
     let properties = properties::current();
     let text = new_node(out, pill, b"text", 6);
-    put_long(out, properties.color, 0xFFFFFFFF);
-    out.prop_number(properties.fontSize, BADGE_FONT_SIZE);
-    out.prop_int(properties.fontWeight, 600);
-    out.prop_int(properties.maxLines, 1);
+    put_long(out, properties.color, 0xFFFF_FFFF);
+    out.prop_number(properties.font_size, BADGE_FONT_SIZE);
+    out.prop_int(properties.font_weight, 600);
+    out.prop_int(properties.max_lines, 1);
     out.prop_string(properties.text, format!("+{overflow}").as_bytes());
-    out.put16(properties.notoFallback);
+    out.put16(properties.noto_fallback);
     out.put8(2);
     let badge = new_node(out, pill, b"view", 8);
-    put_long(out, properties.background, 0xFF000000);
+    put_long(out, properties.background, 0xFF00_0000);
     out.prop_number(properties.width, FACE_SIZE);
     out.prop_number(properties.height, FACE_SIZE);
     out.prop_number(properties.radius, FACE_SIZE / 2.0);
@@ -334,13 +334,13 @@ fn put_stack(out: &mut Out, id: i32, pill: &mut Pill, decoration: &AstralReactio
     out.put16(properties.clip);
     out.put8(2);
     out.prop_number(properties.opacity, 0.0);
-    out.prop_number(properties.maxWidth, 0.0);
+    out.prop_number(properties.max_width, 0.0);
     let width = if members.is_empty() {
         0.0
     } else {
         FACE_SIZE + (members.len() - 1) as f64 * FACE_STEP
     };
-    wireTweenIn(stack, width, TRAILING_INSET);
+    wire_tween_in(stack, width, TRAILING_INSET);
     pill.stack = stack;
     put_children(out, stack, &members);
     let mut children = pill.children.clone();
@@ -404,8 +404,8 @@ fn refresh_pill(out: &mut Out, id: i32, pill: &mut Pill, force: bool) -> bool {
     true
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireReactionAvatars(
+#[unsafe(export_name = "wireReactionAvatars")]
+pub unsafe extern "C" fn wire_reaction_avatars(
     bytes: *const u8,
     pointer: *const Span,
     count: usize,
@@ -429,7 +429,7 @@ pub unsafe extern "C" fn wireReactionAvatars(
                     for position in 0..span.child_count {
                         if let Some(pill) = pills.remove(&child(data, span, position)) {
                             for node in pill.nodes {
-                                wireTweenForget(node);
+                                wire_tween_forget(node);
                             }
                         }
                     }
@@ -451,7 +451,7 @@ pub unsafe extern "C" fn wireReactionAvatars(
         }
         let mut forced = HashSet::new();
         for span in spans.iter().filter(|span| span.op == 3) {
-            if !unsafe { wireCreation(spans.as_ptr(), spans.len(), span.id) }.is_null() {
+            if !unsafe { wire_creation(spans.as_ptr(), spans.len(), span.id) }.is_null() {
                 continue;
             }
             let Some(pill) = pills.get_mut(&span.id) else { continue };
@@ -505,7 +505,7 @@ pub unsafe extern "C" fn astral_wire_refresh_reactions(buffer: *mut AstralWireBu
         out.discard();
         return 0;
     }
-    out.finish(buffer) as c_int
+    c_int::from(out.finish(buffer))
 }
 
 #[unsafe(no_mangle)]
@@ -544,5 +544,5 @@ pub unsafe extern "C" fn astral_wire_retry_reactions(buffer: *mut AstralWireBuff
         out.discard();
         return 0;
     }
-    out.finish(buffer) as c_int
+    c_int::from(out.finish(buffer))
 }

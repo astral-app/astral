@@ -71,7 +71,7 @@ pub fn unzip(archive: &Path, destination: &Path) -> Result<(), String> {
         entry
             .read_to_end(&mut bytes)
             .map_err(|error| error.to_string())?;
-        if mode & 0o170000 == 0o120000 {
+        if mode & 0o170_000 == 0o120_000 {
             std::os::unix::fs::symlink(String::from_utf8_lossy(&bytes).as_ref(), &target)
                 .map_err(|error| error.to_string())?;
             continue;

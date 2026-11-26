@@ -167,7 +167,7 @@ fn label_profile(relabel: &mut Relabel, spans: &[Span]) {
     let mut user = 0;
     for span in spans.iter().filter(|span| span.op == 1) {
         let data = &bytes[..span.end];
-        if string_at(data, span, properties.accessibilityId).is_some_and(|at| at.text(data) == b"profile-scroll") {
+        if string_at(data, span, properties.accessibility_id).is_some_and(|at| at.text(data) == b"profile-scroll") {
             profile = true;
         }
         if user == 0
@@ -182,7 +182,7 @@ fn label_profile(relabel: &mut Relabel, spans: &[Span]) {
     }
     for span in spans.iter().filter(|span| span.op == 1) {
         let data = &bytes[..span.end];
-        if !type_is(data, span, b"text") || number_at(data, span, properties.fontSize).is_none_or(|size| size < PROFILE_NAME_SIZE) {
+        if !type_is(data, span, b"text") || number_at(data, span, properties.font_size).is_none_or(|size| size < PROFILE_NAME_SIZE) {
             continue;
         }
         let Some(text) = string_at(data, span, properties.text) else {
@@ -209,7 +209,7 @@ fn label_rows(relabel: &mut Relabel, spans: &[Span], links: &HashMap<i32, i32>) 
             break;
         }
         let data = &bytes[..span.end];
-        let Some(identifier) = string_at(data, span, properties.accessibilityId) else {
+        let Some(identifier) = string_at(data, span, properties.accessibility_id) else {
             continue;
         };
         let text = identifier.text(data);
@@ -309,7 +309,7 @@ fn collect(relabel: &mut Relabel, spans: &[Span]) {
                 }
             }
         } else if span.op == 1
-            && let Some(identifier) = string_at(data, span, properties.accessibilityId)
+            && let Some(identifier) = string_at(data, span, properties.accessibility_id)
         {
             let text = identifier.text(data);
             if text == b"message-row" && rows.len() < MAX_NODES {
@@ -388,8 +388,8 @@ unsafe extern "C" {
     fn malloc(size: usize) -> *mut core::ffi::c_void;
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wireRelabel(bytes: *const u8, length: usize, spans: *mut Span, count: usize, new_length: *mut usize) -> *mut u8 {
+#[unsafe(export_name = "wireRelabel")]
+pub unsafe extern "C" fn wire_relabel(bytes: *const u8, length: usize, spans: *mut Span, count: usize, new_length: *mut usize) -> *mut u8 {
     if bytes.is_null() || spans.is_null() || new_length.is_null() {
         return core::ptr::null_mut();
     }
