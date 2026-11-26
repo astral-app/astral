@@ -4,6 +4,7 @@ pub mod backup;
 pub mod bridge;
 pub mod crypto;
 pub mod cutout;
+pub mod dev_server;
 pub mod discord_cache;
 pub mod discord_headers;
 pub mod disk_full;
