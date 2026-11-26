@@ -18,7 +18,7 @@ astral rewrites the ViewWire batches Discord's Rust guest sends to its native cl
 | `packages/assets` | Icon SVGs served as `res://astral_<name>` |
 | `packages/tools` | The `astral` command (Rust): tests, lint, signing, packaging, sideload IPAs and device helpers |
 | `keys/` | The public key plugins and the catalog are verified against |
-| `vendor/` | Lua 5.4, Monocypher and toml++ (submodules) and nlohmann/json |
+| `vendor/` | Lua 5.4 and toml++ (submodules), SQLite and nlohmann/json |
 | `docs/` | How the Phoenix integration and plugins work |
 
 ## Build
@@ -31,7 +31,7 @@ cargo astral test
 make -C packages/ios package FINALPACKAGE=1
 ```
 
-`cargo astral <command>` builds and runs the CLI; the build leaves it at `packages/tools/target/release/astral`. `astral format` formats Lua (StyLua), TOML (Taplo), C and Objective-C (clang-format) and Rust (rustfmt); `astral lint` checks the same, lints Lua with luacheck and lua-language-server and runs clippy. `astral test` runs the ViewWire host test under ASan and UBSan, the prelude and plugin tests, and verifies every signature with Rust and with Monocypher (`--phoenix <PhoenixFatClient>` adds the locator test). `astral sign` signs the plugins and the catalog with the key in iCloud. Plugin manifests, themes and the catalog are TOML; internal state astral writes stays JSON.
+`cargo astral <command>` builds and runs the CLI; the build leaves it at `packages/tools/target/release/astral`. `astral format` formats Lua (StyLua), TOML (Taplo), C and Objective-C (clang-format) and Rust (rustfmt); `astral lint` checks the same, lints Lua with luacheck and lua-language-server and runs clippy. `astral test` runs the ViewWire host test under ASan and UBSan, the prelude and plugin tests, and verifies every signature (`--phoenix <PhoenixFatClient>` adds the locator test). `astral sign` signs the plugins and the catalog with the key in iCloud. Plugin manifests, themes and the catalog are TOML; internal state astral writes stays JSON.
 
 With Developer mode on, astral serves a development API on the device's `127.0.0.1:9324`. `astral dev` forwards it over USB (`DEVICE=<udid>`) and offers `status`, `push <plugin folder>` (install and hot reload), `watch <plugin folder>` (push on every save), `eval <plugin id> <lua>`, `logs [-f]`, `theme import` and `backup export|import`. `astral wire-dump` pulls the batches a test device recorded while `Documents/astral/capture-wire` exists and decodes them, with text kept as length and hash.
 

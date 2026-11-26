@@ -182,77 +182,13 @@ pub fn test_lua(work: &Path) -> Result<(), String> {
     Ok(())
 }
 
-pub fn test_signatures(work: &Path) -> Result<(), String> {
+pub fn test_signatures() -> Result<(), String> {
     let key = signing::public_key()?;
     let folders = repo::plugin_folders()?;
     for folder in &folders {
         signing::verify_plugin(folder, &key)?;
     }
-    signing::verify_catalog(&key)?;
-    verify_with_monocypher(work, &folders)
-}
-
-fn verify_with_monocypher(work: &Path, folders: &[std::path::PathBuf]) -> Result<(), String> {
-    let monocypher = repo::path(&["vendor", "monocypher", "src"]);
-    let verifier = repo::text(&work.join("verify-signature"));
-    repo::run(
-        &repo::path(&[]),
-        "cc",
-        &strings(&[
-            "-O1",
-            "-w",
-            &format!("-I{}", repo::text(&monocypher)),
-            &format!("-I{}", repo::text(&monocypher.join("optional"))),
-            "-o",
-            &verifier,
-            &repo::text(&repo::path(&[
-                "packages",
-                "ios",
-                "tests",
-                "support",
-                "verify-signature.c",
-            ])),
-            &repo::text(&monocypher.join("monocypher.c")),
-            &repo::text(&monocypher.join("optional").join("monocypher-ed25519.c")),
-        ]),
-    )?;
-    let key = repo::read(&repo::path(&["keys", "plugin-signing.pub"]))?
-        .trim()
-        .to_owned();
-    let (message, signature_file) = (work.join("message"), work.join("signature"));
-    for folder in folders {
-        let signature = signing::read_plugin_signature(folder)?;
-        std::fs::write(&message, signing::signature_message(&signature.files))
-            .map_err(|error| error.to_string())?;
-        std::fs::write(&signature_file, &signature.signature).map_err(|error| error.to_string())?;
-        repo::run(
-            work,
-            &verifier,
-            &[
-                repo::text(&message),
-                repo::text(&signature_file),
-                key.clone(),
-            ],
-        )
-        .map_err(|_| {
-            format!(
-                "{}: Monocypher rejects the signature",
-                signing::name_of(folder)
-            )
-        })?;
-    }
-    repo::run(
-        work,
-        &verifier,
-        &[
-            repo::text(&repo::path(&["packages", "catalog", "index.toml"])),
-            repo::text(&repo::path(&["packages", "catalog", "index.toml.sig"])),
-            key,
-        ],
-    )
-    .map_err(|_| "Monocypher rejects the catalog signature".to_owned())?;
-    println!("signatures ok");
-    Ok(())
+    signing::verify_catalog(&key)
 }
 
 fn test_locator(work: &Path, phoenix: &str) -> Result<(), String> {
@@ -281,7 +217,7 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
     test_wire(&work.0)?;
     test_core(&work.0)?;
     test_lua(&work.0)?;
-    test_signatures(&work.0)?;
+    test_signatures()?;
     crate::readme::test()?;
     crate::catalog::test()?;
     let phoenix = flags.get("phoenix");
