@@ -148,10 +148,8 @@ fn check_hooks() -> Result<String, String> {
 }
 
 fn check_vendor() -> Result<String, String> {
-    for file in ["lua/lua.h"] {
-        if !repo::path(&["vendor", file]).exists() {
-            return Err(format!("missing vendor/{file}"));
-        }
+    if !repo::path(&["vendor", "lua", "lua.h"]).exists() {
+        return Err("missing vendor/lua/lua.h".into());
     }
     Ok("lua".into())
 }

@@ -336,7 +336,7 @@ pub extern "C" fn astral_wire_stats() -> AstralWireStats {
 
 fn tag_id() -> i32 {
     NEXT_TAG_ID
-        .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |id| {
+        .try_update(Ordering::Relaxed, Ordering::Relaxed, |id| {
             Some(if id + 1 >= FIRST_TAG_ID + TAG_ID_RANGE {
                 FIRST_TAG_ID
             } else {
