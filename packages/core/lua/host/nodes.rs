@@ -18,7 +18,7 @@ use crate::support::bridge::AstralRustString;
 use crate::wire::abi::{AstralMentionDecoration, AstralNameContext, AstralNodePatch, AstralPatchTarget, NAME_TYPING};
 use crate::wire::code_blocks::AstralCodeBlockContext;
 use crate::wire::decorate::{AstralDecorationContext, AstralMessageBackgroundContext, AstralMessageBackgroundStyle, AstralTag};
-use crate::wire::insert::{AstralInsertNode, INSERT_IMAGE, INSERT_PLAYER, INSERT_TEXT};
+use crate::wire::insert::{AstralInsertNode, INSERT_IMAGE, INSERT_LOTTIE, INSERT_PLAYER, INSERT_TEXT};
 use crate::wire::message_menu::AstralMenuEntry;
 
 const INSERT_VIEW: c_int = 2;
@@ -310,6 +310,7 @@ unsafe fn read_insert_node(
         Some(InsertNodeType::Text) => INSERT_TEXT,
         Some(InsertNodeType::Image) => INSERT_IMAGE,
         Some(InsertNodeType::Player) => INSERT_PLAYER,
+        Some(InsertNodeType::Lottie) => INSERT_LOTTIE,
         Some(InsertNodeType::View) | None => INSERT_VIEW,
     };
     node.parent = parent;
@@ -319,7 +320,7 @@ unsafe fn read_insert_node(
     {
         write_text(&mut node.uri, &uri);
     }
-    if node.kind == INSERT_PLAYER
+    if (node.kind == INSERT_PLAYER || node.kind == INSERT_LOTTIE)
         && let Some(video) = unsafe { field_text(state, "uri") }
             .filter(|video| video.len() < 256 && (video.starts_with("content://") || video.starts_with("https://")))
     {

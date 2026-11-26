@@ -172,6 +172,7 @@ local InsertNodeType = {
 	Text = "text",
 	Image = "image",
 	Player = "player",
+	Lottie = "lottie",
 }
 
 ---@enum astral.InsertPosition
