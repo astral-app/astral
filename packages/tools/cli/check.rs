@@ -46,23 +46,6 @@ pub fn rules() -> Vec<Rule> {
             run: |files, _| with_files("clang-format", &["--dry-run", "-Werror"], files),
         },
         Rule {
-            name: "gofmt",
-            affects: |path| repo::extension(path) == "go" && under(path, &["packages/tools/"]),
-            run: |files, _| lint::check_go_format(files),
-        },
-        Rule {
-            name: "go vet and tests",
-            affects: |path| {
-                repo::extension(path) == "go"
-                    || path.ends_with("go.mod")
-                    || path.ends_with("go.sum")
-            },
-            run: |_, _| {
-                lint::lint_go()?;
-                lint::test_go()
-            },
-        },
-        Rule {
             name: "rust",
             affects: rust,
             run: |_, _| {
@@ -184,7 +167,7 @@ pub fn rules() -> Vec<Rule> {
 fn file_scoped(name: &str) -> bool {
     matches!(
         name,
-        "clang-format" | "gofmt" | "stylua" | "luacheck" | "lua casing" | "taplo"
+        "clang-format" | "stylua" | "luacheck" | "lua casing" | "taplo"
     )
 }
 

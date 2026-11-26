@@ -244,7 +244,6 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
         .string("phoenix", &environment("ASTRAL_PHOENIX_BINARY"))
         .parse(arguments)?;
     let work = repo::scratch()?;
-    lint::test_go()?;
     lint::test_rust()?;
     test_wire(&work.0)?;
     test_core(&work.0)?;

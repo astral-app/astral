@@ -39,10 +39,10 @@ jobs:
           submodules: true
           persist-credentials: false
 
-      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
-        with:
-          go-version-file: packages/tools/go.mod
-          cache-dependency-path: packages/tools/go.sum
+      - name: Build the astral CLI
+        run: |
+          cargo build --quiet --release --manifest-path packages/tools/Cargo.toml
+          echo "$GITHUB_WORKSPACE/packages/tools/target/release" >> "$GITHUB_PATH"
 
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
@@ -56,7 +56,7 @@ jobs:
       - name: Prepare Theos
         run: |
           echo "THEOS=${{ github.workspace }}/theos" >> "$GITHUB_ENV"
-          go run ./packages/tools/cmd/astral prepare-theos --theos "${{ github.workspace }}/theos"
+          astral prepare-theos --theos "${{ github.workspace }}/theos"
 
       - name: Build
         run: |
@@ -80,10 +80,10 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
-        with:
-          go-version-file: packages/tools/go.mod
-          cache-dependency-path: packages/tools/go.sum
+      - name: Build the astral CLI
+        run: |
+          cargo build --quiet --release --manifest-path packages/tools/Cargo.toml
+          echo "$GITHUB_WORKSPACE/packages/tools/target/release" >> "$GITHUB_PATH"
 
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
@@ -105,7 +105,7 @@ jobs:
         run: |
           set -euo pipefail
           deb=$(find deb -name '*.deb' | head -1)
-          go run ./packages/tools/cmd/astral build-ipa --ipa discord.ipa --deb "$deb" --output astral.ipa
+          astral build-ipa --ipa discord.ipa --deb "$deb" --output astral.ipa
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
@@ -125,10 +125,10 @@ jobs:
           submodules: true
           persist-credentials: false
 
-      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
-        with:
-          go-version-file: packages/tools/go.mod
-          cache-dependency-path: packages/tools/go.sum
+      - name: Build the astral CLI
+        run: |
+          cargo build --quiet --release --manifest-path packages/tools/Cargo.toml
+          echo "$GITHUB_WORKSPACE/packages/tools/target/release" >> "$GITHUB_PATH"
 
       - name: Select Java 21
         run: echo "JAVA_HOME=$JAVA_HOME_21_X64" >> "$GITHUB_ENV"
@@ -152,13 +152,13 @@ jobs:
           echo "$LSPATCH_SHA256  $LSPATCH_JAR" | sha256sum -c -
 
       - name: Download Discord for Android
-        run: go run ./packages/tools/cmd/astral android download --channel "$CHANNEL" --output discord
+        run: astral android download --channel "$CHANNEL" --output discord
 
       - name: Install the Rust Android targets
         run: rustup target add aarch64-linux-android x86_64-linux-android
 
       - name: Build
-        run: go run ./packages/tools/cmd/astral android build --output astral-android --patcher "$LSPATCH_JAR" discord/base.apk discord/config.arm64_v8a.apk discord/config.xxhdpi.apk discord/config.en.apk
+        run: astral android build --output astral-android --patcher "$LSPATCH_JAR" discord/base.apk discord/config.arm64_v8a.apk discord/config.xxhdpi.apk discord/config.en.apk
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:

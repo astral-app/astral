@@ -36,10 +36,10 @@ jobs:
           submodules: true
           persist-credentials: false
 
-      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
-        with:
-          go-version-file: packages/tools/go.mod
-          cache-dependency-path: packages/tools/go.sum
+      - name: Build the astral CLI
+        run: |
+          cargo build --quiet --release --manifest-path packages/tools/Cargo.toml
+          echo "$GITHUB_WORKSPACE/packages/tools/target/release" >> "$GITHUB_PATH"
 
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
@@ -53,7 +53,7 @@ jobs:
       - name: Prepare Theos
         run: |
           echo "THEOS=${{ github.workspace }}/theos" >> "$GITHUB_ENV"
-          go run ./packages/tools/cmd/astral prepare-theos --theos "${{ github.workspace }}/theos"
+          astral prepare-theos --theos "${{ github.workspace }}/theos"
 
       - name: Build
         run: |
