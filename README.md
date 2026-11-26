@@ -32,7 +32,7 @@ Lua plugins, themes, icon packs and emoji packs, drawn by Discord's own componen
 
 astral mods Discord's Phoenix engine. It rewrites the UI batches Discord's Rust guest sends to the native host, so everything it adds is a real Discord component.
 
-It patches no code: jailed and jailbroken installs run the same path. Plugins are sandboxed Lua, so a plugin cannot crash Discord.
+Jailed and jailbroken installs run the same path. The one piece of code it patches is Phoenix's access gate, so accounts outside Discord's test group can open Phoenix too. Plugins are sandboxed Lua, so a plugin cannot crash Discord.
 
 ### Features
 
