@@ -50,7 +50,6 @@ pub fn note(probe: &Probe) {
     if !network_policy::is_discord_host(probe.host) {
         return;
     }
-    super::note_discord_request(probe.host, probe.path, probe.headers);
     DISCORD_REQUESTS.fetch_add(1, Ordering::Relaxed);
     if probe.method == POST && probe.path.ends_with(MESSAGES_SUFFIX) {
         MESSAGE_REQUESTS.fetch_add(1, Ordering::Relaxed);

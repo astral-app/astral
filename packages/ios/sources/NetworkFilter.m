@@ -14,6 +14,15 @@ static const NSInteger kOk = 200;
 static const NSInteger kPartialContent = 206;
 
 static BOOL (^gStaffDevTools)(void);
+static NSURLRequest *gDiscordTemplate;
+static NSString *const kApiPrefix = @"/api/v";
+static NSArray<NSString *> *DroppedTemplateHeaders(void)
+{
+    return @[
+        @"content-length", @"content-type", @"content-encoding", @"x-context-properties", @"x-audit-log-reason", @"if-none-match",
+        @"if-modified-since", @"range", @"idempotency-key"
+    ];
+}
 
 static BOOL StaffDevTools(void)
 {
@@ -172,6 +181,57 @@ static NSDictionary *PlainResponse(NSHTTPURLResponse *response, NSData *body)
     };
 }
 
+static NSString *ApiBase(NSURL *url)
+{
+    NSString *path = url.path ?: @"";
+    if (![url.host.lowercaseString isEqualToString:@"discord.com"] || ![path hasPrefix:kApiPrefix]) return nil;
+    NSRange slash = [path rangeOfString:@"/" options:0 range:NSMakeRange(kApiPrefix.length, path.length - kApiPrefix.length)];
+    NSString *prefix = slash.location == NSNotFound ? path : [path substringToIndex:slash.location];
+    return [NSString stringWithFormat:@"https://%@%@", url.host, prefix];
+}
+
+static void RememberDiscordTemplate(NSURLRequest *request)
+{
+    if (!ApiBase(request.URL) || ![request valueForHTTPHeaderField:@"Authorization"].length) return;
+    NSURLRequest *copy = [request copy];
+    @synchronized(NSURLRequest.class) {
+        gDiscordTemplate = copy;
+    }
+}
+
+static NSURLRequest *DiscordTemplate(void)
+{
+    @synchronized(NSURLRequest.class) {
+        return gDiscordTemplate;
+    }
+}
+
+static void CompleteDiscordRequest(uint64_t identifier, NSDictionary *result)
+{
+    NSData *json = [NSJSONSerialization dataWithJSONObject:result options:0 error:nil];
+    astral_ios_complete_network_request(identifier, AstralTextOfData(json ?: [NSData data]));
+}
+
+static NSDictionary *DiscordResult(NSData *data, NSURLResponse *response, NSError *error)
+{
+    NSHTTPURLResponse *http = [response isKindOfClass:NSHTTPURLResponse.class] ? (NSHTTPURLResponse *)response : nil;
+    NSMutableDictionary *headers = [NSMutableDictionary dictionary];
+    for (id name in http.allHeaderFields) {
+        id value = http.allHeaderFields[name];
+        if ([name isKindOfClass:NSString.class]) headers[name] = [value description];
+    }
+    NSString *body = data ? [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] : nil;
+    NSMutableDictionary *result = [@{
+        @"status" : @(http.statusCode),
+        @"ok" : @(!error && http.statusCode >= 200 && http.statusCode < 300),
+        @"url" : http.URL.absoluteString ?: @"",
+        @"headers" : headers,
+        @"body" : body ?: @""
+    } mutableCopy];
+    if (error) result[@"error"] = @"request failed";
+    return result;
+}
+
 @interface AstralNetworkFilter : NSURLProtocol
 @property (nonatomic, strong) NSURLSessionDataTask *forwarded;
 @end
@@ -182,6 +242,7 @@ static NSDictionary *PlainResponse(NSHTTPURLResponse *response, NSData *body)
 {
     if ([NSURLProtocol propertyForKey:kHandledKey inRequest:request]) return NO;
     AstralRememberMediaRequest(request.URL);
+    RememberDiscordTemplate(request);
     if (!request.URL) return NO;
     return AstralIsPickedVideoURL(request.URL) || WithProbe(request, YES).handles;
 }
@@ -207,6 +268,40 @@ static NSDictionary *PlainResponse(NSHTTPURLResponse *response, NSData *body)
         session = [NSURLSession sessionWithConfiguration:configuration];
     });
     return session;
+}
+
++ (void)sendDiscordRequest:(uint64_t)identifier method:(NSString *)method path:(NSString *)path body:(NSString *)body
+{
+    NSURLRequest *template = DiscordTemplate();
+    NSString *base = template ? ApiBase(template.URL) : nil;
+    NSURL *url = base ? [NSURL URLWithString:[base stringByAppendingString:path]] : nil;
+    if (!url) {
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_DEFAULT, 0), ^{
+            CompleteDiscordRequest(
+                identifier,
+                @{@"status" : @0,
+                  @"ok" : @NO,
+                  @"body" : @"",
+                  @"error" : @"Discord has not called its API yet"});
+        });
+        return;
+    }
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url
+                                                           cachePolicy:template.cachePolicy
+                                                       timeoutInterval:template.timeoutInterval];
+    NSArray *dropped = DroppedTemplateHeaders();
+    [template.allHTTPHeaderFields enumerateKeysAndObjectsUsingBlock:^(NSString *name, NSString *value, BOOL *stop) {
+        if (![dropped containsObject:name.lowercaseString]) [request setValue:value forHTTPHeaderField:name];
+    }];
+    request.HTTPMethod = method;
+    if (body.length) {
+        request.HTTPBody = [body dataUsingEncoding:NSUTF8StringEncoding];
+        [request setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
+    }
+    [[[AstralNetworkFilter forwardingSession] dataTaskWithRequest:request
+                                                completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+                                                    CompleteDiscordRequest(identifier, DiscordResult(data, response, error));
+                                                }] resume];
 }
 
 - (void)finishEmpty
@@ -582,4 +677,9 @@ void AstralRestartGatewaySession(void)
     }
     [task cancelWithCloseCode:NSURLSessionWebSocketCloseCodeGoingAway reason:nil];
     AstralDevAppendLog(@"network filter: closed the gateway so it reconnects with the new settings");
+}
+
+void AstralSendDiscordRequest(uint64_t identifier, NSString *method, NSString *path, NSString *body)
+{
+    [AstralNetworkFilter sendDiscordRequest:identifier method:method path:path body:body];
 }

@@ -308,21 +308,6 @@ pub extern "system" fn Java_app_astral_android_Native_refreshDecorations<'local>
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_app_astral_android_Native_noteDiscordRequest<'local>(
-    mut env: JNIEnv<'local>,
-    _: JClass<'local>,
-    host: JString<'local>,
-    path: JString<'local>,
-    headers: JString<'local>,
-) {
-    app::note_discord_request(
-        &text(&mut env, &host),
-        &text(&mut env, &path),
-        &text(&mut env, &headers),
-    );
-}
-
-#[unsafe(no_mangle)]
 pub extern "system" fn Java_app_astral_android_Native_pageOpen<'local>(
     _: JNIEnv<'local>,
     _: JClass<'local>,
@@ -491,15 +476,6 @@ pub extern "system" fn Java_app_astral_android_Native_applyBackup<'local>(
 ) -> jstring {
     let failure = app::apply_backup(&text(&mut env, &contents));
     optional_java_text(&mut env, failure)
-}
-
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_app_astral_android_Native_setSessionToken<'local>(
-    mut env: JNIEnv<'local>,
-    _: JClass<'local>,
-    token: JString<'local>,
-) {
-    app::set_session_token(&text(&mut env, &token));
 }
 
 fn headers_from(env: &mut JNIEnv, array: &JObjectArray) -> Vec<(String, String)> {

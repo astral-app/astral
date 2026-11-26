@@ -30,7 +30,6 @@ object Native {
     @JvmStatic external fun slide(node: Int, payload: ByteArray): Boolean
     @JvmStatic external fun back(): Boolean
     @JvmStatic external fun refreshDecorations()
-    @JvmStatic external fun noteDiscordRequest(host: String, path: String, headers: String)
     @JvmStatic external fun pageOpen(): Boolean
 
     @JvmStatic external fun attachBridge(bridge: Class<*>)
@@ -67,7 +66,6 @@ object Native {
 
     @JvmStatic external fun recordExitReport(kind: String, timestamp: Long, reason: Int, description: String, trace: String)
 
-    @JvmStatic external fun setSessionToken(token: String)
 
     @JvmStatic external fun isTelemetry(host: String, path: String): Boolean
 

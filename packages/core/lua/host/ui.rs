@@ -1486,6 +1486,13 @@ pub unsafe fn reactors(state: *mut LuaState) -> Outcome {
     Ok(1)
 }
 
+fn discord_api_url(url: &str) -> bool {
+    let authority = authority(url);
+    let host = authority.rsplit_once(':').map_or(authority, |(host, _)| host).to_ascii_lowercase();
+    let path = url.get(8 + authority.len()..).unwrap_or_default();
+    crate::network::policy::is_discord_host(&host) && (path.starts_with("/api/") || path == "/api")
+}
+
 fn valid_request_url(url: &str) -> bool {
     let authority = authority(url);
     url.len() <= 4096
@@ -1505,6 +1512,9 @@ fn network_options(mut options: Value) -> Result<Value, &'static str> {
     };
     if !valid_request_url(url) {
         return Err("astral.net.request: url must be an https URL without credentials");
+    }
+    if discord_api_url(url) {
+        return Err("astral.net.request: Discord's API goes through astral.discord.request");
     }
     let method = match options.get("method") {
         None => "GET".to_owned(),

@@ -132,10 +132,6 @@ pub fn fetch(url: &str, token: &str) -> (c_int, Vec<u8>) {
     split_status(host::request(Request::Fetch { url, token }).into_bytes())
 }
 
-pub fn fetch_with(url: &str, headers: &str) -> (c_int, Vec<u8>) {
-    split_status(host::request(Request::FetchWith { url, headers }).into_bytes())
-}
-
 unsafe extern "C" fn marketplace_fetch(_: *mut c_void, url: *const c_char, length: usize, body: *mut AstralRustString) -> c_int {
     let url = String::from_utf8_lossy(crate::support::bridge::bytes(url, length)).into_owned();
     let (status, bytes) = fetch(&url, "");
@@ -158,46 +154,6 @@ unsafe extern "C" fn marketplace_installed(_: *mut c_void, kind: c_int, identifi
     lua_host::rescan();
 }
 
-unsafe extern "C" fn reactors_fetch(
-    url: *const c_char,
-    url_length: usize,
-    headers: *const c_char,
-    headers_length: usize,
-    body: *mut AstralRustString,
-) -> c_int {
-    let url = String::from_utf8_lossy(crate::support::bridge::bytes(url, url_length)).into_owned();
-    let headers = header_object(crate::support::bridge::bytes(headers, headers_length));
-    let (status, bytes) = fetch_with(&url, &headers);
-    if !body.is_null() {
-        unsafe { *body = AstralRustString::new(bytes) };
-    }
-    status
-}
-
-const FRAME_LENGTH: usize = 4;
-
-fn frames(mut encoded: &[u8]) -> Vec<String> {
-    let mut decoded = Vec::new();
-    while encoded.len() >= FRAME_LENGTH {
-        let length = u32::from_le_bytes([encoded[0], encoded[1], encoded[2], encoded[3]]) as usize;
-        let Some(value) = encoded.get(FRAME_LENGTH..FRAME_LENGTH + length) else {
-            break;
-        };
-        decoded.push(String::from_utf8_lossy(value).into_owned());
-        encoded = &encoded[FRAME_LENGTH + length..];
-    }
-    decoded
-}
-
-fn header_object(encoded: &[u8]) -> String {
-    let fields: serde_json::Map<String, Value> = frames(encoded)
-        .chunks(2)
-        .filter(|pair| pair.len() == 2 && !pair[0].is_empty())
-        .map(|pair| (pair[0].clone(), Value::String(pair[1].clone())))
-        .collect();
-    host::json_text(&Value::Object(fields))
-}
-
 pub fn configure_marketplace(current: &App) {
     let (state, state_length) = raw(&current.state);
     let (resources, resources_length) = raw(&current.resources);
@@ -217,7 +173,7 @@ pub fn configure_marketplace(current: &App) {
             core::ptr::null_mut(),
         );
     }
-    crate::discord::reactors::astral_reactors_set_fetcher(Some(reactors_fetch));
+    crate::discord::reactors::set_fetcher(super::discord::get);
 }
 
 pub fn export_backup(current: &App) -> String {

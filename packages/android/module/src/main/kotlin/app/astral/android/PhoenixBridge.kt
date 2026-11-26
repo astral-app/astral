@@ -852,7 +852,7 @@ object PhoenixBridge {
     fun fetch(url: String, token: String): ByteArray = Http.get(url, token)
 
     @JvmStatic
-    fun fetchWith(url: String, headers: String): ByteArray = Http.getWith(url, headers)
+    fun discordRequest(id: Long, method: String, path: String, body: String) = PhoenixOkHttp.sendDiscordRequest(id, method, path, body)
 
     @JvmStatic
     fun request(id: Long, options: String) = Http.request(id, options)

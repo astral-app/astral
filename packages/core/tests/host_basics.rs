@@ -1,5 +1,4 @@
 use astral_core::diagnostics::privacy::sanitize;
-use astral_core::discord::session::plausible;
 use astral_core::support::crypto::{hex, sha256};
 use astral_core::support::files::{is_contained_relative, join_path, list_directory, resolve_inside, write_atomically};
 use astral_core::support::strings::{set_strings, text};
@@ -56,11 +55,4 @@ fn toml_becomes_json() {
     let value = parse("name = \"x\"\n[table]\ncount = 3\nratio = 1.5\nlist = [true]\n").unwrap();
     assert_eq!(value.to_string(), r#"{"name":"x","table":{"count":3,"list":[true],"ratio":1.5}}"#);
     assert!(parse("= broken").is_none());
-}
-
-#[test]
-fn session_tokens_need_three_parts() {
-    assert!(plausible(b"aaaaaaaaaaaaaaaaaaaaaaaa.bbbbbb.cccccccccccccccccccccccccc"));
-    assert!(!plausible(b"short.bbbbbb.cccccccccccccccccccccccccc"));
-    assert!(!plausible(b"aaaaaaaaaaaaaaaaaaaaaaaa.bbbbbb.cccccccccccccccccccccccccc.d"));
 }

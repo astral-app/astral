@@ -25,35 +25,3 @@ fn caps_the_rate_limit_wait() {
     assert_eq!(rate_limit_wait(br#"{"retry_after":60}"#), Duration::from_secs(10));
     assert_eq!(rate_limit_wait(b"nope"), Duration::ZERO);
 }
-
-#[test]
-fn keeps_discord_request_headers() {
-    use astral_core::discord::headers::{api_version, clear, headers, note};
-    clear();
-    note(
-        "discord.com",
-        "/api/v10/users/@me",
-        &[("Authorization".into(), "x".into()), ("User-Agent".into(), "Discord".into())],
-    );
-    assert!(headers().is_empty());
-    note(
-        "Discord.com",
-        "/api/v10/users/@me",
-        &[
-            ("Authorization".into(), "x".into()),
-            ("X-Super-Properties".into(), "abc".into()),
-            ("User-Agent".into(), "Discord".into()),
-            ("X-Context-Properties".into(), "skip".into()),
-        ],
-    );
-    assert_eq!(api_version(), 10);
-    assert_eq!(
-        headers(),
-        vec![
-            ("x-super-properties".to_owned(), "abc".to_owned()),
-            ("user-agent".to_owned(), "Discord".to_owned())
-        ]
-    );
-    note("cdn.discordapp.com", "/api/v9/x", &[("X-Super-Properties".into(), "other".into())]);
-    assert_eq!(api_version(), 10);
-}

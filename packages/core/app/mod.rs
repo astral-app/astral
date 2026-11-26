@@ -1,5 +1,6 @@
 mod debug;
 mod dev;
+mod discord;
 mod ffi;
 pub mod host;
 pub mod network;
@@ -408,29 +409,6 @@ pub fn refresh_decorations() {
     REFRESH_DECORATIONS.store(true, Ordering::Release);
 }
 
-pub fn note_discord_request(host_name: &str, path: &str, headers: &str) {
-    let Ok(Value::Object(fields)) = serde_json::from_str::<Value>(headers) else {
-        return;
-    };
-    let pairs: Vec<u8> = fields
-        .iter()
-        .filter_map(|(name, value)| value.as_str().map(|value| (name, value)))
-        .flat_map(|(name, value)| [name.as_bytes(), b"\0", value.as_bytes(), b"\0"].concat())
-        .collect();
-    let (host_pointer, host_length) = raw(host_name);
-    let (path_pointer, path_length) = raw(path);
-    unsafe {
-        crate::discord::headers::astral_discord_note_request(
-            host_pointer,
-            host_length,
-            path_pointer,
-            path_length,
-            pairs.as_ptr().cast(),
-            pairs.len(),
-        );
-    }
-}
-
 pub struct CompletedRequest {
     pub request: u64,
     pub status: i64,
@@ -519,11 +497,6 @@ pub fn apply_backup(contents: &str) -> Option<String> {
         return Some("astral is not ready".to_owned());
     };
     theme::apply_backup(current, contents)
-}
-
-pub fn set_session_token(token: &str) {
-    let (pointer, length) = raw(token);
-    unsafe { crate::discord::session::astral_session_set_token(pointer, length) };
 }
 
 pub fn wants_http(method: &str, host_name: &str, path: &str) -> bool {
@@ -774,6 +747,9 @@ pub fn complete_network_request(request: u64, response: &str) {
         return;
     }
     let parsed: Value = serde_json::from_str(response).unwrap_or_else(|_| json!({ "error": "unreadable response" }));
+    if discord::complete(request, &parsed) {
+        return;
+    }
     lua_host::complete_network_request(request, &parsed);
 }
 

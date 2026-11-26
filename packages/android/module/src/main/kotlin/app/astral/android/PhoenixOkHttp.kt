@@ -17,12 +17,14 @@ object PhoenixOkHttp {
 
     private val blockedRequests = AtomicLong()
     @Volatile private var interceptor: Any? = null
+    @Volatile private var classLoader: ClassLoader? = null
 
     val blocked: Long
         get() = blockedRequests.get()
 
     fun install(module: XposedModule, loader: ClassLoader) {
         verifyShape(loader)
+        classLoader = loader
         val builderType = loader.loadClass(PhoenixClasses.OKHTTP_CLIENT_BUILDER)
         val clientType = loader.loadClass(PhoenixClasses.OKHTTP_CLIENT)
         val interceptorType = loader.loadClass(PhoenixClasses.OKHTTP_INTERCEPTOR)
@@ -66,6 +68,7 @@ object PhoenixOkHttp {
             val uri = runCatching { URI(requestUrl.toString()) }.getOrNull() ?: return proceed(chain, request, requestType)
             val host = uri.host?.lowercase(Locale.ROOT) ?: return proceed(chain, request, requestType)
             val path = uri.rawPath ?: "/"
+            rememberDiscordTemplate(chain, request, requestType, host, path, loader)
             if (Native.isTelemetry(host, path)) {
                 val address = requestUrl.toString()
                 blockedRequests.incrementAndGet()
@@ -110,9 +113,168 @@ object PhoenixOkHttp {
         return HttpExchange(method, url, headers, body)
     }
 
-    private fun requestHeaders(request: Any, requestType: Class<*>): Any =
+    private fun requestHeadersField(requestType: Class<*>): Field =
         instanceFields(requestType).first { field -> field.type.declaredConstructors.any { it.parameterTypes.contentEquals(arrayOf(Array<String>::class.java)) } }
-            .get(request) ?: throw NoSuchFieldException("Phoenix's request has no headers")
+
+    private fun requestHeaders(request: Any, requestType: Class<*>): Any =
+        requestHeadersField(requestType).get(request) ?: throw NoSuchFieldException("Phoenix's request has no headers")
+
+    @Volatile private var discordTemplate: Any? = null
+    @Volatile private var discordClient: Any? = null
+    @Volatile private var discordCallType: Class<*>? = null
+    private val discordExecutor = java.util.concurrent.Executors.newCachedThreadPool { task -> Thread(task, "astral-discord-request").apply { isDaemon = true } }
+    private val droppedTemplateHeaders = setOf(
+        "content-length", "content-type", "content-encoding", "x-context-properties", "x-audit-log-reason",
+        "if-none-match", "if-modified-since", "range", "idempotency-key",
+    )
+
+    private fun rememberDiscordTemplate(chain: Any, request: Any, requestType: Class<*>, host: String, path: String, loader: ClassLoader) {
+        if (host != "discord.com" || !path.startsWith("/api/v")) return
+        runCatching {
+            if (headerValue(headerArray(requestHeaders(request, requestType)), "authorization").isNullOrEmpty()) return
+            val clientType = loader.loadClass(PhoenixClasses.OKHTTP_CLIENT)
+            val call = instanceFields(chain.javaClass).asSequence().mapNotNull { it.get(chain) }.firstOrNull { value ->
+                instanceFields(value.javaClass).any { it.type == clientType }
+            } ?: return
+            discordTemplate = request
+            discordClient = instanceFields(call.javaClass).first { it.type == clientType }.get(call)
+            discordCallType = call.javaClass
+        }.onFailure { Log.error("Failed to remember Discord's API request shape", it) }
+    }
+
+    fun sendDiscordRequest(id: Long, method: String, path: String, body: String) {
+        discordExecutor.execute {
+            val loader = classLoader ?: return@execute Native.completeRequest(id, 0, false, "", "{}", "", null, "Discord has not called its API yet")
+            val result = runCatching { executeDiscordRequest(method, path, body, loader) }
+                .onFailure { Log.error("Failed to send Discord request $id", it) }
+                .getOrNull()
+            if (result == null) {
+                Native.completeRequest(id, 0, false, "", "{}", "", null, "Discord has not called its API yet")
+            } else {
+                val (status, url, headers, text) = result
+                Native.completeRequest(id, status, status in 200..299, url, headers, text, null, null)
+            }
+        }
+    }
+
+    private data class DiscordResult(val status: Int, val url: String, val headers: String, val body: String)
+
+    private fun executeDiscordRequest(method: String, path: String, body: String, loader: ClassLoader): DiscordResult? {
+        val template = discordTemplate ?: return null
+        val client = discordClient ?: return null
+        val requestType = loader.loadClass(PhoenixClasses.OKHTTP_REQUEST)
+        val urlType = loader.loadClass(PhoenixClasses.OKHTTP_URL)
+        val templateUrl = typedField(requestType, urlType).get(template)?.toString() ?: return null
+        val base = templateUrl.substringBefore('?').let { address ->
+            val start = address.indexOf("/api/v")
+            if (start < 0) return null
+            val end = address.indexOf('/', start + "/api/v".length).takeIf { it >= 0 } ?: address.length
+            address.substring(0, end)
+        }
+        val address = base + path
+        val headers = headerArray(requestHeaders(template, requestType)).toList().chunked(2)
+            .filter { it.size == 2 && it[0].lowercase(Locale.ROOT) !in droppedTemplateHeaders }
+            .flatten()
+            .let { if (body.isNotEmpty()) it + listOf("Content-Type", "application/json") else it }
+        val request = newRequest(typedField(requestType, urlType).get(template) ?: return null, requestType, urlType, address, method, headers.toTypedArray(), body.takeIf(String::isNotEmpty), loader)
+        val clientType = loader.loadClass(PhoenixClasses.OKHTTP_CLIENT)
+        val responseType = loader.loadClass(PhoenixClasses.OKHTTP_RESPONSE_BUILDER).getMethod("a").returnType
+        val callType = discordCallType ?: return null
+        val call = callType.declaredConstructors.first { candidate ->
+            candidate.parameterTypes.contentEquals(arrayOf(clientType, requestType, java.lang.Boolean.TYPE))
+        }.apply { isAccessible = true }.newInstance(client, request, false)
+        val execute = callType.declaredMethods.filter { candidate ->
+            !Modifier.isStatic(candidate.modifiers) && candidate.parameterCount == 0 && candidate.returnType == responseType
+        }.minBy { it.name }.apply { isAccessible = true }
+        val response = try {
+            execute.invoke(call)
+        } catch (error: InvocationTargetException) {
+            throw error.targetException
+        } ?: return null
+        try {
+            val status = typedField(responseType, Int::class.javaPrimitiveType!!).getInt(response)
+            val responseBody = typedField(responseType, responseBodyBase(loader)).get(response)
+            val text = responseBody?.javaClass?.getMethod("n")?.invoke(responseBody) as? String ?: ""
+            val fields = org.json.JSONObject()
+            instanceFields(responseType).firstOrNull { field -> field.type.declaredConstructors.any { it.parameterTypes.contentEquals(arrayOf(Array<String>::class.java)) } }
+                ?.get(response)?.let(::headerArray)?.toList()?.chunked(2)?.filter { it.size == 2 }?.forEach { fields.put(it[0], it[1]) }
+            return DiscordResult(status, address, fields.toString(), text)
+        } finally {
+            (response as? java.io.Closeable)?.close()
+        }
+    }
+
+    private fun staticFactory(type: Class<*>, parameters: (Array<Class<*>>) -> Boolean, returns: (Class<*>) -> Boolean): Pair<Any?, java.lang.reflect.Method>? {
+        type.declaredMethods.firstOrNull { Modifier.isStatic(it.modifiers) && parameters(it.parameterTypes) && returns(it.returnType) }
+            ?.let { return null to it.apply { isAccessible = true } }
+        val companion = type.declaredFields.firstOrNull { Modifier.isStatic(it.modifiers) && it.type.name.startsWith(type.name) && it.type != type }
+            ?.apply { isAccessible = true }?.get(null) ?: return null
+        return companion.javaClass.declaredMethods.firstOrNull { !Modifier.isStatic(it.modifiers) && parameters(it.parameterTypes) && returns(it.returnType) }
+            ?.let { companion to it.apply { isAccessible = true } }
+    }
+
+    private fun newRequest(template: Any, requestType: Class<*>, urlType: Class<*>, address: String, method: String, headers: Array<String>, body: String?, loader: ClassLoader): Any {
+        val url = urlLike(template, urlType, address)
+        val headersType = requestHeadersField(requestType).type
+        val headerObject = headersType.declaredConstructors.first { it.parameterTypes.contentEquals(arrayOf(Array<String>::class.java)) }
+            .apply { isAccessible = true }.newInstance(headers as Any)
+        val bodyType = bodyField(requestType).type
+        val requestBody = body?.let { requestBody(bodyType, it) }
+        val constructor = requestType.declaredConstructors.first { candidate ->
+            val parameters = candidate.parameterTypes.toList()
+            urlType in parameters && String::class.java in parameters && headersType in parameters && bodyType in parameters
+        }.apply { isAccessible = true }
+        val arguments = constructor.parameterTypes.map { parameter ->
+            when {
+                parameter == urlType -> url
+                parameter == String::class.java -> method
+                parameter == headersType -> headerObject
+                parameter == bodyType -> requestBody
+                Map::class.java.isAssignableFrom(parameter) -> java.util.LinkedHashMap<Any, Any>()
+                else -> null
+            }
+        }
+        return constructor.newInstance(*arguments.toTypedArray())
+    }
+
+    private fun decoded(part: String): String = URLDecoder.decode(part.replace("+", "%2B"), StandardCharsets.UTF_8.name())
+
+    private fun urlLike(template: Any, urlType: Class<*>, address: String): Any {
+        val uri = URI(address)
+        val segments = ArrayList((uri.rawPath ?: "/").removePrefix("/").split('/').map(::decoded))
+        val query = uri.rawQuery?.split('&')?.flatMap { pair ->
+            listOf(decoded(pair.substringBefore('=')), pair.substringAfter('=', "").takeIf { pair.contains('=') }?.let(::decoded))
+        }?.let { ArrayList(it) }
+        val identity = instanceFields(urlType).filter { it.type == String::class.java }.take(4).map { it.get(template) }
+        val port = typedField(urlType, Int::class.javaPrimitiveType!!).getInt(template)
+        val constructor = urlType.declaredConstructors.first { candidate ->
+            val parameters = candidate.parameterTypes
+            parameters.count { it == Int::class.javaPrimitiveType } == 1 && parameters.count { it == java.util.ArrayList::class.java } == 2 &&
+                parameters.count { it == String::class.java } == 6
+        }.apply { isAccessible = true }
+        var strings = 0
+        var lists = 0
+        val arguments = constructor.parameterTypes.map { parameter ->
+            when (parameter) {
+                Int::class.javaPrimitiveType -> port
+                java.util.ArrayList::class.java -> if (lists++ == 0) segments else query
+                else -> when (strings++) {
+                    in 0..3 -> identity.getOrNull(strings - 1)
+                    4 -> null
+                    else -> address
+                }
+            }
+        }
+        return constructor.newInstance(*arguments.toTypedArray())
+    }
+
+    private fun requestBody(bodyType: Class<*>, content: String): Any {
+        val (owner, factory) = staticFactory(bodyType, { parameters ->
+            parameters.size == 2 && parameters.count { it == String::class.java } == 1 && parameters.none { it.isPrimitive }
+        }, { bodyType.isAssignableFrom(it) }) ?: throw NoSuchMethodException("Phoenix's request body factory")
+        val arguments = factory.parameterTypes.map { if (it == String::class.java) content else null }
+        return factory.invoke(owner, *arguments.toTypedArray()) ?: throw IllegalStateException("Phoenix returned no request body")
+    }
 
     private fun headerArray(headers: Any): Array<String> {
         val values = instanceFields(headers.javaClass).first { it.type == Array<String>::class.java }.get(headers) as Array<*>

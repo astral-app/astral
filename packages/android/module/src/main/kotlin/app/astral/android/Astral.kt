@@ -10,8 +10,6 @@ import java.util.Locale
 class Astral : XposedModule() {
     companion object {
         const val DISCORD_PACKAGE = "com.discord"
-        private const val SESSION_ATTEMPTS = 120
-        private const val SESSION_RETRY_MS = 5_000L
     }
 
     override fun onPackageReady(param: PackageReadyParam) {
@@ -28,22 +26,6 @@ class Astral : XposedModule() {
             val info = context.packageManager.getPackageInfo(DISCORD_PACKAGE, 0)
             "${info.versionName} · ${info.longVersionCode}"
         }.getOrDefault("")
-
-    private fun loadSession(dataDirectory: String) {
-        Thread({
-            repeat(SESSION_ATTEMPTS) {
-                val token = runCatching { SessionToken.read(dataDirectory) }
-                    .onFailure { Log.warning("Failed to read Discord's session: ${it.javaClass.simpleName}") }
-                    .getOrNull()
-                if (token != null) {
-                    Native.setSessionToken(token)
-                    Log.info("Loaded Discord's session")
-                    return@Thread
-                }
-                Thread.sleep(SESSION_RETRY_MS)
-            }
-        }, "astral-session").apply { isDaemon = true }.start()
-    }
 
     private fun start(param: PackageReadyParam) {
         EnvironmentFacts.framework = runCatching { "$frameworkName $frameworkVersion".trim() }.getOrDefault("")
@@ -79,6 +61,5 @@ class Astral : XposedModule() {
         runCatching { NavigationBack.install(this, param.classLoader) }.onFailure { Log.error("Failed to route system back", it) }
         runCatching { CutoutOverlay.install(this, resources) }.onFailure { Log.error("Failed to install the display cutout overlay", it) }
         runCatching { NetworkHooks.install(this, param.classLoader) }.onFailure { Log.error("Failed to hook Discord's network stack", it) }
-        loadSession(param.applicationInfo.dataDir)
     }
 }

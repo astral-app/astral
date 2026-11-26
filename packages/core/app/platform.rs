@@ -8,7 +8,6 @@ use super::state::{REFRESH_DECORATIONS, signing_key};
 use crate::support::bridge::{AstralRustString, bytes};
 
 const PERMILLE: f64 = 1000.0;
-const DISCORD_REQUEST_TIMEOUT_MS: u32 = 15000;
 
 #[derive(Clone, Copy)]
 enum Method {
@@ -218,42 +217,7 @@ fn verify_signature(directory: &str, main: &str) -> bool {
     })
 }
 
-fn ensure_session_token() {
-    if !crate::discord::session::current().is_empty() {
-        return;
-    }
-    if let Some(token) = host::request(Request::SessionToken).into_text() {
-        super::set_session_token(&token);
-    }
-}
-
-fn discord_request_options(options: &Value) -> Option<Value> {
-    let path = options
-        .get("path")
-        .and_then(Value::as_str)
-        .filter(|path| path.starts_with('/') && !path.starts_with("//"))?;
-    let method = options.get("method").and_then(Value::as_str)?;
-    ensure_session_token();
-    let token = String::from_utf8(crate::discord::session::current())
-        .ok()
-        .filter(|token| !token.is_empty())?;
-    let mut headers = serde_json::Map::new();
-    for (name, value) in crate::discord::headers::headers() {
-        headers.insert(name, json!(value));
-    }
-    headers.insert("authorization".into(), json!(token));
-    headers.insert("content-type".into(), json!("application/json"));
-    Some(json!({
-        "url": format!("https://discord.com/api/v{}{path}", crate::discord::headers::api_version()),
-        "method": method,
-        "headers": headers,
-        "body": options.get("body").cloned().unwrap_or(Value::Null),
-        "timeout_ms": DISCORD_REQUEST_TIMEOUT_MS,
-    }))
-}
-
 fn reactors(arguments: &Arguments) -> Value {
-    ensure_session_token();
     let (users, fresh) = crate::discord::reactors::lookup(
         arguments.text(0),
         arguments.text(1),
@@ -370,16 +334,15 @@ fn dispatch(method: Method, arguments: &Arguments) -> Value {
                 _ => threw(),
             }
         }
-        Method::DiscordRequest => match discord_request_options(arguments.at(1)) {
-            Some(options) => match host::request(Request::NetworkRequest {
-                request: arguments.identifier(0),
-                options: &host::json_text(&options),
-            }) {
-                Reply::Done | Reply::Flag(true) => done(),
-                _ => threw(),
-            },
-            None => threw(),
-        },
+        Method::DiscordRequest => {
+            let options = arguments.at(1);
+            let text = |name: &str| options.get(name).and_then(Value::as_str).unwrap_or_default();
+            if super::discord::send(arguments.identifier(0), text("method"), text("path"), text("body")) {
+                done()
+            } else {
+                threw()
+            }
+        }
         Method::CancelNetworkRequest => match host::request(Request::CancelNetworkRequest {
             request: arguments.identifier(0),
         }) {
