@@ -1,0 +1,4 @@
+ASTRAL_CATALOG = "Catalogue"
+ASTRAL_COLORS = "Colours"
+ASTRAL_COULD_NOT_LOAD_THE_CATALOG = "Could not load the catalogue"
+ASTRAL_LOADING_THE_CATALOG = "Loading the catalogue…"

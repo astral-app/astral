@@ -175,6 +175,7 @@ pub fn prepare(launch: Launch) -> &'static App {
     if !launch.discord_directory.is_empty() {
         crate::discord::cache::set_data_directory(&launch.discord_directory);
     }
+    crate::support::translations::choose(&launch.languages);
     let current = state::install(Setup {
         platform: launch.platform,
         version: launch.version,

@@ -7,7 +7,7 @@ use crate::diagnostics::exit_record::EXIT_ENDED;
 use crate::support::bridge::{AstralRustString, path};
 use crate::support::files::{read_text, remove, write_atomically};
 use crate::support::log::{ERROR, INFO, WARNING, log};
-use crate::support::strings::text;
+use crate::support::translations::tr_with;
 
 const FILE: &str = "launch-guard.json";
 const ROLL_BACK_AFTER: c_int = 2;
@@ -168,24 +168,16 @@ pub unsafe extern "C" fn astral_launch_guard_mark_shown(directory: *const c_char
     }))
 }
 
-fn notice(key: &[u8], english: &[u8], failures: c_int) -> AstralRustString {
-    AstralRustString::new(text(key, english, &[(b"count".to_vec(), failures.to_string().into_bytes())]))
+fn notice(key: &'static str, failures: c_int) -> AstralRustString {
+    AstralRustString::new(tr_with(key, &[("count", failures.to_string())]).into_bytes())
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn astral_launch_roll_back_notice(failures: c_int) -> AstralRustString {
-    notice(
-        b"ASTRAL_NATIVE_LAUNCH_ROLLED_BACK",
-        b"Discord closed during startup {count} times in a row, so astral went back to the plugins it ran before their last update.",
-        failures,
-    )
+    notice("ASTRAL_LAUNCH_ROLLED_BACK", failures)
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn astral_launch_recovery_notice(failures: c_int) -> AstralRustString {
-    notice(
-        b"ASTRAL_NATIVE_LAUNCH_RECOVERY",
-        b"Discord closed during startup {count} times in a row, so astral paused its plugins. Turn them back on from astral's settings once you have removed what caused it.",
-        failures,
-    )
+    notice("ASTRAL_LAUNCH_RECOVERY", failures)
 }

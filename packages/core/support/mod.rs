@@ -7,5 +7,5 @@ pub mod host_callback;
 pub mod json_bounds;
 pub mod log;
 pub mod sqlite_api;
-pub mod strings;
 pub mod toml_json;
+pub mod translations;
