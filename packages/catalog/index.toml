@@ -324,7 +324,7 @@ authors = [{ name = "adrian", id = "224617799434108928" }]
 [[plugins]]
 id = "astral.translate"
 name = "Translate"
-version = "0.0.2"
+version = "0.0.3"
 description = "Translates a message from its long-press menu with Unbound Translate, Google or MyMemory, into a toast or under the message."
 icon = "LanguageIcon"
 base = "plugins/astral.translate/"

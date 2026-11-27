@@ -1,7 +1,8 @@
 local languages = require("lib.languages")
+local t = astral.i18n.t
 local language_codes = {}
 local language_options = {}
-local source_options = { astral.settings.option("auto", "Auto-detect") }
+local source_options = { astral.settings.option("auto", t("AUTO_DETECT")) }
 local api_base_url = "https://translate.unbound.rip"
 local callback_url = api_base_url .. "/auth/callback"
 local authorization_url = api_base_url .. "/auth/login"
@@ -14,27 +15,80 @@ for _, language in ipairs(languages) do
 	source_options[#source_options + 1] = astral.settings.option(code, title)
 end
 
-local settings = astral.settings.section("Translation")
-settings:choice("service", "Translation service", {
-	astral.settings.option("auto", "Automatic", "Unbound when connected; Google, then MyMemory otherwise"),
-	astral.settings.option("unbound", "Unbound Translate", "Uses the connected Discord account"),
-	astral.settings.option("google", "Google Translate"),
-	astral.settings.option("mymemory", "MyMemory"),
+local settings = astral.settings.section(t("TRANSLATE_API"))
+settings:choice("service", t("SERVICE"), {
+	astral.settings.option("auto", t("SERVICE_AUTO"), t("SERVICE_AUTO_SUBTITLE")),
+	astral.settings.option("unbound", t("SERVICE_UNBOUND"), t("SERVICE_UNBOUND_SUBTITLE")),
+	astral.settings.option("google", t("SERVICE_GOOGLE"), t("SERVICE_NO_ACCOUNT")),
+	astral.settings.option("mymemory", t("SERVICE_MYMEMORY"), t("SERVICE_NO_ACCOUNT")),
 }, "auto")
-settings:choice("source", "Source language", source_options, "auto")
-settings:choice("target", "Target language", language_options, "en")
-settings:choice("display", "Show translations", {
-	astral.settings.option("toast", "Copy and show", "Copies the translation and shows it in a toast"),
-	astral.settings.option(
-		"inline",
-		"In the message",
-		"Shows the translation under the message's text with its languages"
-	),
-}, "toast")
-settings:choice("account_action", "Translate API account", {
-	astral.settings.option("connect", "Connect or reconnect"),
-	astral.settings.option("disconnect", "Disconnect"),
+settings:choice("account_action", t("CONNECT_ACCOUNT"), {
+	astral.settings.option("connect", t("RECONNECT_ACCOUNT"), t("CONNECT_ACCOUNT_SUBTITLE")),
+	astral.settings.option("disconnect", t("DISCONNECT_ACCOUNT")),
 }, "connect")
+local language_section = astral.settings.section(t("LANGUAGES"))
+language_section:choice("source", t("SOURCE_LANGUAGE"), source_options, "auto")
+language_section:choice("target", t("TARGET_LANGUAGE"), language_options, "en")
+local display_section = astral.settings.section(t("DISPLAY"))
+display_section:choice("display", t("DISPLAY"), {
+	astral.settings.option("toast", t("SHOW_IN_TOAST"), t("SHOW_IN_TOAST_SUBTITLE")),
+	astral.settings.option("inline", t("SHOW_INLINE"), t("SHOW_INLINE_SUBTITLE")),
+}, "toast")
+display_section:switch("showLanguages", t("SHOW_LANGUAGES"), true, t("SHOW_LANGUAGES_SUBTITLE"))
+display_section:switch("languageFlags", t("LANGUAGE_FLAGS"), false, t("LANGUAGE_FLAGS_SUBTITLE"))
+
+local LANGUAGE_COUNTRIES = {
+	ar = "SA",
+	az = "AZ",
+	bg = "BG",
+	cs = "CZ",
+	da = "DK",
+	de = "DE",
+	el = "GR",
+	en = "GB",
+	es = "ES",
+	et = "EE",
+	fa = "IR",
+	fi = "FI",
+	fr = "FR",
+	he = "IL",
+	hi = "IN",
+	hu = "HU",
+	id = "ID",
+	it = "IT",
+	ja = "JP",
+	ko = "KR",
+	lt = "LT",
+	lv = "LV",
+	nl = "NL",
+	pl = "PL",
+	pt = "PT",
+	ro = "RO",
+	ru = "RU",
+	sk = "SK",
+	sl = "SI",
+	sv = "SE",
+	tr = "TR",
+	uk = "UA",
+	zh = "CN",
+}
+local REGIONAL_INDICATOR_A = 0x1F1E6
+
+local function language_flag(code)
+	local language, region = code:match("^(%a+)[-_]?(%a*)$")
+	local country = region and #region == 2 and region:upper() or LANGUAGE_COUNTRIES[(language or ""):lower()]
+	if not country then
+		return code
+	end
+	return utf8.char(REGIONAL_INDICATOR_A + country:byte(1) - 65, REGIONAL_INDICATOR_A + country:byte(2) - 65)
+end
+
+local function language_label(code)
+	if astral.settings.get("languageFlags", false) then
+		return language_flag(code)
+	end
+	return code
+end
 
 local function stored(key)
 	local value = astral.storage.get(key, "")
@@ -74,7 +128,7 @@ local function show_toast(title, message)
 end
 
 local function show_error(message)
-	show_toast("Translate Error", message)
+	show_toast(t("TRANSLATE_ERROR"), message)
 end
 
 local function json_string(value)
@@ -171,7 +225,7 @@ local function complete_login(response, generation)
 		show_error("Translate API returned an invalid login response")
 		return
 	end
-	show_toast("Translate", "Discord login completed")
+	show_toast(t("TRANSLATE"), t("LOGIN_COMPLETED"))
 end
 
 local function connect_account()
@@ -303,11 +357,13 @@ local function save_translation(translation, destination)
 	end
 	if astral.settings.get("display", "toast") ~= "inline" then
 		pcall(astral.ui.copy, translation.text)
-		show_toast("Translated", translation.text)
+		show_toast(t("TRANSLATED"), translation.text)
 		return
 	end
 	local from = type(translation.detected) == "string" and translation.detected or destination.source
-	local note = from .. " -> " .. destination.target
+	local note = astral.settings.get("showLanguages", true)
+			and ("(" .. language_label(from) .. " -> " .. language_label(destination.target) .. ")")
+		or nil
 	local text = destination.content .. "\n" .. translation.text
 	astral.messages.set_text(destination.channel_id, destination.message_id, text, { note = note })
 end
@@ -497,5 +553,5 @@ local function translate_message(node)
 	end
 end
 
-astral.ui.message_action("Translate", translate_message, { icon = "res://ic_mana_chat", when = translatable })
-astral.ui.message_action("Show Original", show_original, { icon = "res://ic_mana_refresh", when = translated })
+astral.ui.message_action(t("TRANSLATE"), translate_message, { icon = "res://ic_mana_chat", when = translatable })
+astral.ui.message_action(t("SHOW_ORIGINAL"), show_original, { icon = "res://ic_mana_refresh", when = translated })

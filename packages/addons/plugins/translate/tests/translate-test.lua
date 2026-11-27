@@ -13,10 +13,28 @@ local displayed = {}
 local message_content = "hello world"
 local now_milliseconds = 1000000
 
+local strings = {
+	TRANSLATE = "Translate",
+	TRANSLATED = "Translated",
+	TRANSLATE_ERROR = "Translate Error",
+	SHOW_ORIGINAL = "Show Original",
+	LOGIN_COMPLETED = "Discord login completed",
+}
 astral = {
+	i18n = {
+		t = function(key)
+			return strings[key] or key
+		end,
+	},
 	settings = {
 		choice = function(key, _title, _choices, default)
 			values[key] = values[key] or default
+			return values[key]
+		end,
+		switch = function(key, _title, default)
+			if values[key] == nil then
+				values[key] = default
+			end
 			return values[key]
 		end,
 		get = function(key, fallback)
@@ -94,7 +112,7 @@ assert(#requests == 1)
 assert(requests[1].options.url:find("clients5.google.com/translate_a/t", 1, true))
 assert(requests[1].options.url:find("q=hello%20world", 1, true))
 requests[1].callback({ ok = true, json = { { "bonjour", "en" } } })
-assert(displayed["2"].text == "hello world\nbonjour" and displayed["2"].note == "en -> en")
+assert(displayed["2"].text == "hello world\nbonjour" and displayed["2"].note == "(en -> en)")
 assert(actions["Show Original"].when(node) and not actions.Translate.when(node))
 actions["Show Original"].callback(node)
 assert(displayed["2"] == nil and #requests == 1)
