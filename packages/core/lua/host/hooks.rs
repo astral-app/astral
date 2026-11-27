@@ -56,14 +56,15 @@ static LAST_CHANNEL: std::sync::Mutex<String> = std::sync::Mutex::new(String::ne
 
 pub fn resolve_channel(channel_id: u64, message: &str) -> String {
     let channel = snowflake(channel_id);
-    if !channel.is_empty() || message.is_empty() {
+    if message.is_empty() || (!channel.is_empty() && crate::discord::cache::message(&channel, message).is_some()) {
         return channel;
     }
     let mut last = LAST_CHANNEL.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     if let Some(found) = crate::discord::cache::message_channel(message) {
-        *last = found;
+        *last = found.clone();
+        return found;
     }
-    last.clone()
+    if channel.is_empty() { last.clone() } else { channel }
 }
 
 pub fn message_author(channel: &str, message: &str) -> String {

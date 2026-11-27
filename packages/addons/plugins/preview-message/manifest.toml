@@ -1,7 +1,7 @@
 id = "astral.preview-message"
 name = "Preview Message"
 description = "Adds a button to the chat input that shows how your message will look before you send it."
-version = "0.0.2"
+version = "0.0.3"
 icon = "ChatDotsIcon"
 main = "main.lua"
 permissions = ["ui.composer", "ui.insert", "ui.dialogs", "discord.users", "events.gateway"]

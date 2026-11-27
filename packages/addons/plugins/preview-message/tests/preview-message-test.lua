@@ -46,12 +46,12 @@ astral = {
 dofile(arg[1])
 
 assert(selector.id == "composer.expressions" and selector.path == "^")
-assert(build() == nil)
-watch("hello")
 local button = build()
 assert(button and button.width == 32 and button.action == "preview")
-watch("   ")
+text = "   "
 assert(build() == nil)
+text = "hello **world**"
+watch("hello")
 gateway({ type = "READY", data = { user = { id = "1" } } })
 press()
 assert(opened and opened.title == "MESSAGE_PREVIEW")
