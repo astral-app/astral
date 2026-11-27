@@ -1,8 +1,8 @@
 use std::process::ExitCode;
 
 use astral_tools::{
-    android, android_compat, avd, check, compat, create, dev, device, doctor, feed, fuzz, i18n,
-    ipa, lint, palette, readme, release_notes, sideload, signing, stage, test, theos, vphone,
+    android, android_compat, apt_repo, avd, check, compat, create, dev, device, doctor, feed, fuzz,
+    i18n, ipa, lint, palette, readme, release_notes, sideload, signing, stage, test, theos, vphone,
 };
 
 type Run = fn(&[String]) -> Result<(), String>;
@@ -27,6 +27,11 @@ const COMMANDS: &[(&str, &str, Run)] = &[
         "avd",
         "avd <boot|stop|status|discord|deploy|launch|screenshot|open|tap|settings|logs> ...",
         avd::run,
+    ),
+    (
+        "apt-repo",
+        "apt-repo <repo directory with debs/>",
+        apt_repo::run,
     ),
     ("bench", "bench [captured batch ...]", fuzz::bench),
     (
