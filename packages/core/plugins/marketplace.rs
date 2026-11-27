@@ -14,6 +14,7 @@ use crate::support::log::{ERROR, log};
 use crate::support::toml_json;
 
 const CATALOG_LIMIT: usize = 512 << 10;
+const PUBLISHED_CATALOG: &str = "https://astral-app.github.io/astral/catalog/index.toml";
 const SIGNATURE_LIMIT: usize = 512;
 const PLUGIN_SIGNATURE_LIMIT: usize = 128 << 10;
 const FILE_LIMIT: usize = 1 << 20;
@@ -133,10 +134,14 @@ fn https_authority_valid(url: &str) -> bool {
 
 impl Config {
     fn catalog_url(&self) -> String {
-        let fallback = format!("file://{}/catalog/index.toml", self.resources.display());
         unsafe { settings_store(self.settings as *const AstralSettingsHandle) }
             .and_then(|mut store| store.get_string("astral", "catalog"))
-            .unwrap_or(fallback)
+            .unwrap_or_else(|| PUBLISHED_CATALOG.to_owned())
+    }
+
+    fn bundled_catalog(&self) -> Option<Value> {
+        let bundled = self.resources.join("catalog/index.toml");
+        self.verified_file(&bundled, &bundled.with_extension("toml.sig"))
     }
 
     fn fetch_content(&self, url: &str, maximum: usize) -> Result<Vec<u8>, String> {
@@ -277,10 +282,7 @@ impl Config {
         if phoenix.is_empty() {
             return None;
         }
-        let bundled = self.resources.join("catalog/index.toml");
-        let catalog = self
-            .cached_catalog()
-            .or_else(|| self.verified_file(&bundled, &bundled.with_extension("toml.sig")))?;
+        let catalog = self.cached_catalog().or_else(|| self.bundled_catalog())?;
         let passive = catalog.get("compatibility")?.get("passive")?.as_array()?;
         passive.iter().find_map(|entry| {
             let uuid = entry.as_str().or_else(|| entry.get("phoenix").and_then(Value::as_str))?;
@@ -415,7 +417,10 @@ fn refresh(notify: Notify) {
         let url = config.catalog_url();
         let downloaded = config.download_catalog(&url);
         let failure = downloaded.as_ref().err().cloned().unwrap_or_default();
-        let result = downloaded.ok().or_else(|| config.cached_catalog());
+        let result = downloaded
+            .ok()
+            .or_else(|| config.cached_catalog())
+            .or_else(|| config.bundled_catalog());
         if !failure.is_empty() {
             log(ERROR, "marketplace", &format!("Failed to load catalog: {failure}"));
         }

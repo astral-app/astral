@@ -384,6 +384,8 @@ fn apksigner() -> Result<String, String> {
     Err("apksigner was not found; install Android build-tools or put apksigner on PATH".into())
 }
 
+const CERTIFICATE_DIGEST: &str = "certificate SHA-256 digest:";
+
 fn verify_apk(signer: &str, apk: &Path) -> Result<(), String> {
     let name = apk
         .file_name()
@@ -402,14 +404,24 @@ fn verify_apk(signer: &str, apk: &Path) -> Result<(), String> {
     if !output.status.success() {
         return Err(format!("{name} does not verify: {printed}"));
     }
-    let line = printed
+    let digests: Vec<&str> = printed
         .lines()
-        .find_map(|line| line.strip_prefix("Signer #1 certificate SHA-256 digest:"))
-        .ok_or_else(|| format!("{name} has no signer certificate"))?;
-    if line.trim() == DISCORD_CERTIFICATE {
+        .filter(|line| line.starts_with("Signer") && line.contains(CERTIFICATE_DIGEST))
+        .filter_map(|line| {
+            line.split_once(CERTIFICATE_DIGEST)
+                .map(|(_, digest)| digest.trim())
+        })
+        .collect();
+    if digests.is_empty() {
+        return Err(format!("{name} has no signer certificate: {printed}"));
+    }
+    if digests.contains(&DISCORD_CERTIFICATE) {
         Ok(())
     } else {
-        Err(format!("{name} is not signed by Discord: {}", line.trim()))
+        Err(format!(
+            "{name} is not signed by Discord: {}",
+            digests.join(", ")
+        ))
     }
 }
 

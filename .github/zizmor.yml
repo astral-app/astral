@@ -5,3 +5,4 @@ rules:
   self-repository:
     ignore:
       - alpha.yml
+      - catalog.yml

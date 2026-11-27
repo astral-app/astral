@@ -32,6 +32,9 @@ jobs:
     name: Publish the pre-release and feeds
     needs: build
     runs-on: ubuntu-latest
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     permissions:
       contents: write
     outputs:
@@ -69,61 +72,28 @@ jobs:
           - iOS: sideload the IPA, add the AltStore source https://astral-app.github.io/astral/app-repo.json, or add the APT repo https://astral-app.github.io/astral/repo/ on a jailbroken device.
           - Android: install the LSPatch APK, or the module APK with LSPosed."
           gh release create "$tag" assets/* --prerelease --target "$GITHUB_SHA" --title "astral ${version} alpha ${GITHUB_RUN_NUMBER}" --notes "$notes"
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+          ipa="assets/astral-${version}-alpha.${GITHUB_RUN_NUMBER}.ipa"
+          {
+            echo "tag=$tag"
+            echo "ipa=$ipa"
+            echo "ipa_url=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$tag/$(basename "$ipa")"
+            echo "version=$version"
+          } >> "$GITHUB_OUTPUT"
 
-      - name: Update the feeds
-        env:
-          TAG: ${{ steps.release.outputs.tag }}
-          VERSION: ${{ steps.release.outputs.version }}
-          REMOTE: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
-        run: |
-          set -euo pipefail
-          sudo apt-get update -qq && sudo apt-get install -y -qq apt-utils >/dev/null
-          git config --global user.name 'github-actions[bot]'
-          git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          if git ls-remote --exit-code "$REMOTE" refs/heads/builds >/dev/null; then
-            git clone --quiet --depth 1 --branch builds "$REMOTE" site
-          else
-            git init --quiet -b builds site
-            git -C site remote add origin "$REMOTE"
-          fi
-          [ -f site/app-repo.json ] || cp packages/release/app-repo.json site/app-repo.json
-          cp packages/release/icon.png site/icon.png
-          ipa=$(find assets -name '*.ipa' | head -1)
-          url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$TAG/$(basename "$ipa")"
-          astral feed app-source --source site/app-repo.json --ipa "$ipa" --url "$url" --date "$(date -u +%Y-%m-%d)" --description "astral ${VERSION} alpha ${GITHUB_RUN_NUMBER} ($(git rev-parse --short HEAD))"
-          mkdir -p site/repo/debs
-          cp assets/*.deb site/repo/debs/
-          find site/repo/debs -name '*.deb' -printf '%T@ %p\n' | sort -rn | tail -n +6 | cut -d' ' -f2- | xargs -r rm -f
-          (
-            cd site/repo
-            apt-ftparchive packages debs > Packages
-            gzip -9kf Packages
-            apt-ftparchive \
-              -o APT::FTPArchive::Release::Origin=astral \
-              -o APT::FTPArchive::Release::Label=astral \
-              -o APT::FTPArchive::Release::Suite=stable \
-              -o APT::FTPArchive::Release::Codename=ios \
-              -o APT::FTPArchive::Release::Architectures=iphoneos-arm64 \
-              -o APT::FTPArchive::Release::Components=main \
-              -o "APT::FTPArchive::Release::Description=astral alpha builds" \
-              release . > Release
-          )
-          cp packages/release/icon.png site/repo/CydiaIcon.png
-          touch site/.nojekyll
-          git -C site add -A
-          git -C site commit --quiet -m "alpha ${GITHUB_RUN_NUMBER}"
-          git -C site push --quiet origin builds
-
-      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9
+      - uses: ./.github/actions/site
         with:
-          path: site
+          token: ${{ github.token }}
+          ipa: ${{ steps.release.outputs.ipa }}
+          ipa-url: ${{ steps.release.outputs.ipa_url }}
+          description: astral ${{ steps.release.outputs.version }} alpha ${{ github.run_number }}
 
   pages:
     name: Deploy the feeds
     needs: publish
     runs-on: ubuntu-latest
+    concurrency:
+      group: pages-deploy
+      cancel-in-progress: false
     permissions:
       pages: write
       id-token: write
