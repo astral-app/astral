@@ -8,6 +8,7 @@ extern "C" {
 
 #define ASTRAL_WIRE_PROPERTIES(X)                                                                                                          \
     X(cacheKey, 113)                                                                                                                       \
+    X(resizeMode, 402)                                                                                                                     \
     X(font, 205)                                                                                                                           \
     X(bold, 103)                                                                                                                           \
     X(strike, 487)                                                                                                                         \

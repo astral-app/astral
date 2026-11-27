@@ -196,6 +196,15 @@ fn theme_parity(work: &Path) {
             .is_none()
     );
     assert_eq!(colors(&themes.select(&themes.active()), "to")[0], 0xFFAA_BBCC);
+    assert!(
+        themes
+            .import(r##"{"name":"Pictured","semanticColors":{"background":["#AABBCC"]},"background":{"url":"https://example.com/sky.png","opacity":0.4}}"##)
+            .is_none()
+    );
+    let pictured = themes.select(&themes.active());
+    assert_eq!(pictured["image"].as_str(), Some("https://example.com/sky.png"));
+    assert_eq!(pictured["imageOpacity"].as_f64(), Some(0.4));
+    assert_eq!(style["image"].as_str(), Some(""));
     assert!(themes.import("[]").is_some());
     let listed = themes.list();
     let active = themes.active();

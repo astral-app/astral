@@ -23,6 +23,11 @@ fn text(object: &Value, key: &str) -> String {
     object.get(key).and_then(Value::as_str).unwrap_or("").to_owned()
 }
 
+fn background_image(background: &Value) -> String {
+    let image = text(background, "image");
+    if image.starts_with("https://") { image } else { String::new() }
+}
+
 fn object(parent: &Value, key: &str) -> Value {
     parent
         .get(key)
@@ -184,6 +189,8 @@ impl Themes<'_> {
             "from": mapped.keys().collect::<Vec<_>>(),
             "to": mapped.values().collect::<Vec<_>>(),
             "gradient": gradient,
+            "image": background_image(&background),
+            "imageOpacity": number(&background, "opacity"),
             "radius": number(&object(theme, "radius"), "scale"),
             "font": number(&object(theme, "font"), "scale"),
             "tint": color(&text(&tint, "color")),
@@ -271,6 +278,16 @@ impl Themes<'_> {
                 "\n[tint]\ncolor = '#{:06X}'\nsaturation = 0.4\nneutral = 0.3\n",
                 tint & 0xFF_FFFF
             ));
+        }
+        let background = object(&parsed, "background");
+        let url = text(&background, "url");
+        if url.starts_with("https://") {
+            let opacity = background
+                .get("opacity")
+                .and_then(Value::as_f64)
+                .filter(|value| *value > 0.0)
+                .unwrap_or(1.0);
+            out.push_str(&format!("\n[background]\nimage = {}\nopacity = {opacity}\n", Value::String(url)));
         }
         if tints[SURFACE_BACKGROUNDS] != 0 && chroma[SURFACE_BACKGROUNDS] > 0.03 {
             out.push_str(&format!(

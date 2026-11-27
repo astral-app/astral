@@ -53,6 +53,9 @@ fn apply_style(style: &Value) {
         theme::astral_wire_set_background_gradient(gradient.as_ptr(), gradient.len());
     }
     theme::astral_wire_set_scales(number(style, "radius"), number(style, "font"));
+    let image = style.get("image").and_then(Value::as_str).unwrap_or_default();
+    let opacity = number(style, "imageOpacity");
+    unsafe { crate::wire::backdrop::astral_wire_set_background_image(image.as_ptr(), image.len(), opacity) };
     let tint = style
         .get("tint")
         .and_then(Value::as_u64)
@@ -94,6 +97,9 @@ pub fn apply(current: &App, identifier: &str) {
         }
         let mut bytes = Vec::new();
         collect(&mut bytes, |buffer| unsafe { crate::wire::theme::astral_wire_recolor(buffer) });
+        collect(&mut bytes, |buffer| unsafe {
+            crate::wire::backdrop::astral_wire_refresh_backdrop(buffer)
+        });
         bytes
     };
     host::deliver(&bytes);
