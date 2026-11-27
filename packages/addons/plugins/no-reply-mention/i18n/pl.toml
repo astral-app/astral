@@ -1,0 +1,6 @@
+ADD_USER = "Dodaj użytkownika"
+ADD_USER_ID_SUBTITLE = "Gdy wyjątek jest włączony, odpowiedzi mogą oznaczać tych użytkowników"
+EXCEPTIONS = "Wyjątki"
+ONLY_PING_LISTED = "Oznaczaj tylko użytkowników z listy"
+ONLY_PING_LISTED_OFF = "Domyślnie odpowiedzi nikogo nie oznaczają"
+ONLY_PING_LISTED_ON = "Odpowiedzi oznaczają tylko użytkowników z powyższej listy"

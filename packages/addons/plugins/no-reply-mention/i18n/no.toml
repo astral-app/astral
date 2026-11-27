@@ -1,0 +1,6 @@
+ADD_USER = "Legg til bruker"
+ADD_USER_ID_SUBTITLE = "Svar kan omtale disse brukerne når unntaket er slått på"
+EXCEPTIONS = "Unntak"
+ONLY_PING_LISTED = "Ping bare brukere i listen"
+ONLY_PING_LISTED_OFF = "Svar omtaler ingen som standard"
+ONLY_PING_LISTED_ON = "Svar omtaler bare brukerne i listen ovenfor"

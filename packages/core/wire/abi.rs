@@ -115,6 +115,10 @@ pub const PATCH_TEXT_SCALE: u32 = 1 << 8;
 pub const PATCH_GRADIENT: u32 = 1 << 9;
 pub const PATCH_SEE_THROUGH: u32 = 1 << 10;
 pub const PATCH_SELECTABLE: u32 = 1 << 11;
+pub const PATCH_LABEL_TEXT: u32 = 1 << 12;
+pub const PATCH_LABEL_COLOR: u32 = 1 << 13;
+pub const PATCH_LABEL_TINT: u32 = 1 << 14;
+pub const PATCH_LABEL_CAPACITY: usize = 32;
 pub const PATCH_GRADIENT_STOPS: usize = 8;
 
 #[repr(C)]
@@ -133,6 +137,9 @@ pub struct AstralNodePatch {
     pub gradient_angle: f64,
     pub gradient_stops: [u32; PATCH_GRADIENT_STOPS],
     pub gradient_count: u32,
+    pub label_text: [c_char; PATCH_LABEL_CAPACITY],
+    pub label_color: u32,
+    pub label_tint: u32,
 }
 
 #[repr(C)]

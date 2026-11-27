@@ -1,0 +1,6 @@
+ADD_USER = "添加用户"
+ADD_USER_ID_SUBTITLE = "启用例外后，回复可以提及这些用户"
+EXCEPTIONS = "例外"
+ONLY_PING_LISTED = "仅提及列表中的用户"
+ONLY_PING_LISTED_OFF = "回复默认不提及任何人"
+ONLY_PING_LISTED_ON = "回复仅提及上方列出的用户"

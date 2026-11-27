@@ -1,0 +1,6 @@
+ADD_USER = "新增使用者"
+ADD_USER_ID_SUBTITLE = "啟用例外時，回覆可以提及這些使用者"
+EXCEPTIONS = "例外"
+ONLY_PING_LISTED = "只提及清單中的使用者"
+ONLY_PING_LISTED_OFF = "回覆預設不會提及任何人"
+ONLY_PING_LISTED_ON = "回覆只會提及上方列出的使用者"

@@ -1,0 +1,6 @@
+ADD_USER = "Gebruiker toevoegen"
+ADD_USER_ID_SUBTITLE = "Antwoorden kunnen deze gebruikers vermelden wanneer de uitzondering is ingeschakeld"
+EXCEPTIONS = "Uitzonderingen"
+ONLY_PING_LISTED = "Alleen gebruikers in de lijst pingen"
+ONLY_PING_LISTED_OFF = "Antwoorden vermelden standaard niemand"
+ONLY_PING_LISTED_ON = "Antwoorden vermelden alleen de gebruikers in de lijst hierboven"

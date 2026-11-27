@@ -1,0 +1,6 @@
+ADD_USER = "ユーザーを追加"
+ADD_USER_ID_SUBTITLE = "例外が有効なとき、返信でこれらのユーザーにメンションできます"
+EXCEPTIONS = "例外"
+ONLY_PING_LISTED = "リストのユーザーにのみメンション"
+ONLY_PING_LISTED_OFF = "返信はデフォルトで誰にもメンションしません"
+ONLY_PING_LISTED_ON = "返信は上記のユーザーにのみメンションします"

@@ -6,9 +6,9 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use super::abi::{
-    AstralNodePatch, AstralPatchTarget, Callback, PATCH_BACKGROUND, PATCH_BORDER, PATCH_GRADIENT, PATCH_HIDDEN, PATCH_MARGIN,
-    PATCH_OPACITY, PATCH_PADDING, PATCH_RADIUS, PATCH_SEE_THROUGH, PATCH_SELECTABLE, PATCH_TEXT_COLOR, PATCH_TEXT_SCALE, current_channel,
-    wire_message_author, wire_row_message,
+    AstralNodePatch, AstralPatchTarget, Callback, PATCH_BACKGROUND, PATCH_BORDER, PATCH_GRADIENT, PATCH_HIDDEN, PATCH_LABEL_COLOR,
+    PATCH_LABEL_TEXT, PATCH_LABEL_TINT, PATCH_MARGIN, PATCH_OPACITY, PATCH_PADDING, PATCH_RADIUS, PATCH_SEE_THROUGH, PATCH_SELECTABLE,
+    PATCH_TEXT_COLOR, PATCH_TEXT_SCALE, current_channel, wire_message_author, wire_row_message,
 };
 use super::cursor::Cursor;
 use super::format::{Span, batch_of, child, spans_of, type_is, wire_child_list, wire_creation};
@@ -83,6 +83,10 @@ impl Slot {
     }
 }
 const SCALED_CAPACITY: usize = 2048;
+const LABEL_DEPTH: u32 = 3;
+const LABEL_NODES: usize = 32;
+const LABELED_CAPACITY: usize = 1024;
+const LABEL_FIELDS: u32 = PATCH_LABEL_TEXT | PATCH_LABEL_COLOR | PATCH_LABEL_TINT;
 const SCALE_DEPTH: u32 = 8;
 const SCALE_NODES: usize = 256;
 const OWNER_DEPTH: usize = 32;
@@ -97,6 +101,7 @@ struct RawProp {
 
 #[derive(Clone, Default)]
 struct Patched {
+    checked: Option<bool>,
     identifier: Vec<u8>,
     kind: Vec<u8>,
     applied: u32,
@@ -116,11 +121,21 @@ struct ScaledText {
 }
 
 #[derive(Default)]
+struct Labeled {
+    owner: i32,
+    image: bool,
+    text: Option<RawProp>,
+    color: Option<RawProp>,
+    applied: bool,
+}
+
+#[derive(Default)]
 struct State {
     prefixes: Vec<Vec<u8>>,
     patched: HashMap<i32, Patched>,
     seen: HashMap<i32, Patched>,
     scaled: HashMap<i32, ScaledText>,
+    labeled: HashMap<i32, Labeled>,
 }
 
 static STATE: Mutex<Option<State>> = Mutex::new(None);
@@ -276,6 +291,10 @@ fn key_offset(prefixes: &[Vec<u8>], identifier: &[u8]) -> Option<usize> {
 }
 
 pub fn patch_target(prefix_length: usize, identifier: &CString, kind: &CString, node: i32) -> AstralPatchTarget {
+    checked_patch_target(prefix_length, identifier, kind, node, None)
+}
+
+fn checked_patch_target(prefix_length: usize, identifier: &CString, kind: &CString, node: i32, checked: Option<bool>) -> AstralPatchTarget {
     let mut message = message_of_identifier(identifier.as_bytes());
     if message == 0 && identifier.as_bytes() == b"message-row" {
         message = wire_row_message(node);
@@ -289,30 +308,187 @@ pub fn patch_target(prefix_length: usize, identifier: &CString, kind: &CString, 
         channel_id: current_channel(),
         parent: core::ptr::null(),
         node,
-        checked: -1,
+        checked: checked.map_or(-1, c_int::from),
         label: core::ptr::null(),
     }
 }
 
-fn call_patcher(prefix_length: usize, node: i32, identifier: &[u8], kind: &[u8], patch: &mut AstralNodePatch) -> c_int {
+fn call_patcher(prefix_length: usize, node: i32, patched: &Patched, patch: &mut AstralNodePatch) -> c_int {
     let Some(patcher) = PATCHER.get::<NodePatcher>() else { return 0 };
-    let (Ok(identifier), Ok(kind)) = (CString::new(identifier), CString::new(kind)) else {
+    let (Ok(identifier), Ok(kind)) = (CString::new(patched.identifier.as_slice()), CString::new(patched.kind.as_slice())) else {
         return 0;
     };
-    let target = patch_target(prefix_length, &identifier, &kind, node);
+    let target = checked_patch_target(prefix_length, &identifier, &kind, node, patched.checked);
     unsafe { patcher(&target, patch) }
 }
 
-fn remember_seen(state: &mut State, data: &[u8], span: &Span, identifier: &[u8], kind: &[u8], properties: &AstralWireProperties) {
+fn checked_in(bytes: &[u8], span: &Span) -> Option<bool> {
+    let wanted = properties::current().accessibility_checked;
+    let (mut cursor, count) = super::format::property_cursor(bytes, span);
+    for _ in 0..count {
+        if cursor.failed() {
+            break;
+        }
+        let property = cursor.read16();
+        let tag = cursor.read8();
+        if property == wanted && (tag == Tag::True || tag == Tag::False) {
+            return Some(tag == Tag::True);
+        }
+        cursor.skip_value(tag, 0);
+    }
+    None
+}
+
+fn raw_props(bytes: &[u8], span: &Span, wanted: &[u16]) -> Vec<(u16, RawProp)> {
+    let (mut cursor, count) = super::format::property_cursor(bytes, span);
+    let mut found = Vec::new();
+    for _ in 0..count {
+        if cursor.failed() {
+            break;
+        }
+        let property = cursor.read16();
+        let tag = cursor.read8();
+        let start = cursor.offset();
+        cursor.skip_value(tag, 0);
+        if wanted.contains(&property)
+            && let Some(value) = bytes.get(start..cursor.offset()).filter(|value| value.len() <= 512)
+        {
+            found.push((
+                property,
+                RawProp {
+                    tag,
+                    value: value.to_vec(),
+                },
+            ));
+        }
+    }
+    found
+}
+
+fn note_label_originals(labeled: &mut Labeled, bytes: &[u8], span: &Span) {
+    let properties = properties::current();
+    let (text, color) = if labeled.image {
+        (0, properties.tint)
+    } else {
+        (properties.text, properties.color)
+    };
+    for (property, raw) in raw_props(bytes, span, &[text, color]) {
+        if property == text && text != 0 {
+            labeled.text = Some(raw);
+        } else if property == color {
+            labeled.color = Some(raw);
+        }
+    }
+}
+
+fn collect_labels(labeled: &mut HashMap<i32, Labeled>, bytes: *const u8, spans: &[Span], owner: i32) {
+    let mut queue = vec![(owner, 0u32)];
+    let mut cursor = 0;
+    while cursor < queue.len() {
+        let (node, depth) = queue[cursor];
+        cursor += 1;
+        if let Some(created) = unsafe { wire_creation(spans.as_ptr(), spans.len(), node).as_ref() } {
+            let data = batch_of(bytes, created);
+            let image = type_is(data, created, b"image");
+            if node != owner && (image || type_is(data, created, b"text")) && labeled.len() < LABELED_CAPACITY {
+                let mut entry = Labeled {
+                    owner,
+                    image,
+                    ..Labeled::default()
+                };
+                note_label_originals(&mut entry, data, created);
+                labeled.insert(node, entry);
+            }
+        }
+        if depth >= LABEL_DEPTH {
+            continue;
+        }
+        let Some(list) = (unsafe { wire_child_list(bytes, spans.as_ptr(), spans.len(), node).as_ref() }) else {
+            continue;
+        };
+        let data = batch_of(bytes, list);
+        for position in 0..list.child_count {
+            if queue.len() >= LABEL_NODES {
+                break;
+            }
+            queue.push((child(data, list, position), depth + 1));
+        }
+    }
+}
+
+fn put_raw(out: &mut Out, property: u16, raw: Option<&RawProp>) {
+    out.put16(property);
+    match raw {
+        Some(raw) => {
+            out.put8(raw.tag);
+            out.put(&raw.value);
+        }
+        None => out.put_tag(Tag::Null),
+    }
+}
+
+fn label_text(patch: &AstralNodePatch) -> &[u8] {
+    let length = patch
+        .label_text
+        .iter()
+        .position(|byte| *byte == 0)
+        .unwrap_or(patch.label_text.len());
+    unsafe { core::slice::from_raw_parts(patch.label_text.as_ptr().cast::<u8>(), length) }
+}
+
+fn write_labels(out: &mut Out, labeled: &mut HashMap<i32, Labeled>, owner: i32, patch: &AstralNodePatch, force: bool) -> bool {
+    let properties = properties::current();
+    let wanted = patch.fields & LABEL_FIELDS;
+    let mut wrote = false;
+    for (id, entry) in labeled.iter_mut().filter(|(_, entry)| entry.owner == owner) {
+        if wanted == 0 && !entry.applied {
+            continue;
+        }
+        if wanted != 0 && entry.applied && !force {
+            continue;
+        }
+        if entry.image {
+            out.update(*id, 1);
+            if patch.fields & PATCH_LABEL_TINT != 0 {
+                put_long(out, properties.tint, patch.label_tint);
+            } else {
+                put_raw(out, properties.tint, entry.color.as_ref());
+            }
+        } else {
+            out.update(*id, 2);
+            if patch.fields & PATCH_LABEL_TEXT != 0 {
+                out.prop_string(properties.text, label_text(patch));
+            } else {
+                put_raw(out, properties.text, entry.text.as_ref());
+            }
+            if patch.fields & PATCH_LABEL_COLOR != 0 {
+                put_long(out, properties.color, patch.label_color);
+            } else {
+                put_raw(out, properties.color, entry.color.as_ref());
+            }
+        }
+        entry.applied = wanted != 0;
+        wrote = true;
+    }
+    wrote
+}
+
+fn remember_seen(state: &mut State, seen_in: (*const u8, &[Span]), span: &Span, identifier: &[u8], kind: &[u8]) {
     if state.seen.len() >= SEEN_CAPACITY && !state.seen.contains_key(&span.id) {
         return;
     }
+    let (bytes, spans) = seen_in;
+    let data = batch_of(bytes, span);
     let mut seen = Patched {
         identifier: identifier.to_vec(),
         kind: kind.to_vec(),
+        checked: checked_in(data, span),
         ..Patched::default()
     };
-    capture_originals(data, span, &mut seen, properties);
+    capture_originals(data, span, &mut seen, &properties::current());
+    if seen.checked.is_some() {
+        collect_labels(&mut state.labeled, bytes, spans, span.id);
+    }
     state.seen.insert(span.id, seen);
 }
 
@@ -632,6 +808,60 @@ fn collect_texts(scaled: &mut HashMap<i32, ScaledText>, bytes: *const u8, spans:
     }
 }
 
+fn label_differs(first: &AstralNodePatch, second: &AstralNodePatch) -> bool {
+    (first.fields & LABEL_FIELDS) != (second.fields & LABEL_FIELDS)
+        || first.label_text != second.label_text
+        || first.label_color != second.label_color
+        || first.label_tint != second.label_tint
+}
+
+fn begin_output(out: &mut Out, changed: &mut c_int, bytes: *const u8, length: usize) {
+    if *changed == 0 {
+        out.put(unsafe { core::slice::from_raw_parts(bytes, length) });
+    }
+    *changed = 1;
+}
+
+fn repatch_checked(state: &mut State, id: i32, checked: bool, bytes: *const u8, length: usize, out: &mut Out, changed: &mut c_int) {
+    let prefixes = state.prefixes.clone();
+    let Some(patched) = state.patched.get_mut(&id) else { return };
+    patched.checked = Some(checked);
+    let prefix = key_offset(&prefixes, &patched.identifier).unwrap_or(0);
+    let mut patch = AstralNodePatch::default();
+    if call_patcher(prefix, id, patched, &mut patch) < 0 {
+        wire_mark_refresh_busy();
+        return;
+    }
+    begin_output(out, changed, bytes, length);
+    patched.written = None;
+    write_patch(out, id, patched, &patch);
+    write_scaled(out, &mut state.scaled, id, &patch);
+    write_labels(out, &mut state.labeled, id, &patch, true);
+}
+
+fn relabel_after_child_update(
+    state: &mut State,
+    span: &Span,
+    data: &[u8],
+    bytes: *const u8,
+    length: usize,
+    out: &mut Out,
+    changed: &mut c_int,
+) {
+    let Some(entry) = state.labeled.get_mut(&span.id) else { return };
+    note_label_originals(entry, data, span);
+    let owner = entry.owner;
+    let applied = entry.applied;
+    let Some(patch) = state.patched.get(&owner).and_then(|patched| patched.written) else {
+        return;
+    };
+    if !applied || patch.fields & LABEL_FIELDS == 0 {
+        return;
+    }
+    begin_output(out, changed, bytes, length);
+    write_labels(out, &mut state.labeled, owner, &patch, true);
+}
+
 fn reapply_after_update(state: &mut State, id: i32, bytes: *const u8, length: usize, out: &mut Out, changed: &mut c_int) {
     let Some(patched) = state.patched.get_mut(&id) else { return };
     let Some(patch) = patched.written.take() else { return };
@@ -639,10 +869,7 @@ fn reapply_after_update(state: &mut State, id: i32, bytes: *const u8, length: us
         patched.written = Some(patch);
         return;
     }
-    if *changed == 0 {
-        out.put(unsafe { core::slice::from_raw_parts(bytes, length) });
-    }
-    *changed = 1;
+    begin_output(out, changed, bytes, length);
     write_patch(out, id, patched, &patch);
 }
 
@@ -672,12 +899,20 @@ pub unsafe extern "C" fn wire_patch_nodes(
                     state.patched.remove(&removed);
                     state.seen.remove(&removed);
                     state.scaled.remove(&removed);
+                    state.labeled.remove(&removed);
                 }
                 continue;
             }
             if span.op == Op::Update {
                 state.seen.remove(&span.id);
-                reapply_after_update(state, span.id, bytes, length, out, changed);
+                let checked = checked_in(data, span);
+                let flipped =
+                    checked.is_some_and(|checked| state.patched.get(&span.id).is_some_and(|patched| patched.checked != Some(checked)));
+                match checked {
+                    Some(checked) if flipped => repatch_checked(state, span.id, checked, bytes, length, out, changed),
+                    _ => reapply_after_update(state, span.id, bytes, length, out, changed),
+                }
+                relabel_after_child_update(state, span, data, bytes, length, out, changed);
                 continue;
             }
             if span.op != Op::Create {
@@ -687,7 +922,7 @@ pub unsafe extern "C" fn wire_patch_nodes(
                 continue;
             };
             let Some(prefix) = key_offset(&state.prefixes, identifier) else {
-                remember_seen(state, data, span, identifier, kind, &properties);
+                remember_seen(state, (bytes, spans), span, identifier, kind);
                 continue;
             };
             if state.patched.len() >= PATCHED_CAPACITY && !state.patched.contains_key(&span.id) {
@@ -699,14 +934,16 @@ pub unsafe extern "C" fn wire_patch_nodes(
                 ..Patched::default()
             };
             capture_originals(data, span, &mut patched, &properties);
+            patched.checked = checked_in(data, span);
             if unsafe { super::format::wire_color_property(bytes, span, properties.background, &mut patched.background) } != 0
                 && patched.background != 0
             {
                 collect_see_through(bytes, spans, span.id, patched.background, 1, &mut patched.see_through);
             }
             collect_texts(&mut state.scaled, bytes, spans, span.id);
+            collect_labels(&mut state.labeled, bytes, spans, span.id);
             let mut patch = AstralNodePatch::default();
-            let result = call_patcher(prefix, span.id, identifier, kind, &mut patch);
+            let result = call_patcher(prefix, span.id, &patched, &mut patch);
             if result < 0 {
                 wire_mark_refresh_busy();
             }
@@ -717,6 +954,7 @@ pub unsafe extern "C" fn wire_patch_nodes(
                 *changed = 1;
                 write_patch(out, span.id, &mut patched, &patch);
                 write_scaled(out, &mut state.scaled, span.id, &patch);
+                write_labels(out, &mut state.labeled, span.id, &patch, true);
             }
             state.patched.insert(span.id, patched);
         }
@@ -741,12 +979,14 @@ pub unsafe extern "C" fn astral_wire_refresh_node_patches(buffer: *mut AstralWir
         for (id, patched) in state.patched.iter_mut() {
             let mut patch = AstralNodePatch::default();
             let prefix = key_offset(&prefixes, &patched.identifier).unwrap_or(0);
-            if call_patcher(prefix, *id, &patched.identifier, &patched.kind, &mut patch) < 0 {
+            if call_patcher(prefix, *id, patched, &mut patch) < 0 {
                 wire_mark_refresh_busy();
                 continue;
             }
+            let labels_changed = patched.written.is_none_or(|written| label_differs(&written, &patch));
             let wrote = write_patch(&mut out, *id, patched, &patch);
-            any |= write_scaled(&mut out, &mut state.scaled, *id, &patch) || wrote;
+            let relabeled = write_labels(&mut out, &mut state.labeled, *id, &patch, labels_changed);
+            any |= write_scaled(&mut out, &mut state.scaled, *id, &patch) || wrote || relabeled;
         }
         any
     })

@@ -1,0 +1,6 @@
+ADD_USER = "Pridėti naudotoją"
+ADD_USER_ID_SUBTITLE = "Kai išimtis įjungta, atsakymuose šie naudotojai gali būti paminėti"
+EXCEPTIONS = "Išimtys"
+ONLY_PING_LISTED = "Paminėti tik sąraše esančius"
+ONLY_PING_LISTED_OFF = "Pagal numatytuosius atsakymuose niekas neminimas"
+ONLY_PING_LISTED_ON = "Atsakymuose minimi tik aukščiau išvardyti naudotojai"

@@ -1,0 +1,6 @@
+ADD_USER = "Felhasználó hozzáadása"
+ADD_USER_ID_SUBTITLE = "A válaszok megemlíthetik ezeket a felhasználókat, ha a kivétel be van kapcsolva"
+EXCEPTIONS = "Kivételek"
+ONLY_PING_LISTED = "Csak a listán szereplők pingelése"
+ONLY_PING_LISTED_OFF = "A válaszok alapértelmezetten senkit sem említenek meg"
+ONLY_PING_LISTED_ON = "A válaszok csak a fent felsorolt felhasználókat említik meg"

@@ -1,0 +1,6 @@
+ADD_USER = "사용자 추가"
+ADD_USER_ID_SUBTITLE = "예외를 켜면 답장에서 이 사용자들을 멘션할 수 있어요"
+EXCEPTIONS = "예외"
+ONLY_PING_LISTED = "목록의 사용자만 멘션"
+ONLY_PING_LISTED_OFF = "기본적으로 답장에서 아무도 멘션하지 않아요"
+ONLY_PING_LISTED_ON = "답장에서 위 목록의 사용자만 멘션해요"
