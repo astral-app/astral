@@ -297,7 +297,7 @@ pub extern "C" fn astral_ios_refresh_decorations() {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn astral_ios_recovering() -> bool {
-    app::state::app().is_some_and(|current| current.recovering)
+    app::state::app().is_some_and(|current| current.recovering())
 }
 
 #[unsafe(no_mangle)]

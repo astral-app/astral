@@ -191,7 +191,7 @@ fn dispatch(current: &App, method: Method, arguments: &Arguments, reply: Option<
             "refreshCatalog": true,
         }),
         Method::Context => json!({
-            "recovering": current.recovering,
+            "recovering": current.recovering(),
             "discordVersion": current.discord_version,
             "compatibility": READY,
         }),

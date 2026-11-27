@@ -89,7 +89,7 @@ pub fn status_report(stage: &str, facts: &Value) -> Value {
                 compatibility.as_str()
             }),
         ),
-        ("recovering", json!(super::state::app().is_some_and(|current| current.recovering))),
+        ("recovering", json!(super::state::app().is_some_and(|current| current.recovering()))),
         ("time", json!(time)),
         ("plugins", plugin_summaries()),
     ] {
