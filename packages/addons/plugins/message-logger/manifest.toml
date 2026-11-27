@@ -1,17 +1,21 @@
 id = "astral.message-logger"
 name = "Message Logger"
 description = "Keeps deleted messages in the chat in red and shows what edited messages said before."
-version = "0.0.2"
+version = "0.0.3"
 icon = "EyeSlashIcon"
 main = "main.lua"
 permissions = [
 	"events.gateway",
+	"discord.guilds",
 	"discord.messages",
 	"discord.messages.content",
 	"messages.local",
 	"ui.text",
 	"ui.message_actions",
 	"storage",
+	"ui.dialogs",
+	"ui.patch",
+	"ui.toasts",
 ]
 
 [[authors]]
