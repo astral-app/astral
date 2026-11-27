@@ -1,10 +1,10 @@
 id = "astral.always-animate"
 name = "Always Animate"
 description = "Animates avatars, server icons, banners and emoji everywhere, not only when you tap them."
-version = "0.0.1"
+version = "0.0.2"
 icon = "ReactionIcon"
 main = "main.lua"
-permissions = ["ui.images"]
+permissions = ["discord.messages", "ui.images"]
 
 [[authors]]
 name = "Fiery"
