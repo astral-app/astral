@@ -59,6 +59,7 @@ class Astral : XposedModule() {
         runCatching { NavigationBack.install(this, param.classLoader) }.onFailure { Log.error("Failed to route system back", it) }
         runCatching { IncomingLinks.install(this) }.onFailure { Log.error("Failed to route incoming astral links", it) }
         runCatching { CutoutOverlay.install(this, resources) }.onFailure { Log.error("Failed to install the display cutout overlay", it) }
+        runCatching { Tooltips.install(this) }.onFailure { Log.error("Failed to install tooltips", it) }
         runCatching { PhoenixClasses.resolve(param.applicationInfo, param.classLoader) }.onFailure { Log.error("Failed to find Phoenix's OkHttp classes", it) }
         runCatching { NetworkHooks.install(this, param.classLoader) }.onFailure { Log.error("Failed to hook Discord's network stack", it) }
     }

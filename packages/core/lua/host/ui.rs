@@ -1077,6 +1077,7 @@ pub unsafe fn dispatch_gateway_event(state: *mut LuaState) -> Outcome {
 }
 
 static LOCAL_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+static DECORATOR_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 pub fn send_local_message_json(channel: &str, message: &Value) -> Option<String> {
     let now = crate::support::bridge::epoch_ms();
@@ -1335,8 +1336,20 @@ pub unsafe fn decorate(state: *mut LuaState) -> Outcome {
     let Some(target @ Target::MessageAuthor) = Target::parse(&name) else {
         return Err(format!("astral.ui.decorate: unsupported target '{name}'"));
     };
+    let press = if unsafe { lua::is_none_or_nil(state, 3) } {
+        None
+    } else {
+        unsafe { check_type(state, 3, lua::TFUNCTION) }?;
+        Some(unsafe { reference_at(state, 3) })
+    };
     let reference = unsafe { reference_at(state, 2) };
-    me(state).decorators.push((target, reference));
+    let registration = DECORATOR_SEQUENCE.fetch_add(1, Ordering::Relaxed) + 1;
+    me(state).decorators.push(crate::lua::host::Decorator {
+        target,
+        reference,
+        registration,
+        press,
+    });
     crate::lua::host::nodes::forget_tags();
     Ok(0)
 }

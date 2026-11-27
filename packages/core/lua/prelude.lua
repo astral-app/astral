@@ -264,16 +264,22 @@ function Pill:shaped(shape)
 	return self
 end
 
+function Pill:on_press(action)
+	self.action = action
+	return self
+end
+
 function Pill:describe()
 	return self.text
 end
 
 function Pill:build()
 	if self.icon then
-		return { icon = self.icon, text = self.text, tint = self.tint and self.tint.value or nil }
+		return { icon = self.icon, text = self.text, tint = self.tint and self.tint.value or nil, action = self.action }
 	end
 	if self.shape == astral.Shape.Text then
 		return {
+			action = self.action,
 			text = self.text,
 			color = 0,
 			text_color = (self.text_color or Color.Muted).value,
@@ -286,6 +292,7 @@ function Pill:build()
 		color = stops[1].value,
 		text_color = (self.text_color or Color.contrasting(stops)).value,
 		shape = self.shape,
+		action = self.action,
 	}
 	if #stops >= 2 then
 		built.colors = {}
@@ -606,9 +613,11 @@ local function build_pills(result)
 	return #built > 0 and built or nil
 end
 
-function astral.ui.decorate(target, decorator)
+function astral.ui.decorate(target, decorator, on_press)
 	return native.decorate(target, function(node)
 		return build_pills(decorator(wrap_node(node)))
+	end, on_press and function(node, action)
+		on_press(wrap_node(node), action)
 	end)
 end
 

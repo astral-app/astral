@@ -1,4 +1,5 @@
 #import <Foundation/Foundation.h>
+#import <CoreGraphics/CoreGraphics.h>
 
 #include <stdint.h>
 
@@ -14,6 +15,8 @@ BOOL AstralPickPluginFile(uint64_t request, NSArray<NSString *> *_Nonnull extens
 void AstralCancelPluginFile(uint64_t request);
 void AstralShowAlert(NSString *_Nonnull title, NSString *_Nonnull message);
 void AstralShowToast(NSString *_Nonnull title, NSString *_Nonnull message);
+void AstralShowTooltip(NSString *_Nonnull text);
+void AstralNoteTouch(CGPoint point);
 void AstralEditText(NSString *_Nonnull title, NSString *_Nonnull value, NSUInteger maximumLength,
                     void (^_Nonnull completion)(NSString *_Nullable value));
 

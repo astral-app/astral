@@ -13,6 +13,7 @@ const PERMILLE: f64 = 1000.0;
 enum Method {
     Has,
     ShowToast,
+    ShowTooltip,
     ShowAlert,
     WriteClipboard,
     ReadClipboard,
@@ -56,6 +57,7 @@ impl Method {
         Some(match name {
             "has" => Method::Has,
             "showToast" => Method::ShowToast,
+            "showTooltip" => Method::ShowTooltip,
             "showAlert" => Method::ShowAlert,
             "writeClipboard" => Method::WriteClipboard,
             "readClipboard" => Method::ReadClipboard,
@@ -248,6 +250,10 @@ fn dispatch(method: Method, arguments: &Arguments) -> Value {
                 title: arguments.text(0),
                 message: arguments.text(1),
             });
+            done()
+        }
+        Method::ShowTooltip => {
+            host::request(Request::ShowTooltip { text: arguments.text(0) });
             done()
         }
         Method::ShowAlert => {

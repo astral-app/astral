@@ -9,6 +9,7 @@ use crate::text::AstralText;
 pub enum AstralRequestKind {
     ShowAlert,
     ShowToast,
+    ShowTooltip,
     TriggerHaptic,
     WriteClipboard,
     ReadClipboard,
@@ -165,6 +166,7 @@ fn outgoing<'a>(request: &Request<'a>) -> Outgoing<'a> {
         Request::ShowToast { title, message } => {
             Outgoing::new(Kind::ShowToast).texts(&[title, message])
         }
+        Request::ShowTooltip { text } => Outgoing::new(Kind::ShowTooltip).texts(&[text]),
         Request::TriggerHaptic { strength } => {
             Outgoing::new(Kind::TriggerHaptic).texts(&[strength])
         }

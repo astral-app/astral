@@ -1667,16 +1667,20 @@ fn build_icon_tag(out: &mut Out, tag: &AstralTag, nodes: &mut Vec<i32>) -> i32 {
     let Some(uri) = icon_uri(field(&tag.icon)) else { return 0 };
     let properties = properties::current();
     let icon = tag_id();
-    out.create(icon, b"image", if tag.tint != 0 { 7 } else { 6 });
+    let action = field(&tag.action_id);
+    let count = 6 + u16::from(tag.tint != 0) + if action.is_empty() { 0 } else { 2 };
+    out.create(icon, b"image", count);
     out.prop_string(properties.uri, &uri);
     out.prop_number(properties.width, ICON_TAG_SIZE);
     out.prop_number(properties.height, ICON_TAG_SIZE);
     out.prop_string(properties.scale, b"fit");
     out.prop_number(properties.shrink, 0.0);
-    if field(&tag.action_id).is_empty() {
+    if action.is_empty() {
         out.prop_bool(properties.accessibility_hidden, true);
     } else {
         out.prop_string(properties.accessibility_label, field(&tag.text));
+        out.prop_string(properties.accessibility_id, action);
+        out.prop_events(properties.on, b"press");
     }
     if tag.tint != 0 {
         out.prop_long(properties.tint, i64::from(tag.tint));

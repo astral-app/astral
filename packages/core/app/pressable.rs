@@ -3,6 +3,7 @@ use crate::settings::navigator;
 const SLIDER_PREFIX: &str = "astral.slider.";
 const INSERTED_PREFIX: &str = "astral.tap.";
 const MESSAGE_ACTION_PREFIX: &str = "astral.action.";
+const TAG_PREFIX: &str = "astral.tag.";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Pressable {
@@ -16,7 +17,7 @@ pub enum Pressable {
 pub fn pressable(identifier: &str) -> Pressable {
     if identifier.starts_with(SLIDER_PREFIX) {
         Pressable::Slider
-    } else if identifier.starts_with(INSERTED_PREFIX) {
+    } else if identifier.starts_with(INSERTED_PREFIX) || identifier.starts_with(TAG_PREFIX) {
         Pressable::Inserted
     } else if identifier.starts_with(MESSAGE_ACTION_PREFIX) {
         Pressable::MessageAction
@@ -33,6 +34,7 @@ pub fn press(identifier: &str) -> bool {
             navigator::tap(identifier);
             true
         }
+        Pressable::Inserted if identifier.starts_with(TAG_PREFIX) => crate::lua::host::nodes::press_decoration(identifier),
         Pressable::Inserted => crate::lua::host::nodes::press_inserted_node(identifier),
         Pressable::MessageAction => crate::lua::host::nodes::press_message_action(identifier),
         Pressable::Slider => true,

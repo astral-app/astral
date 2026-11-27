@@ -11,6 +11,9 @@ pub enum Request<'a> {
         title: &'a str,
         message: &'a str,
     },
+    ShowTooltip {
+        text: &'a str,
+    },
     TriggerHaptic {
         strength: &'a str,
     },
