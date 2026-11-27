@@ -1,5 +1,6 @@
 local MAXIMUM_ENTRIES = 500
 local MAXIMUM_EDITS = 5
+local MAXIMUM_RECENT = 500
 local DELETED = 0xFFF23F43
 local EDITED = 0xFF949BA4
 local DELETED_NOTE = "This message was deleted"
@@ -15,6 +16,27 @@ settings:switch("persist", "Keep the log after restarting", true, "Saves the log
 
 local log = { deleted = {}, edits = {}, order = {} }
 local dismissed = {}
+local recent, recent_order = {}, {}
+
+local function remember_recent(data)
+	if type(data.id) ~= "string" or type(data.author) ~= "table" then
+		return
+	end
+	if not recent[data.id] then
+		recent_order[#recent_order + 1] = data.id
+		while #recent_order > MAXIMUM_RECENT do
+			recent[table.remove(recent_order, 1)] = nil
+		end
+	end
+	recent[data.id] = {
+		author = { id = data.author.id, bot = data.author.bot == true },
+		content = data.content,
+	}
+end
+
+local function message_of(channel, id)
+	return astral.discord.message(channel, id) or recent[id]
+end
 local current_user
 
 local function setting(key, fallback)
@@ -66,7 +88,7 @@ local function ignored(message)
 end
 
 local function on_delete(channel, id)
-	local message = astral.discord.message(channel, id)
+	local message = message_of(channel, id)
 	if ignored(message) then
 		return false
 	end
@@ -79,8 +101,11 @@ local function on_update(data)
 	if type(data.content) ~= "string" then
 		return
 	end
-	local message = astral.discord.message(data.channel_id, data.id)
+	local message = message_of(data.channel_id, data.id)
 	local previous = message and message.content
+	if recent[data.id] then
+		recent[data.id].content = data.content
+	end
 	if ignored(message) or type(previous) ~= "string" or previous == data.content then
 		return
 	end
@@ -97,6 +122,10 @@ astral.events.on(astral.Event.Gateway, function(event)
 	local data = event.data
 	if event.type == "READY" then
 		current_user = type(data.user) == "table" and data.user.id or nil
+		return nil
+	end
+	if event.type == "MESSAGE_CREATE" then
+		remember_recent(data)
 		return nil
 	end
 	if event.type == "MESSAGE_UPDATE" then
@@ -135,7 +164,7 @@ astral.events.on(astral.Event.Gateway, function(event)
 	end
 	data.ids = kept
 	return data
-end, { "READY", "MESSAGE_DELETE", "MESSAGE_DELETE_BULK", "MESSAGE_UPDATE" })
+end, { "READY", "MESSAGE_CREATE", "MESSAGE_DELETE", "MESSAGE_DELETE_BULK", "MESSAGE_UPDATE" })
 
 astral.ui.text_transform(function(spans, context)
 	local id = context.message_id

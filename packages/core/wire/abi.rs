@@ -95,6 +95,7 @@ pub const LABEL_COMPOSER: c_int = 4;
 pub const LABEL_PROFILE: c_int = 5;
 
 #[repr(C)]
+#[derive(Clone, Copy)]
 pub struct AstralLabelContext {
     pub kind: c_int,
     pub message_id: u64,
