@@ -43,6 +43,35 @@ NSArray<NSString *> *AstralMissingAppExtensions(void)
     return missing;
 }
 
+static NSString *FeatureName(NSString *extension)
+{
+    NSDictionary<NSString *, NSString *> *features = @{
+        @"OpenInAstral.appex" : @"Open in astral from Safari",
+        @"Share.appex" : @"sharing to Discord from other apps",
+        @"NotificationService.appex" : @"notification previews",
+        @"AstralExtensions.json" : @"astral's extension list",
+    };
+    return features[extension] ?: extension.stringByDeletingPathExtension;
+}
+
+static NSString *FeatureList(NSArray<NSString *> *missing)
+{
+    NSMutableArray<NSString *> *names = [NSMutableArray arrayWithCapacity:missing.count];
+    for (NSString *extension in missing) [names addObject:FeatureName(extension)];
+    if (names.count == 1) return names.firstObject;
+    NSString *head = [[names subarrayWithRange:NSMakeRange(0, names.count - 1)] componentsJoinedByString:@", "];
+    return [NSString stringWithFormat:@"%@ and %@", head, names.lastObject];
+}
+
+static NSString *MissingExtensionsMessage(NSArray<NSString *> *missing)
+{
+    return [NSString stringWithFormat:@"The app you installed astral with removed %@. Sideloaders do this with a free Apple ID, which can "
+                                      @"only sign a few app extensions, or when their \"remove extensions\" option is on.\n\nastral "
+                                      @"works without them. To get them back, reinstall the IPA with extensions kept: use a paid "
+                                      @"developer account or a signing service that keeps them, or turn that option off.",
+                                      FeatureList(missing)];
+}
+
 void AstralReportMissingAppExtensions(void)
 {
     NSArray<NSString *> *missing = AstralMissingAppExtensions();
@@ -56,8 +85,5 @@ void AstralReportMissingAppExtensions(void)
     if ([[defaults objectForKey:key] isEqualToArray:missing]) return;
     [defaults setObject:missing forKey:key];
 
-    NSString *names = [missing componentsJoinedByString:@", "];
-    NSString *message = [NSString
-        stringWithFormat:@"This install is missing: %@. Rebuild or reinstall astral with all Discord app extensions included.", names];
-    AstralShowAlert(@"Discord extensions are missing", message);
+    AstralShowAlert(@"Your installer removed some features", MissingExtensionsMessage(missing));
 }
