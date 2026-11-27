@@ -8,6 +8,7 @@ use crate::ipa_archive::{Ipa, text};
 use crate::macho;
 
 const MAX_VERSIONS: usize = 30;
+const FIRST_PHOENIX_MAJOR: u64 = 357;
 const PRIVACY_SUFFIX: &str = "UsageDescription";
 const USAGE: &str = "usage: astral feed app-source --source <app-repo.json> --ipa <astral.ipa> --url <download URL> [--date <ISO date>] [--description <text>]";
 
@@ -69,6 +70,14 @@ fn merged_permissions(current: Option<&Value>, facts: &IpaFacts) -> Value {
     json!({ "entitlements": entitlements, "privacy": privacy })
 }
 
+fn ships_phoenix(version: &str) -> bool {
+    version
+        .split('.')
+        .next()
+        .and_then(|major| major.parse::<u64>().ok())
+        .is_some_and(|major| major >= FIRST_PHOENIX_MAJOR)
+}
+
 pub fn add_version(
     source: &mut Value,
     facts: &IpaFacts,
@@ -76,6 +85,12 @@ pub fn add_version(
     date: &str,
     description: &str,
 ) -> Result<(), String> {
+    if !ships_phoenix(&facts.version) {
+        return Err(format!(
+            "Discord {} does not ship Phoenix; astral needs {FIRST_PHOENIX_MAJOR} or newer",
+            facts.version
+        ));
+    }
     let app = source
         .get_mut("apps")
         .and_then(Value::as_array_mut)
@@ -96,7 +111,13 @@ pub fn add_version(
     app.insert("appPermissions".into(), permissions);
     let versions = app.entry("versions").or_insert_with(|| json!([]));
     let list = versions.as_array_mut().ok_or("versions is not a list")?;
-    list.retain(|existing| existing.get("downloadURL").and_then(Value::as_str) != Some(url));
+    list.retain(|existing| {
+        existing.get("downloadURL").and_then(Value::as_str) != Some(url)
+            && existing
+                .get("version")
+                .and_then(Value::as_str)
+                .is_some_and(ships_phoenix)
+    });
     list.insert(0, Value::Object(entry));
     list.truncate(MAX_VERSIONS);
     Ok(())
