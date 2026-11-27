@@ -1,7 +1,8 @@
 use core::ffi::{c_char, c_int};
 use std::collections::{BTreeSet, HashMap};
 use std::path::PathBuf;
-use std::sync::{Mutex, MutexGuard};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Mutex, MutexGuard, Once};
 use std::time::{Duration, Instant, SystemTime};
 
 use serde_json::{Map, Value, json};
@@ -10,6 +11,10 @@ use crate::support::bridge::{AstralRustString, bytes};
 use crate::support::sqlite_api::{self as sqlite, Database};
 
 const FRESHNESS: Duration = Duration::from_secs(30);
+const MISS_FRESHNESS: Duration = Duration::from_secs(2);
+const MISS_RETRIES: u8 = 5;
+const MISS_TRACKED: usize = 1024;
+const MISS_RETRY_INTERVAL: Duration = Duration::from_millis(1500);
 const ADMINISTRATOR: u64 = 1 << 3;
 const ALL_PERMISSIONS: u64 = u64::MAX >> 11;
 const RELATIONSHIP_BLOCKED: i64 = 2;
@@ -20,6 +25,23 @@ struct State {
     data_directory: String,
     database: Option<Database>,
     cache: HashMap<String, (Instant, Value)>,
+    misses: HashMap<String, u8>,
+}
+
+static RETRY_PENDING: AtomicBool = AtomicBool::new(false);
+static RETRY_LOOP: Once = Once::new();
+
+fn start_miss_retries() {
+    RETRY_LOOP.call_once(|| {
+        std::thread::spawn(|| {
+            loop {
+                std::thread::sleep(MISS_RETRY_INTERVAL);
+                if RETRY_PENDING.swap(false, Ordering::AcqRel) {
+                    crate::app::request_decoration_refresh();
+                }
+            }
+        });
+    });
 }
 
 static STATE: Mutex<Option<State>> = Mutex::new(None);
@@ -141,13 +163,31 @@ impl State {
     fn cached(&self, key: &str) -> Option<&Value> {
         self.cache
             .get(key)
-            .filter(|(time, _)| time.elapsed() <= FRESHNESS)
+            .filter(|(time, value)| time.elapsed() <= if value.is_null() { MISS_FRESHNESS } else { FRESHNESS })
             .map(|(_, value)| value)
     }
 
     fn remember(&mut self, key: String, value: Option<Value>) -> Option<Value> {
+        self.note_lookup(&key, value.is_some());
         self.cache.insert(key, (Instant::now(), value.clone().unwrap_or(Value::Null)));
         value
+    }
+
+    fn note_lookup(&mut self, key: &str, found: bool) {
+        if found {
+            self.misses.remove(key);
+            return;
+        }
+        if self.misses.len() >= MISS_TRACKED && !self.misses.contains_key(key) {
+            return;
+        }
+        let attempts = self.misses.entry(key.to_owned()).or_insert(0);
+        if *attempts >= MISS_RETRIES {
+            return;
+        }
+        *attempts += 1;
+        RETRY_PENDING.store(true, Ordering::Release);
+        start_miss_retries();
     }
 
     fn hit(&self, key: &str) -> Option<Option<Value>> {

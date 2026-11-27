@@ -426,6 +426,10 @@ pub fn page_open() -> bool {
     crate::settings::navigator::open()
 }
 
+pub fn request_decoration_refresh() {
+    platform::request_decoration_refresh();
+}
+
 pub fn refresh_decorations() {
     crate::lua::host::nodes::forget_tags();
     REFRESH_DECORATIONS.store(true, Ordering::Release);

@@ -51,6 +51,11 @@ astral = {
 			request_callback = fn
 		end,
 	},
+	json = {
+		decode = function(text)
+			return text:find("fae/faer", 1, true) and { user_profile = { pronouns = "fae/faer" } } or nil
+		end,
+	},
 	discord = {
 		me = function()
 			return "me"
@@ -79,7 +84,7 @@ assert(shown.text == "They/Them" and shown.shape == nil)
 values.style = "custom"
 values.pillColor = "#FF0000"
 assert(decorator({ user_id = "1" }).color_value == "#FF0000")
-profile_callback({ ok = true, body = { user_profile = { pronouns = "fae/faer" } } })
+profile_callback({ ok = true, body = '{"user_profile":{"pronouns":"fae/faer"}}' })
 values.priority = "discord"
 values.format = "lowercase"
 assert(decorator({ user_id = "1" }).text == "fae/faer")

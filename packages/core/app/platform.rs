@@ -200,6 +200,10 @@ fn should_request_refresh(already_pending: bool, last_ms: u64, now_ms: u64) -> b
     !already_pending || now_ms.saturating_sub(last_ms) >= REFRESH_RESEND_MS
 }
 
+pub fn request_decoration_refresh() {
+    refresh_decorations();
+}
+
 fn refresh_decorations() {
     use std::sync::atomic::Ordering;
     crate::lua::host::nodes::forget_tags();
