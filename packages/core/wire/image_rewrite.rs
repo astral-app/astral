@@ -5,17 +5,25 @@ use super::rewriter::{ImageRewriter, Slot};
 use super::tag::{Op, Tag};
 
 static REWRITER: Slot = Slot::new();
+const ANIMATED_QUERY: &[u8] = b"animated=true";
 
 #[unsafe(no_mangle)]
 pub extern "C" fn astral_wire_set_image_rewriter(rewriter: Option<ImageRewriter>) {
     REWRITER.set(rewriter);
 }
 
+fn asks_animation(uri: &[u8]) -> bool {
+    uri.windows(ANIMATED_QUERY.len()).any(|window| window == ANIMATED_QUERY)
+}
+
 fn put_rewritten(out: &mut Out, bytes: &[u8], span: &Span, uri: &[u8]) {
     let properties = properties::current();
+    let animate = asks_animation(uri);
     let (mut cursor, count) = property_cursor(bytes, span);
     out.put(&bytes[span.start..cursor.offset() - 2]);
+    let count_at = out.length;
     out.put16(count);
+    let mut written = 0u16;
     for _ in 0..count {
         if cursor.failed() {
             break;
@@ -24,12 +32,22 @@ fn put_rewritten(out: &mut Out, bytes: &[u8], span: &Span, uri: &[u8]) {
         let property = cursor.read16();
         let tag = cursor.read8();
         cursor.skip_value(tag, 0);
+        if animate && property == properties.animated {
+            continue;
+        }
         if (property == properties.uri || property == properties.cache_key) && tag == Tag::String {
             out.prop_string(property, uri);
         } else {
             out.put(&bytes[start..cursor.offset().min(bytes.len())]);
         }
+        written += 1;
     }
+    if animate {
+        out.put16(properties.animated);
+        out.put_tag(Tag::True);
+        written += 1;
+    }
+    out.patch16(count_at, written);
 }
 
 fn rewritten_uri(bytes: &[u8], span: &Span) -> Option<Vec<u8>> {

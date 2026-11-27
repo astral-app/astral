@@ -7,6 +7,7 @@ use astral_core::wire::image_rewrite::{astral_wire_set_image_rewriter, wire_rewr
 use astral_core::wire::images::{astral_wire_refresh_images, wire_track_images};
 use astral_core::wire::out::{AstralWireBuffer, Out};
 use astral_core::wire::properties::current;
+use astral_core::wire::tag::Tag;
 use astral_core::wire::tween::{astral_wire_tween_frame, astral_wire_tweens_active, wire_tween_in};
 
 unsafe extern "C" {
@@ -17,6 +18,8 @@ unsafe extern "C" fn swap_host(uri: *const c_char, rewritten: *mut c_char, capac
     let original = unsafe { core::ffi::CStr::from_ptr(uri) }.to_bytes();
     let replacement: &[u8] = if original.starts_with(b"https://a.example/") {
         b"https://b.example/x.png\0"
+    } else if original.starts_with(b"https://c.example/") {
+        b"https://c.example/a_1.webp?animated=true\0"
     } else {
         return 0;
     };
@@ -104,6 +107,36 @@ fn rewrites_image_uris_and_rescans() {
     assert_eq!(count, 2);
     assert!(contains(&result, b"https://b.example/x.png"));
     assert!(contains(&result, b"https://a.example/z.png"));
+}
+
+#[test]
+fn animates_images_rewritten_to_animated_urls() {
+    astral_wire_set_image_rewriter(Some(swap_host));
+    let properties = current();
+    let mut out = Out::batch();
+    out.put8(1);
+    out.put(&43i32.to_le_bytes());
+    out.put16(5);
+    out.put(b"image");
+    out.put16(2);
+    out.prop_string(properties.uri, b"https://c.example/a_1.webp");
+    out.put16(properties.animated);
+    out.put_tag(Tag::False);
+    let bytes = bytes_of(out);
+    let mut spans = vec![Span::default(); MAX_SPANS];
+    let mut count = 0;
+    assert_eq!(unsafe { wire_scan(bytes.as_ptr(), bytes.len(), spans.as_mut_ptr(), &mut count) }, 0);
+    let mut length = 0;
+    let rewritten = unsafe { wire_rewrite_images(bytes.as_ptr(), bytes.len(), spans.as_mut_ptr(), &mut count, &mut length) };
+    assert!(!rewritten.is_null());
+    let result = take(&AstralWireBuffer { bytes: rewritten, length });
+    assert_eq!(count, 1);
+    let mut animated = properties.animated.to_le_bytes().to_vec();
+    animated.push(Tag::True as u8);
+    assert!(contains(&result, &animated));
+    let mut still = properties.animated.to_le_bytes().to_vec();
+    still.push(Tag::False as u8);
+    assert!(!contains(&result, &still));
 }
 
 #[test]
