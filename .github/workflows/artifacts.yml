@@ -3,11 +3,6 @@ name: Release artifacts
 on:
   workflow_dispatch:
     inputs:
-      ios_source:
-        description: Discord for iOS to inject into
-        type: choice
-        options: [appstore, testflight]
-        default: appstore
       android_channel:
         description: Discord for Android to patch (Phoenix ships in alpha first)
         type: choice
@@ -15,9 +10,6 @@ on:
         default: alpha
   workflow_call:
     inputs:
-      ios_source:
-        type: string
-        default: appstore
       android_channel:
         type: string
         default: alpha
@@ -43,6 +35,7 @@ env:
   LSPATCH_JAR: lspatch-v1.2-487-release.jar
   LSPATCH_SHA256: d238fdc414d121b7fa454d8b4ccf420df3a8c97d563761861ff92bd9c5da2165
   RETENTION_DAYS: 14
+  DISCORD_IOS_ARTIFACT: bf78704e-69c0-4de3-a805-bf77f7580ba8
 
 jobs:
   deb:
@@ -125,10 +118,8 @@ jobs:
         with:
           api-url: ${{ vars.DKRYPT_BASE_URL || 'https://ipa.dylib.dev' }}
           api-key: ${{ secrets.DKRYPT_API_KEY }}
-          bundle-id: com.hammerandchisel.discord
-          channel: ${{ inputs.ios_source || 'appstore' }}
+          artifact-id: ${{ env.DISCORD_IOS_ARTIFACT }}
           output: discord.ipa
-          timeout-seconds: "1800"
 
       - name: Inject astral
         run: |
