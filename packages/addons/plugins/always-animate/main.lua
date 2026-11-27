@@ -17,9 +17,26 @@ local function animated_hash(url)
 	return hash ~= nil
 end
 
+local animated_emoji = {}
+
+local function emoji_is_animated(url)
+	local id = url:match("/emojis/(%d+)")
+	if not id then
+		return false
+	end
+	if animated_emoji[id] == nil then
+		local emoji = astral.discord.emoji(id)
+		if not emoji then
+			return false
+		end
+		animated_emoji[id] = emoji.animated == true
+	end
+	return animated_emoji[id]
+end
+
 local function rewrite(url)
 	if url:find("/emojis/", 1, true) then
-		return with_animated(url)
+		return emoji_is_animated(url) and with_animated(url) or nil
 	end
 	if animated_hash(url) then
 		return with_animated(url)
