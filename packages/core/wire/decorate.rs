@@ -467,6 +467,10 @@ fn observe_properties(bytes: &[u8], span: &Span) {
         }
         let property = cursor.read16();
         let tag = cursor.read8();
+        if tag == Tag::Null && property == properties.accessibility_id && span.op == Op::Update {
+            with_tracked(|tracked| tracked.remove(&span.id));
+            continue;
+        }
         if tag == Tag::String && (property == properties.accessibility_id || property == properties.uri) {
             let length = cursor.read32() as usize;
             let Some(text) = cursor.take(length) else { return };
