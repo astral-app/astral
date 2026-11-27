@@ -23,7 +23,7 @@ jobs:
   build:
     uses: ./.github/workflows/artifacts.yml
     with:
-      ios_source: appstore
+      ios_source: testflight
       android_channel: alpha
       package_suffix: ~alpha.${{ github.run_number }}
     secrets:
@@ -67,12 +67,12 @@ jobs:
           deb=$(find artifacts/astral-deb -name '*.deb' | head -1)
           cp "$deb" "assets/astral-${version}-alpha.${GITHUB_RUN_NUMBER}-iphoneos-arm64.deb"
           cp artifacts/astral-ipa/astral.ipa "assets/astral-${version}-alpha.${GITHUB_RUN_NUMBER}.ipa"
-          find artifacts/astral-android -name '*.apk' -exec cp {} assets/ \;
-          cp artifacts/astral-checksums/SHA256SUMS artifacts/astral-checksums/provenance.json assets/
+          cp artifacts/astral-android/astral-module.apk assets/
+          (cd artifacts/astral-android/sideload && zip -q "$GITHUB_WORKSPACE/assets/astral.apks" ./*.apk)
           notes="Alpha build from $(git rev-parse --short HEAD). Pre-release: may break.
 
           - iOS: sideload the IPA, add the AltStore source https://astral-app.github.io/astral/app-repo.json, or add the APT repo https://astral-app.github.io/astral/repo/ on a jailbroken device.
-          - Android: install the LSPatch APK, or the module APK with LSPosed."
+          - Android: install astral.apks with SAI or another split installer, or the module APK with LSPosed."
           gh release create "$tag" assets/* --prerelease --target "$GITHUB_SHA" --title "astral ${version} alpha ${GITHUB_RUN_NUMBER}" --notes "$notes"
           ipa="assets/astral-${version}-alpha.${GITHUB_RUN_NUMBER}.ipa"
           {

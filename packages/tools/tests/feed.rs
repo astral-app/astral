@@ -54,3 +54,22 @@ fn adds_newest_first_and_unions_permissions() {
         "camera"
     );
 }
+
+#[test]
+fn drops_builds_without_phoenix() {
+    let mut source = json!({ "apps": [{ "versions": [{ "version": "355.0", "downloadURL": "https://x/old.ipa" }] }] });
+    let mut old = facts("1", "a");
+    old.version = "356.7".into();
+    assert!(add_version(&mut source, &old, "https://x/356.ipa", "2026-11-27", "old").is_err());
+    add_version(
+        &mut source,
+        &facts("2", "b"),
+        "https://x/2.ipa",
+        "2026-11-27",
+        "two",
+    )
+    .unwrap();
+    let versions = source["apps"][0]["versions"].as_array().unwrap();
+    assert_eq!(versions.len(), 1);
+    assert_eq!(versions[0]["version"], "357.0");
+}

@@ -145,7 +145,10 @@ fn open_phoenix_access(ipa_path: &Path) -> Result<(), String> {
     let app = ipa.app()?;
     let framework = format!("{app}Frameworks/PhoenixFatClient.framework/PhoenixFatClient");
     if !ipa.has(&framework) {
-        return Ok(());
+        return Err(format!(
+            "{} has no PhoenixFatClient.framework; astral needs a Discord build that ships Phoenix (357 or newer, TestFlight first)",
+            ipa_path.display()
+        ));
     }
     if !crate::phoenix::opens_access_gate(&ipa.read(&framework)?) {
         return Ok(());
