@@ -75,6 +75,8 @@ typedef struct {
     int hasSettings;
     int on;
     int failed;
+    const char *action;
+    int actionPrimary;
 } AstralCardSpec;
 
 typedef struct {

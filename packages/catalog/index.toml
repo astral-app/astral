@@ -11,6 +11,7 @@ version = "0.0.1"
 description = "Save Discord GIFs as GIF files instead of videos."
 icon = "GifIcon"
 base = "plugins/astral.fix-gif-download/"
+authors = [{ name = "adrian", id = "224617799434108928" }]
 
 [[plugins]]
 id = "astral.sticker-preview"
@@ -19,6 +20,7 @@ version = "0.0.1"
 description = "Displays a preview of a selected sticker instead of sending it immediately."
 icon = "StickerIcon"
 base = "plugins/astral.sticker-preview/"
+authors = [{ name = "Im_Banana", id = "635250116688871425" }, { name = "adrian", id = "224617799434108928" }]
 
 [[plugins]]
 id = "astral.gif-paste"
@@ -27,6 +29,7 @@ version = "0.0.1"
 description = "Makes GIF picker selections paste a link into the chat box instead of sending immediately."
 icon = "GifIcon"
 base = "plugins/astral.gif-paste/"
+authors = [{ name = "V", id = "343383572805058560" }, { name = "adrian", id = "224617799434108928" }]
 
 [[plugins]]
 id = "astral.reviewdb"
@@ -35,6 +38,11 @@ version = "0.0.2"
 description = "Leave reviews on other users' profiles and see what others think of you."
 icon = "StarIcon"
 base = "plugins/astral.reviewdb/"
+authors = [
+	{ name = "mantikafasi", id = "287555395151593473" },
+	{ name = "V", id = "343383572805058560" },
+	{ name = "adrian", id = "224617799434108928" },
+]
 
 [[plugins]]
 id = "astral.always-animate"
@@ -43,6 +51,7 @@ version = "0.0.1"
 description = "Animates avatars, server icons, banners and emoji everywhere, not only when you tap them."
 icon = "ReactionIcon"
 base = "plugins/astral.always-animate/"
+authors = [{ name = "Fiery", id = "890228870559698955" }, { name = "adrian", id = "224617799434108928" }]
 
 [[plugins]]
 id = "astral.local-notifications"
@@ -51,6 +60,7 @@ version = "0.0.1"
 description = "Notifies you of mentions and DMs on installs where Discord's push notifications don't arrive, by keeping Discord connected in the background."
 icon = "BellIcon"
 base = "plugins/astral.local-notifications/"
+authors = [{ name = "adrian", id = "224617799434108928" }]
 
 [[plugins]]
 id = "astral.preview-message"
@@ -59,6 +69,7 @@ version = "0.0.1"
 description = "Adds a button to the chat input that shows how your message will look before you send it."
 icon = "ChatDotsIcon"
 base = "plugins/astral.preview-message/"
+authors = [{ name = "Syncxv", id = "549244932213309442" }, { name = "adrian", id = "224617799434108928" }]
 
 [[plugins]]
 id = "astral.message-link-embeds"
@@ -67,6 +78,13 @@ version = "0.0.1"
 description = "Adds a preview under messages that link to other Discord messages, and opens the linked message when tapped."
 icon = "LinkIcon"
 base = "plugins/astral.message-link-embeds/"
+authors = [
+	{ name = "sunnie", id = "406028027768733696" },
+	{ name = "V", id = "343383572805058560" },
+	{ name = "RyanCaoDev", id = "952235800110694471" },
+	{ name = "adrian", id = "224617799434108928" },
+	{ name = "eternal", id = "263689920210534400" },
+]
 
 [[plugins]]
 id = "astral.gif-provider-switcher"
@@ -75,6 +93,11 @@ version = "0.0.1"
 description = "Searches GIFs from Tenor or Giphy instead of Klipy in Discord's own GIF picker."
 icon = "ReactionIcon"
 base = "plugins/astral.gif-provider-switcher/"
+authors = [
+	{ name = "Lunascape", id = "383365021415243776" },
+	{ name = "V", id = "343383572805058560" },
+	{ name = "adrian", id = "224617799434108928" },
+]
 
 [[plugins]]
 id = "astral.cross-mod-badges"
@@ -83,6 +106,7 @@ version = "0.0.1"
 description = "Shows the badges people have from other client mods, such as Vencord, Aliucord and BetterDiscord, on their profile."
 icon = "UserCircleIcon"
 base = "plugins/astral.cross-mod-badges/"
+authors = [{ name = "adrian", id = "224617799434108928" }]
 
 [[plugins]]
 id = "astral.pronoundb"
@@ -91,6 +115,14 @@ version = "0.0.1"
 description = "Shows people's pronouns from PronounDB beside their name in messages."
 icon = "UserCircleIcon"
 base = "plugins/astral.pronoundb/"
+authors = [
+	{ name = "Tyman", id = "487443883127472129" },
+	{ name = "TheKodeToad", id = "706152404072267788" },
+	{ name = "V", id = "343383572805058560" },
+	{ name = "Elvyra", id = "708275751816003615" },
+	{ name = "adrian", id = "224617799434108928" },
+	{ name = "eternal", id = "263689920210534400" },
+]
 
 [[plugins]]
 id = "astral.declutter"
@@ -99,6 +131,12 @@ version = "0.0.1"
 description = "Hides buttons, upsells and profile decorations you never use: the gift button, Server Boosts, call buttons, avatar decorations, nameplates, server tags and more."
 icon = "EyeSlashIcon"
 base = "plugins/astral.declutter/"
+authors = [
+	{ name = "Benjii", id = "463702169443368970" },
+	{ name = "kmmiio99o", id = "0" },
+	{ name = "ssense", id = "0" },
+	{ name = "adrian", id = "224617799434108928" },
+]
 
 [[plugins]]
 id = "astral.message-logger"
@@ -107,6 +145,16 @@ version = "0.0.1"
 description = "Keeps deleted messages in the chat in red and shows what edited messages said before."
 icon = "EyeSlashIcon"
 base = "plugins/astral.message-logger/"
+authors = [
+	{ name = "rushii", id = "295190422244950017" },
+	{ name = "V", id = "343383572805058560" },
+	{ name = "AutumnVN", id = "393694671383166998" },
+	{ name = "Nickyux", id = "427146305651998721" },
+	{ name = "Kyuuhachi", id = "236588665420251137" },
+	{ name = "sadan", id = "521819891141967883" },
+	{ name = "f3tch", id = "1016388460929626174" },
+	{ name = "adrian", id = "224617799434108928" },
+]
 
 [[plugins]]
 id = "astral.channel-typing-indicators"
@@ -115,6 +163,12 @@ version = "0.1.2"
 description = "Shows typing dots beside channels where people are typing."
 icon = "ChatDotsIcon"
 base = "plugins/astral.channel-typing-indicators/"
+authors = [
+	{ name = "Nuckyz", id = "235834946571337729" },
+	{ name = "fawn", id = "336678828233588736" },
+	{ name = "Sqaaakoi", id = "259558259491340288" },
+	{ name = "adrian", id = "224617799434108928" },
+]
 
 [[plugins]]
 id = "astral.message-latency"
@@ -123,6 +177,7 @@ version = "0.0.1"
 description = "Marks messages that took at least the selected time to send, beside their timestamp."
 icon = "BellIcon"
 base = "plugins/astral.message-latency/"
+authors = [{ name = "arHSM", id = "841509053422632990" }, { name = "adrian", id = "224617799434108928" }]
 
 [[plugins]]
 id = "astral.new-member-sprout"
@@ -131,6 +186,7 @@ version = "0.0.1"
 description = "Shows desktop's new member sprout beside people who joined the server in the last week."
 icon = "UserPlusIcon"
 base = "plugins/astral.new-member-sprout/"
+authors = [{ name = "adrian", id = "224617799434108928" }]
 
 [[plugins]]
 id = "astral.force-owner-crown"
@@ -139,6 +195,12 @@ version = "0.0.1"
 description = "Always show the owner crown on the server owner's messages."
 icon = "CrownIcon"
 base = "plugins/astral.force-owner-crown/"
+authors = [
+	{ name = "D3SOX", id = "201052085641281538" },
+	{ name = "Nickyux", id = "427146305651998721" },
+	{ name = "adrian", id = "224617799434108928" },
+	{ name = "eternal", id = "263689920210534400" },
+]
 
 [[plugins]]
 id = "astral.new-user-sprout"
@@ -147,6 +209,7 @@ version = "0.0.1"
 description = "Shows a sprout beside people whose Discord account is less than the chosen number of days old."
 icon = "UserPlusIcon"
 base = "plugins/astral.new-user-sprout/"
+authors = [{ name = "adrian", id = "224617799434108928" }]
 
 [[plugins]]
 id = "astral.unsuppress-embeds"
@@ -155,6 +218,11 @@ version = "0.0.1"
 description = "Adds a message long-press row that brings back suppressed link embeds, or suppresses them."
 icon = "EmbedIcon"
 base = "plugins/astral.unsuppress-embeds/"
+authors = [
+	{ name = "rad", id = "610945092504780823" },
+	{ name = "HypedDomi", id = "354191516979429376" },
+	{ name = "adrian", id = "224617799434108928" },
+]
 
 [[plugins]]
 id = "astral.view-raw"
@@ -163,6 +231,13 @@ version = "0.0.1"
 description = "View and copy raw data for messages."
 icon = "TextIcon"
 base = "plugins/astral.view-raw/"
+authors = [
+	{ name = "King Fish", id = "499400512559382538" },
+	{ name = "V", id = "343383572805058560" },
+	{ name = "rad", id = "610945092504780823" },
+	{ name = "lillith <3", id = "799319081723232267" },
+	{ name = "adrian", id = "224617799434108928" },
+]
 
 [[plugins]]
 id = "astral.no-reply-mention"
@@ -171,6 +246,13 @@ version = "0.0.1"
 description = "Turns off the reply ping by default, or only pings the people you list."
 icon = "ArrowAngleLeftUpIcon"
 base = "plugins/astral.no-reply-mention/"
+authors = [
+	{ name = "DustyAngel47", id = "714583473804935238" },
+	{ name = "rae", id = "1398136199503282277" },
+	{ name = "pylix", id = "492949202121261067" },
+	{ name = "outfoxxed", id = "837425748435796060" },
+	{ name = "adrian", id = "224617799434108928" },
+]
 
 [[plugins]]
 id = "astral.tone-indicators"
@@ -179,6 +261,7 @@ version = "0.0.1"
 description = "Turns tone tags such as /j and /srs into pills that spell out what they mean."
 icon = "TextIcon"
 base = "plugins/astral.tone-indicators/"
+authors = [{ name = "justjxke", id = "852558183087472640" }, { name = "adrian", id = "224617799434108928" }]
 
 [[plugins]]
 id = "astral.message-text-size"
@@ -187,6 +270,7 @@ version = "0.0.1"
 description = "Makes the text of chat messages bigger or smaller, leaving the rest of Discord as it is."
 icon = "TextIcon"
 base = "plugins/astral.message-text-size/"
+authors = [{ name = "adrian", id = "224617799434108928" }]
 
 [[plugins]]
 id = "astral.chat-bubbles"
@@ -195,6 +279,11 @@ version = "0.0.2"
 description = "Draws a rounded bubble behind each message's text, media and embeds."
 icon = "ChatDotsIcon"
 base = "plugins/astral.chat-bubbles/"
+authors = [
+	{ name = "eternal", id = "263689920210534400" },
+	{ name = "Rosie<3", id = "581573474296791211" },
+	{ name = "adrian", id = "224617799434108928" },
+]
 
 [[plugins]]
 id = "astral.clear-urls"
@@ -203,6 +292,7 @@ version = "0.0.1"
 description = "Removes common tracking parameters from links before messages are sent or edited."
 icon = "LinkIcon"
 base = "plugins/astral.clear-urls/"
+authors = [{ name = "adrian", id = "224617799434108928" }]
 
 [[plugins]]
 id = "astral.text-replace"
@@ -211,6 +301,7 @@ version = "0.0.1"
 description = "Rewrites outgoing message text with literal or Lua pattern rules."
 icon = "TextIcon"
 base = "plugins/astral.text-replace/"
+authors = [{ name = "adrian", id = "224617799434108928" }]
 
 [[plugins]]
 id = "astral.mention-haptics"
@@ -219,6 +310,7 @@ version = "0.0.2"
 description = "Taps your phone when a new message mentions you, your roles or everyone, or arrives in a direct message."
 icon = "BellIcon"
 base = "plugins/astral.mention-haptics/"
+authors = [{ name = "adrian", id = "224617799434108928" }]
 
 [[plugins]]
 id = "astral.enhanced-blocking"
@@ -227,6 +319,7 @@ version = "0.0.2"
 description = "Hides messages by user, keyword or reply author, including people you blocked, edits and messages already loaded."
 icon = "EyeSlashIcon"
 base = "plugins/astral.enhanced-blocking/"
+authors = [{ name = "adrian", id = "224617799434108928" }]
 
 [[plugins]]
 id = "astral.highlight-replies"
@@ -235,6 +328,7 @@ version = "0.0.1"
 description = "Tints the text of messages that reply to your messages."
 icon = "ArrowAngleLeftUpIcon"
 base = "plugins/astral.highlight-replies/"
+authors = [{ name = "adrian", id = "224617799434108928" }]
 
 [[plugins]]
 id = "astral.translate"
@@ -243,6 +337,7 @@ version = "0.0.2"
 description = "Translates a message from its long-press menu with Unbound Translate, Google or MyMemory, into a toast or under the message."
 icon = "LanguageIcon"
 base = "plugins/astral.translate/"
+authors = [{ name = "adrian", id = "224617799434108928" }]
 
 [[plugins]]
 id = "astral.live-markdown"
@@ -251,6 +346,7 @@ version = "0.0.1"
 description = "Styles Discord markdown as you type in the message composer."
 icon = "TextIcon"
 base = "plugins/astral.live-markdown/"
+authors = [{ name = "adrian", id = "224617799434108928" }]
 
 [[plugins]]
 id = "astral.more-user-tags"
@@ -258,6 +354,14 @@ name = "More User Tags"
 version = "0.0.2"
 description = "Adds tags for webhooks and moderative roles, and can show each member's top coloured role."
 base = "plugins/astral.more-user-tags/"
+authors = [
+	{ name = "Cynosphere", id = "150745989836308480" },
+	{ name = "sunnie", id = "406028027768733696" },
+	{ name = "RyanCaoDev", id = "952235800110694471" },
+	{ name = "LordElias", id = "319460781567639554" },
+	{ name = "AutumnVN", id = "393694671383166998" },
+	{ name = "adrian", id = "224617799434108928" },
+]
 
 [[plugins]]
 id = "astral.show-me-your-name"
@@ -265,6 +369,12 @@ name = "Show Me Your Name"
 version = "0.0.1"
 description = "Display usernames next to display names, or show usernames only."
 base = "plugins/astral.show-me-your-name/"
+authors = [
+	{ name = "rini", id = "0" },
+	{ name = "TheKodeToad", id = "706152404072267788" },
+	{ name = "rae", id = "1398136199503282277" },
+	{ name = "adrian", id = "224617799434108928" },
+]
 
 [[plugins]]
 id = "astral.settings-theme"
@@ -273,6 +383,7 @@ version = "0.0.1"
 description = "Shows your theme behind User Settings and every page in it, which Discord leaves plain."
 icon = "PaintPaletteIcon"
 base = "plugins/astral.settings-theme/"
+authors = [{ name = "adrian", id = "224617799434108928" }]
 
 [[plugins]]
 id = "astral.mention-avatars"
@@ -281,6 +392,11 @@ version = "0.0.1"
 description = "Shows user avatars and role icons inside mentions."
 icon = "UserCircleIcon"
 base = "plugins/astral.mention-avatars/"
+authors = [
+	{ name = "V", id = "343383572805058560" },
+	{ name = "SerStars", id = "861631850681729045" },
+	{ name = "adrian", id = "224617799434108928" },
+]
 
 [[plugins]]
 id = "astral.role-color-everywhere"
@@ -289,6 +405,16 @@ version = "0.0.1"
 description = "Colors mentions, message text, role headers and names beside avatars with members' role colors."
 icon = "PaintPaletteIcon"
 base = "plugins/astral.role-color-everywhere/"
+authors = [
+	{ name = "King Fish", id = "499400512559382538" },
+	{ name = "lewisakura", id = "96269247411400704" },
+	{ name = "AutumnVN", id = "393694671383166998" },
+	{ name = "Kyuuhachi", id = "236588665420251137" },
+	{ name = "jamesbt365", id = "158567567487795200" },
+	{ name = "fres", id = "843448897737064448" },
+	{ name = "adrian", id = "224617799434108928" },
+	{ name = "eternal", id = "263689920210534400" },
+]
 
 [[plugins]]
 id = "astral.typing-avatars"
@@ -297,6 +423,11 @@ version = "0.0.1"
 description = "Shows the avatar of each person typing in front of their name."
 icon = "UserCircleIcon"
 base = "plugins/astral.typing-avatars/"
+authors = [
+	{ name = "zt", id = "289556910426816513" },
+	{ name = "sadan", id = "521819891141967883" },
+	{ name = "adrian", id = "224617799434108928" },
+]
 
 [[plugins]]
 id = "astral.reaction-avatars"
@@ -305,6 +436,14 @@ version = "0.0.1"
 description = "Shows the people who reacted beside each message reaction."
 icon = "ReactionIcon"
 base = "plugins/astral.reaction-avatars/"
+authors = [
+	{ name = "V", id = "343383572805058560" },
+	{ name = "Kanna", id = "317728561106518019" },
+	{ name = "newwares", id = "421405303951851520" },
+	{ name = "paige", id = "1375697625864601650" },
+	{ name = "adrian", id = "224617799434108928" },
+	{ name = "eternal", id = "263689920210534400" },
+]
 
 [[plugins]]
 id = "astral.anonymise-filenames"
@@ -313,6 +452,7 @@ version = "0.0.1"
 description = "Replaces the names of files you upload with random characters, a fixed name or a timestamp, keeping the extension."
 icon = "FileIcon"
 base = "plugins/astral.anonymise-filenames/"
+authors = [{ name = "fawn", id = "336678828233588736" }, { name = "adrian", id = "224617799434108928" }]
 
 [[plugins]]
 id = "astral.blur-nsfw"
@@ -321,6 +461,7 @@ version = "0.0.1"
 description = "Blurs attachments in age-restricted channels until you tap them."
 icon = "EyeSlashIcon"
 base = "plugins/astral.blur-nsfw/"
+authors = [{ name = "V", id = "343383572805058560" }, { name = "adrian", id = "224617799434108928" }]
 
 [[plugins]]
 id = "astral.selectable-bios"
@@ -329,6 +470,7 @@ version = "0.0.1"
 description = "Lets you select and copy any part of someone's profile bio."
 icon = "TextIcon"
 base = "plugins/astral.selectable-bios/"
+authors = [{ name = "adrian", id = "224617799434108928" }]
 
 [[plugins]]
 id = "astral.dearrow"
@@ -337,6 +479,7 @@ version = "0.0.1"
 description = "Makes YouTube embed titles and thumbnails less sensationalist, powered by DeArrow."
 icon = "ImageIcon"
 base = "plugins/astral.dearrow/"
+authors = [{ name = "V", id = "343383572805058560" }, { name = "adrian", id = "224617799434108928" }]
 
 [[plugins]]
 id = "astral.custom-commands"
@@ -345,6 +488,11 @@ version = "0.0.1"
 description = "Create slash commands that send saved text, images, and videos."
 icon = "KeyboardIcon"
 base = "plugins/astral.custom-commands/"
+authors = [
+	{ name = "V", id = "343383572805058560" },
+	{ name = "Luny", id = "821472922140803112" },
+	{ name = "adrian", id = "224617799434108928" },
+]
 
 [[themes]]
 id = "mana"

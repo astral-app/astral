@@ -200,6 +200,8 @@ pub fn with_spec(model: &Value, body: impl FnOnce(&AstralPageSpec)) {
                 avatars,
                 avatar_count,
                 has_settings: boolean(card, "hasSettings"),
+                action: keep(optional_text(card, "action")),
+                action_primary: boolean(card, "actionPrimary"),
                 on: boolean(card, "on"),
                 failed: boolean(card, "failed"),
             }

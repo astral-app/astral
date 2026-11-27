@@ -216,6 +216,18 @@ static void cardPageTest(void)
     astral_wire_buffer_free(&out);
     assert(astral_page_pop(&out));
     astral_wire_buffer_free(&out);
+
+    static const AstralCardSpec market[] = {
+        {.key = "plugin.dev.astral.tags", .title = "More User Tags", .action = "Get", .actionPrimary = 1},
+    };
+    AstralPageSpec store = {.title = "Marketplace", .cards = market, .cardCount = 1};
+    assert(astral_page_push(&store, &out));
+    astral_wire_summarise(out.bytes, out.length, sink, NULL);
+    assert(strstr(line, "[9,6,\"astral.row.plugin.dev.astral.tags\"]"));
+    assert(!strstr(line, "astral.switch.plugin.dev.astral.tags"));
+    astral_wire_buffer_free(&out);
+    assert(astral_page_pop(&out));
+    astral_wire_buffer_free(&out);
 }
 
 static void categoryRowsTest(void)

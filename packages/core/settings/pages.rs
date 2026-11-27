@@ -44,6 +44,7 @@ static PLATFORM: RwLock<Platform> = RwLock::new(Platform {
     version: String::new(),
 });
 static FILTER: Mutex<String> = Mutex::new(String::new());
+static MARKET_KIND: Mutex<String> = Mutex::new(String::new());
 
 fn platform<T>(read: impl FnOnce(&Platform) -> T) -> T {
     read(&PLATFORM.read().unwrap_or_else(|poisoned| poisoned.into_inner()))
@@ -1036,29 +1037,6 @@ fn package_icon(package: &Value, identifier: &str) -> String {
     }
 }
 
-fn package_row(package: &Value, kind: &str) -> Value {
-    let identifier = string(package, "id");
-    let installed = installed_version(&identifier, kind);
-    let status = install_status(&identifier).unwrap_or_else(|| match &installed {
-        None => tr("ASTRAL_GET").into(),
-        Some(installed) if version_is_newer(&string(package, "version"), installed) => tr("ASTRAL_UPDATE").into(),
-        Some(_) => tr("ASTRAL_INSTALLED").into(),
-    });
-    let icon = if kind == "theme" {
-        "res://ic_mana_paint_palette".to_owned()
-    } else {
-        package_icon(package, &identifier)
-    };
-    let mut subtitle = string(package, "description");
-    if package.get("version").is_some_and(Value::is_string) {
-        subtitle = format!("v{} · {subtitle}", string(package, "version"));
-    }
-    with(
-        row(&format!("{kind}.{identifier}"), &string(package, "name"), &icon, ROW_LINK),
-        json!({"detail": status, "subtitle": subtitle}),
-    )
-}
-
 fn check_row(key: &str, title: &str) -> Value {
     let status = match host_text("catalogState").as_str() {
         "loading" => json!({"detail": tr("ASTRAL_LOADING_THE_CATALOG")}),
@@ -1073,36 +1051,69 @@ fn catalog() -> Value {
     if value.is_object() { value } else { json!({}) }
 }
 
+fn package_card(package: &Value, kind: &str) -> Value {
+    let identifier = string(package, "id");
+    let installed = installed_version(&identifier, kind);
+    let newer = installed
+        .as_ref()
+        .is_some_and(|installed| version_is_newer(&string(package, "version"), installed));
+    let status = install_status(&identifier);
+    let action = status.clone().unwrap_or_else(|| match &installed {
+        None => tr("ASTRAL_GET").into(),
+        Some(_) if newer => tr("ASTRAL_UPDATE").into(),
+        Some(_) => tr("ASTRAL_INSTALLED").into(),
+    });
+    let icon = if kind == "theme" {
+        "res://ic_mana_paint_palette".to_owned()
+    } else {
+        package_icon(package, &identifier)
+    };
+    json!({
+        "key": format!("{kind}.{identifier}"),
+        "title": string(package, "name"),
+        "authors": author_names(package),
+        "avatars": author_avatars(package),
+        "description": string(package, "description"),
+        "version": format!("v{}", string(package, "version")),
+        "icon": icon,
+        "action": action,
+        "actionPrimary": status.is_none() && (installed.is_none() || newer),
+    })
+}
+
+fn market_kind() -> String {
+    let current = MARKET_KIND.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).clone();
+    if current.is_empty() { "plugin".into() } else { current }
+}
+
 fn marketplace_page() -> Value {
     let packages = catalog();
-    let mut sections = Vec::new();
-    for kind in ["plugin", "theme"] {
-        let rows: Vec<Value> = array(&packages, &format!("{kind}s"))
-            .iter()
-            .map(|package| package_row(package, kind))
-            .collect();
-        if !rows.is_empty() {
-            sections.push(section(
-                if kind == "plugin" {
-                    tr("ASTRAL_PLUGINS")
-                } else {
-                    tr("ASTRAL_THEMES")
-                },
-                rows,
-            ));
-        }
-    }
-    sections.push(section(
-        tr("ASTRAL_SOURCE"),
-        vec![
-            with(
-                row("catalog-url", tr("ASTRAL_CATALOG"), "res://ic_mana_link", ROW_INFO),
-                json!({"subtitle": host_text("catalogURL")}),
-            ),
-            check_row("refresh", tr("ASTRAL_REFRESH")),
-        ],
-    ));
-    page(tr("ASTRAL_MARKETPLACE"), sections)
+    let current = market_kind();
+    let counts = |kind: &str| array(&packages, &format!("{kind}s")).len().to_string();
+    let chips = json!([
+        {"key": "market.plugin", "title": tr_with("ASTRAL_MARKET_PLUGINS", &[("count", counts("plugin"))]), "selected": current == "plugin"},
+        {"key": "market.theme", "title": tr_with("ASTRAL_MARKET_THEMES", &[("count", counts("theme"))]), "selected": current == "theme"},
+    ]);
+    let cards: Vec<Value> = array(&packages, &format!("{current}s"))
+        .iter()
+        .map(|package| package_card(package, &current))
+        .collect();
+    let mut result = page(
+        tr("ASTRAL_MARKETPLACE"),
+        vec![section(
+            tr("ASTRAL_SOURCE"),
+            vec![
+                with(
+                    row("catalog-url", tr("ASTRAL_CATALOG"), "res://ic_mana_link", ROW_INFO),
+                    json!({"subtitle": host_text("catalogURL")}),
+                ),
+                check_row("refresh", tr("ASTRAL_REFRESH")),
+            ],
+        )],
+    );
+    result["toolbar"] = json!({"chips": chips});
+    result["cards"] = Value::Array(cards);
+    result
 }
 
 fn pending_updates() -> Vec<(Value, &'static str)> {
@@ -1558,6 +1569,12 @@ pub fn action(route: &str, key: &str, changed: Changed) -> Option<String> {
         if let Some(theme) = key.strip_prefix("theme.") {
             return simple("applyTheme", &json!([theme]));
         }
+    }
+    if route == "marketplace"
+        && let Some(kind) = key.strip_prefix("market.")
+    {
+        *MARKET_KIND.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = kind.to_owned();
+        return None;
     }
     if route == "marketplace" || route == "updates" {
         install_from_key(key, &changed);
