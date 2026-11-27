@@ -1,4 +1,4 @@
-use astral_core::app::{self, network};
+use astral_core::app::{self, exchange, network};
 
 use crate::text::{AstralOwned, AstralText};
 
@@ -67,61 +67,20 @@ pub unsafe extern "C" fn astral_ios_plan_request(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn astral_ios_rewrite_image(
-    method: AstralText,
-    host: AstralText,
-    url: AstralText,
-) -> AstralOwned {
-    AstralOwned::optional(network::rewrite_image(
-        &method.text(),
-        &host.text(),
-        &url.text(),
-    ))
+pub extern "C" fn astral_ios_network_begin(request: AstralText) -> AstralOwned {
+    AstralOwned::text(exchange::begin(&request.text(), exchange::EVERY_STAGE).to_string())
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn astral_ios_transform_outgoing(
-    method: AstralText,
-    host: AstralText,
-    path: AstralText,
-    body: AstralText,
-) -> AstralOwned {
-    network::transform_outgoing(&method.text(), &host.text(), &path.text(), body.bytes())
-        .map_or(AstralOwned::NONE, AstralOwned::new)
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn astral_ios_intercept_request(request: AstralText) -> AstralOwned {
-    let decision = network::intercept_request(&request.text());
-    if decision.is_null() {
-        return AstralOwned::NONE;
-    }
-    AstralOwned::text(decision.to_string())
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn astral_ios_intercept_response(
-    request: AstralText,
-    response: AstralText,
-) -> AstralOwned {
+pub extern "C" fn astral_ios_network_finish(exchange_id: u64, response: AstralText) -> AstralOwned {
     AstralOwned::optional(
-        network::intercept_response(&request.text(), &response.text())
-            .map(|value| value.to_string()),
+        exchange::finish(exchange_id, &response.text()).map(|value| value.to_string()),
     )
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn astral_ios_marks_staff(
-    method: AstralText,
-    host: AstralText,
-    path: AstralText,
-) -> bool {
-    network::marks_staff(&method.text(), &host.text(), &path.text())
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn astral_ios_mark_staff_user(body: AstralText) -> AstralOwned {
-    network::mark_staff_user(body.bytes()).map_or(AstralOwned::NONE, AstralOwned::new)
+pub extern "C" fn astral_ios_network_abandon(exchange_id: u64) {
+    exchange::abandon(exchange_id);
 }
 
 #[unsafe(no_mangle)]

@@ -115,7 +115,7 @@ fn body_of(value: &Value) -> Vec<u8> {
         .unwrap_or_default()
 }
 
-fn request_of(value: &Value) -> HttpRequest {
+pub fn request_of(value: &Value) -> HttpRequest {
     let text = |key: &str| value.get(key).and_then(Value::as_str).unwrap_or_default().to_owned();
     HttpRequest {
         method: method_or_get(&text("method")).to_owned(),
@@ -126,7 +126,7 @@ fn request_of(value: &Value) -> HttpRequest {
     }
 }
 
-fn response_of(value: &Value) -> HttpResponse {
+pub fn response_of(value: &Value) -> HttpResponse {
     HttpResponse {
         status: value.get("status").and_then(Value::as_i64).unwrap_or(0),
         headers: headers_of(value.get("headers").unwrap_or(&Value::Null)),
@@ -134,7 +134,7 @@ fn response_of(value: &Value) -> HttpResponse {
     }
 }
 
-fn request_json(request: &HttpRequest) -> Value {
+pub fn request_json(request: &HttpRequest) -> Value {
     json!({
         "method": request.method,
         "url": request.url,
@@ -144,7 +144,7 @@ fn request_json(request: &HttpRequest) -> Value {
     })
 }
 
-fn response_json(response: &HttpResponse) -> Value {
+pub fn response_json(response: &HttpResponse) -> Value {
     json!({
         "status": response.status,
         "headers": headers_json(&response.headers),
