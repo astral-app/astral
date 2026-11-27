@@ -1,0 +1,3 @@
+ATTACHMENTS = "附件"
+ATTACHMENTS_SUBTITLE = "模糊上传的图片、GIF 和视频，点按后显示"
+BLUR = "模糊"

@@ -1,0 +1,11 @@
+id = "astral.selectable-bios"
+name = "Selectable Bios"
+description = "Lets you select and copy any part of someone's profile bio."
+version = "0.0.1"
+icon = "TextIcon"
+main = "main.lua"
+permissions = ["ui.patch"]
+
+[[authors]]
+name = "adrian"
+id = "224617799434108928"

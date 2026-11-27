@@ -1,0 +1,15 @@
+id = "astral.anonymise-filenames"
+name = "Anonymise File Names"
+description = "Replaces the names of files you upload with random characters, a fixed name or a timestamp, keeping the extension."
+version = "0.0.1"
+icon = "FileIcon"
+main = "main.lua"
+permissions = ["net.discord"]
+
+[[authors]]
+name = "fawn"
+id = "336678828233588736"
+
+[[authors]]
+name = "adrian"
+id = "224617799434108928"

@@ -1,0 +1,8 @@
+ANONYMISE_BY_DEFAULT = "Standardmäßig anonymisieren"
+FILE_NAME = "Dateiname"
+FILE_NAME_SUBTITLE = "Jede Datei wird mit diesem Namen und ihrer eigenen Endung hochgeladen."
+LENGTH = "Länge"
+METHOD = "Methode"
+METHOD_CONSISTENT = "Gleichbleibend"
+METHOD_RANDOM = "Zufällige Zeichen"
+METHOD_TIMESTAMP = "Zeitstempel"

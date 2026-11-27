@@ -1,0 +1,8 @@
+ANONYMISE_BY_DEFAULT = "Standaard anonimiseren"
+FILE_NAME = "Bestandsnaam"
+FILE_NAME_SUBTITLE = "Elk bestand wordt geüpload met deze naam en zijn eigen extensie."
+LENGTH = "Lengte"
+METHOD = "Methode"
+METHOD_CONSISTENT = "Consistent"
+METHOD_RANDOM = "Willekeurige tekens"
+METHOD_TIMESTAMP = "Tijdstempel"

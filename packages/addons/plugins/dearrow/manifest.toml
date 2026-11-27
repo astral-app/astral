@@ -1,0 +1,15 @@
+id = "astral.dearrow"
+name = "Dearrow"
+description = "Makes YouTube embed titles and thumbnails less sensationalist, powered by DeArrow."
+version = "0.0.1"
+icon = "ImageIcon"
+main = "main.lua"
+permissions = ["events.gateway", "net.discord", "network", "messages.local", "ui.message_actions"]
+
+[[authors]]
+name = "V"
+id = "343383572805058560"
+
+[[authors]]
+name = "adrian"
+id = "224617799434108928"

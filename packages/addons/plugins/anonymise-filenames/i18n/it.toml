@@ -1,0 +1,8 @@
+ANONYMISE_BY_DEFAULT = "Anonimizza per impostazione predefinita"
+FILE_NAME = "Nome del file"
+FILE_NAME_SUBTITLE = "Ogni file viene caricato con questo nome e la propria estensione."
+LENGTH = "Lunghezza"
+METHOD = "Metodo"
+METHOD_CONSISTENT = "Fisso"
+METHOD_RANDOM = "Caratteri casuali"
+METHOD_TIMESTAMP = "Data e ora"

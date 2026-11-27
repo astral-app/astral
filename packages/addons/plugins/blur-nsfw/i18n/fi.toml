@@ -1,0 +1,3 @@
+ATTACHMENTS = "Liitteet"
+ATTACHMENTS_SUBTITLE = "Sumenna lähetetyt kuvat, GIFit ja videot, kunnes niitä napautetaan"
+BLUR = "Sumennus"

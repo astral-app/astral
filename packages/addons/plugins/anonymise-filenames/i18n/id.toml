@@ -1,0 +1,8 @@
+ANONYMISE_BY_DEFAULT = "Anonimkan secara Bawaan"
+FILE_NAME = "Nama File"
+FILE_NAME_SUBTITLE = "Setiap file diunggah dengan nama ini dan ekstensinya sendiri."
+LENGTH = "Panjang"
+METHOD = "Metode"
+METHOD_CONSISTENT = "Konsisten"
+METHOD_RANDOM = "Karakter Acak"
+METHOD_TIMESTAMP = "Stempel Waktu"

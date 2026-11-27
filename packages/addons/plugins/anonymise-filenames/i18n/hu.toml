@@ -1,0 +1,8 @@
+ANONYMISE_BY_DEFAULT = "Anonimizálás alapértelmezetten"
+FILE_NAME = "Fájlnév"
+FILE_NAME_SUBTITLE = "Minden fájl ezzel a névvel és a saját kiterjesztésével töltődik fel."
+LENGTH = "Hossz"
+METHOD = "Módszer"
+METHOD_CONSISTENT = "Állandó"
+METHOD_RANDOM = "Véletlenszerű karakterek"
+METHOD_TIMESTAMP = "Időbélyeg"

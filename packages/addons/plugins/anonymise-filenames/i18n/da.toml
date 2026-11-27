@@ -1,0 +1,8 @@
+ANONYMISE_BY_DEFAULT = "Anonymiser som standard"
+FILE_NAME = "Filnavn"
+FILE_NAME_SUBTITLE = "Alle filer uploades med dette navn og deres egen filtype."
+LENGTH = "Længde"
+METHOD = "Metode"
+METHOD_CONSISTENT = "Ensartet"
+METHOD_RANDOM = "Tilfældige tegn"
+METHOD_TIMESTAMP = "Tidsstempel"

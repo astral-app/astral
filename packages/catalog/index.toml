@@ -306,6 +306,46 @@ description = "Shows the people who reacted beside each message reaction."
 icon = "ReactionIcon"
 base = "plugins/astral.reaction-avatars/"
 
+[[plugins]]
+id = "astral.anonymise-filenames"
+name = "Anonymise File Names"
+version = "0.0.1"
+description = "Replaces the names of files you upload with random characters, a fixed name or a timestamp, keeping the extension."
+icon = "FileIcon"
+base = "plugins/astral.anonymise-filenames/"
+
+[[plugins]]
+id = "astral.blur-nsfw"
+name = "Blur NSFW"
+version = "0.0.1"
+description = "Blurs attachments in age-restricted channels until you tap them."
+icon = "EyeSlashIcon"
+base = "plugins/astral.blur-nsfw/"
+
+[[plugins]]
+id = "astral.selectable-bios"
+name = "Selectable Bios"
+version = "0.0.1"
+description = "Lets you select and copy any part of someone's profile bio."
+icon = "TextIcon"
+base = "plugins/astral.selectable-bios/"
+
+[[plugins]]
+id = "astral.dearrow"
+name = "Dearrow"
+version = "0.0.1"
+description = "Makes YouTube embed titles and thumbnails less sensationalist, powered by DeArrow."
+icon = "ImageIcon"
+base = "plugins/astral.dearrow/"
+
+[[plugins]]
+id = "astral.custom-commands"
+name = "Custom Commands"
+version = "0.0.1"
+description = "Create slash commands that send saved text, images, and videos."
+icon = "KeyboardIcon"
+base = "plugins/astral.custom-commands/"
+
 [[themes]]
 id = "mana"
 name = "Mana"

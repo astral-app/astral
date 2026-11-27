@@ -1,0 +1,8 @@
+ANONYMISE_BY_DEFAULT = "Ẩn danh theo mặc định"
+FILE_NAME = "Tên tệp"
+FILE_NAME_SUBTITLE = "Mọi tệp đều được tải lên với tên này và đuôi tệp riêng của nó."
+LENGTH = "Độ dài"
+METHOD = "Phương thức"
+METHOD_CONSISTENT = "Cố định"
+METHOD_RANDOM = "Ký tự ngẫu nhiên"
+METHOD_TIMESTAMP = "Dấu thời gian"

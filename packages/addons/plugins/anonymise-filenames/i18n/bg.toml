@@ -1,0 +1,8 @@
+ANONYMISE_BY_DEFAULT = "Анонимизиране по подразбиране"
+FILE_NAME = "Име на файла"
+FILE_NAME_SUBTITLE = "Всеки файл се качва с това име и собственото си разширение."
+LENGTH = "Дължина"
+METHOD = "Метод"
+METHOD_CONSISTENT = "Постоянно"
+METHOD_RANDOM = "Случайни символи"
+METHOD_TIMESTAMP = "Времеви печат"

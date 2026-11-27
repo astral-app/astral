@@ -14,7 +14,7 @@ const EDGE_COUNT: i64 = 4;
 use crate::wire::abi::{
     AstralLabelContext, AstralMentionContext, AstralMentionDecoration, AstralNodePatch, AstralPatchTarget, LABEL_CHANNEL, LABEL_COMPOSER,
     LABEL_MEMBER, LABEL_PROFILE, LABEL_REPLY, PATCH_BACKGROUND, PATCH_BORDER, PATCH_GRADIENT, PATCH_GRADIENT_STOPS, PATCH_HIDDEN,
-    PATCH_MARGIN, PATCH_OPACITY, PATCH_PADDING, PATCH_RADIUS, PATCH_SEE_THROUGH, PATCH_TEXT_COLOR, PATCH_TEXT_SCALE,
+    PATCH_MARGIN, PATCH_OPACITY, PATCH_PADDING, PATCH_RADIUS, PATCH_SEE_THROUGH, PATCH_SELECTABLE, PATCH_TEXT_COLOR, PATCH_TEXT_SCALE,
 };
 
 const GRADIENT_ANGLE: f64 = 180.0;
@@ -397,6 +397,11 @@ pub unsafe fn read_node_patch(state: *mut LuaState, patch: &mut AstralNodePatch)
         lua::get_field(state, -1, "hidden");
         if lua::lua_toboolean(state, -1) != 0 {
             patch.fields |= PATCH_HIDDEN;
+        }
+        lua::pop(state, 1);
+        lua::get_field(state, -1, "selectable");
+        if lua::lua_toboolean(state, -1) != 0 {
+            patch.fields |= PATCH_SELECTABLE;
         }
         lua::pop(state, 1);
         lua::get_field(state, -1, "see_through");

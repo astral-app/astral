@@ -791,6 +791,17 @@ pub unsafe fn register_command(state: *mut LuaState) -> Outcome {
     Ok(0)
 }
 
+pub unsafe fn unregister_command(state: *mut LuaState) -> Outcome {
+    let plugin = me(state);
+    unsafe { require_permission(state, Capability::Commands) }?;
+    let name = unsafe { check_text(state, 1) }?;
+    if let Some(index) = plugin.commands.iter().position(|command| command.name == name) {
+        let command = plugin.commands.remove(index);
+        unsafe { lua::release(state, command.reference) };
+    }
+    Ok(0)
+}
+
 pub unsafe fn render_image(state: *mut LuaState) -> Outcome {
     let spec = if unsafe { lua::is_table(state, 1) } {
         unsafe { to_json(state, 1, 0) }.filter(Value::is_object)

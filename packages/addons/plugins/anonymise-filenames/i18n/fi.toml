@@ -1,0 +1,8 @@
+ANONYMISE_BY_DEFAULT = "Anonymisoi oletuksena"
+FILE_NAME = "Tiedostonimi"
+FILE_NAME_SUBTITLE = "Jokainen tiedosto lähetetään tällä nimellä ja omalla tiedostopäätteellään."
+LENGTH = "Pituus"
+METHOD = "Menetelmä"
+METHOD_CONSISTENT = "Yhtenäinen"
+METHOD_RANDOM = "Satunnaiset merkit"
+METHOD_TIMESTAMP = "Aikaleima"

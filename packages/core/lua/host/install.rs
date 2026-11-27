@@ -127,6 +127,7 @@ entries! {
     unsubscribe => ui::unsubscribe_event,
     gateway_dispatch => ui::dispatch_gateway_event,
     register_command => ui::register_command,
+    unregister_command => ui::unregister_command,
     render_image => ui::render_image,
     outgoing_transform => ui::register_outgoing_transform,
     set_message_text => ui::set_message_text,
@@ -275,7 +276,12 @@ pub(crate) fn install_api(plugin: *mut Plugin) {
         group(state, plugin, "files", &[("pick", pick_file), ("cancel", cancel_file_pick)]);
         group(state, plugin, "events", &[("on", subscribe), ("off", unsubscribe)]);
         group(state, plugin, "gateway", &[("dispatch", gateway_dispatch)]);
-        group(state, plugin, "commands", &[("register", register_command)]);
+        group(
+            state,
+            plugin,
+            "commands",
+            &[("register", register_command), ("unregister", unregister_command)],
+        );
         group(state, plugin, "image", &[("render", render_image)]);
         group(
             state,

@@ -1,0 +1,8 @@
+ANONYMISE_BY_DEFAULT = "ซ่อนชื่อไฟล์เป็นค่าเริ่มต้น"
+FILE_NAME = "ชื่อไฟล์"
+FILE_NAME_SUBTITLE = "ทุกไฟล์จะถูกอัปโหลดด้วยชื่อนี้และนามสกุลไฟล์เดิมของตัวเอง"
+LENGTH = "ความยาว"
+METHOD = "วิธีการ"
+METHOD_CONSISTENT = "ชื่อเดียวกันทุกครั้ง"
+METHOD_RANDOM = "ตัวอักษรสุ่ม"
+METHOD_TIMESTAMP = "เวลาประทับ"

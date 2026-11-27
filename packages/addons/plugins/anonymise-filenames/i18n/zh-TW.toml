@@ -1,0 +1,8 @@
+ANONYMISE_BY_DEFAULT = "預設匿名化"
+FILE_NAME = "檔案名稱"
+FILE_NAME_SUBTITLE = "每個檔案都會以此名稱加上其原本的副檔名上傳。"
+LENGTH = "長度"
+METHOD = "方式"
+METHOD_CONSISTENT = "固定名稱"
+METHOD_RANDOM = "隨機字元"
+METHOD_TIMESTAMP = "時間戳記"

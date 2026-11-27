@@ -1,0 +1,8 @@
+ANONYMISE_BY_DEFAULT = "Ανωνυμοποίηση από προεπιλογή"
+FILE_NAME = "Όνομα αρχείου"
+FILE_NAME_SUBTITLE = "Κάθε αρχείο μεταφορτώνεται με αυτό το όνομα και τη δική του επέκταση."
+LENGTH = "Μήκος"
+METHOD = "Μέθοδος"
+METHOD_CONSISTENT = "Σταθερό"
+METHOD_RANDOM = "Τυχαίοι χαρακτήρες"
+METHOD_TIMESTAMP = "Χρονοσήμανση"

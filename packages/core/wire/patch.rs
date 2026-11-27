@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use super::abi::{
     AstralNodePatch, AstralPatchTarget, Callback, PATCH_BACKGROUND, PATCH_BORDER, PATCH_GRADIENT, PATCH_HIDDEN, PATCH_MARGIN,
-    PATCH_OPACITY, PATCH_PADDING, PATCH_RADIUS, PATCH_SEE_THROUGH, PATCH_TEXT_COLOR, PATCH_TEXT_SCALE, current_channel,
+    PATCH_OPACITY, PATCH_PADDING, PATCH_RADIUS, PATCH_SEE_THROUGH, PATCH_SELECTABLE, PATCH_TEXT_COLOR, PATCH_TEXT_SCALE, current_channel,
     wire_message_author, wire_row_message,
 };
 use super::cursor::Cursor;
@@ -82,8 +82,8 @@ impl Slot {
     }
 }
 const SCALED_CAPACITY: usize = 2048;
-const SCALE_DEPTH: u32 = 5;
-const SCALE_NODES: usize = 64;
+const SCALE_DEPTH: u32 = 8;
+const SCALE_NODES: usize = 256;
 pub const IDENTIFIER_LENGTH: usize = 128;
 pub const TYPE_LENGTH: usize = 16;
 
@@ -110,6 +110,7 @@ struct ScaledText {
     base: f64,
     scaled: bool,
     scale: f64,
+    selectable: bool,
 }
 
 #[derive(Default)]
@@ -435,21 +436,30 @@ fn collect_see_through(bytes: *const u8, spans: &[Span], id: i32, background: u3
 }
 
 fn write_scaled(out: &mut Out, scaled: &mut HashMap<i32, ScaledText>, owner: i32, patch: &AstralNodePatch) -> bool {
-    let font_size = properties::current().font_size;
+    let properties = properties::current();
     let scale = if patch.fields & PATCH_TEXT_SCALE != 0 {
         patch.text_scale
     } else {
         1.0
     };
+    let selectable = patch.fields & PATCH_SELECTABLE != 0;
     let mut wrote = false;
     for (id, text) in scaled.iter_mut().filter(|(_, text)| text.owner == owner) {
-        if (scale == 1.0 && !text.scaled) || (text.scaled && text.scale == scale) {
+        let rescale = !((scale == 1.0 && !text.scaled) || (text.scaled && text.scale == scale));
+        let reselect = text.selectable != selectable;
+        if !rescale && !reselect {
             continue;
         }
-        out.update(*id, 1);
-        out.prop_number(font_size, text.base * scale);
-        text.scaled = scale != 1.0;
-        text.scale = scale;
+        out.update(*id, u16::from(rescale) + u16::from(reselect));
+        if rescale {
+            out.prop_number(properties.font_size, text.base * scale);
+            text.scaled = scale != 1.0;
+            text.scale = scale;
+        }
+        if reselect {
+            out.prop_bool(properties.selectable, selectable);
+            text.selectable = selectable;
+        }
         wrote = true;
     }
     wrote
@@ -494,6 +504,7 @@ fn collect_texts(scaled: &mut HashMap<i32, ScaledText>, bytes: *const u8, spans:
                         base,
                         scaled: false,
                         scale: 1.0,
+                        selectable: false,
                     },
                 );
             }
