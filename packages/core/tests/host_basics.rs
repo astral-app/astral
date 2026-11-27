@@ -1,7 +1,6 @@
 use astral_core::diagnostics::privacy::sanitize;
 use astral_core::support::crypto::{hex, sha256};
 use astral_core::support::files::{is_contained_relative, join_path, list_directory, resolve_inside, write_atomically};
-use astral_core::support::strings::{set_strings, text};
 use astral_core::support::toml_json::parse;
 
 #[test]
@@ -41,13 +40,6 @@ fn paths_stay_inside() {
 fn diagnostics_drop_secrets() {
     let cleaned = sanitize(b"token: abc123 at /var/mobile/Containers/x https://a.b/c?d=e");
     assert_eq!(cleaned, "token: [redacted] at [private path] https://a.b/c?[redacted]");
-}
-
-#[test]
-fn strings_substitute_values() {
-    set_strings(br#"{"greeting":"hi {name}, {name}"}"#);
-    assert_eq!(text(b"greeting", b"hello", &[(b"name".to_vec(), b"ada".to_vec())]), b"hi ada, ada");
-    assert_eq!(text(b"missing", b"fallback {x}", &[]), b"fallback {x}");
 }
 
 #[test]

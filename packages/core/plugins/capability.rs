@@ -1,5 +1,5 @@
 macro_rules! capabilities {
-    ($($variant:ident = $value:literal, $description:literal, $icon:literal;)+) => {
+    ($($variant:ident = $value:literal, $description_key:literal, $icon:literal;)+) => {
         #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub enum Capability {
             $($variant),+
@@ -14,10 +14,14 @@ macro_rules! capabilities {
                 }
             }
 
-            pub const fn description(self) -> &'static str {
+            pub const fn description_key(self) -> &'static str {
                 match self {
-                    $(Capability::$variant => $description),+
+                    $(Capability::$variant => $description_key),+
                 }
+            }
+
+            pub fn description(self) -> &'static str {
+                crate::support::translations::tr(self.description_key())
             }
 
             pub const fn icon(self) -> &'static str {
@@ -37,45 +41,45 @@ macro_rules! capabilities {
 }
 
 capabilities! {
-    DiscordGuilds = "discord.guilds", "Reads servers and their roles", "res://ic_mana_server";
-    DiscordMembers = "discord.members", "Reads server members", "res://ic_mana_group";
-    DiscordPermissions = "discord.permissions", "Reads member permissions", "res://ic_mana_shield";
-    DiscordMessages = "discord.messages", "Reads messages in the cache", "res://ic_mana_chat";
-    DiscordMessagesContent = "discord.messages.content", "Reads cached message text", "res://ic_mana_chat";
-    DiscordApi = "discord.api", "Calls Discord's API with your account", "res://ic_mana_shield";
-    DiscordMessagesSend = "discord.messages.send", "Transforms message text before sending", "res://ic_mana_chat";
-    MessagesDisplay = "messages.display", "Changes how message text is shown on this device", "res://ic_mana_chat";
-    EventsMessages = "events.messages", "Receives new message metadata while Discord is open", "res://ic_mana_chat";
-    EventsMessagesFilter = "events.messages.filter", "Reads and filters incoming messages before Discord handles them", "res://ic_mana_chat";
-    EventsLifecycle = "events.lifecycle", "Receives app foreground and background events", "res://ic_mana_calendar";
-    UiClipboard = "ui.clipboard", "Copies text to the system clipboard", "res://ic_mana_copy";
-    NetDiscord = "net.discord", "Reads and changes Discord's own requests, without your token", "res://ic_mana_shield";
-    EventsGateway = "events.gateway", "Reads and changes Discord's live events", "res://ic_mana_bell";
-    MessagesLocal = "messages.local", "Shows local events and messages only you see", "res://ic_mana_chat";
-    Background = "background", "Keeps Discord running in the background", "res://ic_mana_moon";
-    Diagnostics = "diagnostics", "Reads astral's versions, device details and plugin states", "res://ic_mana_bug";
-    Commands = "commands", "Adds slash commands", "res://ic_mana_slash";
-    UiText = "ui.text", "Restyles the text of messages", "res://ic_mana_text";
-    UiImages = "ui.images", "Changes which images Discord shows", "res://ic_mana_image";
-    UiPress = "ui.press", "Presses Discord's own buttons", "res://ic_mana_touch";
-    UiNavigate = "ui.navigate", "Opens channels and scrolls the chat", "res://ic_mana_link";
-    UiComposer = "ui.composer", "Reads and styles draft text in the message composer", "res://ic_mana_chat";
-    UiMessageBackground = "ui.message_background", "Styles message backgrounds", "res://ic_mana_chat";
-    UiDialogs = "ui.dialogs", "Shows dialogs and pickers", "res://ic_mana_chat";
-    UiPatch = "ui.patch", "Restyles parts of Discord's screens", "res://ic_mana_paint_palette";
-    UiInsert = "ui.insert", "Adds buttons and text to Discord's screens", "res://ic_mana_paint_palette";
-    FilesRead = "files.read", "Reads files you pick", "res://ic_mana_image";
-    MediaSave = "media.save", "Changes which file Discord saves to your photos", "res://ic_mana_download";
-    MediaPicker = "media.picker", "Reads the size and length of photos in the media picker", "res://ic_mana_image";
-    MediaOffer = "media.offer", "Answers Discord's next photo picker with an image", "res://ic_mana_image";
-    UiHaptics = "ui.haptics", "Triggers haptic feedback", "res://ic_mana_bell";
-    UiToasts = "ui.toasts", "Shows brief notifications", "res://ic_mana_bell";
-    UiNotifications = "ui.notifications", "Posts system notifications", "res://ic_mana_bell";
-    Audio = "audio", "Plays sounds and reads text aloud", "res://ic_mana_bell";
-    UiMessageActions = "ui.message_actions", "Adds actions to the message menu", "res://ic_mana_chat";
-    UiWebAuth = "ui.web_auth", "Opens a secure sign-in window", "res://ic_mana_link";
-    DiscordUsers = "discord.users", "Reads user profiles", "res://ic_mana_user";
-    DiscordRelationships = "discord.relationships", "Reads your friends, blocks and their nicknames", "res://ic_mana_friends";
-    Network = "network", "Makes HTTPS requests", "res://ic_mana_link";
-    Storage = "storage", "Keeps its own data on this device", "res://ic_mana_download";
+    DiscordGuilds = "discord.guilds", "ASTRAL_PERMISSION_DISCORD_GUILDS", "res://ic_mana_server";
+    DiscordMembers = "discord.members", "ASTRAL_PERMISSION_DISCORD_MEMBERS", "res://ic_mana_group";
+    DiscordPermissions = "discord.permissions", "ASTRAL_PERMISSION_DISCORD_PERMISSIONS", "res://ic_mana_shield";
+    DiscordMessages = "discord.messages", "ASTRAL_PERMISSION_DISCORD_MESSAGES", "res://ic_mana_chat";
+    DiscordMessagesContent = "discord.messages.content", "ASTRAL_PERMISSION_DISCORD_MESSAGES_CONTENT", "res://ic_mana_chat";
+    DiscordApi = "discord.api", "ASTRAL_PERMISSION_DISCORD_API", "res://ic_mana_shield";
+    DiscordMessagesSend = "discord.messages.send", "ASTRAL_PERMISSION_DISCORD_MESSAGES_SEND", "res://ic_mana_chat";
+    MessagesDisplay = "messages.display", "ASTRAL_PERMISSION_MESSAGES_DISPLAY", "res://ic_mana_chat";
+    EventsMessages = "events.messages", "ASTRAL_PERMISSION_EVENTS_MESSAGES", "res://ic_mana_chat";
+    EventsMessagesFilter = "events.messages.filter", "ASTRAL_PERMISSION_EVENTS_MESSAGES_FILTER", "res://ic_mana_chat";
+    EventsLifecycle = "events.lifecycle", "ASTRAL_PERMISSION_EVENTS_LIFECYCLE", "res://ic_mana_calendar";
+    UiClipboard = "ui.clipboard", "ASTRAL_PERMISSION_UI_CLIPBOARD", "res://ic_mana_copy";
+    NetDiscord = "net.discord", "ASTRAL_PERMISSION_NET_DISCORD", "res://ic_mana_shield";
+    EventsGateway = "events.gateway", "ASTRAL_PERMISSION_EVENTS_GATEWAY", "res://ic_mana_bell";
+    MessagesLocal = "messages.local", "ASTRAL_PERMISSION_MESSAGES_LOCAL", "res://ic_mana_chat";
+    Background = "background", "ASTRAL_PERMISSION_BACKGROUND", "res://ic_mana_moon";
+    Diagnostics = "diagnostics", "ASTRAL_PERMISSION_DIAGNOSTICS", "res://ic_mana_bug";
+    Commands = "commands", "ASTRAL_PERMISSION_COMMANDS", "res://ic_mana_slash";
+    UiText = "ui.text", "ASTRAL_PERMISSION_UI_TEXT", "res://ic_mana_text";
+    UiImages = "ui.images", "ASTRAL_PERMISSION_UI_IMAGES", "res://ic_mana_image";
+    UiPress = "ui.press", "ASTRAL_PERMISSION_UI_PRESS", "res://ic_mana_touch";
+    UiNavigate = "ui.navigate", "ASTRAL_PERMISSION_UI_NAVIGATE", "res://ic_mana_link";
+    UiComposer = "ui.composer", "ASTRAL_PERMISSION_UI_COMPOSER", "res://ic_mana_chat";
+    UiMessageBackground = "ui.message_background", "ASTRAL_PERMISSION_UI_MESSAGE_BACKGROUND", "res://ic_mana_chat";
+    UiDialogs = "ui.dialogs", "ASTRAL_PERMISSION_UI_DIALOGS", "res://ic_mana_chat";
+    UiPatch = "ui.patch", "ASTRAL_PERMISSION_UI_PATCH", "res://ic_mana_paint_palette";
+    UiInsert = "ui.insert", "ASTRAL_PERMISSION_UI_INSERT", "res://ic_mana_paint_palette";
+    FilesRead = "files.read", "ASTRAL_PERMISSION_FILES_READ", "res://ic_mana_image";
+    MediaSave = "media.save", "ASTRAL_PERMISSION_MEDIA_SAVE", "res://ic_mana_download";
+    MediaPicker = "media.picker", "ASTRAL_PERMISSION_MEDIA_PICKER", "res://ic_mana_image";
+    MediaOffer = "media.offer", "ASTRAL_PERMISSION_MEDIA_OFFER", "res://ic_mana_image";
+    UiHaptics = "ui.haptics", "ASTRAL_PERMISSION_UI_HAPTICS", "res://ic_mana_bell";
+    UiToasts = "ui.toasts", "ASTRAL_PERMISSION_UI_TOASTS", "res://ic_mana_bell";
+    UiNotifications = "ui.notifications", "ASTRAL_PERMISSION_UI_NOTIFICATIONS", "res://ic_mana_bell";
+    Audio = "audio", "ASTRAL_PERMISSION_AUDIO", "res://ic_mana_bell";
+    UiMessageActions = "ui.message_actions", "ASTRAL_PERMISSION_UI_MESSAGE_ACTIONS", "res://ic_mana_chat";
+    UiWebAuth = "ui.web_auth", "ASTRAL_PERMISSION_UI_WEB_AUTH", "res://ic_mana_link";
+    DiscordUsers = "discord.users", "ASTRAL_PERMISSION_DISCORD_USERS", "res://ic_mana_user";
+    DiscordRelationships = "discord.relationships", "ASTRAL_PERMISSION_DISCORD_RELATIONSHIPS", "res://ic_mana_friends";
+    Network = "network", "ASTRAL_PERMISSION_NETWORK", "res://ic_mana_link";
+    Storage = "storage", "ASTRAL_PERMISSION_STORAGE", "res://ic_mana_download";
 }

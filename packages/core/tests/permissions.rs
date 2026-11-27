@@ -4,7 +4,11 @@ use astral_core::plugins::capability::Capability;
 fn every_capability_round_trips_and_is_described() {
     for capability in Capability::ALL {
         assert_eq!(Capability::parse(capability.value()), Some(*capability));
-        assert!(!capability.description().is_empty(), "{capability:?} has no description");
+        assert_ne!(
+            capability.description(),
+            capability.description_key(),
+            "{capability:?} has no description"
+        );
         assert!(capability.icon().starts_with("res://"), "{capability:?} has no icon");
     }
 }

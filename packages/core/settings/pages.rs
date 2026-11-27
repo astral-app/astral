@@ -9,6 +9,7 @@ use crate::render::swatch::{color_text, parse_color, swatch_uri};
 use crate::settings::store::{AstralSettingsHandle, store};
 use crate::support::bridge::{AstralRustString, optional, text};
 use crate::support::host_callback::{AstralCallback, Changed, Reply, adopt_changed};
+use crate::support::translations::{tr, tr_with};
 use crate::wire::decorate::astral_wire_stats;
 
 const PLUGIN_ROUTE: &str = "plugin:";
@@ -221,19 +222,19 @@ fn reports_section() -> Value {
             };
             with(
                 row(&format!("report.{index}"), &string(report, "title"), icon, ROW_LINK),
-                json!({"subtitle": format!("{} · tap to copy and report", report_time(report))}),
+                json!({"subtitle": tr_with("ASTRAL_REPORT_TAP_TO_COPY", &[("time", report_time(report))])}),
             )
         })
         .collect();
     if rows.is_empty() {
         rows.push(row(
             "no-reports",
-            "No crashes or plugin failures",
+            tr("ASTRAL_NO_CRASHES_OR_PLUGIN_FAILURES"),
             "res://ic_mana_circle_check",
             ROW_INFO,
         ));
     }
-    section("Reports", rows)
+    section(tr("ASTRAL_REPORTS"), rows)
 }
 
 struct Context {
@@ -256,14 +257,14 @@ fn general_page(context: &Context) -> Value {
     let developer = setting("developer-mode");
     let blocked = host("blockedRequests", &json!([])).as_u64().unwrap_or(0).to_string();
     let developer_subtitle = if developer {
-        format!("Pairing code {} for astral dev", host_text("pairingCode"))
+        tr_with("ASTRAL_PAIRING_CODE", &[("code", host_text("pairingCode"))])
     } else {
-        "Run plugins that astral has not signed".to_owned()
+        tr("ASTRAL_RUN_PLUGINS_THAT_ASTRAL_HAS_NOT").to_owned()
     };
     let staff_subtitle = if capable("restartGatewaySession") {
-        "Unlock Discord's staff DevTools"
+        tr("ASTRAL_UNLOCK_DISCORDS_STAFF_DEVTOOLS")
     } else {
-        "Unlock Discord's staff DevTools; relaunch Discord to apply"
+        tr("ASTRAL_UNLOCK_DISCORDS_STAFF_DEVTOOLS_RELAUNCH_DISCORD")
     };
     page(
         "astral",
@@ -272,7 +273,7 @@ fn general_page(context: &Context) -> Value {
                 "astral",
                 vec![
                     with(
-                        row("version", "Version", "res://ic_mana_circle_information", ROW_INFO),
+                        row("version", tr("ASTRAL_VERSION"), "res://ic_mana_circle_information", ROW_INFO),
                         json!({"detail": version()}),
                     ),
                     with(
@@ -280,75 +281,80 @@ fn general_page(context: &Context) -> Value {
                         json!({"detail": context.discord_version}),
                     ),
                     with(
-                        row("engine", "Engine", "res://ic_mana_settings", ROW_INFO),
+                        row("engine", tr("ASTRAL_ENGINE"), "res://ic_mana_settings", ROW_INFO),
                         json!({"detail": "Phoenix"}),
                     ),
                     with(
-                        row("runtime", "Plugin runtime", "res://ic_mana_puzzle_piece", ROW_INFO),
+                        row("runtime", tr("ASTRAL_PLUGIN_RUNTIME"), "res://ic_mana_puzzle_piece", ROW_INFO),
                         json!({"detail": "Lua 5.4"}),
                     ),
                 ],
             ),
             section(
-                "Preferences",
+                tr("ASTRAL_PREFERENCES"),
                 vec![
                     with(
-                        row("safe-mode", "Safe mode", "res://ic_mana_shield", ROW_SWITCH),
-                        json!({"on": setting("safe-mode"), "subtitle": "Start without plugins on the next launch"}),
+                        row("safe-mode", tr("ASTRAL_SAFE_MODE"), "res://ic_mana_shield", ROW_SWITCH),
+                        json!({"on": setting("safe-mode"), "subtitle": tr("ASTRAL_START_WITHOUT_PLUGINS_ON_THE_NEXT")}),
                     ),
                     with(
-                        row("developer-mode", "Developer mode", "res://ic_mana_bug", ROW_SWITCH),
+                        row("developer-mode", tr("ASTRAL_DEVELOPER_MODE"), "res://ic_mana_bug", ROW_SWITCH),
                         json!({"on": developer, "subtitle": developer_subtitle}),
                     ),
                     with(
-                        row("staff-devtools", "Staff DevTools", "res://ic_mana_wrench", ROW_SWITCH),
+                        row("staff-devtools", tr("ASTRAL_STAFF_DEVTOOLS"), "res://ic_mana_wrench", ROW_SWITCH),
                         json!({"on": setting("staff-devtools"), "subtitle": staff_subtitle}),
                     ),
                     with(
-                        row("force-phoenix", "Force Phoenix", "res://ic_mana_settings_arrow_up", ROW_INFO),
-                        json!({"detail": "On", "subtitle": "The React Native fallback stays off"}),
+                        row(
+                            "force-phoenix",
+                            tr("ASTRAL_FORCE_PHOENIX"),
+                            "res://ic_mana_settings_arrow_up",
+                            ROW_INFO,
+                        ),
+                        json!({"detail": tr("ASTRAL_ON"), "subtitle": tr("ASTRAL_THE_REACT_NATIVE_FALLBACK_STAYS_OFF")}),
                     ),
                 ],
             ),
             section(
-                "Backup",
+                tr("ASTRAL_BACKUP"),
                 vec![
                     with(
-                        row("export-backup", "Export settings", "res://ic_mana_download", ROW_LINK),
-                        json!({"subtitle": "Save astral and addon settings to a TOML file"}),
+                        row("export-backup", tr("ASTRAL_EXPORT_SETTINGS"), "res://ic_mana_download", ROW_LINK),
+                        json!({"subtitle": tr("ASTRAL_SAVE_ASTRAL_AND_ADDON_SETTINGS_TO")}),
                     ),
                     with(
-                        row("import-backup", "Import settings", "res://ic_mana_refresh", ROW_LINK),
-                        json!({"subtitle": "Restore a backup and reinstall its marketplace addons"}),
+                        row("import-backup", tr("ASTRAL_IMPORT_SETTINGS"), "res://ic_mana_refresh", ROW_LINK),
+                        json!({"subtitle": tr("ASTRAL_RESTORE_A_BACKUP_AND_REINSTALL_ITS")}),
                     ),
                 ],
             ),
             reports_section(),
             section(
-                "Diagnostics",
+                tr("ASTRAL_DIAGNOSTICS"),
                 vec![
                     with(
-                        row("recovery", "Recovery", "res://ic_mana_refresh", ROW_INFO),
-                        json!({"detail": if context.recovering { "Plugins paused after a crash" } else { "Normal" }}),
+                        row("recovery", tr("ASTRAL_RECOVERY"), "res://ic_mana_refresh", ROW_INFO),
+                        json!({"detail": if context.recovering { tr("ASTRAL_PLUGINS_PAUSED_AFTER_A_CRASH") } else { tr("ASTRAL_NORMAL") }}),
                     ),
                     with(
-                        row("decorations", "Decorations", "res://ic_mana_bug", ROW_INFO),
+                        row("decorations", tr("ASTRAL_DECORATIONS"), "res://ic_mana_bug", ROW_INFO),
                         json!({
                             "detail": stats.tagged.to_string(),
                             "subtitle": format!("{} authors, {} users, {} channels resolved", stats.authors, stats.with_user, stats.with_channel),
                         }),
                     ),
                     with(
-                        row("telemetry", "Telemetry blocked", "res://ic_mana_shield", ROW_INFO),
-                        json!({"detail": blocked, "subtitle": "Requests to Discord's analytics and Sentry dropped this launch"}),
+                        row("telemetry", tr("ASTRAL_TELEMETRY_BLOCKED"), "res://ic_mana_shield", ROW_INFO),
+                        json!({"detail": blocked, "subtitle": tr("ASTRAL_REQUESTS_TO_DISCORDS_ANALYTICS_AND_SENTRY")}),
                     ),
                     with(
-                        row("reload", "Reload plugins", "res://ic_mana_refresh", ROW_LINK),
-                        json!({"subtitle": "Restart every enabled plugin"}),
+                        row("reload", tr("ASTRAL_RELOAD_PLUGINS"), "res://ic_mana_refresh", ROW_LINK),
+                        json!({"subtitle": tr("ASTRAL_RESTART_EVERY_ENABLED_PLUGIN")}),
                     ),
                     with(
-                        row("soft-restart", "Soft restart", "res://ic_mana_refresh", ROW_LINK),
-                        json!({"subtitle": "Restart astral's runtime, theme and icons without relaunching Discord"}),
+                        row("soft-restart", tr("ASTRAL_SOFT_RESTART"), "res://ic_mana_refresh", ROW_LINK),
+                        json!({"subtitle": tr("ASTRAL_RESTART_ASTRALS_RUNTIME_THEME_AND_ICONS")}),
                     ),
                 ],
             ),
@@ -404,7 +410,10 @@ fn plugin_icon(plugin: &Value) -> String {
 fn permission_description(permission: &str) -> (String, &'static str) {
     match Capability::parse(permission) {
         Some(capability) => (capability.description().to_owned(), capability.icon()),
-        None => (format!("Unknown permission: {permission}"), "res://ic_mana_circle_information"),
+        None => (
+            tr_with("ASTRAL_UNKNOWN_PERMISSION", &[("permission", permission.to_owned())]),
+            "res://ic_mana_circle_information",
+        ),
     }
 }
 
@@ -439,13 +448,13 @@ fn plugin_card(plugin: &Value) -> Value {
         "avatars": author_avatars(plugin),
         "hasSettings": !array(plugin, "switches").is_empty(),
         "description": string(plugin, "description"),
-        "version": if flag(plugin, "signed") { format!("v{version}") } else { format!("v{version} · unsigned") },
+        "version": if flag(plugin, "signed") { format!("v{version}") } else { tr_with("ASTRAL_VERSION_UNSIGNED", &[("version", version.clone())]) },
         "icon": plugin_icon(plugin),
         "on": plugin_enabled(plugin),
         "failed": flag(plugin, "failed"),
     });
     if flag(plugin, "failed") {
-        card["error"] = json!(format!("Stopped after errors: {}", string(plugin, "error")));
+        card["error"] = json!(tr_with("ASTRAL_STOPPED_AFTER_ERRORS_DETAIL", &[("error", string(plugin, "error"))]));
     }
     card
 }
@@ -460,20 +469,20 @@ fn plugins_page() -> Value {
         .map(plugin_card)
         .collect();
     let chips = json!([
-        {"key": "filter.all", "title": format!("All {}", plugins.len()), "selected": current == "all"},
-        {"key": "filter.enabled", "title": format!("Enabled {enabled}"), "selected": current == "enabled"},
-        {"key": "filter.disabled", "title": format!("Disabled {}", plugins.len() - enabled), "selected": current == "disabled"},
+        {"key": "filter.all", "title": tr_with("ASTRAL_FILTER_ALL", &[("count", plugins.len().to_string())]), "selected": current == "all"},
+        {"key": "filter.enabled", "title": tr_with("ASTRAL_FILTER_ENABLED", &[("count", enabled.to_string())]), "selected": current == "enabled"},
+        {"key": "filter.disabled", "title": tr_with("ASTRAL_FILTER_DISABLED", &[("count", (plugins.len() - enabled).to_string())]), "selected": current == "disabled"},
     ]);
-    let mut result = page("Plugins", Vec::new());
+    let mut result = page(tr("ASTRAL_PLUGINS"), Vec::new());
     result["toolbar"] = json!({"chips": chips, "buttonKey": "browse", "buttonIcon": "res://ic_mana_download"});
     if cards.is_empty() {
         let empty = if plugins.is_empty() {
-            "No plugins installed"
+            tr("ASTRAL_NO_PLUGINS_INSTALLED")
         } else {
-            "No plugins match this filter"
+            tr("ASTRAL_NO_PLUGINS_MATCH_THIS_FILTER")
         };
         result["sections"] = json!([section(
-            "Plugins",
+            tr("ASTRAL_PLUGINS"),
             vec![row("none", empty, "res://ic_mana_filters_horizontal", ROW_INFO)]
         )]);
     }
@@ -483,12 +492,12 @@ fn plugins_page() -> Value {
 
 fn missing_plugin_page() -> Value {
     page(
-        "Plugin",
+        tr("ASTRAL_PLUGIN"),
         vec![section(
-            "Plugin",
+            tr("ASTRAL_PLUGIN"),
             vec![row(
                 "missing",
-                "This plugin is no longer installed",
+                tr("ASTRAL_THIS_PLUGIN_IS_NO_LONGER_INSTALLED"),
                 "res://ic_mana_puzzle_piece_minus",
                 ROW_INFO,
             )],
@@ -510,18 +519,18 @@ fn plugin_page(identifier: &str) -> Value {
         ));
     }
     about.push(with(
-        row("plugin-version", "Version", "res://ic_mana_settings_info", ROW_INFO),
+        row("plugin-version", tr("ASTRAL_VERSION"), "res://ic_mana_settings_info", ROW_INFO),
         json!({"detail": string(&plugin, "version")}),
     ));
     if !array(&plugin, "authors").is_empty() {
         about.push(with(
-            row("authors", "Authors", "res://ic_mana_user", ROW_INFO),
+            row("authors", tr("ASTRAL_AUTHORS"), "res://ic_mana_user", ROW_INFO),
             json!({"subtitle": author_names(&plugin)}),
         ));
     }
     about.push(with(
-        row("source", "Source", "res://ic_mana_download", ROW_INFO),
-        json!({"detail": if flag(&plugin, "bundled") { "Bundled" } else { "Marketplace" }}),
+        row("source", tr("ASTRAL_SOURCE"), "res://ic_mana_download", ROW_INFO),
+        json!({"detail": if flag(&plugin, "bundled") { tr("ASTRAL_BUNDLED") } else { tr("ASTRAL_MARKETPLACE") }}),
     ));
     let mut permissions: Vec<Value> = array(&plugin, "permissions")
         .iter()
@@ -534,41 +543,41 @@ fn plugin_page(identifier: &str) -> Value {
     if permissions.is_empty() {
         permissions.push(row(
             "permission.none",
-            "No access to Discord data",
+            tr("ASTRAL_NO_ACCESS_TO_DISCORD_DATA"),
             "res://ic_mana_shield",
             ROW_INFO,
         ));
     }
     let mut status = vec![with(
-        row("enabled", "Enabled", "res://ic_mana_puzzle_piece", ROW_SWITCH),
+        row("enabled", tr("ASTRAL_ENABLED"), "res://ic_mana_puzzle_piece", ROW_SWITCH),
         json!({"on": plugin_enabled(&plugin)}),
     )];
     if flag(&plugin, "failed") {
         status.push(with(
-            row("error", "Stopped after errors", "res://ic_mana_bug", ROW_INFO),
+            row("error", tr("ASTRAL_STOPPED_AFTER_ERRORS"), "res://ic_mana_bug", ROW_INFO),
             json!({"subtitle": string(&plugin, "error")}),
         ));
-        status.push(row("retry", "Try again", "res://ic_mana_refresh", ROW_LINK));
+        status.push(row("retry", tr("ASTRAL_TRY_AGAIN"), "res://ic_mana_refresh", ROW_LINK));
     }
     let mut manage = vec![reset_row()];
     if !flag(&plugin, "bundled") {
-        manage.push(row("uninstall", "Uninstall", "res://ic_mana_trash", ROW_LINK));
+        manage.push(row("uninstall", tr("ASTRAL_UNINSTALL"), "res://ic_mana_trash", ROW_LINK));
     }
     page(
         &string(&plugin, "name"),
         vec![
-            section("About", about),
-            section("Permissions", permissions),
-            section("Status", status),
-            section("Manage", manage),
+            section(tr("ASTRAL_ABOUT"), about),
+            section(tr("ASTRAL_PERMISSIONS"), permissions),
+            section(tr("ASTRAL_STATUS"), status),
+            section(tr("ASTRAL_MANAGE"), manage),
         ],
     )
 }
 
 fn reset_row() -> Value {
     with(
-        row("reset", "Reset settings", "res://ic_mana_refresh", ROW_LINK),
-        json!({"subtitle": "Return every option to its default"}),
+        row("reset", tr("ASTRAL_RESET_SETTINGS"), "res://ic_mana_refresh", ROW_LINK),
+        json!({"subtitle": tr("ASTRAL_RETURN_EVERY_OPTION_TO_ITS_DEFAULT")}),
     )
 }
 
@@ -582,19 +591,19 @@ fn setting_icon(entry: &Value) -> String {
 
 const COLOR_PRESETS: [(&str, u32); 14] = [
     ("Blurple", 0xFF58_65F2),
-    ("Blue", 0xFF3B_82F6),
-    ("Cyan", 0xFF06_B6D4),
-    ("Teal", 0xFF14_B8A6),
-    ("Green", 0xFF23_A55A),
-    ("Lime", 0xFF84_CC16),
-    ("Yellow", 0xFFF0_B232),
-    ("Orange", 0xFFF9_7316),
-    ("Red", 0xFFF2_3F43),
-    ("Pink", 0xFFEC_4899),
-    ("Purple", 0xFF8B_5CF6),
-    ("Grey", 0xFF80_848E),
-    ("White", 0xFFFF_FFFF),
-    ("Black", 0xFF00_0000),
+    ("ASTRAL_BLUE", 0xFF3B_82F6),
+    ("ASTRAL_CYAN", 0xFF06_B6D4),
+    ("ASTRAL_TEAL", 0xFF14_B8A6),
+    ("ASTRAL_GREEN", 0xFF23_A55A),
+    ("ASTRAL_LIME", 0xFF84_CC16),
+    ("ASTRAL_YELLOW", 0xFFF0_B232),
+    ("ASTRAL_ORANGE", 0xFFF9_7316),
+    ("ASTRAL_RED", 0xFFF2_3F43),
+    ("ASTRAL_PINK", 0xFFEC_4899),
+    ("ASTRAL_PURPLE", 0xFF8B_5CF6),
+    ("ASTRAL_GREY", 0xFF80_848E),
+    ("ASTRAL_WHITE", 0xFFFF_FFFF),
+    ("ASTRAL_BLACK", 0xFF00_0000),
 ];
 
 fn swatch(argb: u32) -> String {
@@ -611,7 +620,11 @@ fn is_color_text(value: &str) -> bool {
 
 fn color_row(entry: &Value) -> Value {
     let value = string(entry, "value");
-    let detail = if value.is_empty() { "Automatic".to_owned() } else { value.clone() };
+    let detail = if value.is_empty() {
+        tr("ASTRAL_AUTOMATIC").to_owned()
+    } else {
+        value.clone()
+    };
     with(
         row(
             &format!("color.{}", string(entry, "key")),
@@ -643,7 +656,7 @@ fn plugin_color_page(target: &str) -> Value {
     let mut matched = value.is_empty();
     let mut presets = vec![row(
         "swatch.auto",
-        "Automatic",
+        tr("ASTRAL_AUTOMATIC"),
         "res://ic_mana_paint_palette",
         if value.is_empty() { ROW_SELECTED } else { ROW_CHOICE },
     )];
@@ -653,18 +666,18 @@ fn plugin_color_page(target: &str) -> Value {
         matched = matched || selected;
         presets.push(row(
             &format!("swatch.{}", &hex[1..]),
-            name,
+            tr(name),
             &swatch(argb),
             if selected { ROW_SELECTED } else { ROW_CHOICE },
         ));
     }
     let custom = vec![with(
-        row("hex", "Hex code", &color_icon(&value), ROW_LINK),
-        json!({"detail": if matched { "Edit".to_owned() } else { value.clone() }, "subtitle": "#RRGGBB, or #AARRGGBB with transparency"}),
+        row("hex", tr("ASTRAL_HEX_CODE"), &color_icon(&value), ROW_LINK),
+        json!({"detail": if matched { tr("ASTRAL_EDIT").to_owned() } else { value.clone() }, "subtitle": tr("ASTRAL_HEX_HINT")}),
     )];
     page(
         &string(&entry, "title"),
-        vec![section("Colors", presets), section("Custom", custom)],
+        vec![section(tr("ASTRAL_COLORS"), presets), section(tr("ASTRAL_CUSTOM"), custom)],
     )
 }
 
@@ -762,7 +775,7 @@ fn setting_row(entry: &Value, text_setting: bool) -> Value {
     } else if text_setting {
         with(
             row(&format!("text.{key}"), &title, &setting_icon(entry), ROW_LINK),
-            json!({"detail": "Edit"}),
+            json!({"detail": tr("ASTRAL_EDIT")}),
         )
     } else if flag(entry, "number") {
         number_row(entry)
@@ -823,9 +836,9 @@ fn plugin_settings_page(identifier: &str) -> Value {
             order.push(choice);
             continue;
         }
-        let name = Some(string_or(entry, "section", "Settings"))
+        let name = Some(string_or(entry, "section", tr("ASTRAL_SETTINGS")))
             .filter(|name| !name.is_empty())
-            .unwrap_or_else(|| "Settings".into());
+            .unwrap_or_else(|| tr("ASTRAL_SETTINGS").into());
         if !grouped.contains_key(&name) {
             grouped.insert(name.clone(), Vec::new());
             order.push(name.clone());
@@ -836,7 +849,7 @@ fn plugin_settings_page(identifier: &str) -> Value {
         .iter()
         .map(|name| section(titles.get(name).unwrap_or(name), grouped.get(name).cloned().unwrap_or_default()))
         .collect();
-    sections.push(section("Manage", vec![reset_row()]));
+    sections.push(section(tr("ASTRAL_MANAGE"), vec![reset_row()]));
     page(&string(&plugin, "name"), sections)
 }
 
@@ -894,35 +907,40 @@ fn design_page() -> Value {
         "res://ic_mana_reaction",
     );
     emoji.push(with(
-        row("emoji-animated", "Animated emoji", "res://ic_mana_sparkles", ROW_SWITCH),
-        json!({"on": host("emojiAnimated", &json!([])).as_bool().unwrap_or(false), "subtitle": "Use a pack's animated emoji where it has them"}),
+        row("emoji-animated", tr("ASTRAL_ANIMATED_EMOJI"), "res://ic_mana_sparkles", ROW_SWITCH),
+        json!({"on": host("emojiAnimated", &json!([])).as_bool().unwrap_or(false), "subtitle": tr("ASTRAL_USE_A_PACKS_ANIMATED_EMOJI_WHERE")}),
     ));
     page(
-        "Design",
+        tr("ASTRAL_DESIGN"),
         vec![
-            section("Themes", themes),
-            section("Icon packs", packs),
-            section("Emoji packs", emoji),
+            section(tr("ASTRAL_THEMES"), themes),
+            section(tr("ASTRAL_ICON_PACKS"), packs),
+            section(tr("ASTRAL_EMOJI_PACKS"), emoji),
             section(
-                "How themes apply",
+                tr("ASTRAL_HOW_THEMES_APPLY"),
                 vec![with(
                     row(
                         "theme-note",
-                        "Recolours Phoenix views right away",
+                        tr("ASTRAL_RECOLOURS_PHOENIX_VIEWS_RIGHT_AWAY"),
                         "res://ic_mana_circle_information",
                         ROW_INFO,
                     ),
-                    json!({"subtitle": "Colours change on screen as soon as you pick a theme"}),
+                    json!({"subtitle": tr("ASTRAL_COLOURS_CHANGE_ON_SCREEN_AS_SOON")}),
                 )],
             ),
             section(
-                "Get more",
+                tr("ASTRAL_GET_MORE"),
                 vec![
                     with(
-                        row("import-unbound-theme", "Import Unbound theme", "res://ic_mana_download", ROW_LINK),
-                        json!({"subtitle": "Convert an Unbound theme file into an astral theme"}),
+                        row(
+                            "import-unbound-theme",
+                            tr("ASTRAL_IMPORT_UNBOUND_THEME"),
+                            "res://ic_mana_download",
+                            ROW_LINK,
+                        ),
+                        json!({"subtitle": tr("ASTRAL_CONVERT_AN_UNBOUND_THEME_FILE_INTO")}),
                     ),
-                    row("browse", "Browse themes", "res://ic_mana_shop", ROW_LINK),
+                    row("browse", tr("ASTRAL_BROWSE_THEMES"), "res://ic_mana_shop", ROW_LINK),
                 ],
             ),
         ],
@@ -959,9 +977,9 @@ fn package_row(package: &Value, kind: &str) -> Value {
     let identifier = string(package, "id");
     let installed = installed_version(&identifier, kind);
     let status = install_status(&identifier).unwrap_or_else(|| match &installed {
-        None => "Get".into(),
-        Some(installed) if version_is_newer(&string(package, "version"), installed) => "Update".into(),
-        Some(_) => "Installed".into(),
+        None => tr("ASTRAL_GET").into(),
+        Some(installed) if version_is_newer(&string(package, "version"), installed) => tr("ASTRAL_UPDATE").into(),
+        Some(_) => tr("ASTRAL_INSTALLED").into(),
     });
     let icon = if kind == "theme" {
         "res://ic_mana_paint_palette".to_owned()
@@ -980,9 +998,9 @@ fn package_row(package: &Value, kind: &str) -> Value {
 
 fn catalog_status_rows() -> Vec<Value> {
     match host_text("catalogState").as_str() {
-        "loading" => vec![row("loading", "Loading the catalog…", "res://ic_mana_refresh", ROW_INFO)],
+        "loading" => vec![row("loading", tr("ASTRAL_LOADING_THE_CATALOG"), "res://ic_mana_refresh", ROW_INFO)],
         "failed" => vec![with(
-            row("failed", "Could not load the catalog", "res://ic_mana_bug", ROW_INFO),
+            row("failed", tr("ASTRAL_COULD_NOT_LOAD_THE_CATALOG"), "res://ic_mana_bug", ROW_INFO),
             json!({"subtitle": host_text("catalogError")}),
         )],
         _ => Vec::new(),
@@ -999,7 +1017,7 @@ fn marketplace_page() -> Value {
     let mut sections = Vec::new();
     let status = catalog_status_rows();
     if !status.is_empty() {
-        sections.push(section("Catalog", status));
+        sections.push(section(tr("ASTRAL_CATALOG"), status));
     }
     for kind in ["plugin", "theme"] {
         let rows: Vec<Value> = array(&packages, &format!("{kind}s"))
@@ -1007,20 +1025,27 @@ fn marketplace_page() -> Value {
             .map(|package| package_row(package, kind))
             .collect();
         if !rows.is_empty() {
-            sections.push(section(if kind == "plugin" { "Plugins" } else { "Themes" }, rows));
+            sections.push(section(
+                if kind == "plugin" {
+                    tr("ASTRAL_PLUGINS")
+                } else {
+                    tr("ASTRAL_THEMES")
+                },
+                rows,
+            ));
         }
     }
     sections.push(section(
-        "Source",
+        tr("ASTRAL_SOURCE"),
         vec![
             with(
-                row("catalog-url", "Catalog", "res://ic_mana_link", ROW_INFO),
+                row("catalog-url", tr("ASTRAL_CATALOG"), "res://ic_mana_link", ROW_INFO),
                 json!({"subtitle": host_text("catalogURL")}),
             ),
-            row("refresh", "Refresh", "res://ic_mana_refresh", ROW_LINK),
+            row("refresh", tr("ASTRAL_REFRESH"), "res://ic_mana_refresh", ROW_LINK),
         ],
     ));
-    page("Marketplace", sections)
+    page(tr("ASTRAL_MARKETPLACE"), sections)
 }
 
 fn pending_updates() -> Vec<(Value, &'static str)> {
@@ -1061,7 +1086,10 @@ fn notice_astral_update() {
     store_setting("update-notice", json!(latest));
     host(
         "notify",
-        &json!([format!("astral {latest} is available"), "See Settings, astral, Updates"]),
+        &json!([
+            tr_with("ASTRAL_UPDATE_AVAILABLE", &[("version", latest.to_string())]),
+            tr("ASTRAL_SEE_SETTINGS_ASTRAL_UPDATES")
+        ]),
     );
 }
 
@@ -1092,11 +1120,11 @@ fn updates_page(context: &Context) -> Value {
     let latest = latest_astral_version();
     let installed = version();
     let astral_status = if latest.is_empty() {
-        "Unknown".to_owned()
+        tr("ASTRAL_UNKNOWN").to_owned()
     } else if version_is_newer(&latest, &installed) {
-        format!("Update to {latest}")
+        tr_with("ASTRAL_UPDATE_TO", &[("version", latest.to_string())])
     } else {
-        "Up to date".to_owned()
+        tr("ASTRAL_UP_TO_DATE").to_owned()
     };
     let mut addons: Vec<Value> = pending_updates()
         .iter()
@@ -1110,47 +1138,57 @@ fn updates_page(context: &Context) -> Value {
                     "res://ic_mana_cloud_download",
                     ROW_LINK,
                 ),
-                json!({"detail": status, "subtitle": format!("Installed v{}", installed_version(&identifier, kind).unwrap_or_default())}),
+                json!({"detail": status, "subtitle": tr_with("ASTRAL_INSTALLED_VERSION", &[("version", installed_version(&identifier, kind).unwrap_or_default())])}),
             )
         })
         .collect();
     if addons.len() > 1 {
-        addons.push(row("update-all", "Update all", "res://ic_mana_download", ROW_LINK));
+        addons.push(row("update-all", tr("ASTRAL_UPDATE_ALL"), "res://ic_mana_download", ROW_LINK));
     }
     if addons.is_empty() {
-        addons.push(row("current", "Everything is up to date", "res://ic_mana_circle_check", ROW_INFO));
+        addons.push(row(
+            "current",
+            tr("ASTRAL_EVERYTHING_IS_UP_TO_DATE"),
+            "res://ic_mana_circle_check",
+            ROW_INFO,
+        ));
     }
     let mut sections = Vec::new();
     let status = catalog_status_rows();
     if !status.is_empty() {
-        sections.push(section("Catalog", status));
+        sections.push(section(tr("ASTRAL_CATALOG"), status));
     }
     sections.push(section(
         "astral",
         vec![with(
             row("astral", "astral", "res://ic_mana_settings", ROW_INFO),
-            json!({"detail": astral_status, "subtitle": format!("Installed {installed}")}),
+            json!({"detail": astral_status, "subtitle": tr_with("ASTRAL_INSTALLED_DETAIL", &[("version", installed.to_string())])}),
         )],
     ));
     sections.push(section(
         "Discord",
         vec![with(
-            row("discord-build", "Build", "res://ic_mana_mobile_phone_settings", ROW_INFO),
-            json!({"detail": if context.compatibility == "ready" { "Supported" } else { "Unsupported" }, "subtitle": context.discord_version}),
+            row("discord-build", tr("ASTRAL_BUILD"), "res://ic_mana_mobile_phone_settings", ROW_INFO),
+            json!({"detail": if context.compatibility == "ready" { tr("ASTRAL_SUPPORTED") } else { tr("ASTRAL_UNSUPPORTED") }, "subtitle": context.discord_version}),
         )],
     ));
-    sections.push(section("Addons", addons));
+    sections.push(section(tr("ASTRAL_ADDONS"), addons));
     sections.push(section(
-        "Check",
+        tr("ASTRAL_CHECK"),
         vec![
-            row("refresh", "Check for updates", "res://ic_mana_refresh", ROW_LINK),
+            row("refresh", tr("ASTRAL_CHECK_FOR_UPDATES"), "res://ic_mana_refresh", ROW_LINK),
             with(
-                row("auto-update", "Update automatically", "res://ic_mana_download", ROW_SWITCH),
-                json!({"on": auto_updates(), "subtitle": "Install addon updates when Discord opens"}),
+                row(
+                    "auto-update",
+                    tr("ASTRAL_UPDATE_AUTOMATICALLY"),
+                    "res://ic_mana_download",
+                    ROW_SWITCH,
+                ),
+                json!({"on": auto_updates(), "subtitle": tr("ASTRAL_INSTALL_ADDON_UPDATES_WHEN_DISCORD_OPENS")}),
             ),
         ],
     ));
-    page("Updates", sections)
+    page(tr("ASTRAL_UPDATES"), sections)
 }
 
 fn catalog_package(kind: &str, identifier: &str) -> Option<Value> {
@@ -1276,10 +1314,10 @@ pub fn refresh_catalog_if_due(now: i64, force: bool, changed: Changed) {
 pub fn category() -> Value {
     json!({"title": "astral", "rows": [
         {"key": "general", "title": "astral", "icon": "res://astral_galaxy"},
-        {"key": "plugins", "title": "Plugins", "icon": "res://ic_mana_puzzle_piece"},
-        {"key": "design", "title": "Design", "icon": "res://ic_mana_paintbrush_thick"},
-        {"key": "marketplace", "title": "Marketplace", "icon": "res://ic_mana_shop"},
-        {"key": "updates", "title": "Updates", "icon": "res://ic_mana_download"},
+        {"key": "plugins", "title": tr("ASTRAL_PLUGINS"), "icon": "res://ic_mana_puzzle_piece"},
+        {"key": "design", "title": tr("ASTRAL_DESIGN"), "icon": "res://ic_mana_paintbrush_thick"},
+        {"key": "marketplace", "title": tr("ASTRAL_MARKETPLACE"), "icon": "res://ic_mana_shop"},
+        {"key": "updates", "title": tr("ASTRAL_UPDATES"), "icon": "res://ic_mana_download"},
     ]})
 }
 
