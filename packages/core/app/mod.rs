@@ -209,14 +209,13 @@ pub fn start() -> usize {
         let safe_mode = current.flag("astral", "safe-mode", false);
         lua_host::set_platform(Some(platform::platform_call));
         lua_host::start(
-            vec![format!("{}/plugins", current.state), format!("{}/plugins", current.resources)],
+            vec![format!("{}/plugins", current.state)],
             current.settings_handle(),
             !safe_mode && !current.recovering(),
             Config {
                 preferred_languages: current.languages.clone(),
                 storage_path: format!("{}/plugin-storage.sqlite", current.state),
                 discord_directory: current.discord_directory.clone(),
-                bundled_directory: current.resources.clone(),
             },
         );
         install_decorators();

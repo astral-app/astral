@@ -39,7 +39,7 @@ packages/addons/plugins/<name>/**/*.lua        modules, loaded with require("lib
 packages/addons/plugins/<name>/tests/*.lua     run by astral test against a mocked `astral` table and the prelude
 ```
 
-Bundled plugins ship in the package's resource directory (`/var/jb/usr/lib/astral` when jailbroken, `astral.bundle` inside the app when sideloaded). Plugins installed from the marketplace live in `Documents/astral/plugins` and take precedence over bundled ones with the same id.
+astral ships no plugins. Every plugin comes from the marketplace and lives in `Documents/astral/plugins`; developer pushes land there too.
 
 ## Signing
 

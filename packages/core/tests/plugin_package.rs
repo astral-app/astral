@@ -15,7 +15,6 @@ fn plugin_directory(name: &str) -> PathBuf {
 name = "Sample Plugin"
 version = "1.0.0"
 permissions = ["storage", "network", "storage"]
-enabled_by_default = true
 authors = ["solo", { name = "adrian", id = "224617799434108928" }]
 "#,
     )
@@ -36,7 +35,6 @@ fn loads_a_plugin_package() {
     let package = load(root.to_str().unwrap(), &["de-AT".to_owned()], Limits::default()).expect("package");
     assert_eq!(package.identifier, "astral.sample");
     assert_eq!(package.permissions, vec!["network", "storage"]);
-    assert!(package.enabled_by_default);
     assert_eq!(
         package.authors,
         vec![("solo".into(), "".into()), ("adrian".into(), "224617799434108928".into())]

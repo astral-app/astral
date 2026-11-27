@@ -203,7 +203,6 @@ pub struct Plugin {
     pub errors: i32,
     pub failed: bool,
     pub last_error: String,
-    pub bundled: bool,
     pub signed: bool,
     pub enabled: bool,
     pub sandbox: Option<core::ptr::NonNull<Sandbox>>,
@@ -292,7 +291,6 @@ pub struct Config {
     pub preferred_languages: Vec<String>,
     pub storage_path: String,
     pub discord_directory: String,
-    pub bundled_directory: String,
 }
 
 #[derive(Default)]
@@ -660,7 +658,7 @@ pub fn sync_insert_prefixes() {
 }
 
 pub(crate) fn runnable(plugin: &Plugin) -> bool {
-    plugin.bundled || plugin.signed || with_store(false, |store| store.get_boolean("astral", "developer-mode", false))
+    plugin.signed || with_store(false, |store| store.get_boolean("astral", "developer-mode", false))
 }
 
 pub(crate) fn start_plugin(plugin: *mut Plugin) -> bool {
@@ -759,23 +757,19 @@ fn sorted_entries(root: &str) -> Vec<String> {
 
 pub fn scan() {
     let directories = host().directories.clone();
-    let bundled_directory = host().config.bundled_directory.clone();
     let mut added = Vec::new();
     for root in directories {
-        let bundled = !bundled_directory.is_empty() && root.starts_with(&bundled_directory);
         for entry in sorted_entries(&root) {
-            let Some(mut plugin) = load(&format!("{root}/{entry}")) else {
+            let Some(plugin) = load(&format!("{root}/{entry}")) else {
                 continue;
             };
             if find(plugin.identifier()).is_some() {
                 continue;
             }
-            plugin.bundled = bundled;
             let enabled_key = format!("{}.enabled", plugin.identifier());
-            let fallback = !bundled || plugin.package.enabled_by_default;
             let plugin = Box::into_raw(plugin);
             host().plugins.push(plugin);
-            unsafe { (*plugin).enabled = stored_bool(&enabled_key, fallback) };
+            unsafe { (*plugin).enabled = stored_bool(&enabled_key, true) };
             added.push(plugin);
         }
     }
@@ -920,8 +914,7 @@ pub fn plugins_json() -> Value {
             "iconSvg": plugin.package.icon_svg,
             "authors": authors,
             "directory": plugin.package.directory,
-            "bundled": plugin.bundled,
-            "signed": plugin.bundled || plugin.signed,
+            "signed": plugin.signed,
         }));
     }
     Value::Array(list)

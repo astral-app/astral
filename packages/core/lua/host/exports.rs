@@ -98,7 +98,6 @@ pub unsafe extern "C" fn astral_lua_host_start(
         preferred_languages: strings(configuration.get("preferredLanguages").unwrap_or(&Value::Null)),
         storage_path: field("storagePath"),
         discord_directory: field("discordDirectory"),
-        bundled_directory: field("bundledDirectory"),
     };
     if !host::host().started {
         host::set_platform(platform);
