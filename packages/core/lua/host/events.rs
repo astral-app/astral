@@ -544,7 +544,8 @@ pub fn transform_outgoing_message(channel: &str, operation: &str, content: &str)
     String::from_utf8(transformed).ok()
 }
 
-const COMPOSER_STYLES: [&str; 12] = [
+const COMPOSER_STYLES: [&str; 13] = [
+    "image",
     "bold",
     "italic",
     "underline",
@@ -559,12 +560,21 @@ const COMPOSER_STYLES: [&str; 12] = [
     "quote",
 ];
 
+fn is_composer_image(url: &str) -> bool {
+    url.len() <= 512 && (url.starts_with("https://cdn.discordapp.com/") || url.starts_with("https://media.discordapp.net/"))
+}
+
 pub fn composer_styles(text: &[u8]) -> Value {
     let mut result: Vec<Value> = Vec::new();
     if text.is_empty() || text.len() > 8192 || std::str::from_utf8(text).is_err() {
         return Value::Array(result);
     }
     let _held = host::lock();
+    let channel = match crate::wire::ids::current_channel() {
+        0 => String::new(),
+        id => id.to_string(),
+    };
+    let guild = crate::lua::host::hooks::guild_of(&channel);
     for plugin in host::plugins() {
         let references = {
             let plugin = unsafe { &*plugin };
@@ -579,8 +589,13 @@ pub fn composer_styles(text: &[u8]) -> Value {
             unsafe {
                 lua::push_reference(state, reference);
                 lua::push_bytes(state, text);
+                lua::lua_createtable(state, 0, 2);
+                crate::lua::host::hooks::set_optional(state, "channel_id", &channel);
+                if let Some(guild) = &guild {
+                    crate::lua::host::hooks::set_text(state, "guild_id", guild);
+                }
             }
-            if !host::call(plugin, 1, 1, "composer formatting") {
+            if !host::call(plugin, 2, 1, "composer formatting") {
                 unsafe { lua::lua_settop(state, top) };
                 host::fail_and_stop(plugin);
                 break;
@@ -604,6 +619,13 @@ pub fn composer_styles(text: &[u8]) -> Value {
                     let first = (start - 1) as usize;
                     let end = first + length as usize;
                     if (first > 0 && is_utf8_continuation(text[first])) || (end < text.len() && is_utf8_continuation(text[end])) {
+                        continue;
+                    }
+                    if style == "image" {
+                        let Some(image) = run.get("image").and_then(Value::as_str).filter(|image| is_composer_image(image)) else {
+                            continue;
+                        };
+                        result.push(json!({"start": start, "length": length, "style": style, "image": image}));
                         continue;
                     }
                     result.push(json!({"start": start, "length": length, "style": style}));

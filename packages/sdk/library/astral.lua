@@ -16,6 +16,7 @@
 ---@field name string
 ---@field owner_id astral.Snowflake
 ---@field roles table<astral.Snowflake, astral.Role>
+---@field emojis { id: astral.Snowflake, name: string, animated: boolean }[]
 
 ---@class astral.Member
 ---@field roles astral.Snowflake[]
@@ -773,6 +774,13 @@ function astral.ui.focus_composer(focus) end
 ---@return boolean
 function astral.ui.notify(title, body, options) end
 function astral.ui.haptic(strength) end
+---@class astral.ComposerRun
+---@field start integer 1-based byte offset into the composer text
+---@field length integer bytes
+---@field style "bold"|"italic"|"underline"|"strike"|"code"|"spoiler"|"marker"|"heading1"|"heading2"|"heading3"|"subtext"|"quote"|"image"
+---@field image? string for `image`: a Discord CDN image drawn over the run, whose text stays as typed
+---Styles the composer as the user types; `context` names the open channel and its server.
+---@param formatter fun(text: string, context: { channel_id?: astral.Snowflake, guild_id?: astral.Snowflake }): astral.ComposerRun[]
 function astral.ui.composer(formatter) end
 ---Closes the sheets and pages Discord shows over its main screen.
 ---@return boolean dismissed

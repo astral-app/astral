@@ -333,8 +333,8 @@ authors = [{ name = "adrian", id = "224617799434108928" }]
 [[plugins]]
 id = "astral.live-markdown"
 name = "Live Markdown"
-version = "0.0.1"
-description = "Styles Discord markdown as you type in the message composer."
+version = "0.0.2"
+description = "Styles Discord markdown and shows custom emoji as you type in the message composer."
 icon = "TextIcon"
 base = "plugins/astral.live-markdown/"
 authors = [{ name = "adrian", id = "224617799434108928" }]
