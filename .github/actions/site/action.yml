@@ -44,8 +44,7 @@ runs:
             gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern '*.deb' --dir site/repo/debs --clobber || true
           done
         astral apt-repo site/repo
-        astral stage stage
-        cp -R stage/catalog site/catalog
+        astral stage --catalog site/catalog
 
     - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9
       with:
