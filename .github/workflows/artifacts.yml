@@ -29,7 +29,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: release-artifacts-${{ github.event_name }}
+  group: release-artifacts-${{ github.event_name == 'push' && github.run_id || github.event_name }}
   cancel-in-progress: true
 
 env:
@@ -42,7 +42,7 @@ env:
 
 jobs:
   deb:
-    name: Build the package
+    name: Build the iOS tweak
     runs-on: macos-latest
     env:
       RUSTC_WRAPPER: sccache
@@ -99,7 +99,7 @@ jobs:
           retention-days: 1
 
   ipa:
-    name: Build the sideload IPA
+    name: Build the iOS sideload IPA
     needs: deb
     runs-on: macos-latest
     timeout-minutes: 60
@@ -148,7 +148,7 @@ jobs:
           retention-days: ${{ env.RETENTION_DAYS }}
 
   android:
-    name: Build the Android module and LSPatch APKs
+    name: Build the Android module and patched APKs
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
