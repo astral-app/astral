@@ -17,7 +17,8 @@ const ABIS: [(&str, &str); 2] = [
 const USAGE: &str = "usage: astral android <command>
   build [--java-home <JDK>] [--output <directory>] [--patcher <LSPatch.jar> <Discord APK>...]
   deploy --device <adb serial> --mode <module|sideload> <APK>...
-  download [--channel alpha] [--output <directory>]";
+  download [--channel alpha] [--output <directory>]
+  version [--channel alpha]";
 const TRACKER: &str = "https://tracker.vendetta.rocks/tracker";
 const DISCORD_CERTIFICATE: &str =
     "3c39d23cf9367849a5c699395647fe0e5bfea5a1f1f40d8c717ddc70f8bfa113";
@@ -463,8 +464,17 @@ fn download(arguments: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+fn version(arguments: &[String]) -> Result<(), String> {
+    let flags = Flags::new("android version")
+        .string("channel", "alpha")
+        .parse(arguments)?;
+    println!("{}", version_code(&flags.get("channel"))?);
+    Ok(())
+}
+
 pub fn run(arguments: &[String]) -> Result<(), String> {
     match arguments.first().map(String::as_str) {
+        Some("version") => version(&arguments[1..]),
         Some("build") => build(&arguments[1..]),
         Some("deploy") => deploy(&arguments[1..]),
         Some("download") => download(&arguments[1..]),
