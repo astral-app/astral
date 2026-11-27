@@ -866,6 +866,42 @@ static void nodePatchTest(void)
     astral_wire_set_patch_prefixes(NULL, 0);
 }
 
+static int hideLateCard(const AstralPatchTarget *target, AstralNodePatch *patch)
+{
+    if (strcmp(target->identifier, "late.card:7") != 0 || !gPatchMode) return 0;
+    patch->fields = AstralPatchHidden;
+    return 1;
+}
+
+static void latePrefixPatchTest(void)
+{
+    AstralWireBuffer out;
+    Batch batch = {.length = 0};
+    astral_wire_set_node_patcher(hideLateCard);
+    gPatchMode = 2;
+    b8(&batch, 1);
+    create(&batch, 901, "view", 1);
+    b16(&batch, 9);
+    b8(&batch, 6);
+    bstr(&batch, "late.card:7");
+    astral_settings_rewrite(batch.bytes, batch.length, &out);
+    astral_wire_buffer_free(&out);
+    astral_wire_refresh_node_patches(&out);
+    astral_wire_buffer_free(&out);
+    const char *prefixes[] = {"late.card:"};
+    astral_wire_set_patch_prefixes(prefixes, 1);
+    assert(astral_wire_refresh_node_patches(&out));
+    assert(astral_wire_summarise(out.bytes, out.length, sink, NULL) > 0);
+    assert(strstr(line, "[2,901,["));
+    assert(strstr(line, "[322,5,0]"));
+    astral_wire_buffer_free(&out);
+    gPatchMode = 0;
+    astral_wire_refresh_node_patches(&out);
+    astral_wire_buffer_free(&out);
+    astral_wire_set_node_patcher(NULL);
+    astral_wire_set_patch_prefixes(NULL, 0);
+}
+
 static int insertNodes(const AstralPatchTarget *target, AstralInsertNode *nodes, size_t capacity, int *atStart)
 {
     assert(capacity >= 2);
@@ -966,6 +1002,7 @@ int main(void)
     childEditsTest();
     messageBackgroundTest();
     nodePatchTest();
+    latePrefixPatchTest();
     decorationTest();
     gradientTagTest();
     relabelTest();

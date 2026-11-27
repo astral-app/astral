@@ -127,7 +127,7 @@ authors = [
 [[plugins]]
 id = "astral.declutter"
 name = "Declutter"
-version = "0.0.1"
+version = "0.0.2"
 description = "Hides buttons, upsells and profile decorations you never use: the gift button, Server Boosts, call buttons, avatar decorations, nameplates, server tags and more."
 icon = "EyeSlashIcon"
 base = "plugins/astral.declutter/"

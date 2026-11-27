@@ -1,6 +1,11 @@
 local patches, gateway, intercepts = {}, nil, {}
 local values = {}
 astral = {
+	i18n = {
+		t = function(key)
+			return key
+		end,
+	},
 	log = function() end,
 	settings = {
 		get = function(key, fallback)
@@ -40,11 +45,11 @@ astral = {
 dofile(arg[1])
 assert(patches["composer.gift"]().hidden)
 assert(patches["guild.action:server_boosts"]() == nil)
-values.server_boosts = true
+values.serverBoosts = true
 assert(patches["guild.action:server_boosts"]().hidden)
 assert(gateway({ type = "MESSAGE_CREATE", data = { author = { id = "1", avatar_decoration_data = {} } } }) == nil)
-values.avatar_decorations = true
-values.server_tags = true
+values.avatarDecorations = true
+values.serverTags = true
 local stripped = gateway({
 	type = "MESSAGE_CREATE",
 	data = { author = { id = "1", avatar_decoration_data = {}, primary_guild = {} } },
