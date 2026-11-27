@@ -1,4 +1,5 @@
 #import "AstralDynamicCutout.h"
+#import "SvgRaster.h"
 
 #import <UIKit/UIKit.h>
 #import <objc/message.h>
@@ -58,7 +59,10 @@ static void CreateOverlay(void)
     AstralRect logo = cutout.logo;
     UIImageView *image = [[UIImageView alloc] initWithFrame:CGRectMake(logo.x, logo.y, logo.width, logo.height)];
     NSString *assets = [AstralResourceDirectory() stringByAppendingPathComponent:@"assets"];
-    image.image = [UIImage imageWithContentsOfFile:[assets stringByAppendingPathComponent:@"logo.png"]];
+    NSString *svg = [NSString stringWithContentsOfFile:[assets stringByAppendingPathComponent:@"logo.svg"]
+                                              encoding:NSUTF8StringEncoding
+                                                 error:nil];
+    image.image = AstralRenderSVGOriginal(svg, MAX(logo.width, logo.height));
     image.contentMode = UIViewContentModeScaleAspectFit;
     [gOverlay addSubview:image];
     [window addSubview:gOverlay];

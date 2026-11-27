@@ -32,7 +32,7 @@ object CutoutOverlay {
     private lateinit var logo: File
 
     fun install(module: XposedModule, resources: File) {
-        logo = File(resources, "assets/logo.png")
+        logo = File(resources, "assets/logo.svg")
         val resume = Activity::class.java.getDeclaredMethod("onResume")
         module.hook(resume).setExceptionMode(ExceptionMode.PROTECTIVE).intercept { chain ->
             val result = chain.proceed()
@@ -120,8 +120,8 @@ object CutoutOverlay {
     }
 
     private fun readLogo(width: Int, height: Int): Bitmap? = runCatching {
-        val bitmap = BitmapFactory.decodeFile(logo.path) ?: return@runCatching null
-        Bitmap.createScaledBitmap(bitmap, width, height, true)
+        val png = Native.renderSvg(logo.readBytes(), width, height) ?: return@runCatching null
+        BitmapFactory.decodeByteArray(png, 0, png.size)
     }.getOrNull()
 
     private fun hide(activity: Activity) {

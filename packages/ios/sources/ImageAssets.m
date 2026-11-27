@@ -103,8 +103,9 @@ static UIImage *AstralImage(NSString *name)
     NSString *svg = gRegistered[name];
     [gLock unlock];
     NSString *file = [name substringFromIndex:kAssetPrefix.length];
+    BOOL logo = [file isEqualToString:@"logo"];
     if (!svg) svg = BundledSVG(file);
-    UIImage *image = svg ? AstralRenderSVG(svg, kIconPoints) : BundledPNG(file);
+    UIImage *image = svg ? (logo ? AstralRenderSVGOriginal(svg, kIconPoints) : AstralRenderSVG(svg, kIconPoints)) : BundledPNG(file);
     if (image) [gImages setObject:image forKey:name];
     return image;
 }

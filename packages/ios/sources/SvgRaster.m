@@ -4,6 +4,11 @@
 
 static const CGFloat kRenderScale = 3;
 
+UIImage *AstralRenderSVGOriginal(NSString *svg, CGFloat points)
+{
+    return [AstralRenderSVG(svg, points) imageWithRenderingMode:UIImageRenderingModeAlwaysOriginal];
+}
+
 UIImage *AstralRenderSVG(NSString *svg, CGFloat points)
 {
     if (!svg.length || points <= 0) return nil;
