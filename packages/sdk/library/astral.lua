@@ -838,6 +838,8 @@ function astral.ui.patch(selector, patcher) end
 ---@field bold? boolean
 ---@field weight? integer font weight from 100 to 900; bold is 600
 ---@field action? string passed to on_press when the node is tapped
+---@field pulse? number fades the node in and out forever, one cycle every this many milliseconds (200 to 10000)
+---@field pulse_delay? number milliseconds the pulse is offset by, to stagger several nodes
 ---@field position? astral.InsertPosition where the nodes go among the target's children
 ---@field children? astral.InsertNode[]
 ---@field runs? { text: string, color?: astral.Color|integer|string, bold?: boolean, italic?: boolean, underline?: boolean }[] styled runs of a text node; code-block inserts only

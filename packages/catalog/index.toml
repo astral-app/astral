@@ -111,7 +111,7 @@ base = "plugins/astral.message-logger/"
 [[plugins]]
 id = "astral.channel-typing-indicators"
 name = "Channel Typing Indicators"
-version = "0.1.1"
+version = "0.1.2"
 description = "Shows typing dots beside channels where people are typing."
 icon = "ChatDotsIcon"
 base = "plugins/astral.channel-typing-indicators/"
