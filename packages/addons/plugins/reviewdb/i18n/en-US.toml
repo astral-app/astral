@@ -1,6 +1,8 @@
 ACCOUNT = "Account"
 AUTHORIZATION_FAILED = "Authorization failed."
 AUTHORIZE = "Authorize with ReviewDB"
+AUTHORIZE_CONFIRM = "ReviewDB will see your Discord username and ID so your reviews show who wrote them. Discord adds ReviewDB to your authorized apps."
+AUTHORIZE_CONFIRM_BUTTON = "Authorize"
 AUTHORIZE_SUBTITLE = "Sign in to review users and see your reviews"
 AUTHORIZE_TO_REVIEW = "Please authorize to add a review."
 AUTHORIZE_TO_VOTE = "Please authorize to vote on reviews."
