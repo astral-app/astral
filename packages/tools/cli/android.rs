@@ -216,10 +216,9 @@ fn build(arguments: &[String]) -> Result<(), String> {
     }
     let jar = std::fs::canonicalize(flags.get("patcher")).map_err(|error| error.to_string())?;
     let work = repo::scratch()?;
-    let prepared = open_phoenix_access(&inputs, &work.0)?;
     let patched = work.0.join("patched");
     let mut patch = strings(&["-jar", &repo::text(&jar)]);
-    patch.extend(prepared.iter().map(|input| repo::text(input)));
+    patch.extend(inputs.iter().map(|input| repo::text(input)));
     patch.extend(strings(&[
         "-m",
         &repo::text(&module),
@@ -238,6 +237,7 @@ fn build(arguments: &[String]) -> Result<(), String> {
         ));
     }
     for file in outputs {
+        open_phoenix_access(&file, &jar, &work.0)?;
         let target = output
             .join("sideload")
             .join(file.file_name().unwrap_or_default());
@@ -365,8 +365,8 @@ fn download_split(code: i64, split: &str, directory: &Path) -> Result<PathBuf, S
     Ok(destination)
 }
 
-fn apksigner() -> Result<String, String> {
-    if let Ok(path) = repo::output(&repo::path(&[]), "which", &strings(&["apksigner"])) {
+fn build_tool(name: &str) -> Result<String, String> {
+    if let Ok(path) = repo::output(&repo::path(&[]), "which", &strings(&[name])) {
         return Ok(path.trim().to_owned());
     }
     for root in [
@@ -376,12 +376,14 @@ fn apksigner() -> Result<String, String> {
     ] {
         if !root.is_empty()
             && let Some(found) =
-                files::glob(&PathBuf::from(&root).join("build-tools/*/apksigner")).pop()
+                files::glob(&PathBuf::from(&root).join("build-tools/*").join(name)).pop()
         {
             return Ok(repo::text(&found));
         }
     }
-    Err("apksigner was not found; install Android build-tools or put apksigner on PATH".into())
+    Err(format!(
+        "{name} was not found; install Android build-tools or put {name} on PATH"
+    ))
 }
 
 const CERTIFICATE_DIGEST: &str = "certificate SHA-256 digest:";
@@ -432,7 +434,7 @@ pub fn download_apks(
     directory: &Path,
 ) -> Result<(i64, Vec<PathBuf>), String> {
     let code = version_code(channel)?;
-    let signer = apksigner()?;
+    let signer = build_tool("apksigner")?;
     let mut apks = Vec::new();
     for split in splits {
         let apk = download_split(code, split, directory)?;
@@ -471,44 +473,78 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
 }
 
 const PHOENIX_SO: &str = "lib/arm64-v8a/liblibdiscord_wasm_host.so";
+const LSPATCH_KEYSTORE: &str = "assets/keystore";
+const LSPATCH_ALIAS: &str = "key0";
+const LSPATCH_PASSWORD: &str = "123456";
 
 fn open_phoenix_access(
-    inputs: &[std::path::PathBuf],
+    apk: &std::path::Path,
+    patcher: &std::path::Path,
     work: &std::path::Path,
-) -> Result<Vec<std::path::PathBuf>, String> {
-    let mut prepared = Vec::new();
-    for (index, input) in inputs.iter().enumerate() {
-        let mut archive = crate::ipa_archive::Ipa::open(input)?;
-        let Some(entry) = archive
-            .names()
-            .into_iter()
-            .find(|name| name.ends_with(PHOENIX_SO))
-        else {
-            prepared.push(input.clone());
-            continue;
-        };
-        if !crate::phoenix::opens_android_access_gate(&archive.read(&entry)?) {
-            prepared.push(input.clone());
-            continue;
-        }
-        let copy = work.join(format!("phoenix-{index}.apk"));
-        files::copy(input, &copy)?;
-        crate::ipa_archive::rewrite(
-            &copy,
-            "phoenix-access",
-            |name| {
-                if name == entry {
-                    crate::ipa_archive::Action::Patch(Box::new(
-                        crate::phoenix::patch_android_access_gate,
-                    ))
-                } else {
-                    crate::ipa_archive::Action::Keep
-                }
-            },
-            Vec::new(),
-        )?;
-        println!("opened Phoenix's access gate in {}", input.display());
-        prepared.push(copy);
+) -> Result<(), String> {
+    let mut archive = crate::ipa_archive::Ipa::open(apk)?;
+    let Some(entry) = archive
+        .names()
+        .into_iter()
+        .find(|name| name.ends_with(PHOENIX_SO))
+    else {
+        return Ok(());
+    };
+    if !crate::phoenix::opens_android_access_gate(&archive.read(&entry)?) {
+        return Ok(());
     }
-    Ok(prepared)
+    let keystore = work.join("lspatch.keystore");
+    std::fs::write(
+        &keystore,
+        crate::ipa_archive::Ipa::open(patcher)?.read(LSPATCH_KEYSTORE)?,
+    )
+    .map_err(|error| error.to_string())?;
+    crate::ipa_archive::rewrite(
+        apk,
+        "phoenix-access",
+        |name| {
+            if name == entry {
+                crate::ipa_archive::Action::Patch(Box::new(
+                    crate::phoenix::patch_android_access_gate,
+                ))
+            } else {
+                crate::ipa_archive::Action::Keep
+            }
+        },
+        Vec::new(),
+    )?;
+    let aligned = work.join("phoenix-aligned.apk");
+    repo::run(
+        work,
+        &build_tool("zipalign")?,
+        &strings(&[
+            "-f",
+            "-P",
+            "16",
+            "4",
+            &repo::text(apk),
+            &repo::text(&aligned),
+        ]),
+    )?;
+    let password = format!("pass:{LSPATCH_PASSWORD}");
+    repo::run(
+        work,
+        &build_tool("apksigner")?,
+        &strings(&[
+            "sign",
+            "--ks",
+            &repo::text(&keystore),
+            "--ks-pass",
+            &password,
+            "--ks-key-alias",
+            LSPATCH_ALIAS,
+            "--key-pass",
+            &password,
+            "--out",
+            &repo::text(apk),
+            &repo::text(&aligned),
+        ]),
+    )?;
+    println!("opened Phoenix's access gate in {}", apk.display());
+    Ok(())
 }

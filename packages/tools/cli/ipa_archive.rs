@@ -95,9 +95,16 @@ pub fn entries(path: &Path) -> Result<Vec<String>, String> {
     Ipa::open(path)?.ordered_names()
 }
 
-fn options(mode: u32) -> SimpleFileOptions {
+const NATIVE_LIBRARY: &str = ".so";
+
+fn options(name: &str, mode: u32) -> SimpleFileOptions {
+    let method = if name.ends_with(NATIVE_LIBRARY) {
+        CompressionMethod::Stored
+    } else {
+        CompressionMethod::Deflated
+    };
     SimpleFileOptions::default()
-        .compression_method(CompressionMethod::Deflated)
+        .compression_method(method)
         .unix_permissions(mode & 0o7777)
 }
 
@@ -127,7 +134,9 @@ fn copy_entries(
                 entry.read_to_end(&mut data).map_err(failure)?;
                 drop(entry);
                 let patched = patch(data)?;
-                writer.start_file(name, options(mode)).map_err(failure)?;
+                writer
+                    .start_file(&name, options(&name, mode))
+                    .map_err(failure)?;
                 writer.write_all(&patched).map_err(failure)?;
             }
         }
@@ -148,7 +157,7 @@ pub fn rewrite(
         copy_entries(&mut ipa, &mut writer, &mut decide)?;
         for addition in additions {
             writer
-                .start_file(addition.name, options(addition.mode))
+                .start_file(&addition.name, options(&addition.name, addition.mode))
                 .map_err(failure)?;
             writer.write_all(&addition.data).map_err(failure)?;
         }
