@@ -15,15 +15,41 @@ regex-lite = "0.1"
 serde_json = { version = "1", features = ["raw_value"] }
 toml = "0.8"
 ed25519-dalek = { version = "2", default-features = false, features = ["std"] }
-syntect = { version = "5.3", default-features = false, features = ["parsing", "regex-fancy", "dump-load"] }
-two-face = { version = "0.5", default-features = false, features = ["syntect-fancy"] }
+syntect = { version = "5.3", default-features = false, features = [
+	"parsing",
+	"regex-fancy",
+	"dump-load",
+], optional = true }
+two-face = { version = "0.5", default-features = false, features = ["syntect-fancy"], optional = true }
 serde = { version = "1.0.229", features = ["derive"] }
 plist = { version = "1", default-features = false }
 libsqlite3-sys = { version = "0.40", features = ["bundled"] }
 zip = { version = "9.0.5", default-features = false, features = ["deflate"] }
-resvg = { version = "0.45", default-features = false }
-ttf-parser = { version = "0.25", default-features = false, features = ["std", "variable-fonts", "gvar-alloc"] }
-ureq = { version = "3", default-features = false, features = ["rustls"] }
+resvg = { version = "0.45", default-features = false, optional = true }
+ttf-parser = { version = "0.25", default-features = false, features = [
+	"std",
+	"variable-fonts",
+	"gvar-alloc",
+], optional = true }
+ureq = { version = "3", default-features = false, features = ["rustls"], optional = true }
+
+[features]
+default = ["highlight", "graphics", "http"]
+highlight = ["dep:syntect", "dep:two-face"]
+graphics = ["dep:resvg", "dep:ttf-parser"]
+http = ["dep:ureq"]
+
+[[test]]
+name = "highlight"
+required-features = ["highlight"]
+
+[[test]]
+name = "image_render"
+required-features = ["graphics"]
+
+[[test]]
+name = "svg_png"
+required-features = ["graphics"]
 
 [lints.rust]
 nonstandard_style = "deny"
