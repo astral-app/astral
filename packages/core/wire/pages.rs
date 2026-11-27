@@ -154,6 +154,7 @@ fn list<'a, T>(pointer: *const T, count: usize) -> &'a [T] {
     }
 }
 
+#[derive(Debug)]
 struct Row {
     key: Vec<u8>,
     title: Vec<u8>,
@@ -166,22 +167,26 @@ struct Row {
     position: i32,
 }
 
+#[derive(Debug)]
 struct Section {
     title: Vec<u8>,
     rows: Vec<Row>,
 }
 
+#[derive(Debug)]
 struct Chip {
     key: Vec<u8>,
     title: Vec<u8>,
     selected: bool,
 }
 
+#[derive(Debug)]
 struct Toolbar {
     chips: Vec<Chip>,
     button: Option<(Vec<u8>, Vec<u8>)>,
 }
 
+#[derive(Debug)]
 struct Card {
     key: Vec<u8>,
     title: Vec<u8>,
@@ -278,6 +283,14 @@ struct Page {
     content_end: usize,
     previous_children: Vec<i32>,
     previous_index: i32,
+    built: Vec<BuiltSection>,
+    reusable: Vec<BuiltSection>,
+}
+
+struct BuiltSection {
+    signature: String,
+    root: i32,
+    ids: Vec<i32>,
 }
 
 struct CategoryRow {
@@ -1319,16 +1332,39 @@ impl Builder<'_> {
         list
     }
 
+    fn reuse_or_build(&mut self, signature: String, build: impl FnOnce(&mut Self) -> i32) -> i32 {
+        if let Some(index) = self.page.reusable.iter().position(|built| built.signature == signature) {
+            let built = self.page.reusable.remove(index);
+            let root = built.root;
+            self.page.ids.extend_from_slice(&built.ids);
+            self.page.built.push(built);
+            return root;
+        }
+        let start = self.page.ids.len();
+        let root = build(self);
+        let ids = self.page.ids[start..].to_vec();
+        self.page.built.push(BuiltSection { signature, root, ids });
+        root
+    }
+
     fn sections(&mut self, page: &PageSpec) -> Vec<i32> {
-        let properties = self.properties;
         let mut sections = Vec::new();
         if page.toolbar.is_some() || !page.cards.is_empty() {
-            sections.push(self.card_list(page));
+            let signature = format!("{:?}{:?}", page.toolbar, page.cards);
+            sections.push(self.reuse_or_build(signature, |builder| builder.card_list(page)));
         }
         for section in &page.sections {
             if sections.len() >= 16 {
                 break;
             }
+            sections.push(self.reuse_or_build(format!("{section:?}"), |builder| builder.section(section)));
+        }
+        sections
+    }
+
+    fn section(&mut self, section: &Section) -> i32 {
+        let properties = self.properties;
+        {
             let group = self.clone_role(Role::Group, &[]);
             let header = self.clone_role(Role::GroupHeader, &[Change::text(properties.text, &section.title)]);
             let card = self.clone_role(Role::Card, &[]);
@@ -1347,9 +1383,8 @@ impl Builder<'_> {
             }
             self.children(group, &[header, card]);
             self.children(card, &card_children);
-            sections.push(group);
+            group
         }
-        sections
     }
 }
 
@@ -1505,8 +1540,17 @@ pub unsafe extern "C" fn astral_page_refresh(spec: *const AstralPageSpec, buffer
     with_state(|state| {
         let templates = state.templates.clone();
         let Some(current) = state.pages.last_mut() else { return 0 };
-        let stale: Vec<i32> = current.ids[current.content_start..current.content_end].to_vec();
+        let previous: Vec<i32> = current.ids[current.content_start..current.content_end].to_vec();
         let saved = current.ids.clone();
+        let saved_built = core::mem::take(&mut current.built);
+        current.reusable = saved_built
+            .iter()
+            .map(|built| BuiltSection {
+                signature: built.signature.clone(),
+                root: built.root,
+                ids: built.ids.clone(),
+            })
+            .collect();
         let highest = saved.iter().copied().max().unwrap_or(0);
         current.ids = saved
             .iter()
@@ -1525,11 +1569,15 @@ pub unsafe extern "C" fn astral_page_refresh(spec: *const AstralPageSpec, buffer
         };
         let sections = builder.sections(&page);
         builder.children(list, &sections);
+        let kept: std::collections::HashSet<i32> = builder.page.ids[content_start..].iter().copied().collect();
+        let stale: Vec<i32> = previous.into_iter().filter(|id| !kept.contains(id)).collect();
         put_removal(&mut builder.out, &stale);
         let out = builder.out;
+        current.reusable.clear();
         if out.failed != 0 || current.ids.len() >= MAX_PAGE_NODES {
             out.discard();
             current.ids = saved;
+            current.built = saved_built;
             return 0;
         }
         current.content_start = content_start;

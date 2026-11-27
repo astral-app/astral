@@ -1059,15 +1059,13 @@ fn package_row(package: &Value, kind: &str) -> Value {
     )
 }
 
-fn catalog_status_rows() -> Vec<Value> {
-    match host_text("catalogState").as_str() {
-        "loading" => vec![row("loading", tr("ASTRAL_LOADING_THE_CATALOG"), "res://ic_mana_refresh", ROW_INFO)],
-        "failed" => vec![with(
-            row("failed", tr("ASTRAL_COULD_NOT_LOAD_THE_CATALOG"), "res://ic_mana_bug", ROW_INFO),
-            json!({"subtitle": host_text("catalogError")}),
-        )],
-        _ => Vec::new(),
-    }
+fn check_row(key: &str, title: &str) -> Value {
+    let status = match host_text("catalogState").as_str() {
+        "loading" => json!({"detail": tr("ASTRAL_LOADING_THE_CATALOG")}),
+        "failed" => json!({"detail": tr("ASTRAL_COULD_NOT_LOAD_THE_CATALOG"), "subtitle": host_text("catalogError")}),
+        _ => json!({}),
+    };
+    with(row(key, title, "res://ic_mana_refresh", ROW_LINK), status)
 }
 
 fn catalog() -> Value {
@@ -1078,10 +1076,6 @@ fn catalog() -> Value {
 fn marketplace_page() -> Value {
     let packages = catalog();
     let mut sections = Vec::new();
-    let status = catalog_status_rows();
-    if !status.is_empty() {
-        sections.push(section(tr("ASTRAL_CATALOG"), status));
-    }
     for kind in ["plugin", "theme"] {
         let rows: Vec<Value> = array(&packages, &format!("{kind}s"))
             .iter()
@@ -1105,7 +1099,7 @@ fn marketplace_page() -> Value {
                 row("catalog-url", tr("ASTRAL_CATALOG"), "res://ic_mana_link", ROW_INFO),
                 json!({"subtitle": host_text("catalogURL")}),
             ),
-            row("refresh", tr("ASTRAL_REFRESH"), "res://ic_mana_refresh", ROW_LINK),
+            check_row("refresh", tr("ASTRAL_REFRESH")),
         ],
     ));
     page(tr("ASTRAL_MARKETPLACE"), sections)
@@ -1217,10 +1211,6 @@ fn updates_page(context: &Context) -> Value {
         ));
     }
     let mut sections = Vec::new();
-    let status = catalog_status_rows();
-    if !status.is_empty() {
-        sections.push(section(tr("ASTRAL_CATALOG"), status));
-    }
     sections.push(section(
         "astral",
         vec![with(
@@ -1239,7 +1229,7 @@ fn updates_page(context: &Context) -> Value {
     sections.push(section(
         tr("ASTRAL_CHECK"),
         vec![
-            row("refresh", tr("ASTRAL_CHECK_FOR_UPDATES"), "res://ic_mana_refresh", ROW_LINK),
+            check_row("refresh", tr("ASTRAL_CHECK_FOR_UPDATES")),
             with(
                 row(
                     "auto-update",
