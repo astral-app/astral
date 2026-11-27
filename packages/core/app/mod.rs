@@ -5,6 +5,7 @@ pub mod exchange;
 mod ffi;
 pub mod guest_event;
 pub mod host;
+pub mod launch;
 pub mod network;
 mod pages;
 pub mod picked_media;

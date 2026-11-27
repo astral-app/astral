@@ -397,3 +397,43 @@ pub extern "C" fn astral_ios_web_auth_new_cookies(
 pub extern "C" fn astral_ios_browser_login_url() -> AstralOwned {
     AstralOwned::text(app::web_auth::browser_login_url())
 }
+
+#[repr(C)]
+pub struct AstralReadiness {
+    pub action: i32,
+    pub report: bool,
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn astral_ios_write_status(stage: AstralText, facts: AstralText) {
+    app::launch::write_status(&stage.text(), &facts.text());
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn astral_ios_last_stage() -> AstralOwned {
+    AstralOwned::text(app::launch::last_stage())
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn astral_ios_claim_start() -> bool {
+    app::launch::claim_start()
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn astral_ios_launch_started() -> bool {
+    app::launch::started()
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn astral_ios_launch_foregrounded() -> bool {
+    app::launch::foregrounded()
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn astral_ios_check_readiness(compatibility: AstralText) -> AstralReadiness {
+    let readiness = app::launch::check_readiness(&compatibility.text());
+    AstralReadiness {
+        action: readiness.action,
+        report: readiness.report,
+    }
+}

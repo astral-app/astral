@@ -25,49 +25,20 @@
 #import "VirtualSession.h"
 
 static NSString *const kAstralVersion = @ASTRAL_VERSION;
-static const NSUInteger kReadinessAttempts = 24;
+static const int32_t kReadinessStart = 0;
+static const int32_t kReadinessRetry = 1;
 static const int64_t kReadinessRetryNs = 5 * NSEC_PER_SEC;
 static const int64_t kLaunchSuccessNs = 30 * NSEC_PER_SEC;
-static const NSInteger kStatusSchema = 2;
 
 static NSString *stateDirectory;
-static NSString *runID;
-static NSString *compatibility;
-static NSString *lastStage;
 static NSDictionary<NSString *, id> *engineSelection;
 static NSString *settingsIntegration;
 static NSString *settingsRefusal;
 static NSArray<NSString *> *missingExtensions;
-static BOOL started;
-static BOOL readinessScheduled;
-static NSUInteger readinessAttempts;
-
-static NSArray *PluginSummaries(void)
-{
-    NSMutableArray *summaries = [NSMutableArray array];
-    for (NSDictionary *plugin in AstralPlugins()) {
-        [summaries addObject:@{
-            @"id" : plugin[@"id"] ?: @"",
-            @"enabled" : plugin[@"enabled"] ?: @NO,
-            @"running" : plugin[@"running"] ?: @NO,
-            @"failed" : plugin[@"failed"] ?: @NO,
-            @"error" : plugin[@"error"] ?: @""
-        }];
-    }
-    return summaries;
-}
 
 static void Status(NSString *stage)
 {
-    lastStage = stage;
-    NSDictionary *report = @{
-        @"schema" : @(kStatusSchema),
-        @"runID" : runID ?: @"",
-        @"pid" : @(getpid()),
-        @"stage" : stage,
-        @"compatibility" : compatibility ?: @"checking",
-        @"recovering" : @(astral_ios_recovering()),
-        @"time" : @(NSDate.date.timeIntervalSince1970),
+    NSDictionary *facts = @{
         @"engine" : engineSelection ?: @{},
         @"phoenixAccess" : AstralPhoenixAccessStatus(),
         @"settings" : settingsIntegration ?: @"",
@@ -77,11 +48,9 @@ static void Status(NSString *stage)
         @"route" : AstralPhoenixRoute(),
         @"device" : AstralDeviceModel(),
         @"timings" : AstralPhoenixTimings(),
-        @"plugins" : PluginSummaries()
     };
-    NSData *data = [NSJSONSerialization dataWithJSONObject:report options:0 error:nil];
-    if (!data || ![data writeToFile:[stateDirectory stringByAppendingPathComponent:@"status.json"] atomically:YES])
-        NSLog(@"astral Failed to write status.json");
+    NSData *data = [NSJSONSerialization dataWithJSONObject:facts options:0 error:nil] ?: [NSData data];
+    astral_ios_write_status(AstralTextOf(stage), AstralTextOfData(data));
     NSLog(@"astral %@", stage);
 }
 
@@ -190,8 +159,7 @@ static BOOL InstallSettings(void)
 
 static void StartPlugins(void)
 {
-    if (started) return;
-    started = YES;
+    if (!astral_ios_claim_start()) return;
     AstralInitializeDynamicCutout();
     astral_ios_start();
     AstralInstallMessageMenu();
@@ -206,17 +174,11 @@ static void StartPlugins(void)
     Status(astral_ios_recovering() ? @"plugins-recovery" : @"ready");
 }
 
-static BOOL Retryable(NSString *state)
-{
-    return [state isEqualToString:@"phoenix-image-unavailable"] || [state isEqualToString:@"phoenix-root-inactive"];
-}
-
 static void CheckReadiness(void)
 {
-    readinessScheduled = NO;
-    readinessAttempts++;
-    compatibility = AstralPhoenixCompatibility();
-    if ([compatibility isEqualToString:@"ready"]) {
+    NSString *compatibility = AstralPhoenixCompatibility();
+    AstralReadiness readiness = astral_ios_check_readiness(AstralTextOf(compatibility));
+    if (readiness.action == kReadinessStart) {
         if (!InstallSettings()) {
             Status(@"settings-hook-refused");
             return;
@@ -225,9 +187,8 @@ static void CheckReadiness(void)
         astral_ios_emit_lifecycle(AstralLifecycle_Foreground);
         return;
     }
-    if (readinessAttempts == 1 || readinessAttempts == kReadinessAttempts) Status(compatibility);
-    if (readinessAttempts < kReadinessAttempts && Retryable(compatibility)) {
-        readinessScheduled = YES;
+    if (readiness.report) Status(compatibility);
+    if (readiness.action == kReadinessRetry) {
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, kReadinessRetryNs), dispatch_get_main_queue(), ^{
             CheckReadiness();
         });
@@ -237,14 +198,12 @@ static void CheckReadiness(void)
 static void Foregrounded(void)
 {
     astral_ios_mark_visible();
-    if (readinessScheduled) return;
-    readinessAttempts = 0;
-    CheckReadiness();
+    if (astral_ios_launch_foregrounded()) CheckReadiness();
 }
 
 static void Backgrounded(void)
 {
-    if (started) astral_ios_emit_lifecycle(AstralLifecycle_Background);
+    if (astral_ios_launch_started()) astral_ios_emit_lifecycle(AstralLifecycle_Background);
     astral_ios_mark_hidden();
 }
 
@@ -282,12 +241,12 @@ __attribute__((constructor)) static void AstralBootstrap(void)
     if (![NSFileManager.defaultManager createDirectoryAtPath:stateDirectory withIntermediateDirectories:YES attributes:nil error:nil])
         return;
     AstralSyncVirtualSession(stateDirectory);
-    runID = NSUUID.UUID.UUIDString;
     AstralAttachBridge();
     Prepare();
     missingExtensions = AstralMissingAppExtensions();
     AstralOnPhoenixRouteChange(^{
-        Status(lastStage ?: @"route-changed");
+        NSString *stage = AstralTakeString(astral_ios_last_stage());
+        Status(stage.length ? stage : @"route-changed");
     });
     AstralStartPhoenixRouteWhenLoaded(^{
         AstralPhoenixAccessHealthy();

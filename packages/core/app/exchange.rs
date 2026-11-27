@@ -93,14 +93,6 @@ pub fn begin(request: &str, stages: u32) -> Value {
         request.path = path_of(&request.url);
     }
     let host = host_of(&request.url);
-    network::note(&Probe {
-        method: &request.method,
-        url: &request.url,
-        host: &host,
-        path: &request.path,
-        headers: "",
-        json_body: false,
-    });
     let flags = plan_flags(&request.method, &request.url, has_json_body(&request)) & stages;
     if flags & BLOCK != 0 {
         super::note_blocked_request();
