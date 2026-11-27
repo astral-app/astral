@@ -66,6 +66,7 @@ const QUOTE_COLOR: i64 = 0x2600_0000;
 
 const TAG_ORIGINAL_POSTER: c_int = 1;
 const TAG_ICON: c_int = 2;
+const TAG_TEXT: c_int = 3;
 
 const ICON_CACHE_SIZE: usize = 8;
 const MAX_ICON_FILE_BYTES: usize = 64 * 1024;
@@ -164,6 +165,7 @@ static STAT_TAGGED: AtomicU64 = AtomicU64::new(0);
 struct Tags {
     nodes: Vec<i32>,
     roots: Vec<i32>,
+    trailing: Vec<i32>,
     message: u64,
     signature: u64,
 }
@@ -539,6 +541,7 @@ fn remove_tags(out: &mut Out, slot: &mut Tags) {
     out.remove(&slot.nodes);
     slot.nodes.clear();
     slot.roots.clear();
+    slot.trailing.clear();
 }
 
 fn valid_style(style: &AstralMessageBackgroundStyle) -> bool {
@@ -1688,20 +1691,27 @@ fn build_tag(out: &mut Out, tag: &AstralTag, nodes: &mut Vec<i32>) -> i32 {
     }
     let properties = properties::current();
     let original_poster = tag.shape == TAG_ORIGINAL_POSTER;
+    let plain = tag.shape == TAG_TEXT;
     let action = field(&tag.action_id);
     let text = field(&tag.text);
     let pill = tag_id();
     out.create(pill, b"view", if action.is_empty() { 6 } else { 9 });
     out.prop_string(properties.align, b"center");
-    if tag.gradient_count >= 2 {
+    if tag.gradient_count >= 2 && !plain {
         let count = tag.gradient_count.min(3) as usize;
         out.prop_gradient(properties.background_gradient, 90.0, &tag.gradient[..count]);
     } else {
-        out.prop_long(properties.background, i64::from(tag.background));
+        out.prop_long(properties.background, if plain { 0 } else { i64::from(tag.background) });
     }
     out.prop_string(properties.direction, b"row");
     out.prop_number(properties.height, if original_poster { 16.0 } else { 18.0 });
-    let inset = if original_poster { 5.0 } else { 4.0 };
+    let inset = if plain {
+        0.0
+    } else if original_poster {
+        5.0
+    } else {
+        4.0
+    };
     out.prop_quad(properties.padding, [inset, 0.0, inset, 0.0]);
     out.prop_number(properties.radius, if original_poster { 8.0 } else { 4.0 });
     if !action.is_empty() {
@@ -1713,7 +1723,16 @@ fn build_tag(out: &mut Out, tag: &AstralTag, nodes: &mut Vec<i32>) -> i32 {
     out.create(label, b"text", if original_poster { 8 } else { 7 });
     out.prop_long(properties.color, i64::from(tag.foreground));
     out.prop_number(properties.font_size, if original_poster { 10.0 } else { 12.0 });
-    out.prop_int(properties.font_weight, if original_poster { 700 } else { 600 });
+    out.prop_int(
+        properties.font_weight,
+        if original_poster {
+            700
+        } else if plain {
+            500
+        } else {
+            600
+        },
+    );
     out.prop_number(properties.line_height, if original_poster { 13.0 } else { 16.0 });
     out.prop_int(properties.max_lines, 1);
     out.prop_string(properties.text, text);
@@ -1778,16 +1797,20 @@ fn decorate_author(decorator: AstralDecorator, message: u64) -> Option<([AstralT
     Some((tags, count.min(MAX_TAGS)))
 }
 
-fn put_tagged_children(out: &mut Out, parent: i32, children: &[i32], roots: &[i32]) {
-    let insert_at =
-        with_tracked(|tracked| children.iter().position(|node| kind_of(tracked, *node) == TRACK_TIMESTAMP)).unwrap_or(children.len());
-    let mut merged = Vec::with_capacity(children.len() + roots.len());
+fn put_tagged_children(out: &mut Out, parent: i32, children: &[i32], slot: &Tags) {
+    let timestamp = with_tracked(|tracked| children.iter().position(|node| kind_of(tracked, *node) == TRACK_TIMESTAMP));
+    let insert_at = timestamp.unwrap_or(children.len());
+    let trailing_at = timestamp.map_or(children.len(), |position| position + 1);
+    let mut merged = Vec::with_capacity(children.len() + slot.roots.len() + slot.trailing.len());
     for position in 0..=children.len() {
         if merged.len() >= MERGED_CHILDREN {
             break;
         }
         if position == insert_at {
-            merged.extend_from_slice(roots);
+            merged.extend_from_slice(&slot.roots);
+        }
+        if position == trailing_at {
+            merged.extend_from_slice(&slot.trailing);
         }
         if let Some(node) = children.get(position) {
             merged.push(*node);
@@ -1801,11 +1824,16 @@ fn write_tags(out: &mut Out, parent: i32, children: &[i32], tags: &[AstralTag], 
     slot.signature = tag_signature(tags);
     for tag in tags {
         let root = build_tag(out, tag, &mut slot.nodes);
-        if root != 0 {
+        if root == 0 {
+            continue;
+        }
+        if tag.shape == TAG_TEXT {
+            slot.trailing.push(root);
+        } else {
             slot.roots.push(root);
         }
     }
-    put_tagged_children(out, parent, children, &slot.roots);
+    put_tagged_children(out, parent, children, slot);
 }
 
 fn decorated_slot(decorated: &mut HashMap<i32, Tags>, parent: i32) -> Option<&mut Tags> {
@@ -1826,11 +1854,11 @@ fn author_in(children: &[i32]) -> Option<u64> {
 fn keep_tags(batch: &Batch, out: &mut Out, changed: &mut c_int, parent: i32, children: &[i32], message: u64) {
     with_decorated(|decorated| {
         let Some(slot) = decorated.get_mut(&parent) else { return };
-        if slot.message != message || slot.roots.is_empty() {
+        if slot.message != message || (slot.roots.is_empty() && slot.trailing.is_empty()) {
             return;
         }
         put_original_once(out, batch.bytes, changed);
-        put_tagged_children(out, parent, children, &slot.roots);
+        put_tagged_children(out, parent, children, slot);
     });
 }
 
@@ -1859,8 +1887,8 @@ fn decorate_tags(batch: &Batch, decorator: AstralDecorator, out: &mut Out, chang
                 slot.signature = tag_signature(&[]);
                 return;
             }
-            if !slot.roots.is_empty() && tag_signature(tags) == slot.signature {
-                put_tagged_children(out, span.id, &children, &slot.roots);
+            if !(slot.roots.is_empty() && slot.trailing.is_empty()) && tag_signature(tags) == slot.signature {
+                put_tagged_children(out, span.id, &children, slot);
                 return;
             }
             write_tags(out, span.id, &children, tags, slot);

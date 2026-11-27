@@ -95,6 +95,7 @@ local NodeKind = {
 local Shape = {
 	Pill = "pill",
 	Op = "op",
+	Text = "text",
 }
 
 ---@enum astral.Event
