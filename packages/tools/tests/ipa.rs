@@ -349,6 +349,31 @@ fn stamps_the_host_versions_into_the_extension() {
 }
 
 #[test]
+fn stamps_the_alpha_number_onto_the_build_and_keeps_discords() {
+    let mut info = plist::Dictionary::new();
+    info.insert("CFBundleVersion".into(), "124951".into());
+    astral_tools::ipa::stamp_build_info(&mut info, "46");
+    assert_eq!(
+        info.get("CFBundleVersion")
+            .and_then(plist::Value::as_string),
+        Some("124951.46")
+    );
+    assert_eq!(
+        info.get(astral_tools::ipa::ORIGINAL_BUILD_KEY)
+            .and_then(plist::Value::as_string),
+        Some("124951")
+    );
+    let mut untouched = plist::Dictionary::new();
+    untouched.insert("CFBundleVersion".into(), "124951".into());
+    astral_tools::ipa::stamp_build_info(&mut untouched, "");
+    assert!(
+        untouched
+            .get(astral_tools::ipa::ORIGINAL_BUILD_KEY)
+            .is_none()
+    );
+}
+
+#[test]
 fn adds_astral_icons_beside_discords_own() {
     use astral_tools::ipa::{ALTERNATE_ICONS, add_icon_entries};
     let mut info = plist::Dictionary::new();

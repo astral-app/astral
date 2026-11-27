@@ -16,6 +16,9 @@ on:
       package_suffix:
         type: string
         default: ""
+      build_suffix:
+        type: string
+        default: ""
     secrets:
       DKRYPT_API_KEY:
         required: true
@@ -122,10 +125,12 @@ jobs:
           output: discord.ipa
 
       - name: Inject astral
+        env:
+          BUILD_SUFFIX: ${{ inputs.build_suffix }}
         run: |
           set -euo pipefail
           deb=$(find deb -name '*.deb' | head -1)
-          astral build-ipa --ipa discord.ipa --deb "$deb" --output astral.ipa
+          astral build-ipa --ipa discord.ipa --deb "$deb" --output astral.ipa --build-suffix "$BUILD_SUFFIX"
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:

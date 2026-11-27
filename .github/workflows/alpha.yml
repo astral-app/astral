@@ -25,6 +25,7 @@ jobs:
     with:
       android_channel: alpha
       package_suffix: ~alpha.${{ github.run_number }}
+      build_suffix: ${{ github.run_number }}
     secrets:
       DKRYPT_API_KEY: ${{ secrets.DKRYPT_API_KEY }}
 
