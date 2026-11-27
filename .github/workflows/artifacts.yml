@@ -143,6 +143,8 @@ jobs:
           submodules: true
           persist-credentials: false
 
+      - uses: rui314/setup-mold@339e96b4ff1f3bd865856ba4cbbe8818a7acb038
+
       - name: Build the astral CLI
         run: |
           cargo build --quiet -p astral-tools
