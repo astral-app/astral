@@ -93,6 +93,7 @@ object Native {
     @JvmStatic external fun markHidden()
 
     @JvmStatic external fun markReady()
+    @JvmStatic external fun openLink(url: String): Boolean
 
     @JvmStatic external fun exportBackup(): String
 

@@ -2,6 +2,7 @@ pub mod android;
 pub mod android_compat;
 pub mod apt_repo;
 pub mod avd;
+pub mod axml;
 pub mod catalog;
 pub mod check;
 pub mod compat;
