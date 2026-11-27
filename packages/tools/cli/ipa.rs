@@ -59,6 +59,61 @@ pub fn loads_astral(ipa_path: &Path) -> Result<bool, String> {
         .any(|library| library.ends_with("/astral.dylib")))
 }
 
+pub struct HostApp {
+    pub identifier: String,
+    pub version: String,
+    pub build: String,
+}
+
+pub fn host_app(ipa_path: &Path) -> Result<HostApp, String> {
+    let mut ipa = Ipa::open(ipa_path)?;
+    let app = ipa.app()?;
+    let info = ipa.info(&app)?;
+    let host = HostApp {
+        identifier: archive::text(&info, "CFBundleIdentifier"),
+        version: archive::text(&info, "CFBundleShortVersionString"),
+        build: archive::text(&info, "CFBundleVersion"),
+    };
+    if host.identifier.is_empty() || host.version.is_empty() || host.build.is_empty() {
+        return Err(
+            "the app lacks CFBundleIdentifier, CFBundleShortVersionString or CFBundleVersion"
+                .into(),
+        );
+    }
+    Ok(host)
+}
+
+pub fn stamp_extension_info(info: &mut plist::Dictionary, host: &HostApp) {
+    info.insert(
+        "CFBundleShortVersionString".into(),
+        host.version.clone().into(),
+    );
+    info.insert("CFBundleVersion".into(), host.build.clone().into());
+}
+
+fn stamp_extension(extension: &Path, host: &HostApp) -> Result<(), String> {
+    let path = extension.join("Info.plist");
+    let mut info = archive::read_plist_file(&path)?;
+    stamp_extension_info(&mut info, host);
+    std::fs::write(&path, archive::write_plist(info, true)?)
+        .map_err(|error| format!("{}: {error}", path.display()))
+}
+
+fn sign_ad_hoc(extension: &Path) -> Result<(), String> {
+    repo::run(
+        extension.parent().unwrap_or(extension),
+        "codesign",
+        &strings(&[
+            "--force",
+            "--sign",
+            "-",
+            "--timestamp=none",
+            &repo::text(extension),
+        ]),
+    )
+    .map_err(|error| format!("signing OpenInAstral.appex failed: {error}"))
+}
+
 pub fn bundle_identifier(ipa_path: &Path) -> Result<String, String> {
     let mut ipa = Ipa::open(ipa_path)?;
     let app = ipa.app()?;
@@ -94,7 +149,7 @@ pub fn add_url_scheme(ipa_path: &Path, scheme: &str) -> Result<(), String> {
     )
 }
 
-pub fn build_open_in_astral(work: &Path, app_bundle_id: &str) -> Result<PathBuf, String> {
+pub fn build_open_in_astral(work: &Path, host: &HostApp) -> Result<PathBuf, String> {
     if !cfg!(target_os = "macos") {
         return Err("Safari extensions require macOS".into());
     }
@@ -122,7 +177,7 @@ pub fn build_open_in_astral(work: &Path, app_bundle_id: &str) -> Result<PathBuf,
             "iphoneos",
             &format!("CONFIGURATION_BUILD_DIR={}", repo::text(&output)),
             "PRODUCT_NAME=OpenInAstral",
-            &format!("PRODUCT_BUNDLE_IDENTIFIER={app_bundle_id}.OpenInAstral"),
+            &format!("PRODUCT_BUNDLE_IDENTIFIER={}.OpenInAstral", host.identifier),
             "CODE_SIGNING_REQUIRED=NO",
             "CODE_SIGNING_ALLOWED=NO",
             "ONLY_ACTIVE_ARCH=NO",
@@ -133,6 +188,8 @@ pub fn build_open_in_astral(work: &Path, app_bundle_id: &str) -> Result<PathBuf,
     if !path.exists() {
         return Err("xcodebuild did not create OpenInAstral.appex".into());
     }
+    stamp_extension(&path, host)?;
+    sign_ad_hoc(&path)?;
     Ok(path)
 }
 
@@ -196,7 +253,7 @@ pub fn build(ipa: &Path, deb: &Path, destination: &Path) -> Result<(), String> {
     )?;
     add_url_scheme(&built, URL_SCHEME)
         .map_err(|error| format!("registering astral's URL scheme failed: {error}"))?;
-    let extension = build_open_in_astral(&work.0, &bundle_identifier(ipa)?)?;
+    let extension = build_open_in_astral(&work.0, &host_app(ipa)?)?;
     groups::add_open_in_astral(&built, &extension)?;
     groups::add_extension_manifest(&built, &source_entries, &REQUIRED_EXTENSIONS)
         .map_err(|error| format!("recording required app extensions failed: {error}"))?;

@@ -350,7 +350,7 @@ fn wire(
     groups::add_extension_manifest(&wired, source_entries, &REQUIRED_EXTENSIONS)
         .map_err(|error| format!("recording signed app extension requirements failed: {error}"))?;
     if injected {
-        let extension = ipa::build_open_in_astral(work, &ipa::bundle_identifier(&wired)?)?;
+        let extension = ipa::build_open_in_astral(work, &ipa::host_app(&wired)?)?;
         groups::add_open_in_astral(&wired, &extension)?;
     }
     groups::add_group_remap(&wired, &remap)?;

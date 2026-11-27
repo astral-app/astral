@@ -326,3 +326,24 @@ fn extension_bundle_id_uses_the_parent_identifier() {
             .is_err()
     );
 }
+
+#[test]
+fn stamps_the_host_versions_into_the_extension() {
+    let host = astral_tools::ipa::HostApp {
+        identifier: "com.hammerandchisel.discord".into(),
+        version: "357.0".into(),
+        build: "124951".into(),
+    };
+    let mut info = plist::Dictionary::new();
+    astral_tools::ipa::stamp_extension_info(&mut info, &host);
+    assert_eq!(
+        info.get("CFBundleShortVersionString")
+            .and_then(plist::Value::as_string),
+        Some("357.0")
+    );
+    assert_eq!(
+        info.get("CFBundleVersion")
+            .and_then(plist::Value::as_string),
+        Some("124951")
+    );
+}
