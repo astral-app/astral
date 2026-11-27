@@ -8,6 +8,10 @@ local BUTTONS = {
 	{ key = "questDock", label = "QUEST_DOCK", default = false, ids = { "quest-dock", "quest_dock" } },
 	{ key = "paymentQuests", label = "PAYMENT_QUESTS", default = false, ids = { "Quests" } },
 	{ key = "paymentShop", label = "PAYMENT_SHOP", default = false, ids = { "Shop" } },
+	{ key = "paymentNitro", label = "PAYMENT_NITRO", default = false, ids = { "Nitro Home" } },
+	{ key = "paymentSubscriptions", label = "PAYMENT_SUBSCRIPTIONS", default = false, ids = { "My Subscriptions" } },
+	{ key = "paymentBoosts", label = "PAYMENT_BOOSTS", default = false, ids = { "Server Boost" } },
+	{ key = "paymentGifts", label = "PAYMENT_GIFTS", default = false, ids = { "Gift Inventory" } },
 }
 
 local DECORATIONS = {
