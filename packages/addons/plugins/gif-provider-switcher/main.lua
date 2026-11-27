@@ -1,12 +1,13 @@
+local t = astral.i18n.t
 local TENOR_KEY = "3Z0688EVWYKH"
 local GIPHY_KEY = "Gc7131jiJuvI7IdN0HZ1D7nh0ow5BU6g"
 local LIMIT = 40
 
-local settings = astral.settings.section("Provider")
-settings:choice("provider", "GIF provider", {
-	astral.settings.option("tenor", "Tenor"),
-	astral.settings.option("giphy", "Giphy"),
-	astral.settings.option("discord", "Discord's default"),
+local settings = astral.settings.section(t("PROVIDER"))
+settings:choice("provider", t("PROVIDER"), {
+	astral.settings.option("tenor", t("PROVIDER_TENOR"), t("PROVIDER_TENOR_SUBTITLE")),
+	astral.settings.option("giphy", t("PROVIDER_GIPHY"), t("PROVIDER_GIPHY_SUBTITLE")),
+	astral.settings.option("discord", t("PROVIDER_KLIPY"), t("PROVIDER_KLIPY_SUBTITLE")),
 }, "tenor")
 
 local function encode(text)

@@ -1,7 +1,7 @@
 id = "astral.gif-provider-switcher"
 name = "GIF Provider Switcher"
 description = "Searches GIFs from Tenor or Giphy instead of Klipy in Discord's own GIF picker."
-version = "0.0.1"
+version = "0.0.2"
 icon = "ReactionIcon"
 main = "main.lua"
 permissions = ["network", "net.discord"]

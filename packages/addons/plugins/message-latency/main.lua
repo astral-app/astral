@@ -1,16 +1,17 @@
+local t = astral.i18n.t
 local MAXIMUM_TRACKED = 500
 local MUTED = 0xFFF0B232
 
-local settings = astral.settings.section("Indicator")
-settings:number("threshold", "Latency threshold", {
+local settings = astral.settings.section(t("INDICATOR"))
+settings:number("threshold", t("LATENCY_THRESHOLD"), {
 	min = 1,
 	max = 10,
 	step = 1,
 	default = 2,
-	subtitle = "Seconds a message must take to send before it's marked",
+	subtitle = t("LATENCY_THRESHOLD_SUBTITLE"),
 })
-settings:switch("milliseconds", "Show milliseconds", false, "Shows 2.48s instead of 2s")
-settings:switch("ignore_self", "Ignore my messages", false, "Never marks messages you sent")
+settings:switch("milliseconds", t("SHOW_MILLISECONDS"), false, t("SHOW_MILLISECONDS_SUBTITLE"))
+settings:switch("ignore_self", t("IGNORE_MY_MESSAGES"), false, t("IGNORE_MY_MESSAGES_SUBTITLE"))
 
 local latencies, order = {}, {}
 local current_user

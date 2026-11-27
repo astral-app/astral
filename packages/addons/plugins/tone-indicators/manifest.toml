@@ -1,7 +1,7 @@
 id = "astral.tone-indicators"
 name = "Tone Indicators"
 description = "Turns tone tags such as /j and /srs into pills that spell out what they mean."
-version = "0.0.1"
+version = "0.0.2"
 icon = "TextIcon"
 main = "main.lua"
 permissions = ["ui.text"]

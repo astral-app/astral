@@ -56,7 +56,7 @@ authors = [{ name = "Fiery", id = "890228870559698955" }, { name = "adrian", id 
 [[plugins]]
 id = "astral.local-notifications"
 name = "Local Notifications"
-version = "0.0.1"
+version = "0.0.2"
 description = "Notifies you of mentions and DMs on installs where Discord's push notifications don't arrive, by keeping Discord connected in the background."
 icon = "BellIcon"
 base = "plugins/astral.local-notifications/"
@@ -89,7 +89,7 @@ authors = [
 [[plugins]]
 id = "astral.gif-provider-switcher"
 name = "GIF Provider Switcher"
-version = "0.0.1"
+version = "0.0.2"
 description = "Searches GIFs from Tenor or Giphy instead of Klipy in Discord's own GIF picker."
 icon = "ReactionIcon"
 base = "plugins/astral.gif-provider-switcher/"
@@ -173,7 +173,7 @@ authors = [
 [[plugins]]
 id = "astral.message-latency"
 name = "Message Latency"
-version = "0.0.1"
+version = "0.0.2"
 description = "Marks messages that took at least the selected time to send, beside their timestamp."
 icon = "BellIcon"
 base = "plugins/astral.message-latency/"
@@ -248,7 +248,7 @@ authors = [
 [[plugins]]
 id = "astral.tone-indicators"
 name = "Tone Indicators"
-version = "0.0.1"
+version = "0.0.2"
 description = "Turns tone tags such as /j and /srs into pills that spell out what they mean."
 icon = "TextIcon"
 base = "plugins/astral.tone-indicators/"
@@ -257,7 +257,7 @@ authors = [{ name = "justjxke", id = "852558183087472640" }, { name = "adrian", 
 [[plugins]]
 id = "astral.message-text-size"
 name = "Message Text Size"
-version = "0.0.1"
+version = "0.0.2"
 description = "Makes the text of chat messages bigger or smaller, leaving the rest of Discord as it is."
 icon = "TextIcon"
 base = "plugins/astral.message-text-size/"

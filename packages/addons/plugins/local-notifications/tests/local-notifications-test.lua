@@ -1,5 +1,11 @@
 local handlers, gateway, notified, alive = {}, nil, {}, nil
 astral = {
+	i18n = {
+		t = function(key)
+			local strings = { ATTACHMENT = "Sent an attachment", NEW_MESSAGE = "Sent a message", SOMEONE = "Someone" }
+			return strings[key] or key
+		end,
+	},
 	log = function() end,
 	settings = {
 		get = function(_, fallback)

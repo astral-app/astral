@@ -1,10 +1,11 @@
-local settings = astral.settings.section("Text")
-settings:number("scale", "Message text size", {
+local t = astral.i18n.t
+local settings = astral.settings.section(t("TEXT"))
+settings:number("scale", t("SCALE"), {
 	min = 50,
 	max = 200,
 	step = 5,
 	default = 115,
-	subtitle = "Percent of Discord's size for the text of messages",
+	subtitle = t("SCALE_SUBTITLE"),
 })
 
 astral.ui.patch({ id = "message.content:" }, function()
