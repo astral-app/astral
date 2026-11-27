@@ -1,6 +1,7 @@
-signature = "Irir1I+JM4X2b/cSOz2wLRCAJjeuTtiE5GZOaHrhl4NjF7sPy48njBkqBcitYIU71Bb9HSmmJ/H3ORTNJP48Bw=="
+signature = "N9Ehf2qVLGNEfcs6sH5UpBfYozmAtFkH01CPpg7VMl5twah1O0vTE+6tL9QL1K5CbhlYavtwAHo1FhNFB3RoBQ=="
 
 [files]
-"main.lua" = "601e6bfde12cc92a8b3e2b1dc72cab8732c1d06891deeef81f0f27308f81a078"
-"main.luac" = "6fdc375d215bc4aca434fa72e1846c5a9ae2e556bdbc1bf911396d18543dfa48"
-"manifest.toml" = "cb5c2b890e40f9917146b3950dfd92a68df119d37065e3140aea3cd0e0e7b5f1"
+"i18n/en-US.toml" = "e190e8dca459e7009eace7dd54c507ac50b71beeccf713c292e9d78a37ac03c4"
+"main.lua" = "eeda661a9046f9c2d7fe4a446349d72e8ea8efb4a90f2ff668e9d45452c942a7"
+"main.luac" = "aed494a588b3dc01ba466d938504d3c00ae104ff989c804be288b3fbac9136bc"
+"manifest.toml" = "3eafd4583e9cfa2e01cfbf5bb8625a022e02a337923e1d483eb81ac538427328"

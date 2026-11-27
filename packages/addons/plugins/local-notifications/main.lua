@@ -1,15 +1,12 @@
+local t = astral.i18n.t
 local MAXIMUM_BODY = 180
 
-local settings = astral.settings.section("Notifications")
-settings:switch(
-	"keep_alive",
-	"Stay connected in the background",
-	true,
-	"Keeps Discord running so notifications can arrive"
-)
-settings:switch("direct", "Direct messages", true)
-settings:switch("mentions", "Mentions", true)
-settings:switch("everyone", "@everyone and @here", false)
+local settings = astral.settings.section(t("NOTIFICATIONS"))
+settings:switch("keep_alive", t("KEEP_ALIVE"), true, t("KEEP_ALIVE_SUBTITLE"))
+settings:switch("direct", t("DIRECT_MESSAGES"), true, t("DIRECT_MESSAGES_SUBTITLE"))
+settings:switch("mentions", t("MENTIONS"), true)
+settings:switch("everyone", t("EVERYONE"), false)
+settings:switch("preview", t("PREVIEW"), true, t("PREVIEW_SUBTITLE"))
 
 local in_background = false
 local current_user
@@ -45,9 +42,9 @@ local function wanted(data)
 end
 
 local function body_of(data)
-	local text = tostring(data.content or "")
+	local text = setting("preview", true) and tostring(data.content or "") or ""
 	if text == "" then
-		text = (data.attachments and #data.attachments > 0) and "Sent an attachment" or "Sent a message"
+		text = (data.attachments and #data.attachments > 0) and t("ATTACHMENT") or t("NEW_MESSAGE")
 	end
 	if #text > MAXIMUM_BODY then
 		text = text:sub(1, MAXIMUM_BODY) .. "…"
@@ -56,7 +53,7 @@ local function body_of(data)
 end
 
 local function title_of(data)
-	local author = data.author.global_name or data.author.username or "Someone"
+	local author = data.author.global_name or data.author.username or t("SOMEONE")
 	if not data.guild_id then
 		return author
 	end

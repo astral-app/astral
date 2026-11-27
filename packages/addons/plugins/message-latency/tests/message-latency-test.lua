@@ -1,6 +1,12 @@
 local gateway, insert
 local values = {}
 astral = {
+	i18n = {
+		t = function(key)
+			local strings = {}
+			return strings[key] or key
+		end,
+	},
 	log = function() end,
 	settings = {
 		get = function(key, fallback)

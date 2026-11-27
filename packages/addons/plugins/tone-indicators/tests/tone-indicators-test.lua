@@ -21,7 +21,7 @@ astral = {
 	discord = { permission = {} },
 	i18n = {
 		t = function(key)
-			return key
+			return key == "TONE_J" and "Joking" or key
 		end,
 	},
 }
