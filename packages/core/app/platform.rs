@@ -192,10 +192,23 @@ pub fn picked_media_fetched(entries: &str) {
     }
 }
 
+const REFRESH_RESEND_MS: u64 = 100;
+
+static LAST_REFRESH_REQUEST_MS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+fn should_request_refresh(already_pending: bool, last_ms: u64, now_ms: u64) -> bool {
+    !already_pending || now_ms.saturating_sub(last_ms) >= REFRESH_RESEND_MS
+}
+
 fn refresh_decorations() {
+    use std::sync::atomic::Ordering;
     crate::lua::host::nodes::forget_tags();
-    REFRESH_DECORATIONS.store(true, std::sync::atomic::Ordering::Release);
-    host::request(Request::RefreshDecorations);
+    let already_pending = REFRESH_DECORATIONS.swap(true, Ordering::AcqRel);
+    let now_ms = u64::try_from(crate::support::bridge::epoch_ms()).unwrap_or_default();
+    if should_request_refresh(already_pending, LAST_REFRESH_REQUEST_MS.load(Ordering::Acquire), now_ms) {
+        LAST_REFRESH_REQUEST_MS.store(now_ms, Ordering::Release);
+        host::request(Request::RefreshDecorations);
+    }
 }
 
 fn offer_pick(arguments: &Arguments) -> Value {
@@ -410,4 +423,16 @@ pub unsafe extern "C" fn platform_call(
     let parsed: Value = serde_json::from_slice(bytes(arguments, arguments_length)).unwrap_or(Value::Null);
     let reply = Method::parse(&name).map_or_else(missing, |method| dispatch(method, &Arguments(&parsed)));
     AstralRustString::new(host::json_text(&reply).into_bytes())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn refreshes_coalesce_until_the_pending_one_is_taken() {
+        assert!(should_request_refresh(false, 1000, 1001));
+        assert!(!should_request_refresh(true, 1000, 1050));
+        assert!(should_request_refresh(true, 1000, 1000 + REFRESH_RESEND_MS));
+    }
 }
