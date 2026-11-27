@@ -222,6 +222,14 @@ impl Out {
         self.put(&value.to_le_bytes());
     }
 
+    pub fn patch16(&mut self, offset: usize, value: u16) {
+        if self.failed != 0 || self.bytes.is_null() || offset + 2 > self.length {
+            return;
+        }
+        let target = unsafe { core::slice::from_raw_parts_mut(self.bytes.add(offset), 2) };
+        target.copy_from_slice(&value.to_le_bytes());
+    }
+
     pub fn put32(&mut self, value: u32) {
         self.put(&value.to_le_bytes());
     }
