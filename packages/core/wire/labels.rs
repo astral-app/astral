@@ -442,6 +442,9 @@ fn collect(relabel: &mut Relabel, spans: &[Span]) {
             relabel.add_shown(span.id, &text, &label_context(LABEL_AUTHOR, message, current_channel(), 0));
             continue;
         }
+        if span.op == Op::Update && string_at(data, span, properties.text).is_some() {
+            with_shown(|shown| shown.remove(&span.id));
+        }
         if span.op != Op::Create || !contains(bytes, span, b"replyPreview") {
             continue;
         }
