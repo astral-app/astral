@@ -386,6 +386,46 @@ static void relabelTest(void)
     astral_wire_set_relabeler(NULL);
 }
 
+static int labelWithMessage(const AstralLabelContext *context, const char *text, size_t length, char *out, size_t capacity)
+{
+    (void)length;
+    return snprintf(out, capacity, "%s #%llu", text, (unsigned long long)(context->message_id % 1000));
+}
+
+static void recycledAuthorTest(void)
+{
+    AstralWireBuffer out;
+    astral_wire_set_relabeler(labelWithMessage);
+    Batch first = {.length = 0};
+    b8(&first, 1);
+    create(&first, 980, "text", 2);
+    b16(&first, 9);
+    b8(&first, 6);
+    bstr(&first, "message.author:100000000000000011");
+    b16(&first, 499);
+    b8(&first, 6);
+    bstr(&first, "Kode");
+    assert(astral_settings_rewrite(first.bytes, first.length, &out));
+    astral_wire_buffer_free(&out);
+    Batch recycled = {.length = 0};
+    b8(&recycled, 1);
+    b8(&recycled, 2);
+    b32(&recycled, 980);
+    b16(&recycled, 2);
+    b16(&recycled, 9);
+    b8(&recycled, 6);
+    bstr(&recycled, "message.author:100000000000000120");
+    b16(&recycled, 499);
+    b8(&recycled, 6);
+    bstr(&recycled, "Ana");
+    assert(astral_settings_rewrite(recycled.bytes, recycled.length, &out));
+    astral_wire_summarise(out.bytes, out.length, sink, NULL);
+    assert(strstr(line, "\"complete\":true"));
+    assert(strstr(line, "[499,6,{\"n\":8"));
+    astral_wire_buffer_free(&out);
+    astral_wire_set_relabeler(NULL);
+}
+
 static uint64_t gProfileUser;
 
 static int profileRelabeler(const AstralLabelContext *context, const char *text, size_t length, char *out, size_t capacity)
@@ -1006,6 +1046,7 @@ int main(void)
     decorationTest();
     gradientTagTest();
     relabelTest();
+    recycledAuthorTest();
     paletteTest();
     recolorTest();
     surfaceTintTest();
