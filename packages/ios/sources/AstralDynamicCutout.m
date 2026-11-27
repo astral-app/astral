@@ -4,6 +4,7 @@
 #import <objc/message.h>
 
 #import "AstralCore.h"
+#import "AstralState.h"
 
 static UIView *gOverlay;
 static UIWindow *gWindow;
@@ -56,8 +57,8 @@ static void CreateOverlay(void)
     gOverlay.layer.mask = mask;
     AstralRect logo = cutout.logo;
     UIImageView *image = [[UIImageView alloc] initWithFrame:CGRectMake(logo.x, logo.y, logo.width, logo.height)];
-    image.image = [UIImage imageNamed:@"astral_galaxy"];
-    image.tintColor = UIColor.whiteColor;
+    NSString *assets = [AstralResourceDirectory() stringByAppendingPathComponent:@"assets"];
+    image.image = [UIImage imageWithContentsOfFile:[assets stringByAppendingPathComponent:@"logo.png"]];
     image.contentMode = UIViewContentModeScaleAspectFit;
     [gOverlay addSubview:image];
     [window addSubview:gOverlay];

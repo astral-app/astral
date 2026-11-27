@@ -2,6 +2,7 @@ package app.astral.android
 
 import android.content.pm.ApplicationInfo
 import android.content.res.Resources
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
@@ -66,12 +67,13 @@ object ResourceImages {
 
     private fun ownAsset(name: String): File? {
         if (!name.startsWith("astral_") || name.any { !(it.isLetterOrDigit() || it == '_') }) return null
-        return File(assets, "${name.removePrefix("astral_")}.svg").takeIf { it.isFile }
+        val base = name.removePrefix("astral_")
+        return listOf("svg", "png").map { File(assets, "$base.$it") }.firstOrNull { it.isFile }
     }
 
     private fun drawable(resources: Resources, name: String): Drawable? = runCatching {
         ownAsset(name)?.let { file ->
-            return@runCatching svgDrawable(resources, file)
+            return@runCatching if (file.extension == "png") pngDrawable(resources, file) else svgDrawable(resources, file)
         }
         val path = Native.iconPath(name)
         if (path.isEmpty()) return@runCatching null
@@ -81,6 +83,14 @@ object ResourceImages {
         bitmap.density = scale * 160
         BitmapDrawable(resources, bitmap)
     }.getOrNull()
+
+    private fun pngDrawable(resources: Resources, file: File): Drawable? {
+        val size = (24 * resources.displayMetrics.density).toInt().coerceAtLeast(1)
+        val bitmap = BitmapFactory.decodeFile(file.path) ?: return null
+        val scaled = Bitmap.createScaledBitmap(bitmap, size, size, true)
+        scaled.density = resources.displayMetrics.densityDpi
+        return BitmapDrawable(resources, scaled)
+    }
 
     private fun svgDrawable(resources: Resources, file: File): Drawable? {
         val size = (24 * resources.displayMetrics.density).toInt().coerceAtLeast(1)

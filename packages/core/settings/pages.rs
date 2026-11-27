@@ -927,7 +927,7 @@ fn app_icon_rows() -> Vec<Value> {
         row(
             &format!("{APP_ICON_PREFIX}{key}"),
             title,
-            "res://astral_galaxy",
+            "res://astral_logo",
             if selected { ROW_SELECTED } else { ROW_CHOICE },
         )
     };
@@ -1408,7 +1408,7 @@ pub fn refresh_catalog_if_due(now: i64, force: bool, changed: Changed) {
 
 pub fn category() -> Value {
     json!({"title": "astral", "rows": [
-        {"key": "general", "title": "astral", "icon": "res://astral_galaxy"},
+        {"key": "general", "title": "astral", "icon": "res://astral_logo"},
         {"key": "plugins", "title": tr("ASTRAL_PLUGINS"), "icon": "res://ic_mana_puzzle_piece"},
         {"key": "design", "title": tr("ASTRAL_DESIGN"), "icon": "res://ic_mana_paint_palette"},
         {"key": "marketplace", "title": tr("ASTRAL_MARKETPLACE"), "icon": "res://ic_mana_shop"},

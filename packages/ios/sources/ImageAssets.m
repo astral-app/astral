@@ -25,6 +25,21 @@ static NSString *BundledSVG(NSString *file)
                                         error:nil];
 }
 
+static UIImage *BundledPNG(NSString *file)
+{
+    if ([file containsString:@"/"] || [file containsString:@".."]) return nil;
+    NSString *assets = [AstralResourceDirectory() stringByAppendingPathComponent:@"assets"];
+    UIImage *full = [UIImage imageWithContentsOfFile:[assets stringByAppendingPathComponent:[file stringByAppendingPathExtension:@"png"]]];
+    if (!full) return nil;
+    CGRect bounds = CGRectMake(0, 0, kIconPoints, kIconPoints);
+    UIGraphicsImageRenderer *renderer = [[UIGraphicsImageRenderer alloc] initWithSize:bounds.size
+                                                                               format:[UIGraphicsImageRendererFormat preferredFormat]];
+    UIImage *scaled = [renderer imageWithActions:^(__unused UIGraphicsImageRendererContext *context) {
+        [full drawInRect:bounds];
+    }];
+    return [scaled imageWithRenderingMode:UIImageRenderingModeAlwaysOriginal];
+}
+
 static NSString *const kTintedPrefix = @"astral_tinted_";
 
 static UITraitCollection *gAppTraits;
@@ -85,8 +100,9 @@ static UIImage *AstralImage(NSString *name)
     [gLock lock];
     NSString *svg = gRegistered[name];
     [gLock unlock];
-    if (!svg) svg = BundledSVG([name substringFromIndex:kAssetPrefix.length]);
-    UIImage *image = svg ? AstralRenderSVG(svg, kIconPoints) : nil;
+    NSString *file = [name substringFromIndex:kAssetPrefix.length];
+    if (!svg) svg = BundledSVG(file);
+    UIImage *image = svg ? AstralRenderSVG(svg, kIconPoints) : BundledPNG(file);
     if (image) [gImages setObject:image forKey:name];
     return image;
 }

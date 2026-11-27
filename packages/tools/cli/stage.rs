@@ -56,6 +56,10 @@ pub fn stage_resources(target: &Path) -> Result<(), String> {
             repo::path(&["packages", "assets", "*.svg"]),
             target.join("assets"),
         ),
+        (
+            repo::path(&["packages", "assets", "*.png"]),
+            target.join("assets"),
+        ),
     ];
     for (pattern, destination) in copies {
         files::copy_glob(&pattern, &destination)?;
