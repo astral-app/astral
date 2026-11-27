@@ -44,11 +44,20 @@ jobs:
   deb:
     name: Build the package
     runs-on: macos-latest
+    env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           submodules: true
           persist-credentials: false
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0
+        with:
+          shared-key: release-ios
+
+      - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
 
       - name: Build the astral CLI
         run: |
@@ -144,6 +153,8 @@ jobs:
     timeout-minutes: 60
     env:
       CHANNEL: ${{ inputs.android_channel || 'alpha' }}
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -151,6 +162,12 @@ jobs:
           persist-credentials: false
 
       - uses: rui314/setup-mold@339e96b4ff1f3bd865856ba4cbbe8818a7acb038
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0
+        with:
+          shared-key: release-android
+
+      - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
 
       - name: Build the astral CLI
         run: |
@@ -195,6 +212,14 @@ jobs:
       - name: Install the Rust Android targets
         run: rustup target add aarch64-linux-android x86_64-linux-android
 
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ hashFiles('packages/android/**/*.gradle.kts', 'packages/android/gradle/**', 'packages/android/gradle.properties') }}
+          restore-keys: gradle-
+
       - name: Build
         run: astral android build --output astral-android --patcher "$LSPATCH_JAR" discord/base.apk discord/config.arm64_v8a.apk discord/config.xxhdpi.apk discord/config.en.apk
 
@@ -203,6 +228,12 @@ jobs:
           name: astral-android
           path: astral-android
           retention-days: ${{ env.RETENTION_DAYS }}
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: astral-cli-linux
+          path: target/debug/astral
+          retention-days: 1
 
   checksums:
     name: Record checksums and provenance

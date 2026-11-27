@@ -47,16 +47,14 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: rui314/setup-mold@339e96b4ff1f3bd865856ba4cbbe8818a7acb038
-
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           path: artifacts
 
-      - name: Build the astral CLI
+      - name: Use the Android job's astral CLI
         run: |
-          cargo build --quiet -p astral-tools
-          echo "$GITHUB_WORKSPACE/target/debug" >> "$GITHUB_PATH"
+          chmod +x artifacts/astral-cli-linux/astral
+          echo "$GITHUB_WORKSPACE/artifacts/astral-cli-linux" >> "$GITHUB_PATH"
 
       - name: Create the pre-release
         id: release
