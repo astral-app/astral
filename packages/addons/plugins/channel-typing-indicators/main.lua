@@ -8,6 +8,9 @@ local MAX_AVATARS = 3
 local AVATAR_SIZE = 16
 local AVATAR_OVERLAP = -4
 local SHOW_DOTS = 1
+local DOT_COUNT = 3
+local DOT_PULSE_MS = 1200
+local DOT_STAGGER_MS = 200
 local SHOW_AVATARS = 2
 local APPEARANCES = { both = SHOW_DOTS | SHOW_AVATARS, dots = SHOW_DOTS, avatars = SHOW_AVATARS }
 
@@ -110,14 +113,28 @@ local function indicator(users)
 		end
 	end
 	if mode & SHOW_DOTS ~= 0 then
-		children[#children + 1] = {
-			type = astral.InsertNodeType.Text,
-			text = (#users > 1 and mode == SHOW_DOTS) and ("••• " .. #users) or "•••",
-			color = DOTS,
-			size = 13,
-			bold = true,
-			margin = #children > 0 and { 4, 0, 0, 0 } or 0,
-		}
+		for index = 1, DOT_COUNT do
+			children[#children + 1] = {
+				type = astral.InsertNodeType.Text,
+				text = "•",
+				color = DOTS,
+				size = 13,
+				bold = true,
+				pulse = DOT_PULSE_MS,
+				pulse_delay = (index - 1) * DOT_STAGGER_MS,
+				margin = (index == 1 and #children > 0) and { 4, 0, 0, 0 } or { 1, 0, 0, 0 },
+			}
+		end
+		if #users > 1 and mode == SHOW_DOTS then
+			children[#children + 1] = {
+				type = astral.InsertNodeType.Text,
+				text = tostring(#users),
+				color = DOTS,
+				size = 13,
+				bold = true,
+				margin = { 4, 0, 0, 0 },
+			}
+		end
 	end
 	return { type = astral.InsertNodeType.View, row = true, action = "typing", children = children }
 end

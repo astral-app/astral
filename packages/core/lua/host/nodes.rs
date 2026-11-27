@@ -39,6 +39,7 @@ const INSERT_MUTED: u32 = 1 << 13;
 const INSERT_FILL_HEIGHT: u32 = 1 << 14;
 const INSERT_COVER: u32 = 1 << 16;
 const INSERT_FIXED: u32 = 1 << 17;
+const INSERT_PULSE: u32 = 1 << 18;
 const INSERT_ALIGN: u32 = 1 << 15;
 const TAG_PILL: c_int = 0;
 const TAG_ORIGINAL_POSTER: c_int = 1;
@@ -283,6 +284,11 @@ unsafe fn read_insert_style(state: *mut LuaState, node: &mut AstralInsertNode) {
         if let Some(weight) = patch_number(state, "weight", 100.0, 900.0) {
             node.font_weight = (weight / 100.0).round() * 100.0;
             node.fields |= INSERT_BOLD;
+        }
+        if let Some(period) = patch_number(state, "pulse", 200.0, 10_000.0) {
+            node.pulse_ms = period;
+            node.pulse_delay_ms = patch_number(state, "pulse_delay", 0.0, 10_000.0).unwrap_or(0.0);
+            node.fields |= INSERT_PULSE;
         }
     }
 }

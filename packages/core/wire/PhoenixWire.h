@@ -334,6 +334,8 @@ typedef struct {
     float margin[4];
     uint8_t justify;
     uint8_t align;
+    double pulseMs;
+    double pulseDelayMs;
 } AstralInsertNode;
 
 enum { kAstralInsertCapacity = 32 };

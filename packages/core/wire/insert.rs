@@ -37,6 +37,7 @@ const FILL_HEIGHT: u32 = 1 << 14;
 const ALIGN: u32 = 1 << 15;
 const COVER: u32 = 1 << 16;
 const FIXED: u32 = 1 << 17;
+const PULSE: u32 = 1 << 18;
 
 const IMAGE_SELECTOR: &[u8] = b"image:";
 
@@ -68,6 +69,8 @@ pub struct AstralInsertNode {
     pub margin: [f32; 4],
     pub justify: Justify,
     pub align: Align,
+    pub pulse_ms: f64,
+    pub pulse_delay_ms: f64,
 }
 
 impl AstralInsertNode {
@@ -90,6 +93,8 @@ impl AstralInsertNode {
             margin: [0.0; 4],
             justify: Justify::Start,
             align: Align::Start,
+            pulse_ms: 0.0,
+            pulse_delay_ms: 0.0,
         }
     }
 }
@@ -281,7 +286,7 @@ fn known_children(id: i32) -> Vec<i32> {
 }
 
 fn property_count(node: &AstralInsertNode) -> u16 {
-    let mut count = node.fields.count_ones() as u16;
+    let mut count = (node.fields & !PULSE).count_ones() as u16;
     count += u16::from(node.fields & ROW != 0);
     count -= u16::from(node.fields & ROW != 0 && node.fields & ALIGN != 0);
     count += u16::from(node.kind == INSERT_TEXT && !text_of(&node.text).is_empty());
@@ -334,6 +339,9 @@ fn put_node(out: &mut Out, id: i32, node: &AstralInsertNode) {
         out.prop_number(properties.visible_fraction, 0.0);
     }
     let has = |field: u32| node.fields & field != 0;
+    if has(PULSE) && node.pulse_ms > 0.0 {
+        super::tween::wire_tween_pulse(id, node.pulse_ms, node.pulse_delay_ms);
+    }
     if has(COLOR) {
         put_long(out, properties.color, node.color);
     }
@@ -421,6 +429,7 @@ fn remove_inserted(out: &mut Out, target: &mut Target) {
     out.put32(target.inserted.len() as u32);
     for id in &target.inserted {
         out.put(&id.to_le_bytes());
+        super::tween::wire_tween_forget(*id);
     }
     target.inserted.clear();
     target.top_level = 0;

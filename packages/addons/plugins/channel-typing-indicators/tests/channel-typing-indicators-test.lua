@@ -65,6 +65,16 @@ astral = {
 }
 dofile(arg[1])
 
+local function joined(node)
+	local parts = {}
+	for _, child in ipairs(node.children) do
+		if child.type == astral.InsertNodeType.Text then
+			parts[#parts + 1] = child.text
+		end
+	end
+	return table.concat(parts)
+end
+
 local function texts(node)
 	local found = {}
 	for _, child in ipairs(node.children) do
@@ -89,16 +99,17 @@ end
 
 local both = insert({ key = "c1" })
 assert(
-	#both.children == 3
+	#both.children == 5
 		and both.children[1].type == astral.InsertNodeType.Image
 		and both.children[1].icon:find("/avatars/a/hash")
 )
-assert(both.children[2].icon:find("/embed/avatars/") and texts(both)[1] == "•••")
+assert(both.children[2].icon:find("/embed/avatars/") and joined(both) == "•••")
+assert(both.children[3].pulse and both.children[4].pulse_delay == 200)
 assert(insert({ key = "c2" }) == nil and insert({ key = "c3" }) == nil and insert({ key = "c4" }) == nil)
 assert(insert({ key = "muted" }) == nil)
 
 values.appearance = "dots"
-assert(#insert({ key = "c1" }).children == 1 and texts(insert({ key = "c1" }))[1] == "••• 2")
+assert(#insert({ key = "c1" }).children == 4 and joined(insert({ key = "c1" })) == "•••2")
 values.appearance = "avatars"
 assert(#texts(insert({ key = "c1" })) == 0)
 
@@ -112,7 +123,7 @@ assert(toasted == "a and b are typing...")
 
 gateway({ type = "MESSAGE_CREATE", data = { channel_id = "c1", author = { id = "a" } } })
 values.appearance = "dots"
-assert(texts(insert({ key = "c1" }))[1] == "•••")
+assert(joined(insert({ key = "c1" })) == "•••")
 now = now + 11000
 assert(insert({ key = "c1" }) == nil)
 print("channel-typing-indicators ok")

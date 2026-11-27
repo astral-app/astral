@@ -6,6 +6,9 @@ use super::properties;
 
 const MAX_TWEENS: usize = 64;
 const TWEEN_MS: f64 = 220.0;
+const PULSE_FLOOR: f64 = 0.3;
+const MIN_PULSE_MS: f64 = 200.0;
+const MAX_PULSE_MS: f64 = 10_000.0;
 
 #[derive(Clone, Copy)]
 struct Tween {
@@ -14,6 +17,7 @@ struct Tween {
     inset: f64,
     started: Option<f64>,
     fade_only: bool,
+    pulse: Option<(f64, f64)>,
 }
 
 static TWEENS: Mutex<Vec<Tween>> = Mutex::new(Vec::new());
@@ -34,6 +38,12 @@ fn forget(node: i32) {
 fn eased(progress: f64) -> f64 {
     let remaining = 1.0 - progress;
     1.0 - remaining * remaining * remaining
+}
+
+fn pulse_opacity(elapsed: f64, period: f64, delay: f64) -> f64 {
+    let phase = ((elapsed - delay) / period).rem_euclid(1.0);
+    let wave = 0.5 - 0.5 * (phase * core::f64::consts::TAU).cos();
+    PULSE_FLOOR + (1.0 - PULSE_FLOOR) * wave
 }
 
 fn put_frame(out: &mut Out, tween: &Tween, amount: f64) {
@@ -57,6 +67,7 @@ pub extern "C" fn wire_tween_in(node: i32, width: f64, inset: f64) {
         inset,
         started: None,
         fade_only: false,
+        pulse: None,
     });
 }
 
@@ -69,6 +80,19 @@ pub extern "C" fn wire_tween_fade(node: i32) {
         inset: 0.0,
         started: None,
         fade_only: true,
+        pulse: None,
+    });
+}
+
+pub fn wire_tween_pulse(node: i32, period: f64, delay: f64) {
+    forget(node);
+    start(Tween {
+        node,
+        width: 0.0,
+        inset: 0.0,
+        started: None,
+        fade_only: true,
+        pulse: Some((period.clamp(MIN_PULSE_MS, MAX_PULSE_MS), delay.clamp(0.0, MAX_PULSE_MS))),
     });
 }
 
@@ -96,6 +120,10 @@ pub unsafe extern "C" fn astral_wire_tween_frame(buffer: *mut AstralWireBuffer, 
     let mut out = Out::batch();
     tweens.retain_mut(|tween| {
         let started = *tween.started.get_or_insert(now);
+        if let Some((period, delay)) = tween.pulse {
+            put_frame(&mut out, tween, pulse_opacity(now - started, period, delay));
+            return true;
+        }
         let progress = ((now - started) / TWEEN_MS).min(1.0);
         put_frame(&mut out, tween, eased(progress));
         progress < 1.0
