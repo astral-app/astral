@@ -1,10 +1,12 @@
 use super::tag::{Op, Tag};
 use core::ffi::c_int;
+use std::collections::BTreeMap;
 use std::sync::Mutex;
 
 use super::cursor::Cursor;
 use super::format::{Span, batch_of, property_cursor, spans_of, type_is};
-use super::out::Out;
+use super::out::{AstralWireBuffer, Out};
+use super::patch::read_identifier;
 use super::properties;
 
 use super::theme::wire_background_stops;
@@ -16,13 +18,91 @@ struct Backdrop {
     gradient_node: i32,
     angle: f64,
     stops: Vec<u32>,
+    image: Vec<u8>,
+    opacity: f64,
+    bodies: BTreeMap<i32, Body>,
+}
+
+#[derive(Default)]
+struct Body {
+    image_node: i32,
+    children: Vec<i32>,
+    shown: Vec<u8>,
 }
 
 static BACKDROP: Mutex<Backdrop> = Mutex::new(Backdrop {
     gradient_node: 0,
     angle: DEFAULT_ANGLE,
     stops: Vec::new(),
+    image: Vec::new(),
+    opacity: 1.0,
+    bodies: BTreeMap::new(),
 });
+
+const CHAT_BODY: &[u8] = b"chat-body";
+const IMAGE_PROPERTIES: u16 = 5;
+const MAX_BODIES: usize = 32;
+
+fn put_image(out: &mut Out, body: &mut Body, image: &[u8], opacity: f64) {
+    let properties = properties::current();
+    if body.image_node == 0 {
+        body.image_node = super::decorate::wire_allocate_node();
+        out.create(body.image_node, b"image", IMAGE_PROPERTIES);
+    } else {
+        out.update(body.image_node, IMAGE_PROPERTIES);
+    }
+    out.prop_string(properties.width, b"fill");
+    out.prop_string(properties.height, b"fill");
+    out.prop_string(properties.resize_mode, b"cover");
+    out.prop_number(properties.opacity, opacity);
+    out.prop_string(properties.uri, image);
+    body.shown = image.to_vec();
+}
+
+fn put_body(out: &mut Out, id: i32, body: &mut Body, image: &[u8], opacity: f64) {
+    if !image.is_empty() && body.shown != image {
+        put_image(out, body, image, opacity);
+    }
+    let image_node = body.image_node;
+    let mut children: Vec<i32> = body.children.iter().copied().filter(|child| *child != image_node).collect();
+    if !image.is_empty() && image_node != 0 {
+        children.insert(0, image_node);
+    }
+    out.put_op(Op::SetChildren);
+    out.put(&id.to_le_bytes());
+    out.put32(children.len() as u32);
+    for child in children {
+        out.put(&child.to_le_bytes());
+    }
+}
+
+fn observe_bodies(backdrop: &mut Backdrop, bytes: *const u8, spans: &[Span]) -> Vec<i32> {
+    let mut touched = Vec::new();
+    for span in spans {
+        let data = batch_of(bytes, span);
+        match Op::parse(span.op) {
+            Some(Op::Create) if read_identifier(data, span).is_some_and(|(identifier, _)| identifier == CHAT_BODY) => {
+                if backdrop.bodies.len() >= MAX_BODIES {
+                    continue;
+                }
+                backdrop.bodies.entry(span.id).or_default();
+            }
+            Some(Op::SetChildren) => {
+                let Some(body) = backdrop.bodies.get_mut(&span.id) else { continue };
+                body.children = (0..span.child_count).map(|index| super::format::child(data, span, index)).collect();
+                body.shown.clear();
+                touched.push(span.id);
+            }
+            Some(Op::Remove) => {
+                for index in 0..span.child_count {
+                    backdrop.bodies.remove(&super::format::child(data, span, index));
+                }
+            }
+            _ => {}
+        }
+    }
+    touched
+}
 
 fn read_gradient(bytes: &[u8], span: &Span) -> Option<(f64, Vec<u32>)> {
     let properties = properties::current();
@@ -148,12 +228,68 @@ pub unsafe extern "C" fn wire_observe_app_gradient(
     bytes: *const u8,
     pointer: *const Span,
     count: usize,
-    _out: *mut Out,
-    _changed: *mut c_int,
-    _length: usize,
+    out: *mut Out,
+    changed: *mut c_int,
+    length: usize,
 ) {
     let spans = spans_of(pointer, count);
-    if let Ok(mut backdrop) = BACKDROP.lock() {
-        observe_app_gradient(&mut backdrop, bytes, spans);
+    let Ok(mut backdrop) = BACKDROP.lock() else { return };
+    observe_app_gradient(&mut backdrop, bytes, spans);
+    let touched = observe_bodies(&mut backdrop, bytes, spans);
+    if touched.is_empty() || backdrop.image.is_empty() {
+        return;
     }
+    let (Some(out), Some(changed)) = (unsafe { out.as_mut() }, unsafe { changed.as_mut() }) else {
+        return;
+    };
+    if *changed == 0 {
+        out.put(unsafe { core::slice::from_raw_parts(bytes, length) });
+    }
+    *changed = 1;
+    let (image, opacity) = (backdrop.image.clone(), backdrop.opacity);
+    for id in touched {
+        if let Some(body) = backdrop.bodies.get_mut(&id) {
+            put_body(out, id, body, &image, opacity);
+        }
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn astral_wire_set_background_image(uri: *const u8, length: usize, opacity: f64) {
+    let image = if uri.is_null() {
+        Vec::new()
+    } else {
+        unsafe { core::slice::from_raw_parts(uri, length) }.to_vec()
+    };
+    if let Ok(mut backdrop) = BACKDROP.lock() {
+        backdrop.image = image;
+        backdrop.opacity = if opacity > 0.0 { opacity.min(1.0) } else { 1.0 };
+        for body in backdrop.bodies.values_mut() {
+            body.shown.clear();
+        }
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn astral_wire_refresh_backdrop(buffer: *mut AstralWireBuffer) -> c_int {
+    let Some(buffer) = (unsafe { buffer.as_mut() }) else { return 0 };
+    *buffer = AstralWireBuffer {
+        bytes: core::ptr::null_mut(),
+        length: 0,
+    };
+    let Ok(mut backdrop) = BACKDROP.lock() else { return 0 };
+    let (image, opacity) = (backdrop.image.clone(), backdrop.opacity);
+    let mut out = Out::batch();
+    let mut any = false;
+    for (id, body) in backdrop.bodies.iter_mut() {
+        if !body.children.is_empty() && (!image.is_empty() || body.image_node != 0) {
+            put_body(&mut out, *id, body, &image, opacity);
+            any = true;
+        }
+    }
+    if !any {
+        out.discard();
+        return 0;
+    }
+    c_int::from(out.finish(buffer))
 }
