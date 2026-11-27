@@ -10,20 +10,12 @@
 #import "PhoenixImage.h"
 #import "PhoenixLocate.h"
 
-static NSString *const kSuite = @"app.astral.phoenix";
-static NSString *const kStrikesKey = @"access_gate_strikes";
-static const NSInteger kStrikeLimit = 2;
 enum { kMaxSlots = 4, kMaxEvaluators = 4 };
 static const char *const kAccessExperiment = "2026-11-phoenix-app-access";
 static const char *const kPhoenixImage = "/PhoenixFatClient.framework/PhoenixFatClient";
 
 static NSDictionary<NSString *, id> *gResult;
 static atomic_bool gAttempted;
-
-static NSUserDefaults *Store(void)
-{
-    return [[NSUserDefaults alloc] initWithSuiteName:kSuite];
-}
 
 static const uint8_t kReturnTrue[8] = {0x20, 0x00, 0x80, 0x52, 0xC0, 0x03, 0x5F, 0xD6};
 
@@ -50,11 +42,6 @@ static BOOL PatchReturnTrue(uint64_t entry, NSMutableDictionary *diag)
 static NSDictionary<NSString *, id> *Unlock(const struct mach_header *image)
 {
     NSMutableDictionary *result = [@{@"applied" : @NO} mutableCopy];
-    NSInteger strikes = [Store() integerForKey:kStrikesKey];
-    if (strikes >= kStrikeLimit) {
-        result[@"skipped"] = @"disabled-after-unhealthy-launches";
-        return result;
-    }
     AstralImageView view = {(const uint8_t *)image, 0, 0, 0};
     uint64_t helper = astral_locate_const_referencing(&view, kAccessExperiment);
     result[@"helper"] = @(helper);
@@ -69,7 +56,6 @@ static NSDictionary<NSString *, id> *Unlock(const struct mach_header *image)
         result[@"skipped"] = evaluatorCount == 0 ? @"no-evaluators" : @"too-many-evaluators";
         return result;
     }
-    [Store() setInteger:strikes + 1 forKey:kStrikesKey];
     NSMutableArray *diags = [NSMutableArray array];
     NSUInteger patched = 0;
     for (size_t index = 0; index < evaluatorCount; index++) {
@@ -109,9 +95,4 @@ NSDictionary<NSString *, id> *AstralPhoenixAccessStatus(void)
     return gResult ?: @{};
 }
 
-void AstralPhoenixAccessHealthy(void)
-{
-    if ([Store() integerForKey:kStrikesKey] != 0) {
-        [Store() setInteger:0 forKey:kStrikesKey];
-    }
-}
+void AstralPhoenixAccessHealthy(void) {}
