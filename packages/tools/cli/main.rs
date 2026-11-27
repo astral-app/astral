@@ -2,7 +2,7 @@ use std::process::ExitCode;
 
 use astral_tools::{
     android, android_compat, avd, check, compat, create, dev, device, doctor, feed, fuzz, i18n,
-    ipa, lint, palette, readme, sideload, signing, stage, test, theos, vphone,
+    ipa, lint, palette, readme, release_notes, sideload, signing, stage, test, theos, vphone,
 };
 
 type Run = fn(&[String]) -> Result<(), String>;
@@ -35,6 +35,11 @@ const COMMANDS: &[(&str, &str, Run)] = &[
         ipa::run,
     ),
     ("check", "check [--staged] [file ...]", check::run),
+    (
+        "release-notes",
+        "release-notes [--since <tag>]",
+        release_notes::run,
+    ),
     (
         "compat",
         "compat --ipa <decrypted Discord.ipa> [--channel stable] [--baseline compat.json] [--results compat.json] [--report report.md]",

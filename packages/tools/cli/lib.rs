@@ -24,6 +24,7 @@ pub mod objc_boxing;
 pub mod palette;
 pub mod phoenix;
 pub mod readme;
+pub mod release_notes;
 pub mod repo;
 pub mod rust_magic;
 pub mod sideload;
