@@ -1,52 +1,29 @@
 package app.astral.android
 
+import android.content.ContentUris
 import android.content.Context
-import android.os.SystemClock
 import android.provider.MediaStore
+import org.json.JSONArray
+import org.json.JSONObject
 
 object PickedMedia {
-    private const val FETCH_BATCH = 64
-    private const val FRESH_MS = 20_000L
+    private const val MILLISECONDS = 1000.0
 
-    private class Entry(val size: Long, val durationMs: Long, val type: String, val uri: String)
+    private fun application(): Context? = runCatching {
+        Class.forName("android.app.ActivityThread").getMethod("currentApplication").invoke(null) as? Context
+    }.getOrNull()
 
-    private val lock = Any()
-    private var entries: List<Entry> = emptyList()
-    private var fetchedAt = 0L
-    private var fetching = false
-
-    fun describe(context: Context?, slot: Int, refresh: () -> Unit): String? {
-        val (entry, fetch, limit) = synchronized(lock) {
-            val count = entries.size
-            val stale = SystemClock.uptimeMillis() - fetchedAt > FRESH_MS || fetchedAt == 0L ||
-                (slot >= count && count % FETCH_BATCH == 0)
-            val start = stale && !fetching && context != null
-            if (start) fetching = true
-            Triple(entries.getOrNull(slot), start, maxOf(count, (slot / FETCH_BATCH + 1) * FETCH_BATCH))
-        }
-        if (fetch && context != null) startFetch(context.applicationContext, limit, refresh)
-        return entry?.let { "${it.size}\n${it.durationMs / 1000.0}\n${it.type}" }
-    }
-
-    fun videoUri(slot: Int): String? = synchronized(lock) { entries.getOrNull(slot)?.takeIf { it.type == "video" }?.uri }
-
-    private fun startFetch(context: Context, limit: Int, refresh: () -> Unit) {
+    fun fetch(limit: Int) {
+        val application = application()
         Thread {
-            val fetched = runCatching { query(context, limit) }
+            val entries = runCatching { application?.let { query(it, limit) } ?: JSONArray() }
                 .onFailure { Log.warning("Failed to read picker media $limit: ${it.javaClass.simpleName}") }
-                .getOrDefault(emptyList())
-            val changed = synchronized(lock) {
-                val differs = fetched.map { listOf(it.size, it.durationMs, it.type) } != entries.map { listOf(it.size, it.durationMs, it.type) }
-                entries = fetched
-                fetchedAt = SystemClock.uptimeMillis()
-                fetching = false
-                differs
-            }
-            if (changed) refresh()
+                .getOrDefault(JSONArray())
+            Native.pickedMediaFetched(entries.toString())
         }.apply { name = "astral-picked-media" }.start()
     }
 
-    private fun query(context: Context, limit: Int): List<Entry> {
+    private fun query(context: Context, limit: Int): JSONArray {
         val columns = arrayOf(
             MediaStore.Files.FileColumns.SIZE,
             MediaStore.Files.FileColumns.MEDIA_TYPE,
@@ -59,16 +36,20 @@ object PickedMedia {
             MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO.toString(),
         )
         val order = "${MediaStore.Files.FileColumns.DATE_ADDED} DESC"
-        val uri = MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL)
-        val result = ArrayList<Entry>(limit)
-        context.contentResolver.query(uri, columns, selection, arguments, order)?.use { cursor ->
-            while (result.size < limit && cursor.moveToNext()) {
+        val result = JSONArray()
+        context.contentResolver.query(MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL), columns, selection, arguments, order)?.use { cursor ->
+            while (result.length() < limit && cursor.moveToNext()) {
                 val video = cursor.getInt(1) == MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO
-                val size = if (cursor.isNull(0)) -1L else cursor.getLong(0)
-                val duration = if (video && !cursor.isNull(2)) cursor.getLong(2) else 0L
                 val collection = if (video) MediaStore.Video.Media.EXTERNAL_CONTENT_URI else MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-                val uri = android.content.ContentUris.withAppendedId(collection, cursor.getLong(3)).toString()
-                result.add(Entry(size, duration, if (video) "video" else "image", uri))
+                val uri = ContentUris.withAppendedId(collection, cursor.getLong(3)).toString()
+                result.put(
+                    JSONObject()
+                        .put("size", if (cursor.isNull(0)) -1L else cursor.getLong(0))
+                        .put("duration", if (video && !cursor.isNull(2)) cursor.getLong(2) / MILLISECONDS else 0.0)
+                        .put("type", if (video) "video" else "image")
+                        .put("source", uri)
+                        .put("url", uri),
+                )
             }
         }
         return result

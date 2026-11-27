@@ -64,6 +64,7 @@ object Native {
     @JvmStatic external fun withStaffReady(message: String): String?
 
     @JvmStatic external fun guestEvent(event: ByteArray): Int
+    @JvmStatic external fun pickedMediaFetched(entries: String)
     @JvmStatic external fun networkPlan(method: String, url: String): Int
     @JvmStatic external fun networkBegin(request: String, stages: Int): String
     @JvmStatic external fun networkFinish(exchange: Long, response: String): String?

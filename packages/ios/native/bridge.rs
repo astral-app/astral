@@ -25,8 +25,7 @@ pub enum AstralRequestKind {
     CloseSheet,
     PickFile,
     CancelFilePick,
-    PickedMedia,
-    PickedVideo,
+    FetchPickedMedia,
     PressNode,
     InsertComposerText,
     DispatchGateway,
@@ -215,8 +214,9 @@ fn outgoing<'a>(request: &Request<'a>) -> Outgoing<'a> {
         Request::CancelFilePick { request } => {
             Outgoing::new(Kind::CancelFilePick).identifier(request)
         }
-        Request::PickedMedia { index } => Outgoing::new(Kind::PickedMedia).identifier(index),
-        Request::PickedVideo { index } => Outgoing::new(Kind::PickedVideo).identifier(index),
+        Request::FetchPickedMedia { limit } => {
+            Outgoing::new(Kind::FetchPickedMedia).identifier(limit)
+        }
         Request::PressNode { identifier, prefix } => Outgoing::new(Kind::PressNode)
             .flag(prefix)
             .texts(&[identifier]),

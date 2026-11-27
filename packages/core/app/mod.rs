@@ -7,6 +7,7 @@ pub mod guest_event;
 pub mod host;
 pub mod network;
 mod pages;
+pub mod picked_media;
 mod platform;
 mod reports;
 pub mod state;
@@ -27,6 +28,7 @@ use crate::lua::host::{self as lua_host, Config};
 use crate::wire::pages::AstralRowSpec;
 
 pub use self::host::{Bridge, set_bridge};
+pub use self::platform::picked_media_fetched;
 
 const IDENTIFIER_CAPACITY: usize = 128;
 const COMPOSER_EVENT_LIMIT: usize = 65_536;

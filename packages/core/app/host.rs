@@ -66,11 +66,8 @@ pub enum Request<'a> {
     CancelFilePick {
         request: u64,
     },
-    PickedMedia {
-        index: u64,
-    },
-    PickedVideo {
-        index: u64,
+    FetchPickedMedia {
+        limit: u64,
     },
     PressNode {
         identifier: &'a str,

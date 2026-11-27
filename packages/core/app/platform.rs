@@ -175,23 +175,21 @@ fn slot_index(slot: &str) -> Option<u64> {
 
 fn picked_media(slot: &str) -> Value {
     let Some(index) = slot_index(slot) else { return value(Value::Null) };
-    let Some(described) = host::request(Request::PickedMedia { index }).into_text() else {
-        return value(Value::Null);
-    };
-    let mut lines = described.splitn(3, '\n');
-    let (Some(size), Some(duration), Some(kind)) = (lines.next(), lines.next(), lines.next()) else {
-        return value(Value::Null);
-    };
-    value(json!({
-        "size": size.trim().parse::<i64>().unwrap_or(0),
-        "duration": duration.trim().parse::<f64>().unwrap_or(0.0),
-        "type": kind,
-    }))
+    let entry = super::picked_media::entry(index, |limit| {
+        host::request(Request::FetchPickedMedia { limit });
+    });
+    value(entry.as_ref().map_or(Value::Null, super::picked_media::describe))
 }
 
 fn picked_video(slot: &str) -> Value {
     let Some(index) = slot_index(slot) else { return value(Value::Null) };
-    optional_text(host::request(Request::PickedVideo { index }).into_text())
+    optional_text(super::picked_media::video_url(index))
+}
+
+pub fn picked_media_fetched(entries: &str) {
+    if super::picked_media::fetched(entries) {
+        refresh_decorations();
+    }
 }
 
 fn refresh_decorations() {

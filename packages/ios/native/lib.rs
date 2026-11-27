@@ -312,3 +312,54 @@ pub extern "C" fn astral_ios_navigator_slide(identifier: AstralText, fraction: f
 pub extern "C" fn astral_ios_navigator_back() -> bool {
     astral_core::settings::navigator::back()
 }
+
+#[unsafe(no_mangle)]
+pub extern "C" fn astral_ios_picked_media_fetched(entries: AstralText) {
+    app::picked_media_fetched(&entries.text());
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn astral_ios_is_picked_video_url(url: AstralText) -> bool {
+    app::picked_media::is_video_url(&url.text())
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn astral_ios_picked_video_file(url: AstralText) -> AstralOwned {
+    match app::picked_media::video_file(&url.text()) {
+        app::picked_media::VideoFile::Cached(file) => AstralOwned::text(file),
+        _ => AstralOwned::NONE,
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn astral_ios_picked_video_source(url: AstralText) -> AstralOwned {
+    match app::picked_media::video_file(&url.text()) {
+        app::picked_media::VideoFile::Source(source) => AstralOwned::text(source),
+        _ => AstralOwned::NONE,
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn astral_ios_remember_picked_video_file(url: AstralText, file: AstralText) {
+    app::picked_media::remember_video_file(&url.text(), &file.text());
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn astral_ios_byte_range(
+    header: AstralText,
+    length: u64,
+    start: *mut u64,
+    count: *mut u64,
+) -> bool {
+    let Some((first, size)) = app::picked_media::byte_range(&header.text(), length) else {
+        return false;
+    };
+    if start.is_null() || count.is_null() {
+        return false;
+    }
+    unsafe {
+        start.write(first);
+        count.write(size);
+    }
+    true
+}

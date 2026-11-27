@@ -635,3 +635,12 @@ pub extern "system" fn Java_app_astral_android_Native_guestEvent<'local>(
     let bytes = env.convert_byte_array(&event).unwrap_or_default();
     app::guest_event::handle(&bytes)
 }
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_app_astral_android_Native_pickedMediaFetched<'local>(
+    mut env: JNIEnv<'local>,
+    _: JClass<'local>,
+    entries: JString<'local>,
+) {
+    app::picked_media_fetched(&text(&mut env, &entries));
+}

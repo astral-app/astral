@@ -439,18 +439,6 @@ static AstralReply PickFile(const AstralRequest *request)
     }));
 }
 
-static AstralReply PickedMedia(const AstralRequest *request)
-{
-    int64_t size = -1;
-    double duration = 0;
-    NSString *type = nil;
-    if (!AstralPickedMediaInfo((NSUInteger)request->identifier, &size, &duration, &type, ^{
-            AstralPhoenixRefreshDecorations();
-        }))
-        return Text(nil);
-    return Text([NSString stringWithFormat:@"%lld\n%f\n%@", size, duration, type ?: @"unknown"]);
-}
-
 static AstralReply PressNode(const AstralRequest *request)
 {
     NSString *identifier = AstralStringOfText(request->first);
@@ -660,14 +648,10 @@ static AstralReply HandleCancelFilePick(const AstralRequest *request)
     return Done();
 }
 
-static AstralReply HandlePickedMedia(const AstralRequest *request)
+static AstralReply HandleFetchPickedMedia(const AstralRequest *request)
 {
-    return PickedMedia(request);
-}
-
-static AstralReply HandlePickedVideo(const AstralRequest *request)
-{
-    return Text(AstralPickedVideoURL((NSUInteger)request->identifier));
+    AstralFetchPickedMedia((NSUInteger)request->identifier);
+    return Done();
 }
 
 static AstralReply HandlePressNode(const AstralRequest *request)
