@@ -65,6 +65,9 @@ object Native {
 
     @JvmStatic external fun guestEvent(event: ByteArray): Int
     @JvmStatic external fun pickedMediaFetched(entries: String)
+    @JvmStatic external fun webAuthInitialCookies(request: Long, header: String)
+    @JvmStatic external fun webAuthIsCallback(request: Long, url: String): Boolean
+    @JvmStatic external fun webAuthNewCookies(request: Long, header: String): String
     @JvmStatic external fun networkPlan(method: String, url: String): Int
     @JvmStatic external fun networkBegin(request: String, stages: Int): String
     @JvmStatic external fun networkFinish(exchange: Long, response: String): String?

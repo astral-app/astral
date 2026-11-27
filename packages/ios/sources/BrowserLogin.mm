@@ -5,6 +5,8 @@
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
 
+#import "AstralCore.h"
+
 static void (*gOriginalPerformRequests)(id, SEL);
 static void (*gOriginalPerformRequestsWithOptions)(id, SEL, ASAuthorizationControllerRequestOptions);
 
@@ -59,8 +61,7 @@ static void PerformOriginal(ASAuthorizationController *controller, SEL selector,
 static void OpenSafariLogin(ASAuthorizationController *controller, SEL selector, ASAuthorizationControllerRequestOptions options,
                             BOOL hasOptions)
 {
-    NSString *state = NSUUID.UUID.UUIDString.lowercaseString;
-    NSString *url = [NSString stringWithFormat:@"https://discord.com/login#astral-browser-login=%@", state];
+    NSString *url = AstralTakeString(astral_ios_browser_login_url());
     [UIApplication.sharedApplication openURL:[NSURL URLWithString:url]
         options:@{}
         completionHandler:^(BOOL success) {
