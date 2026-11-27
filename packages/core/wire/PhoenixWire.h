@@ -259,7 +259,8 @@ typedef enum {
     AstralPatchHidden = 1 << 7,
     AstralPatchTextScale = 1 << 8,
     AstralPatchGradient = 1 << 9,
-    AstralPatchSeeThrough = 1 << 10
+    AstralPatchSeeThrough = 1 << 10,
+    AstralPatchSelectable = 1 << 11
 } AstralPatchField;
 
 typedef struct {

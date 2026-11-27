@@ -85,6 +85,7 @@ impl Slot {
 const SCALED_CAPACITY: usize = 2048;
 const SCALE_DEPTH: u32 = 8;
 const SCALE_NODES: usize = 256;
+const OWNER_DEPTH: usize = 32;
 pub const IDENTIFIER_LENGTH: usize = 128;
 pub const TYPE_LENGTH: usize = 16;
 
@@ -108,7 +109,7 @@ struct Patched {
 
 struct ScaledText {
     owner: i32,
-    base: f64,
+    base: Option<f64>,
     scaled: bool,
     scale: f64,
     selectable: bool,
@@ -487,14 +488,14 @@ fn write_scaled(out: &mut Out, scaled: &mut HashMap<i32, ScaledText>, owner: i32
     let selectable = patch.fields & PATCH_SELECTABLE != 0;
     let mut wrote = false;
     for (id, text) in scaled.iter_mut().filter(|(_, text)| text.owner == owner) {
-        let rescale = !((scale == 1.0 && !text.scaled) || (text.scaled && text.scale == scale));
+        let rescale = text.base.is_some() && !((scale == 1.0 && !text.scaled) || (text.scaled && text.scale == scale));
         let reselect = text.selectable != selectable;
         if !rescale && !reselect {
             continue;
         }
         out.update(*id, u16::from(rescale) + u16::from(reselect));
         if rescale {
-            out.prop_number(properties.font_size, text.base * scale);
+            out.prop_number(properties.font_size, text.base.unwrap_or_default() * scale);
             text.scaled = scale != 1.0;
             text.scale = scale;
         }
@@ -527,6 +528,82 @@ fn font_size(bytes: &[u8], span: &Span) -> Option<f64> {
     None
 }
 
+fn remember_text(scaled: &mut HashMap<i32, ScaledText>, node: i32, owner: i32, base: Option<f64>) {
+    if scaled.len() >= SCALED_CAPACITY && !scaled.contains_key(&node) {
+        return;
+    }
+    scaled.insert(
+        node,
+        ScaledText {
+            owner,
+            base,
+            scaled: false,
+            scale: 1.0,
+            selectable: false,
+        },
+    );
+}
+
+fn styles_texts(patched: &Patched) -> bool {
+    patched
+        .written
+        .as_ref()
+        .is_some_and(|patch| patch.fields & (PATCH_SELECTABLE | PATCH_TEXT_SCALE) != 0)
+}
+
+fn text_owner(state: &State, bytes: *const u8, spans: &[Span], node: i32) -> Option<i32> {
+    let mut current = node;
+    for _ in 0..OWNER_DEPTH {
+        let parent = unsafe { super::format::wire_parent_of(bytes, spans.as_ptr(), spans.len(), current) };
+        current = if parent > 0 {
+            parent
+        } else {
+            super::children::wire_discord_parent(current)
+        };
+        if current <= 0 {
+            return None;
+        }
+        if state.patched.get(&current).is_some_and(styles_texts) {
+            return Some(current);
+        }
+    }
+    None
+}
+
+fn adopt_late_texts(state: &mut State, bytes: *const u8, spans: &[Span], out: &mut Out, changed: &mut c_int, length: usize) {
+    if !state.patched.values().any(styles_texts) {
+        return;
+    }
+    let mut owners = Vec::new();
+    for span in spans.iter().filter(|span| span.op == Op::Create) {
+        let data = batch_of(bytes, span);
+        if state.scaled.contains_key(&span.id) || !type_is(data, span, b"text") {
+            continue;
+        }
+        let Some(owner) = text_owner(state, bytes, spans, span.id) else {
+            continue;
+        };
+        remember_text(&mut state.scaled, span.id, owner, font_size(data, span));
+        if !owners.contains(&owner) {
+            owners.push(owner);
+        }
+    }
+    for owner in owners {
+        let Some(patch) = state.patched.get(&owner).and_then(|patched| patched.written) else {
+            continue;
+        };
+        let mut staged = Out::default();
+        if write_scaled(&mut staged, &mut state.scaled, owner, &patch) {
+            if *changed == 0 {
+                out.put(unsafe { core::slice::from_raw_parts(bytes, length) });
+            }
+            *changed = 1;
+            out.put(unsafe { core::slice::from_raw_parts(staged.bytes, staged.length) });
+        }
+        staged.discard();
+    }
+}
+
 fn collect_texts(scaled: &mut HashMap<i32, ScaledText>, bytes: *const u8, spans: &[Span], owner: i32) {
     let mut queue = vec![(owner, 0u32)];
     let mut cursor = 0;
@@ -535,20 +612,8 @@ fn collect_texts(scaled: &mut HashMap<i32, ScaledText>, bytes: *const u8, spans:
         cursor += 1;
         if let Some(created) = unsafe { wire_creation(spans.as_ptr(), spans.len(), node).as_ref() } {
             let data = batch_of(bytes, created);
-            if type_is(data, created, b"text")
-                && let Some(base) = font_size(data, created)
-                && (scaled.len() < SCALED_CAPACITY || scaled.contains_key(&node))
-            {
-                scaled.insert(
-                    node,
-                    ScaledText {
-                        owner,
-                        base,
-                        scaled: false,
-                        scale: 1.0,
-                        selectable: false,
-                    },
-                );
+            if type_is(data, created, b"text") {
+                remember_text(scaled, node, owner, font_size(data, created));
             }
         }
         if depth >= SCALE_DEPTH {
@@ -655,6 +720,7 @@ pub unsafe extern "C" fn wire_patch_nodes(
             }
             state.patched.insert(span.id, patched);
         }
+        adopt_late_texts(state, bytes, spans, out, changed, length);
     });
 }
 
