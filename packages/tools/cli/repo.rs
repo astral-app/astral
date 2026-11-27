@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::OnceLock;
 
-pub const PACK_KINDS: [&str; 2] = ["icon-packs", "emoji-packs"];
+pub const PACK_KINDS: [&str; 3] = ["icon-packs", "emoji-packs", "font-packs"];
 
 pub fn root() -> Result<PathBuf, String> {
     let mut directory = std::env::current_dir().map_err(|error| error.to_string())?;

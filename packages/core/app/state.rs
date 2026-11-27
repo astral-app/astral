@@ -188,6 +188,10 @@ impl App {
         unsafe { packs::astral_packs_select(self.packs_handle(), kind.code(), pointer, length) != 0 }
     }
 
+    pub fn font_faces(&self) -> Value {
+        take_json(unsafe { packs::astral_packs_font_faces(self.packs_handle()) })
+    }
+
     pub fn active_pack(&self, kind: PackKind) -> String {
         self.text("astral", kind.setting(), DEFAULT_PACK)
     }
@@ -223,6 +227,7 @@ impl App {
 pub enum PackKind {
     Icons,
     Emoji,
+    Fonts,
 }
 
 impl PackKind {
@@ -230,6 +235,7 @@ impl PackKind {
         match self {
             PackKind::Icons => 0,
             PackKind::Emoji => 1,
+            PackKind::Fonts => 2,
         }
     }
 
@@ -237,6 +243,7 @@ impl PackKind {
         match self {
             PackKind::Icons => "icon-pack",
             PackKind::Emoji => "emoji-pack",
+            PackKind::Fonts => "font-pack",
         }
     }
 }

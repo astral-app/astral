@@ -41,6 +41,9 @@ enum Method {
     IconPacks,
     ActiveIconPack,
     EmojiPacks,
+    FontPacks,
+    ActiveFontPack,
+    SelectFontPack,
     ActiveEmojiPack,
     EmojiAnimated,
     SyncFolder,
@@ -93,6 +96,9 @@ impl Method {
             "iconPacks" => Method::IconPacks,
             "activeIconPack" => Method::ActiveIconPack,
             "emojiPacks" => Method::EmojiPacks,
+            "fontPacks" => Method::FontPacks,
+            "activeFontPack" => Method::ActiveFontPack,
+            "selectFontPack" => Method::SelectFontPack,
             "activeEmojiPack" => Method::ActiveEmojiPack,
             "emojiAnimated" => Method::EmojiAnimated,
             "syncFolder" => Method::SyncFolder,
@@ -253,6 +259,8 @@ fn dispatch(current: &App, method: Method, arguments: &Arguments, reply: Option<
         Method::IconPacks => current.packs(PackKind::Icons),
         Method::ActiveIconPack => json!(current.active_pack(PackKind::Icons)),
         Method::EmojiPacks => current.packs(PackKind::Emoji),
+        Method::FontPacks => current.packs(PackKind::Fonts),
+        Method::ActiveFontPack => json!(current.active_pack(PackKind::Fonts)),
         Method::ActiveEmojiPack => json!(current.active_pack(PackKind::Emoji)),
         Method::EmojiAnimated => json!(current.emoji_animated()),
         Method::SyncFolder => json!(super::sync::folder().unwrap_or_default()),
@@ -279,6 +287,10 @@ fn dispatch(current: &App, method: Method, arguments: &Arguments, reply: Option<
         }
         Method::SelectIconPack => {
             select_pack(current, PackKind::Icons, arguments.text(0));
+            Value::Null
+        }
+        Method::SelectFontPack => {
+            select_pack(current, PackKind::Fonts, arguments.text(0));
             Value::Null
         }
         Method::SelectEmojiPack => {

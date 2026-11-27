@@ -8,7 +8,7 @@ use crate::support::translations::{tr, tr_with};
 
 pub const PROMPT: u64 = u64::MAX - 1;
 const SCHEME: &str = "astral://";
-const KINDS: [&str; 4] = ["plugin", "theme", "icon-pack", "emoji-pack"];
+const KINDS: [&str; 5] = ["plugin", "theme", "icon-pack", "emoji-pack", "font-pack"];
 
 static PENDING: Mutex<Option<(String, String)>> = Mutex::new(None);
 static EARLY: Mutex<Option<String>> = Mutex::new(None);

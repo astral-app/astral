@@ -6,7 +6,7 @@ use super::ffi::{collect, raw, take, take_json, take_optional};
 use super::host;
 use super::state::{App, app, signing_key, wire};
 use crate::lua::host as lua_host;
-use crate::plugins::marketplace::{KIND_EMOJI_PACK, KIND_ICON_PACK};
+use crate::plugins::marketplace::{KIND_EMOJI_PACK, KIND_FONT_PACK, KIND_ICON_PACK};
 use crate::support::bridge::AstralRustString;
 
 const DEFAULT_THEME: &str = "discord";
@@ -142,7 +142,7 @@ unsafe extern "C" fn marketplace_fetch(_: *mut c_void, url: *const c_char, lengt
 unsafe extern "C" fn marketplace_installed(_: *mut c_void, kind: c_int, identifier: *const c_char, length: usize) {
     let identifier = String::from_utf8_lossy(crate::support::bridge::bytes(identifier, length)).into_owned();
     let Some(current) = app() else { return };
-    if kind == KIND_ICON_PACK || kind == KIND_EMOJI_PACK {
+    if kind == KIND_ICON_PACK || kind == KIND_EMOJI_PACK || kind == KIND_FONT_PACK {
         current.invalidate_packs();
         return;
     }
@@ -242,6 +242,7 @@ pub enum PackageKind {
     Theme,
     IconPack,
     EmojiPack,
+    FontPack,
 }
 
 impl PackageKind {
@@ -250,6 +251,7 @@ impl PackageKind {
             "theme" => PackageKind::Theme,
             "icon-pack" => PackageKind::IconPack,
             "emoji-pack" => PackageKind::EmojiPack,
+            "font-pack" => PackageKind::FontPack,
             _ => PackageKind::Plugin,
         }
     }
@@ -260,6 +262,7 @@ impl PackageKind {
             PackageKind::Theme => MARKETPLACE_THEME,
             PackageKind::IconPack => KIND_ICON_PACK,
             PackageKind::EmojiPack => KIND_EMOJI_PACK,
+            PackageKind::FontPack => KIND_FONT_PACK,
         }
     }
 }

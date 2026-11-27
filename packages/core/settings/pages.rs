@@ -44,11 +44,12 @@ static PLATFORM: RwLock<Platform> = RwLock::new(Platform {
 });
 static FILTER: Mutex<String> = Mutex::new(String::new());
 static MARKET_KIND: Mutex<String> = Mutex::new(String::new());
-const MARKET_KINDS: [(&str, &str); 4] = [
+const MARKET_KINDS: [(&str, &str); 5] = [
     ("plugin", "ASTRAL_MARKET_PLUGINS"),
     ("theme", "ASTRAL_MARKET_THEMES"),
     ("icon-pack", "ASTRAL_MARKET_ICON_PACKS"),
     ("emoji-pack", "ASTRAL_MARKET_EMOJI_PACKS"),
+    ("font-pack", "ASTRAL_MARKET_FONT_PACKS"),
 ];
 
 fn platform<T>(read: impl FnOnce(&Platform) -> T) -> T {
@@ -932,6 +933,12 @@ fn design_page() -> Value {
         "emoji-pack.",
         "res://ic_mana_reaction",
     );
+    let fonts = choice_rows(
+        &host_list("fontPacks"),
+        &host_text("activeFontPack"),
+        "font-pack.",
+        "res://ic_mana_letters",
+    );
     emoji.push(with(
         row("emoji-animated", tr("ASTRAL_ANIMATED_EMOJI"), "res://ic_mana_sparkles", ROW_SWITCH),
         json!({"on": host("emojiAnimated", &json!([])).as_bool().unwrap_or(false), "subtitle": tr("ASTRAL_USE_A_PACKS_ANIMATED_EMOJI_WHERE")}),
@@ -943,6 +950,7 @@ fn design_page() -> Value {
             section(tr("ASTRAL_APP_ICON"), app_icon_rows()),
             section(tr("ASTRAL_ICON_PACKS"), packs),
             section(tr("ASTRAL_EMOJI_PACKS"), emoji),
+            section(tr("ASTRAL_FONTS"), fonts),
             section(
                 tr("ASTRAL_GET_MORE"),
                 vec![
@@ -967,6 +975,7 @@ fn installed_version(identifier: &str, kind: &str) -> Option<String> {
         "theme" => "themes",
         "icon-pack" => "iconPacks",
         "emoji-pack" => "emojiPacks",
+        "font-pack" => "fontPacks",
         _ => "",
     };
     if !listed.is_empty() {
@@ -1024,6 +1033,7 @@ fn package_card(package: &Value, kind: &str) -> Value {
         "theme" => "res://ic_mana_paint_palette".to_owned(),
         "icon-pack" => "res://ic_mana_image".to_owned(),
         "emoji-pack" => "res://ic_mana_reaction".to_owned(),
+        "font-pack" => "res://ic_mana_letters".to_owned(),
         _ => package_icon(package, &identifier),
     };
     json!({
@@ -1277,6 +1287,7 @@ fn link_kind_icon(kind: &str) -> &'static str {
         "theme" => "res://ic_mana_paint_palette",
         "icon-pack" => "res://ic_mana_image",
         "emoji-pack" => "res://ic_mana_reaction",
+        "font-pack" => "res://ic_mana_letters",
         _ => "res://astral_plug",
     }
 }
@@ -1563,6 +1574,9 @@ pub fn action(route: &str, key: &str, changed: Changed) -> Option<String> {
     if route == "design" {
         if let Some(pack) = key.strip_prefix("emoji-pack.") {
             return simple("selectEmojiPack", &json!([pack]));
+        }
+        if let Some(pack) = key.strip_prefix("font-pack.") {
+            return simple("selectFontPack", &json!([pack]));
         }
         if key == "switch.emoji-animated" {
             let animated = host("emojiAnimated", &json!([])).as_bool().unwrap_or(false);

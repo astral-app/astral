@@ -528,3 +528,11 @@ version = "0.0.1"
 description = "Microsoft's Fluent emoji, animated where Microsoft drew them"
 base = "emoji-packs/fluent/"
 authors = [{ name = "Microsoft", id = "0" }, { name = "adrian", id = "224617799434108928" }]
+
+[[font-packs]]
+id = "avenir-next"
+name = "Avenir Next"
+version = "0.0.1"
+description = "Discord's text in Avenir Next, the geometric sans built into iOS"
+base = "font-packs/avenir-next/"
+authors = [{ name = "adrian", id = "224617799434108928" }]

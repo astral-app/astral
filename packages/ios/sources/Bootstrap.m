@@ -15,6 +15,7 @@
 #import "EnvironmentReport.h"
 #import "HostRequests.h"
 #import "ImageAssets.h"
+#import "FontPacks.h"
 #import "LuaComposer.h"
 #import "MessageMenu.h"
 #import "NetworkFilter.h"
@@ -239,6 +240,7 @@ __attribute__((constructor)) static void AstralBootstrap(void)
     engineSelection = AstralForcePhoenix();
     AstralArmPhoenixAccessUnlock();
     AstralInstallImageAssets();
+    AstralInstallFontPacks();
     NSURL *documents = [NSFileManager.defaultManager URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask].firstObject;
     if (!documents) return;
     stateDirectory = [documents.path stringByAppendingPathComponent:@"astral"];

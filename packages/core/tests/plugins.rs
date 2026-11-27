@@ -3,7 +3,8 @@ mod support;
 use std::path::Path;
 
 use astral_core::plugins::packs::{
-    AstralPacksHandle, astral_packs_emoji_url, astral_packs_icon_path, astral_packs_list, astral_packs_open, astral_packs_select,
+    AstralPacksHandle, astral_packs_emoji_url, astral_packs_font_faces, astral_packs_icon_path, astral_packs_list, astral_packs_open,
+    astral_packs_select,
 };
 use astral_core::plugins::signatures::{signed_files, verify, verify_directory};
 use astral_core::plugins::themes::{astral_themes_import_unbound, astral_themes_list, astral_themes_select};
@@ -18,6 +19,7 @@ use support::{configure_pages, on_page, reset_pages, setting_flag, settings, wri
 
 const PACK_ICONS: core::ffi::c_int = 0;
 const PACK_EMOJI: core::ffi::c_int = 1;
+const PACK_FONTS: core::ffi::c_int = 2;
 const ROW_INFO: i64 = 2;
 const SURFACE_TEXT: usize = 1;
 const SIX_HOURS: i64 = 6 * 60 * 60;
@@ -48,6 +50,10 @@ impl Packs {
 
     fn emoji(&self, codepoints: &str) -> String {
         text(unsafe { astral_packs_emoji_url(self.0, codepoints.as_ptr().cast(), codepoints.len()) })
+    }
+
+    fn fonts(&self) -> Value {
+        json_of(unsafe { astral_packs_font_faces(self.0) })
     }
 
     fn icon(&self, name: &str) -> String {
@@ -157,6 +163,22 @@ fn shared_packs(work: &Path) {
     assert!(packs.icon("ic_../../secret").is_empty());
     assert!(packs.select(PACK_ICONS, "discord") && packs.icon("ic_test").is_empty());
     assert!(packs.select(PACK_EMOJI, "discord") && packs.emoji("1f600").is_empty());
+    write(
+        &local.join("font-packs/sans/manifest.toml"),
+        "id = 'sans'\nname = 'Sans'\n[faces]\nnormal = 'Sans-Regular.ttf'\nbold = 'System-Bold'\nmedium = '../escape.ttf'\n",
+    );
+    write(&local.join("font-packs/sans/fonts/Sans-Regular.ttf"), "font");
+    assert!(packs.fonts()["faces"].is_null());
+    assert_eq!(packs.list(PACK_FONTS).as_array().map(Vec::len), Some(2));
+    assert!(packs.select(PACK_FONTS, "sans"));
+    let fonts = packs.fonts();
+    assert_eq!(
+        fonts["faces"]["normal"]["file"],
+        json!(local.join("font-packs/sans/fonts/Sans-Regular.ttf").to_string_lossy())
+    );
+    assert_eq!(fonts["faces"]["bold"]["name"], "System-Bold");
+    assert!(fonts["faces"]["medium"].is_null());
+    assert!(packs.select(PACK_FONTS, "discord") && packs.fonts()["faces"].is_null());
     assert!(astral_core::support::toml_json::parse("invalid = [").is_none());
 }
 

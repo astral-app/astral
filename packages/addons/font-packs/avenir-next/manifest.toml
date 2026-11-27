@@ -1,0 +1,15 @@
+id = "avenir-next"
+name = "Avenir Next"
+description = "Discord's text in Avenir Next, the geometric sans built into iOS"
+version = "0.0.1"
+
+[faces]
+normal = "AvenirNext-Regular"
+medium = "AvenirNext-Medium"
+semibold = "AvenirNext-DemiBold"
+bold = "AvenirNext-Bold"
+extrabold = "AvenirNext-Heavy"
+
+[[authors]]
+name = "adrian"
+id = "224617799434108928"
