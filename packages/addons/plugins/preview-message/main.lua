@@ -4,6 +4,7 @@ local CDN = "https://cdn.discordapp.com"
 local DEFAULT_AVATARS = 6
 local COMPOSER_ICON = 0xFFABACB2
 local AVATAR_SIZE = 40
+local EMPTY_CHECK_MS = 500
 
 local current_user
 local composing = false
@@ -60,10 +61,29 @@ astral.ui.composer(function(text)
 	return {}
 end)
 
+local watching = false
+
+local function watch_for_empty()
+	if watching then
+		return
+	end
+	watching = true
+	astral.time.after(EMPTY_CHECK_MS, function()
+		watching = false
+		if astral.ui.composer_text():match("^%s*$") then
+			composing = false
+			astral.ui.refresh()
+		else
+			watch_for_empty()
+		end
+	end)
+end
+
 astral.ui.insert({ id = "composer.expressions", path = "^" }, function()
-	if not composing then
+	if astral.ui.composer_text():match("^%s*$") then
 		return nil
 	end
+	watch_for_empty()
 	return {
 		type = astral.InsertNodeType.View,
 		row = true,
@@ -72,7 +92,6 @@ astral.ui.insert({ id = "composer.expressions", path = "^" }, function()
 		width = 32,
 		height = 32,
 		radius = 8,
-		position = astral.InsertPosition.Start,
 		action = "preview",
 		children = {
 			{
