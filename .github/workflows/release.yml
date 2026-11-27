@@ -25,6 +25,41 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
+  fuzz:
+    name: Fuzz and benchmark the rewriter
+    needs: release-please
+    if: needs.release-please.outputs.created == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          submodules: true
+          persist-credentials: false
+
+      - uses: rui314/setup-mold@339e96b4ff1f3bd865856ba4cbbe8818a7acb038
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq clang libclang-rt-dev libsqlite3-dev libssl-dev
+
+      - name: Build the astral CLI
+        run: |
+          cargo build --quiet -p astral-tools
+          echo "$GITHUB_WORKSPACE/target/debug" >> "$GITHUB_PATH"
+
+      - name: Fuzz the rewriter
+        run: astral fuzz --seconds 120
+
+      - name: Benchmark the rewriter
+        run: |
+          {
+            echo "### Rewriter cost per batch"
+            echo '```json'
+            astral bench
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
   package:
     needs: release-please
     if: needs.release-please.outputs.created == 'true'

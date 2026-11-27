@@ -78,18 +78,6 @@ jobs:
 
       - run: astral test
 
-      - name: Fuzz the rewriter
-        run: astral fuzz --seconds 120
-
-      - name: Benchmark the rewriter
-        run: |
-          {
-            echo "### Rewriter cost per batch"
-            echo '```json'
-            astral bench
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-
   android-core:
     name: Build the native library for Android
     needs: check
