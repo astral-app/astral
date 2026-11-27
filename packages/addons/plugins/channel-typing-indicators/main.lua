@@ -165,7 +165,7 @@ local function visible(channel, node)
 	return astral.settings.get("muted", false) or not astral.discord.muted(channel)
 end
 
-astral.ui.insert({ id = "navigation.channel:", path = ">" }, function(node)
+astral.ui.insert({ id = "navigation.channel:", path = ">>" }, function(node)
 	local channel = node.key
 	if not visible(channel, node) then
 		return nil
