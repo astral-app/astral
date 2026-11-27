@@ -309,11 +309,11 @@ fn collect(relabel: &mut Relabel, spans: &[Span]) {
                     links.entry(child(data, span, position)).or_insert(span.id);
                 }
             }
-        } else if span.op == Op::Create
+        } else if (span.op == Op::Create || span.op == Op::Update)
             && let Some(identifier) = string_at(data, span, properties.accessibility_id)
         {
             let text = identifier.text(data);
-            if text == b"message-row" && rows.len() < MAX_NODES {
+            if span.op == Op::Create && text == b"message-row" && rows.len() < MAX_NODES {
                 rows.push(span.id);
             }
             if let Some(message) = prefixed(text, c"message.author:")
