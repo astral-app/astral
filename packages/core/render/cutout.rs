@@ -3,7 +3,7 @@ use core::ffi::c_int;
 const NOTCH_CORNER_RATIO: f64 = 0.65;
 const HOLE_LOGO_RATIO: f64 = 0.6;
 const LOGO_HEIGHT_RATIO: f64 = 0.8;
-const LOGO_ASPECT: f64 = 191.19 / 152.94;
+const LOGO_ASPECT: f64 = 1.0;
 
 pub const KIND_ISLAND: c_int = 0;
 pub const KIND_NOTCH: c_int = 1;

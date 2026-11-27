@@ -24,7 +24,7 @@ static inline int setupRelabeler(const AstralLabelContext *context, const char *
 static inline void setupRewriter(void)
 {
     static const AstralRowSpec rows[] = {
-        {"general", "astral", NULL, NULL, "res://astral_galaxy", kAstralRowLink, 0},
+        {"general", "astral", NULL, NULL, "res://astral_logo", kAstralRowLink, 0},
         {"plugins", "Plugins", NULL, NULL, NULL, kAstralRowLink, 0},
     };
     static const uint32_t from[] = {0xFF000000, 0xFFFFFFFF};

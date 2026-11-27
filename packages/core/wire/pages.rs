@@ -11,6 +11,7 @@ use super::format::{
 use super::out::{AstralWireBuffer, Out};
 use super::properties::{self, AstralWireProperties};
 
+const LOGO_ICON: &[u8] = b"res://astral_logo";
 const TITLE_DEPTH: c_int = 4;
 const ANCHOR: &[u8] = b"settings.row.account";
 const MAX_CATEGORY_NODES: usize = 128;
@@ -506,7 +507,11 @@ fn category_row(
     ];
     let row_id = category_node(out, state, batch, source[0], &row_changes);
     let content = category_node(out, state, batch, source[1], &[]);
-    let icon_id = category_node(out, state, batch, source[2], &[Change::text(properties.uri, &icon)]);
+    let mut icon_changes = vec![Change::text(properties.uri, &icon)];
+    if icon == LOGO_ICON {
+        icon_changes.push(Change::drop(properties.tint));
+    }
+    let icon_id = category_node(out, state, batch, source[2], &icon_changes);
     let title_id = category_node(
         out,
         state,
@@ -995,7 +1000,7 @@ impl Builder<'_> {
         let content = self.clone_role(Role::RowContent, &[]);
         let has_icon = row.icon.as_ref().is_none_or(|icon| !icon.is_empty());
         let icon_source = row.icon.clone().unwrap_or_else(|| b"res://ic_mana_sparkles".to_vec());
-        let image_icon = icon_source.starts_with(b"data:");
+        let image_icon = icon_source.starts_with(b"data:") || icon_source == LOGO_ICON;
         let mut icon_changes = vec![Change::text(properties.uri, &icon_source)];
         if image_icon {
             icon_changes.push(Change::drop(properties.tint));

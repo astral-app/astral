@@ -19,7 +19,7 @@ fn classifies_cutouts_and_fits_the_logo() {
     assert!(kind(hole) == Some(Kind::Hole));
     let logo = logo_frame(Kind::Hole, hole);
     assert!((logo.height - 24.0).abs() < TOLERANCE);
-    assert!((logo.x - 5.0).abs() < 0.01);
+    assert!((logo.x - 8.0).abs() < 0.01);
     assert!((logo.y - 8.0).abs() < TOLERANCE);
 }
 

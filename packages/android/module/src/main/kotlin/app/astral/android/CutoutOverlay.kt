@@ -24,7 +24,7 @@ import kotlin.math.min
 object CutoutOverlay {
     private const val REVEAL_DELAY_MS = 1000L
     private const val REVEAL_MS = 200L
-    private const val LOGO_ASPECT = 191.19 / 152.94
+    private const val LOGO_ASPECT = 1.0
     private val main = Handler(Looper.getMainLooper())
     private var active = WeakReference<Activity>(null)
     private var owner = WeakReference<Activity>(null)
@@ -32,7 +32,7 @@ object CutoutOverlay {
     private lateinit var logo: File
 
     fun install(module: XposedModule, resources: File) {
-        logo = File(resources, "assets/galaxy.svg")
+        logo = File(resources, "assets/logo.png")
         val resume = Activity::class.java.getDeclaredMethod("onResume")
         module.hook(resume).setExceptionMode(ExceptionMode.PROTECTIVE).intercept { chain ->
             val result = chain.proceed()
@@ -120,8 +120,8 @@ object CutoutOverlay {
     }
 
     private fun readLogo(width: Int, height: Int): Bitmap? = runCatching {
-        val png = Native.renderSvg(logo.readBytes(), width, height) ?: return@runCatching null
-        BitmapFactory.decodeByteArray(png, 0, png.size)
+        val bitmap = BitmapFactory.decodeFile(logo.path) ?: return@runCatching null
+        Bitmap.createScaledBitmap(bitmap, width, height, true)
     }.getOrNull()
 
     private fun hide(activity: Activity) {
