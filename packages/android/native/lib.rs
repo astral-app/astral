@@ -1,3 +1,4 @@
+mod apk_signer;
 mod bridge;
 mod facts;
 

@@ -17,21 +17,12 @@ import android.view.WindowManager
 import android.webkit.WebView
 import org.json.JSONArray
 import org.json.JSONObject
-import java.security.MessageDigest
-import java.security.cert.CertificateFactory
-import java.security.cert.X509Certificate
 import java.text.DecimalFormatSymbols
 import java.util.Locale
 
 object EnvironmentFacts {
-    private const val DISCORD_CERTIFICATE = "3c39d23cf9367849a5c699395647fe0e5bfea5a1f1f40d8c717ddc70f8bfa113"
-    private const val LSPATCH_CONFIG = "lspatch/config.json"
-    private const val NPATCH_CONFIG = "npatch/config.json"
-    private const val USERS_PER_RANGE = 100_000
-    private val ABI_SPLITS = setOf("config.arm64_v8a", "config.armeabi_v7a", "config.x86_64", "config.x86")
     private const val CHROME_OS_FEATURE = "org.chromium.arc"
     private const val PLAY_GAMES_PC_FEATURE = "com.google.android.play.feature.HPE_EXPERIENCE"
-    private const val ADOPTABLE_STORAGE = "/mnt/expand/"
     private const val UNFOLDED_WIDTH_DP = 600
     private const val FONT_WEIGHT_ADJUSTMENT = "font_weight_adjustment"
     private const val HARMONY_BUILD_CLASS = "com.huawei.system.BuildEx"
@@ -55,30 +46,19 @@ object EnvironmentFacts {
             .toString()
     }.onFailure { Log.error("Failed to read the environment facts", it) }.getOrDefault("{}")
 
-    private fun install(context: Context): JSONObject {
-        val certificate = signingCertificate(context)
-        val signer = certificate?.let { digest(it.encoded) }
-        return JSONObject()
-            .put("signer", signer ?: "")
-            .put("signerSubject", certificate?.let { subjectOf(it) } ?: "")
-            .put("discordSigned", signer == DISCORD_CERTIFICATE)
-            .put("patch", patchMode(context))
-            .put("splits", context.applicationInfo.splitNames?.size ?: 0)
-            .put("missingSplits", JSONArray(missingSplits(context)))
-            .put("sourceDir", context.applicationInfo.sourceDir ?: "")
-            .put("profile", profile(context))
-    }
+    private fun install(context: Context): JSONObject = JSONObject()
+        .put("splitNames", JSONArray(context.applicationInfo.splitNames?.toList() ?: emptyList<String>()))
+        .put("sourceDir", context.applicationInfo.sourceDir ?: "")
+        .put("profile", profile(context))
 
     private fun device(context: Context): JSONObject = JSONObject()
         .put("selinuxFallback", selinuxFallback() ?: JSONObject.NULL)
-        .put("buildTags", Build.TAGS ?: "")
         .put("webView", webView(context))
         .put("hostFeature", hostFeature(context))
         .put("virtualHost", virtualHost(context) ?: "")
         .put("background", background(context))
         .put("lowRam", context.getSystemService(ActivityManager::class.java)?.isLowRamDevice == true)
         .put("harmony", isHarmonyOS())
-        .put("adoptable", context.applicationInfo.sourceDir?.startsWith(ADOPTABLE_STORAGE) == true)
         .put("refreshRate", refreshRate(context))
         .put("boldText", isBoldText(context))
         .put("formFactor", formFactor(context))
@@ -123,28 +103,6 @@ object EnvironmentFacts {
             .put("rtl", TextUtils.getLayoutDirectionFromLocale(locale) == View.LAYOUT_DIRECTION_RTL)
     }.getOrDefault(JSONObject())
 
-    private fun signingCertificate(context: Context): X509Certificate? = runCatching {
-        val info = context.packageManager.getPackageInfo(context.packageName, PackageManager.GET_SIGNING_CERTIFICATES)
-        val signature = info.signingInfo?.apkContentsSigners?.firstOrNull() ?: return null
-        CertificateFactory.getInstance("X.509").generateCertificate(signature.toByteArray().inputStream()) as X509Certificate
-    }.getOrNull()
-
-    private fun digest(bytes: ByteArray): String =
-        MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
-
-    private fun subjectOf(certificate: X509Certificate): String {
-        val names = certificate.subjectX500Principal.name.split(',').map { it.trim() }
-        return names.firstOrNull { it.startsWith("O=") } ?: names.firstOrNull { it.startsWith("CN=") } ?: ""
-    }
-
-    private fun patchMode(context: Context): String {
-        val (name, config) = listOf("NPatch" to NPATCH_CONFIG, "LSPatch" to LSPATCH_CONFIG).firstNotNullOfOrNull { (name, path) ->
-            runCatching { context.assets.open(path).bufferedReader().use { name to it.readText() } }.getOrNull()
-        } ?: return "Xposed module"
-        val useManager = runCatching { JSONObject(config).optBoolean("useManager", false) }.getOrDefault(false)
-        return if (useManager) "$name local" else "$name integrated"
-    }
-
     private fun hostFeature(context: Context): String {
         val packages = context.packageManager
         return when {
@@ -183,20 +141,11 @@ object EnvironmentFacts {
             .put("bucket", if (Build.VERSION.SDK_INT >= 28) usage?.appStandbyBucket ?: 0 else 0)
     }.getOrDefault(JSONObject())
 
-    private fun missingSplits(context: Context): List<String> {
-        val splits = context.applicationInfo.splitNames?.toList() ?: return emptyList()
-        val abi = Build.SUPPORTED_ABIS.firstOrNull() ?: return emptyList()
-        if (splits.isEmpty() || splits.any { it in ABI_SPLITS }) return emptyList()
-        return listOf("config." + abi.replace('-', '_'))
-    }
-
     private fun profile(context: Context): String {
         val users = context.getSystemService(UserManager::class.java)
-        val user = Process.myUid() / USERS_PER_RANGE
         return when {
             isPrivateProfile(users) -> "Private Space"
             runCatching { Build.VERSION.SDK_INT >= 30 && users?.isManagedProfile == true }.getOrDefault(false) -> "work profile"
-            user != 0 -> "clone (user $user)"
             else -> ""
         }
     }

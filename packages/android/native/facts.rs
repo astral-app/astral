@@ -6,6 +6,23 @@ use serde_json::{Map, Value, json};
 const PROPERTY_VALUE_MAX: usize = 92;
 const SELINUX_ENFORCE: &str = "/sys/fs/selinux/enforce";
 const NATIVE_LIBRARIES: &str = "lib/";
+const DISCORD_CERTIFICATE: &str =
+    "3c39d23cf9367849a5c699395647fe0e5bfea5a1f1f40d8c717ddc70f8bfa113";
+const PATCH_CONFIGS: [(&str, &str); 2] = [
+    ("NPatch", "assets/npatch/config.json"),
+    ("LSPatch", "assets/lspatch/config.json"),
+];
+const XPOSED_MODULE: &str = "Xposed module";
+const ABI_SPLITS: [&str; 4] = [
+    "config.arm64_v8a",
+    "config.armeabi_v7a",
+    "config.x86_64",
+    "config.x86",
+];
+const ABI_PROPERTY: &str = "ro.product.cpu.abilist";
+const BUILD_TAGS_PROPERTY: &str = "ro.build.tags";
+const ADOPTABLE_STORAGE: &str = "/mnt/expand/";
+const USERS_PER_RANGE: u32 = 100_000;
 const WAYDROID_PROPERTY: &str = "waydroid.tools_version";
 const NATIVE_BRIDGE_PROPERTY: &str = "ro.dalvik.vm.native.bridge";
 const VERIFIED_BOOT_PROPERTY: &str = "ro.boot.verifiedbootstate";
@@ -195,8 +212,59 @@ fn merge_device(device: &mut Map<String, Value>) {
             json!(property(NATIVE_BRIDGE_PROPERTY).unwrap_or_default()),
         ),
         ("pageSize", json!(page_size())),
+        (
+            "buildTags",
+            json!(property(BUILD_TAGS_PROPERTY).unwrap_or_default()),
+        ),
     ] {
         device.insert(key.to_owned(), value);
+    }
+}
+
+fn patch_mode(source: &str) -> String {
+    let Ok(file) = std::fs::File::open(source) else {
+        return XPOSED_MODULE.to_owned();
+    };
+    let Ok(mut archive) = zip::ZipArchive::new(file) else {
+        return XPOSED_MODULE.to_owned();
+    };
+    for (name, path) in PATCH_CONFIGS {
+        let Ok(mut entry) = archive.by_name(path) else {
+            continue;
+        };
+        let mut config = String::new();
+        let _ = std::io::Read::read_to_string(&mut entry, &mut config);
+        let local = serde_json::from_str::<Value>(&config)
+            .ok()
+            .and_then(|parsed| parsed.get("useManager").and_then(Value::as_bool))
+            .unwrap_or(false);
+        return format!("{name} {}", if local { "local" } else { "integrated" });
+    }
+    XPOSED_MODULE.to_owned()
+}
+
+fn missing_splits(split_names: &[String]) -> Vec<String> {
+    let Some(abi) =
+        property(ABI_PROPERTY).and_then(|list| list.split(',').next().map(str::to_owned))
+    else {
+        return Vec::new();
+    };
+    if split_names.is_empty()
+        || split_names
+            .iter()
+            .any(|name| ABI_SPLITS.contains(&name.as_str()))
+    {
+        return Vec::new();
+    }
+    vec![format!("config.{}", abi.replace('-', "_"))]
+}
+
+fn clone_user() -> String {
+    let user = unsafe { libc::getuid() } / USERS_PER_RANGE;
+    if user == 0 {
+        String::new()
+    } else {
+        format!("clone (user {user})")
     }
 }
 
@@ -205,11 +273,46 @@ fn merge_install(install: &mut Map<String, Value>) {
         .remove("sourceDir")
         .and_then(|source| source.as_str().map(str::to_owned))
         .unwrap_or_default();
-    let has_splits = install.get("splits").and_then(Value::as_u64).unwrap_or(0) > 0;
-    install.insert(
-        "merged".to_owned(),
-        json!(is_merged_apk(&source, has_splits)),
-    );
+    let split_names: Vec<String> = install
+        .remove("splitNames")
+        .and_then(|names| serde_json::from_value(names).ok())
+        .unwrap_or_default();
+    let certificate = std::fs::File::open(&source)
+        .ok()
+        .and_then(|mut file| crate::apk_signer::certificate(&mut file));
+    let signer = certificate
+        .as_deref()
+        .map(crate::apk_signer::digest)
+        .unwrap_or_default();
+    let profile = install
+        .get("profile")
+        .and_then(Value::as_str)
+        .filter(|profile| !profile.is_empty())
+        .map_or_else(clone_user, str::to_owned);
+    for (key, value) in [
+        (
+            "merged",
+            json!(is_merged_apk(&source, !split_names.is_empty())),
+        ),
+        (
+            "signerSubject",
+            json!(
+                certificate
+                    .as_deref()
+                    .map(crate::apk_signer::subject)
+                    .unwrap_or_default()
+            ),
+        ),
+        ("discordSigned", json!(signer == DISCORD_CERTIFICATE)),
+        ("signer", json!(signer)),
+        ("patch", json!(patch_mode(&source))),
+        ("splits", json!(split_names.len())),
+        ("missingSplits", json!(missing_splits(&split_names))),
+        ("profile", json!(profile)),
+        ("adoptable", json!(source.starts_with(ADOPTABLE_STORAGE))),
+    ] {
+        install.insert(key.to_owned(), value);
+    }
 }
 
 pub fn merge(platform: &str) -> String {
@@ -217,8 +320,18 @@ pub fn merge(platform: &str) -> String {
     if let Some(device) = facts.get_mut("device").and_then(Value::as_object_mut) {
         merge_device(device);
     }
-    if let Some(install) = facts.get_mut("install").and_then(Value::as_object_mut) {
-        merge_install(install);
+    let adoptable = facts
+        .get_mut("install")
+        .and_then(Value::as_object_mut)
+        .map(|install| {
+            merge_install(install);
+            install.remove("adoptable").unwrap_or(Value::Bool(false))
+        });
+    if let (Some(adoptable), Some(device)) = (
+        adoptable,
+        facts.get_mut("device").and_then(Value::as_object_mut),
+    ) {
+        device.insert("adoptable".to_owned(), adoptable);
     }
     facts.to_string()
 }
