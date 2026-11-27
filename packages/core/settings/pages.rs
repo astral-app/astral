@@ -1237,16 +1237,60 @@ fn install_from_key(key: &str, changed: &Changed) {
     }
 }
 
-pub fn link_package(kind: &str, identifier: &str) -> Option<(String, String)> {
-    let package = catalog_package(kind, identifier)?;
-    Some((string(&package, "name"), string(&package, "description")))
+pub struct LinkedPackage {
+    pub name: String,
+    pub description: String,
+    pub icon: String,
+    pub byline: String,
 }
 
-pub fn install_linked(kind: &str, identifier: &str) {
-    install_from_key(
-        &format!("{kind}.{identifier}"),
-        &(Arc::new(crate::settings::navigator::refresh) as Changed),
-    );
+pub fn link_package(kind: &str, identifier: &str) -> Option<LinkedPackage> {
+    let package = catalog_package(kind, identifier)?;
+    let authors: Vec<String> = array(&package, "authors")
+        .iter()
+        .map(|author| string(author, "name"))
+        .filter(|name| !name.is_empty())
+        .collect();
+    let version = string(&package, "version");
+    let byline = [
+        authors.join(", "),
+        if version.is_empty() { String::new() } else { format!("v{version}") },
+    ]
+    .into_iter()
+    .filter(|part| !part.is_empty())
+    .collect::<Vec<_>>()
+    .join(" · ");
+    Some(LinkedPackage {
+        name: string(&package, "name"),
+        description: string(&package, "description"),
+        icon: if kind == "plugin" {
+            mana_asset(&string(&package, "icon"))
+        } else {
+            link_kind_icon(kind).to_owned()
+        },
+        byline,
+    })
+}
+
+fn link_kind_icon(kind: &str) -> &'static str {
+    match kind {
+        "theme" => "res://ic_mana_paint_palette",
+        "icon-pack" => "res://ic_mana_image",
+        "emoji-pack" => "res://ic_mana_reaction",
+        _ => "res://astral_plug",
+    }
+}
+
+pub fn install_linked(kind: &str, identifier: &str, done: Changed) {
+    let finished: Changed = Arc::new(move || {
+        crate::settings::navigator::refresh();
+        done();
+    });
+    install_from_key(&format!("{kind}.{identifier}"), &finished);
+}
+
+pub fn linked_installed(kind: &str, identifier: &str) -> bool {
+    installed_version(identifier, kind).is_some()
 }
 
 fn set_enabled(identifier: &str, enabled: bool) {

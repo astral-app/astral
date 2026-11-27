@@ -572,6 +572,30 @@ fn abandon_request(
     }
 }
 
+unsafe fn confirm_details(state: *mut LuaState) -> Result<Value, String> {
+    unsafe { lua::get_field(state, 1, "details") };
+    let details = if unsafe { lua::is_table(state, -1) } {
+        unsafe { to_json(state, -1, 0) }.unwrap_or(Value::Null)
+    } else {
+        Value::Null
+    };
+    unsafe { lua::pop(state, 1) };
+    let mut rows = Vec::new();
+    for row in details.as_array().into_iter().flatten().take(6) {
+        let text = row.get("text").and_then(Value::as_str).unwrap_or_default();
+        if text.is_empty() || text.len() > 160 {
+            return Err("astral.ui.confirm: each detail needs text of at most 160 bytes".into());
+        }
+        let icon = row
+            .get("icon")
+            .and_then(Value::as_str)
+            .map(crate::settings::pages::mana_asset)
+            .unwrap_or_default();
+        rows.push(json!({"text": text, "icon": icon}));
+    }
+    Ok(Value::Array(rows))
+}
+
 pub unsafe fn confirm(state: *mut LuaState) -> Outcome {
     let plugin = me(state);
     unsafe { require_permission(state, Capability::UiDialogs) }?;
@@ -584,11 +608,18 @@ pub unsafe fn confirm(state: *mut LuaState) -> Outcome {
             "image": confirm_text(state, "image", 2048, "")?,
             "confirm": confirm_text(state, "confirm", 40, "OK")?,
             "cancel": confirm_text(state, "cancel", 40, "Cancel")?,
+            "subtitle": confirm_text(state, "subtitle", 160, "")?,
+            "icon": confirm_text(state, "icon", 256, "")?,
         })
     };
     unsafe { lua::get_field(state, 1, "destructive") };
     spec["destructive"] = json!(unsafe { lua::lua_toboolean(state, -1) } != 0);
     unsafe { lua::pop(state, 1) };
+    let icon = spec["icon"].as_str().unwrap_or_default().to_owned();
+    if !icon.is_empty() {
+        spec["icon"] = json!(crate::settings::pages::mana_asset(&icon));
+    }
+    spec["details"] = unsafe { confirm_details(state) }?;
     let image = spec["image"].as_str().unwrap_or_default().to_owned();
     if spec["title"].as_str().unwrap_or_default().is_empty() {
         return Err("astral.ui.confirm: give a title".into());

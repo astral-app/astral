@@ -727,7 +727,14 @@ end
 function sign_in(done)
 	astral.ui.confirm({
 		title = t("AUTHORIZE"),
+		icon = "StarIcon",
+		subtitle = "manti.vendicated.dev",
 		message = t("AUTHORIZE_CONFIRM"),
+		details = {
+			{ icon = "UserIcon", text = t("AUTHORIZE_DETAIL_IDENTITY") },
+			{ icon = "LinkIcon", text = t("AUTHORIZE_DETAIL_APP") },
+			{ icon = "LockIcon", text = t("AUTHORIZE_DETAIL_TOKEN") },
+		},
 		confirm = t("AUTHORIZE_CONFIRM_BUTTON"),
 	}, function(accepted)
 		if not accepted then
