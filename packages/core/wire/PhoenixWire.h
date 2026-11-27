@@ -160,6 +160,8 @@ typedef struct {
     uint8_t reply;
     int nameInside;
     uint8_t time;
+    double paddingX;
+    double paddingY;
 } AstralMessageBackgroundStyle;
 
 typedef int (*AstralMessageBackgroundDecorator)(const AstralMessageBackgroundContext *context, AstralMessageBackgroundStyle *style);

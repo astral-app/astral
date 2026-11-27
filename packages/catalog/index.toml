@@ -266,7 +266,7 @@ authors = [{ name = "adrian", id = "224617799434108928" }]
 [[plugins]]
 id = "astral.chat-bubbles"
 name = "Chat Bubbles"
-version = "0.0.2"
+version = "0.0.3"
 description = "Draws a rounded bubble behind each message's text, media and embeds."
 icon = "ChatDotsIcon"
 base = "plugins/astral.chat-bubbles/"

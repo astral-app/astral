@@ -595,6 +595,8 @@ pub unsafe extern "C" fn astral_lua_message_background(
                     style.reply = reply;
                     style.name_inside = c_int::from(name_inside);
                     style.time = time;
+                    style.padding_x = unsafe { patch_number(state, "padding_x", 0.0, 32.0) }.unwrap_or(0.0);
+                    style.padding_y = unsafe { patch_number(state, "padding_y", 0.0, 32.0) }.unwrap_or(0.0);
                     found = true;
                 }
             }
