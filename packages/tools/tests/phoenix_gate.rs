@@ -16,5 +16,9 @@ fn patches_the_access_gate_evaluators() {
         .filter(|(after, before)| after != before && *after == return_true)
         .count();
     println!("patched {changed} evaluator entries to return true");
-    assert!(changed >= 1, "no evaluator entries changed");
+    assert_eq!(changed, 2, "exactly two evaluator entries must change");
+    assert_eq!(
+        patch_access_gate(patched.clone()).expect("patch again"),
+        patched
+    );
 }

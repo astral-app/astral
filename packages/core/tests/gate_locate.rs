@@ -1,4 +1,6 @@
-use astral_core::diagnostics::locate::{AstralImageView, astral_locate_callers, astral_locate_const_referencing, astral_locate_pointer_to};
+use astral_core::diagnostics::locate::{
+    AstralImageView, astral_locate_callers, astral_locate_const_referencing, astral_locate_phoenix_access_gate,
+};
 use std::ffi::CString;
 
 #[test]
@@ -15,14 +17,16 @@ fn locates_phoenix_access_gate() {
     };
     let needle = CString::new("2026-11-phoenix-app-access").unwrap();
     let helper = unsafe { astral_locate_const_referencing(&view, needle.as_ptr()) };
-    assert!(helper != 0, "gate helper not located");
     let mut evaluators = [0u64; 4];
-    let count = unsafe { astral_locate_callers(&view, helper, evaluators.as_mut_ptr(), 4) };
-    println!("helper={helper:#x} evaluators={:x?}", &evaluators[..count]);
-    assert!(count >= 1, "no evaluators located");
-    for evaluator in &evaluators[..count] {
-        let mut slots = [0u64; 8];
-        let n = unsafe { astral_locate_pointer_to(&view, *evaluator, slots.as_mut_ptr(), 8) };
-        println!("  evaluator {evaluator:#x}: {n} dispatch pointers (file mode: fixups unresolved, expect 0)");
-    }
+    let count = unsafe { astral_locate_phoenix_access_gate(&view, evaluators.as_mut_ptr(), 4) };
+    assert_eq!(count, 2, "gate must resolve to exactly two evaluators");
+    let mut helper_callers = [0u64; 4];
+    let helper_count = unsafe { astral_locate_callers(&view, helper, helper_callers.as_mut_ptr(), 4) };
+    assert!(
+        evaluators[..count]
+            .iter()
+            .all(|entry| !helper_callers[..helper_count].contains(entry)),
+        "experiment notification callers are not access evaluators"
+    );
+    println!("evaluators={:x?}", &evaluators[..count]);
 }

@@ -8,5 +8,7 @@ pub mod leftover_mods;
 pub mod locate;
 pub mod macho;
 pub mod metrickit;
+pub mod phoenix_elf;
+pub mod phoenix_gate;
 pub mod privacy;
 pub mod reports;

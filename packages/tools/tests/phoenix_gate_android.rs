@@ -16,5 +16,9 @@ fn patches_the_android_access_gate() {
         .filter(|(after, before)| after != before && *after == return_true)
         .count();
     println!("patched {changed} evaluator entries");
-    assert!(changed >= 1);
+    assert_eq!(changed, 2);
+    assert_eq!(
+        patch_android_access_gate(patched.clone()).expect("patch again"),
+        patched
+    );
 }

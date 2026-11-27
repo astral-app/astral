@@ -1,6 +1,9 @@
 package app.astral.android
 
 object Native {
+    @JvmStatic external fun preparePhoenixAccess(libraryDirectory: String, apks: Array<String>): String
+    @JvmStatic external fun openPhoenixAccess(): String
+
     @JvmStatic external fun initialize(
         propertyNames: Array<String>?,
         dataDirectory: String,

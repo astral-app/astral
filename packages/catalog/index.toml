@@ -31,7 +31,7 @@ base = "plugins/astral.gif-paste/"
 [[plugins]]
 id = "astral.reviewdb"
 name = "ReviewDB"
-version = "0.0.1"
+version = "0.0.2"
 description = "Leave reviews on other users' profiles and see what others think of you."
 icon = "StarIcon"
 base = "plugins/astral.reviewdb/"
