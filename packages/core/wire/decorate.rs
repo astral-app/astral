@@ -146,6 +146,8 @@ pub struct AstralMessageBackgroundStyle {
     pub reply: ReplyPlacement,
     pub name_inside: c_int,
     pub time: TimePlacement,
+    pub padding_x: f64,
+    pub padding_y: f64,
 }
 
 pub type AstralDecorator = unsafe extern "C" fn(*const AstralDecorationContext, *mut AstralTag, usize) -> usize;
@@ -194,6 +196,7 @@ struct Row {
     applied_color: u32,
     original_radius: f64,
     applied_radius: f64,
+    applied_padding: [f32; 4],
     has_original: bool,
     active: bool,
     bubble: bool,
@@ -574,7 +577,21 @@ fn write_card_update(out: &mut Out, block: &Block, shown: bool, color: u32) {
     out.prop_long(properties.background, if shown { 0 } else { i64::from(block.accent_color) });
 }
 
-fn write_block_update(out: &mut Out, block: &Block, shown: bool, color: u32, radius: f64) {
+fn bubble_padding(style: &AstralMessageBackgroundStyle) -> [f32; 4] {
+    let x = if style.padding_x > 0.0 {
+        style.padding_x as f32
+    } else {
+        BUBBLE_PADDING[0]
+    };
+    let y = if style.padding_y > 0.0 {
+        style.padding_y as f32
+    } else {
+        BUBBLE_PADDING[1]
+    };
+    [x, y, x, y]
+}
+
+fn write_block_update(out: &mut Out, block: &Block, shown: bool, color: u32, radius: f64, bubble_padding: [f32; 4]) {
     if block.card != 0 {
         write_card_update(out, block, shown, color);
         return;
@@ -587,7 +604,7 @@ fn write_block_update(out: &mut Out, block: &Block, shown: bool, color: u32, rad
     let inner = match (shown, block.media) {
         (false, _) => padding,
         (true, true) => [MEDIA_INSET; 4],
-        (true, false) => BUBBLE_PADDING,
+        (true, false) => bubble_padding,
     };
     out.prop_quad(properties.padding, inner);
     if block.media {
@@ -633,7 +650,7 @@ fn write_corners(out: &mut Out, state: &Row, shown: bool, radius: f64) {
 
 fn write_bubble_update(out: &mut Out, state: &Row, shown: bool, color: u32, radius: f64) {
     for block in &state.blocks {
-        write_block_update(out, block, shown, color, radius);
+        write_block_update(out, block, shown, color, radius, state.applied_padding);
     }
     write_corners(out, state, shown, radius);
 }
@@ -1276,7 +1293,14 @@ fn bubble_late_blocks(
         }
         put_original_once(out, batch.bytes, changed);
         for index in state.shown_blocks..state.blocks.len() {
-            write_block_update(out, &state.blocks[index], true, state.applied_color, state.applied_radius);
+            write_block_update(
+                out,
+                &state.blocks[index],
+                true,
+                state.applied_color,
+                state.applied_radius,
+                state.applied_padding,
+            );
         }
         state.shown_blocks = state.blocks.len();
         if state.reply_shown == ReplyPlacement::Inside
@@ -1339,10 +1363,11 @@ fn apply_background_style(out: &mut Out, state: &mut Row, inside: &mut Vec<i32>,
         && name == state.name_shown
         && time == state.time_shown
         && (!bubble || state.shown_blocks == state.blocks.len())
-        && (!active || (color == state.applied_color && radius == state.applied_radius))
+        && (!active || (color == state.applied_color && radius == state.applied_radius && bubble_padding(&style) == state.applied_padding))
     {
         return;
     }
+    state.applied_padding = if active { bubble_padding(&style) } else { BUBBLE_PADDING };
     match original {
         Some(original) => put_original_once(out, original, changed),
         None => *changed = 1,
