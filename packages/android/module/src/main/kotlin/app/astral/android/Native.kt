@@ -23,12 +23,7 @@ object Native {
     @JvmStatic external fun tweensActive(): Boolean
     @JvmStatic external fun tweenFrame(nowMs: Double): ByteArray?
 
-    @JvmStatic external fun press(node: Int): Boolean
-    @JvmStatic external fun pressMessageAction(node: Int): Boolean
-    @JvmStatic external fun pressInsertedNode(node: Int): Boolean
-    @JvmStatic external fun touchMessage(node: Int, row: Long)
     @JvmStatic external fun composerEvent(event: ByteArray): ByteArray?
-    @JvmStatic external fun slide(node: Int, payload: ByteArray): Boolean
     @JvmStatic external fun back(): Boolean
     @JvmStatic external fun refreshDecorations()
     @JvmStatic external fun pageOpen(): Boolean
@@ -68,6 +63,7 @@ object Native {
 
     @JvmStatic external fun withStaffReady(message: String): String?
 
+    @JvmStatic external fun guestEvent(event: ByteArray): Int
     @JvmStatic external fun networkPlan(method: String, url: String): Int
     @JvmStatic external fun networkBegin(request: String, stages: Int): String
     @JvmStatic external fun networkFinish(exchange: Long, response: String): String?
