@@ -501,7 +501,9 @@ impl Bridge for JniBridge {
                     Argument::Text(body),
                 ],
             )),
-            Request::KeepAlive { .. }
+            Request::AppIcons
+            | Request::SetAppIcon { .. }
+            | Request::KeepAlive { .. }
             | Request::OfferPick { .. }
             | Request::DismissSheets
             | Request::RefreshSettings => Reply::Unsupported,

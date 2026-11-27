@@ -1,6 +1,7 @@
 ASTRAL_ABOUT = "Apie"
 ASTRAL_ADDONS = "Priedai"
 ASTRAL_ANIMATED_EMOJI = "Animuoti jaustukai"
+ASTRAL_APP_ICON = "Programos piktograma"
 ASTRAL_AUTHORS = "Autoriai"
 ASTRAL_AUTOMATIC = "Automatiškai"
 ASTRAL_BACKUP = "Atsarginė kopija"

@@ -347,3 +347,34 @@ fn stamps_the_host_versions_into_the_extension() {
         Some("124951")
     );
 }
+
+#[test]
+fn adds_astral_icons_beside_discords_own() {
+    use astral_tools::ipa::{ALTERNATE_ICONS, add_icon_entries};
+    let mut info = plist::Dictionary::new();
+    let mut existing = plist::Dictionary::new();
+    existing.insert(
+        "Nitro".into(),
+        plist::Value::Dictionary(plist::Dictionary::new()),
+    );
+    let mut icons = plist::Dictionary::new();
+    icons.insert(
+        "CFBundleAlternateIcons".into(),
+        plist::Value::Dictionary(existing),
+    );
+    info.insert("CFBundleIcons".into(), plist::Value::Dictionary(icons));
+    add_icon_entries(&mut info);
+    let alternates = |key: &str| {
+        info.get(key)
+            .and_then(plist::Value::as_dictionary)
+            .and_then(|icons| icons.get("CFBundleAlternateIcons"))
+            .and_then(plist::Value::as_dictionary)
+            .cloned()
+            .unwrap_or_default()
+    };
+    assert!(alternates("CFBundleIcons").contains_key("Nitro"));
+    for name in ALTERNATE_ICONS {
+        assert!(alternates("CFBundleIcons").contains_key(name));
+        assert!(alternates("CFBundleIcons~ipad").contains_key(name));
+    }
+}

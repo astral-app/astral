@@ -1,6 +1,7 @@
 ASTRAL_ABOUT = "परिचय"
 ASTRAL_ADDONS = "ऐड-ऑन"
 ASTRAL_ANIMATED_EMOJI = "एनिमेटेड इमोजी"
+ASTRAL_APP_ICON = "ऐप आइकन"
 ASTRAL_AUTHORS = "लेखक"
 ASTRAL_AUTOMATIC = "अपने-आप"
 ASTRAL_BACKUP = "बैकअप"

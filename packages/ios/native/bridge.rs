@@ -43,6 +43,8 @@ pub enum AstralRequestKind {
     RefreshDecorations,
     RefreshSettings,
     InjectGateway,
+    AppIcons,
+    SetAppIcon,
 }
 
 #[repr(C)]
@@ -164,6 +166,8 @@ fn outgoing<'a>(request: &Request<'a>) -> Outgoing<'a> {
         Request::WriteClipboard { value } => Outgoing::new(Kind::WriteClipboard).texts(&[value]),
         Request::ReadClipboard => Outgoing::new(Kind::ReadClipboard),
         Request::OpenUrl { url } => Outgoing::new(Kind::OpenUrl).texts(&[url]),
+        Request::AppIcons => Outgoing::new(Kind::AppIcons),
+        Request::SetAppIcon { name } => Outgoing::new(Kind::SetAppIcon).texts(&[name]),
         Request::Notify {
             delay_ms,
             title,

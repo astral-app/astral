@@ -1,6 +1,7 @@
 ASTRAL_ABOUT = "Tietoja"
 ASTRAL_ADDONS = "Lisäosat"
 ASTRAL_ANIMATED_EMOJI = "Animoidut emojit"
+ASTRAL_APP_ICON = "Sovelluskuvake"
 ASTRAL_AUTHORS = "Tekijät"
 ASTRAL_AUTOMATIC = "Automaattinen"
 ASTRAL_BACKUP = "Varmuuskopio"

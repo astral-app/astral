@@ -1,6 +1,7 @@
 ASTRAL_ABOUT = "Giới thiệu"
 ASTRAL_ADDONS = "Tiện ích bổ sung"
 ASTRAL_ANIMATED_EMOJI = "Emoji động"
+ASTRAL_APP_ICON = "Biểu tượng ứng dụng"
 ASTRAL_AUTHORS = "Tác giả"
 ASTRAL_AUTOMATIC = "Tự động"
 ASTRAL_BACKUP = "Sao lưu"

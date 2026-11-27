@@ -745,6 +745,55 @@ static AstralReply HandleRefreshSettings(__unused const AstralRequest *request)
     return Done();
 }
 
+static NSString *const kAstralIconPrefix = @"Astral";
+
+static NSArray<NSString *> *AstralAppIcons(void)
+{
+    NSDictionary *icons = [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleIcons"];
+    NSDictionary *alternates = [icons isKindOfClass:NSDictionary.class] ? icons[@"CFBundleAlternateIcons"] : nil;
+    if (![alternates isKindOfClass:NSDictionary.class]) return @[];
+    NSPredicate *astral = [NSPredicate predicateWithFormat:@"SELF BEGINSWITH %@", kAstralIconPrefix];
+    return [[alternates.allKeys filteredArrayUsingPredicate:astral] sortedArrayUsingSelector:@selector(compare:)];
+}
+
+static AstralReply HandleAppIcons(__unused const AstralRequest *request)
+{
+    __block NSString *current = nil;
+    __block BOOL supported = NO;
+    void (^read)(void) = ^{
+        supported = UIApplication.sharedApplication.supportsAlternateIcons;
+        current = UIApplication.sharedApplication.alternateIconName;
+    };
+    if (NSThread.isMainThread) {
+        read();
+    } else {
+        dispatch_semaphore_t done = dispatch_semaphore_create(0);
+        dispatch_async(dispatch_get_main_queue(), ^{
+            read();
+            dispatch_semaphore_signal(done);
+        });
+        if (dispatch_semaphore_wait(done, dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC))) return Text(nil);
+    }
+    NSDictionary *state = @{@"supported" : @(supported), @"current" : current ?: @"", @"icons" : AstralAppIcons()};
+    NSData *json = [NSJSONSerialization dataWithJSONObject:state options:0 error:nil];
+    return Text(json ? [[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding] : nil);
+}
+
+static AstralReply HandleSetAppIcon(const AstralRequest *request)
+{
+    NSString *name = AstralStringOfText(request->first);
+    if (name.length && ![AstralAppIcons() containsObject:name]) return Flag(NO);
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [UIApplication.sharedApplication setAlternateIconName:name.length ? name : nil
+                                            completionHandler:^(__unused NSError *error) {
+                                                dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+                                                    astral_ios_refresh_settings();
+                                                });
+                                            }];
+    });
+    return Flag(YES);
+}
+
 static AstralReply HandleInjectGateway(const AstralRequest *request)
 {
     return Flag(AstralInjectGatewayMessage(AstralStringOfText(request->first)));
