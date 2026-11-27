@@ -8,6 +8,10 @@ local AVATAR = 40
 local IMAGE_WIDTH = 240
 local IMAGE_HEIGHT = 240
 local CDN = "https://cdn.discordapp.com/"
+local TAG_SURFACE = 0xFF3F4147
+local APP_TAG = 0xFF5865F2
+
+local t = astral.i18n.t
 
 local function links_in(content)
 	local links = {}
@@ -34,9 +38,8 @@ local function avatar_url(author)
 end
 
 local function readable(content)
-	local text = tostring(content or ""):gsub("<a?:([%w_]+):%d+>", ":%1:")
 	return (
-		text:gsub("<@!?(%d+)>", function(id)
+		tostring(content or ""):gsub("<@!?(%d+)>", function(id)
 			local user = astral.discord.user(id)
 			return "@" .. (user and (user.global_name or user.username) or id)
 		end)
@@ -45,10 +48,85 @@ end
 
 local function body(content)
 	local text = readable(content)
-	if #text > SNIPPET then
-		text = text:sub(1, SNIPPET) .. "…"
+	if #text <= SNIPPET then
+		return text
 	end
-	return text
+	local cut = text:sub(1, SNIPPET)
+	local open = cut:match(".*()<a?:[%w_]*:?%d*$")
+	if open then
+		cut = cut:sub(1, open - 1)
+	end
+	while #cut > 0 and cut:byte(#cut) >= 0x80 and cut:byte(#cut) < 0xC0 do
+		cut = cut:sub(1, -2)
+	end
+	if #cut > 0 and cut:byte(#cut) >= 0xC0 then
+		cut = cut:sub(1, -2)
+	end
+	return cut .. "…"
+end
+
+local function role_color(guild_id, user_id)
+	if not guild_id or guild_id == "@me" or not user_id then
+		return NAME
+	end
+	local guild = astral.discord.guild(guild_id)
+	local member = guild and astral.discord.member(guild_id, user_id)
+	if not guild or not member then
+		return NAME
+	end
+	local best, color = -1, NAME
+	for _, role_id in ipairs(member.roles or {}) do
+		local role = guild.roles[role_id]
+		local value = role and role.colors and tonumber(role.colors.primary_color) or 0
+		local position = role and tonumber(role.position) or -1
+		if value ~= 0 and position > best then
+			best, color = position, 0xFF000000 + value
+		end
+	end
+	return color
+end
+
+local function guild_tag(author)
+	local tag = type(author.primary_guild) == "table" and author.primary_guild or nil
+	if not tag or tag.identity_enabled == false or type(tag.tag) ~= "string" or tag.tag == "" then
+		return nil
+	end
+	local children = {}
+	if type(tag.badge) == "string" and type(tag.identity_guild_id) == "string" then
+		children[1] = {
+			type = astral.InsertNodeType.Image,
+			icon = string.format("%sguild-tag-badges/%s/%s.png?size=32", CDN, tag.identity_guild_id, tag.badge),
+			width = 12,
+			height = 12,
+			margin = { 0, 0, 3, 0 },
+		}
+	end
+	children[#children + 1] =
+		{ type = astral.InsertNodeType.Text, text = tag.tag, size = 12, weight = 600, color = NAME }
+	return {
+		type = astral.InsertNodeType.View,
+		row = true,
+		align = astral.Align.Center,
+		background = TAG_SURFACE,
+		radius = 4,
+		padding = { 4, 1, 4, 1 },
+		margin = { 6, 0, 0, 0 },
+		children = children,
+	}
+end
+
+local function app_tag(author)
+	if not author.bot then
+		return nil
+	end
+	return {
+		type = astral.InsertNodeType.View,
+		background = APP_TAG,
+		radius = 4,
+		padding = { 4, 1, 4, 1 },
+		margin = { 6, 0, 0, 0 },
+		children = { { type = astral.InsertNodeType.Text, text = t("APP"), size = 11, weight = 600, color = NAME } },
+	}
 end
 
 local function timestamp(message)
@@ -78,6 +156,28 @@ local function image_node(attachment)
 	}
 end
 
+local function header(link, linked, author)
+	local children = {
+		{
+			type = astral.InsertNodeType.Text,
+			text = author_name(linked),
+			size = 16,
+			weight = 600,
+			color = role_color(link.guild, author.id),
+		},
+	}
+	children[#children + 1] = app_tag(author)
+	children[#children + 1] = guild_tag(author)
+	children[#children + 1] = {
+		type = astral.InsertNodeType.Text,
+		text = timestamp(linked),
+		size = 12,
+		color = MUTED,
+		margin = { 6, 0, 0, 0 },
+	}
+	return { type = astral.InsertNodeType.View, row = true, align = astral.Align.Center, children = children }
+end
+
 local function card(link)
 	local linked = astral.discord.raw_message(link.channel, link.message)
 	if type(linked) ~= "table" then
@@ -87,33 +187,12 @@ local function card(link)
 	local author = type(linked.author) == "table" and linked.author or {}
 	local column = {
 		type = astral.InsertNodeType.View,
-		children = {
-			{
-				type = astral.InsertNodeType.View,
-				row = true,
-				children = {
-					{
-						type = astral.InsertNodeType.Text,
-						text = author_name(linked),
-						size = 16,
-						weight = 600,
-						color = NAME,
-					},
-					{
-						type = astral.InsertNodeType.Text,
-						text = timestamp(linked),
-						size = 12,
-						color = MUTED,
-						margin = { 6, 0, 0, 0 },
-					},
-				},
-			},
-		},
+		children = { header(link, linked, author) },
 	}
 	local text = body(linked.content)
 	if text ~= "" then
 		column.children[#column.children + 1] =
-			{ type = astral.InsertNodeType.Text, text = text, size = 16, color = TEXT }
+			{ type = astral.InsertNodeType.Text, text = text, size = 16, color = TEXT, fill = true }
 	end
 	local image = first_image(linked)
 	if image then

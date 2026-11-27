@@ -57,7 +57,7 @@ pub struct AstralInsertNode {
     pub kind: c_int,
     pub parent: c_int,
     pub fields: u32,
-    pub text: [c_char; 160],
+    pub text: [c_char; 640],
     pub uri: [c_char; 256],
     pub tap: [c_char; 96],
     pub color: u32,
@@ -81,7 +81,7 @@ impl AstralInsertNode {
             kind: 0,
             parent: 0,
             fields: 0,
-            text: [0; 160],
+            text: [0; 640],
             uri: [0; 256],
             tap: [0; 96],
             color: 0,
@@ -334,6 +334,100 @@ fn property_count(node: &AstralInsertNode) -> u16 {
     count
 }
 
+struct TextPiece<'a> {
+    text: &'a [u8],
+    emoji: Option<(u64, bool)>,
+}
+
+fn emoji_token(text: &[u8]) -> Option<(usize, &[u8], u64, bool)> {
+    let animated = text.starts_with(b"<a:");
+    let name_start = if animated {
+        3
+    } else if text.starts_with(b"<:") {
+        2
+    } else {
+        return None;
+    };
+    let close = text.iter().take(80).position(|byte| *byte == b'>')?;
+    let inner = &text[name_start..close];
+    let colon = inner.iter().position(|byte| *byte == b':')?;
+    let (name, id) = (&inner[..colon], &inner[colon + 1..]);
+    let named = (2..=32).contains(&name.len()) && name.iter().all(|byte| byte.is_ascii_alphanumeric() || *byte == b'_');
+    let digits = id.len() <= 20 && id.iter().all(u8::is_ascii_digit);
+    let id = super::ids::parse_id(id);
+    (named && digits && id != 0).then_some((close + 1, name, id, animated))
+}
+
+fn text_pieces(text: &[u8]) -> Vec<TextPiece<'_>> {
+    let mut pieces = Vec::new();
+    let (mut start, mut cursor) = (0, 0);
+    while cursor < text.len() && pieces.len() < 64 {
+        let Some((length, name, id, animated)) = (text[cursor] == b'<').then(|| emoji_token(&text[cursor..])).flatten() else {
+            cursor += 1;
+            continue;
+        };
+        if cursor > start {
+            pieces.push(TextPiece {
+                text: &text[start..cursor],
+                emoji: None,
+            });
+        }
+        pieces.push(TextPiece {
+            text: name,
+            emoji: Some((id, animated)),
+        });
+        cursor += length;
+        start = cursor;
+    }
+    if pieces.iter().all(|piece| piece.emoji.is_none()) {
+        return Vec::new();
+    }
+    if start < text.len() {
+        pieces.push(TextPiece {
+            text: &text[start..],
+            emoji: None,
+        });
+    }
+    pieces
+}
+
+fn put_text(out: &mut Out, node: &AstralInsertNode, text: &[u8]) {
+    let properties = properties::current();
+    let pieces = text_pieces(text);
+    if pieces.is_empty() {
+        out.prop_string(properties.text, text);
+        return;
+    }
+    let colored = node.fields & COLOR != 0;
+    let side = if node.fields & FONT_SIZE != 0 {
+        node.font_size * 1.25
+    } else {
+        20.0
+    };
+    out.put16(properties.spans);
+    out.put_tag(Tag::Array);
+    out.put32(pieces.len() as u32);
+    for piece in &pieces {
+        out.put_tag(Tag::Map);
+        out.put32(1 + u32::from(colored) + u32::from(piece.emoji.is_some()));
+        out.prop_string(properties.text, piece.text);
+        if colored {
+            out.prop_long(properties.color, i64::from(node.color));
+        }
+        if let Some((id, animated)) = piece.emoji {
+            let uri = format!(
+                "https://cdn.discordapp.com/emojis/{id}.webp?size=48{}",
+                if animated { "&animated=true" } else { "" }
+            );
+            out.put16(properties.image);
+            out.put_tag(Tag::Map);
+            out.put32(2);
+            out.prop_string(properties.uri, uri.as_bytes());
+            out.prop_number(properties.size, side);
+        }
+    }
+}
+
 fn put_long(out: &mut Out, property: u16, value: u32) {
     out.put16(property);
     out.put_tag(Tag::Long);
@@ -356,7 +450,7 @@ fn put_node(out: &mut Out, id: i32, node: &AstralInsertNode) {
     out.prop_count(property_count(node));
     let (text, uri, tap) = (text_of(&node.text), text_of(&node.uri), text_of(&node.tap));
     if node.kind == INSERT_TEXT && !text.is_empty() {
-        out.prop_string(properties.text, text);
+        put_text(out, node, text);
     }
     if node.kind == INSERT_IMAGE && !uri.is_empty() {
         out.prop_string(properties.uri, uri);

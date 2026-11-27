@@ -74,7 +74,7 @@ authors = [{ name = "Syncxv", id = "549244932213309442" }, { name = "adrian", id
 [[plugins]]
 id = "astral.message-link-embeds"
 name = "Message Link Embeds"
-version = "0.0.1"
+version = "0.0.2"
 description = "Adds a preview under messages that link to other Discord messages, and opens the linked message when tapped."
 icon = "LinkIcon"
 base = "plugins/astral.message-link-embeds/"

@@ -324,7 +324,7 @@ typedef struct {
     AstralInsertKind kind;
     int parent;
     uint32_t fields;
-    char text[160];
+    char text[640];
     char uri[256];
     char tap[96];
     uint32_t color;
