@@ -203,15 +203,6 @@ authors = [
 ]
 
 [[plugins]]
-id = "astral.new-user-sprout"
-name = "New User Sprout"
-version = "0.0.1"
-description = "Shows a sprout beside people whose Discord account is less than the chosen number of days old."
-icon = "UserPlusIcon"
-base = "plugins/astral.new-user-sprout/"
-authors = [{ name = "adrian", id = "224617799434108928" }]
-
-[[plugins]]
 id = "astral.unsuppress-embeds"
 name = "Unsuppress Embeds"
 version = "0.0.1"
