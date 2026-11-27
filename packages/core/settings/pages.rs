@@ -140,9 +140,14 @@ fn toggle(key: &str) {
 
 fn plugins() -> Vec<Value> {
     match host("plugins", &json!([])) {
-        Value::Array(list) => list,
+        Value::Array(list) => by_name(list),
         _ => Vec::new(),
     }
+}
+
+fn by_name(mut list: Vec<Value>) -> Vec<Value> {
+    list.sort_by_cached_key(|entry| string(entry, "name").to_lowercase());
+    list
 }
 
 fn objects(value: Value) -> Vec<Value> {
@@ -1047,7 +1052,7 @@ fn marketplace_page() -> Value {
             })
         })
         .collect();
-    let cards: Vec<Value> = array(&packages, &format!("{current}s"))
+    let cards: Vec<Value> = by_name(array(&packages, &format!("{current}s")))
         .iter()
         .map(|package| package_card(package, &current))
         .collect();
