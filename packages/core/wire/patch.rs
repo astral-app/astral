@@ -21,6 +21,7 @@ pub type NodePatcher = unsafe extern "C" fn(*const AstralPatchTarget, *mut Astra
 const MAX_PREFIXES: usize = 32;
 const MAX_PREFIX_LENGTH: usize = 96;
 const PATCHED_CAPACITY: usize = 512;
+const SEEN_CAPACITY: usize = 4096;
 const RAW_CAPACITY: usize = 40;
 const PATCH_PROPS: usize = Slot::ALL.len();
 
@@ -117,6 +118,7 @@ struct ScaledText {
 struct State {
     prefixes: Vec<Vec<u8>>,
     patched: HashMap<i32, Patched>,
+    seen: HashMap<i32, Patched>,
     scaled: HashMap<i32, ScaledText>,
 }
 
@@ -160,7 +162,34 @@ pub unsafe fn c_strings(list: *const *const c_char, count: usize, limit: usize, 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn astral_wire_set_patch_prefixes(prefixes: *const *const c_char, count: usize) {
     let prefixes = unsafe { c_strings(prefixes, count, MAX_PREFIXES, MAX_PREFIX_LENGTH) };
-    with_state(|state| state.prefixes = prefixes);
+    let promoted = with_state(|state| {
+        state.prefixes = prefixes;
+        promote_seen(state)
+    })
+    .unwrap_or(false);
+    if promoted {
+        wire_mark_refresh_busy();
+    }
+}
+
+fn promote_seen(state: &mut State) -> bool {
+    let matching: Vec<i32> = state
+        .seen
+        .iter()
+        .filter(|(_, seen)| key_offset(&state.prefixes, &seen.identifier).is_some())
+        .map(|(id, _)| *id)
+        .collect();
+    let mut promoted = false;
+    for id in matching {
+        if state.patched.len() >= PATCHED_CAPACITY {
+            break;
+        }
+        if let Some(seen) = state.seen.remove(&id) {
+            state.patched.insert(id, seen);
+            promoted = true;
+        }
+    }
+    promoted
 }
 
 #[unsafe(export_name = "wirePatchingActive")]
@@ -271,6 +300,19 @@ fn call_patcher(prefix_length: usize, node: i32, identifier: &[u8], kind: &[u8],
     };
     let target = patch_target(prefix_length, &identifier, &kind, node);
     unsafe { patcher(&target, patch) }
+}
+
+fn remember_seen(state: &mut State, data: &[u8], span: &Span, identifier: &[u8], kind: &[u8], properties: &AstralWireProperties) {
+    if state.seen.len() >= SEEN_CAPACITY && !state.seen.contains_key(&span.id) {
+        return;
+    }
+    let mut seen = Patched {
+        identifier: identifier.to_vec(),
+        kind: kind.to_vec(),
+        ..Patched::default()
+    };
+    capture_originals(data, span, &mut seen, properties);
+    state.seen.insert(span.id, seen);
 }
 
 fn capture_originals(bytes: &[u8], span: &Span, patched: &mut Patched, properties: &AstralWireProperties) {
@@ -557,20 +599,19 @@ pub unsafe extern "C" fn wire_patch_nodes(
     let spans = spans_of(pointer, count);
     let properties = properties::current();
     with_state(|state| {
-        if state.prefixes.is_empty() {
-            return;
-        }
         for span in spans {
             let data = batch_of(bytes, span);
             if span.op == Op::Remove {
                 for position in 0..span.child_count {
                     let removed = child(data, span, position);
                     state.patched.remove(&removed);
+                    state.seen.remove(&removed);
                     state.scaled.remove(&removed);
                 }
                 continue;
             }
             if span.op == Op::Update {
+                state.seen.remove(&span.id);
                 reapply_after_update(state, span.id, bytes, length, out, changed);
                 continue;
             }
@@ -581,6 +622,7 @@ pub unsafe extern "C" fn wire_patch_nodes(
                 continue;
             };
             let Some(prefix) = key_offset(&state.prefixes, identifier) else {
+                remember_seen(state, data, span, identifier, kind, &properties);
                 continue;
             };
             if state.patched.len() >= PATCHED_CAPACITY && !state.patched.contains_key(&span.id) {

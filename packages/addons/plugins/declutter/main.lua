@@ -1,25 +1,31 @@
+local t = astral.i18n.t
+
 local BUTTONS = {
-	{ key = "gift", title = "Gift button", default = true, ids = { "composer.gift" } },
-	{ key = "server_boosts", title = "Server Boosts row", default = false, ids = { "guild.action:server_boosts" } },
-	{ key = "voice_call", title = "Voice call buttons", default = false, ids = { "dm.call", "dm-call-button" } },
-	{ key = "quest_dock", title = "Quest dock", default = false, ids = { "quest-dock", "quest_dock" } },
+	{ key = "gift", label = "GIFT", default = true, ids = { "composer.gift" } },
+	{ key = "voiceCall", label = "VOICE_CALL", default = false, ids = { "dm.call", "dm-call-button" } },
+	{ key = "videoCall", label = "VIDEO_CALL", default = false, ids = { "dm.video" } },
+	{ key = "serverBoosts", label = "SERVER_BOOSTS", default = false, ids = { "guild.action:server_boosts" } },
+	{ key = "questDock", label = "QUEST_DOCK", default = false, ids = { "quest-dock", "quest_dock" } },
+	{ key = "paymentQuests", label = "PAYMENT_QUESTS", default = false, ids = { "Quests" } },
+	{ key = "paymentShop", label = "PAYMENT_SHOP", default = false, ids = { "Shop" } },
 }
 
 local DECORATIONS = {
-	{ key = "avatar_decorations", title = "Avatar decorations", fields = { "avatar_decoration_data" } },
-	{ key = "nameplates", title = "Nameplates", fields = { "collectibles" } },
-	{ key = "profile_effects", title = "Profile effects", fields = { "profile_effect" } },
-	{ key = "server_tags", title = "Server tags", fields = { "primary_guild", "clan" } },
-	{ key = "display_name_styles", title = "Display name styles", fields = { "display_name_styles" } },
+	{ key = "avatarDecorations", label = "AVATAR_DECORATIONS", fields = { "avatar_decoration_data" } },
+	{ key = "nameplates", label = "NAMEPLATES", fields = { "collectibles" } },
+	{ key = "profileEffects", label = "PROFILE_EFFECTS", fields = { "profile_effect" } },
+	{ key = "badges", label = "BADGES", fields = { "badges" } },
+	{ key = "serverTags", label = "SERVER_TAGS", fields = { "primary_guild", "clan" } },
+	{ key = "displayNameStyles", label = "DISPLAY_NAME_STYLES", fields = { "display_name_styles" } },
 }
 
-local buttons = astral.settings.section("Buttons")
+local buttons = astral.settings.section(t("SECTION_BUTTONS"))
 for _, button in ipairs(BUTTONS) do
-	buttons:switch(button.key, button.title, button.default)
+	buttons:switch(button.key, t(button.label), button.default, t(button.label .. "_SUBTITLE"))
 end
-local decorations = astral.settings.section("Profile decorations")
+local decorations = astral.settings.section(t("SECTION_DECORATIONS"))
 for _, decoration in ipairs(DECORATIONS) do
-	decorations:switch(decoration.key, decoration.title, false)
+	decorations:switch(decoration.key, t(decoration.label), false, t(decoration.label .. "_SUBTITLE"))
 end
 
 local function enabled(key, fallback)
@@ -126,7 +132,7 @@ astral.net.intercept({
 		local changed = strip_user(profile.user, fields)
 		changed = strip_user(profile.user_profile, fields) or changed
 		changed = strip_user(profile.guild_member, fields) or changed
-		if enabled("profile_effects", false) and type(profile.user_profile) == "table" then
+		if enabled("profileEffects", false) and type(profile.user_profile) == "table" then
 			profile.user_profile.profile_effect = nil
 			changed = true
 		end

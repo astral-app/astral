@@ -1,7 +1,7 @@
 id = "astral.declutter"
 name = "Declutter"
 description = "Hides buttons, upsells and profile decorations you never use: the gift button, Server Boosts, call buttons, avatar decorations, nameplates, server tags and more."
-version = "0.0.1"
+version = "0.0.2"
 icon = "EyeSlashIcon"
 main = "main.lua"
 permissions = ["ui.patch", "events.gateway", "net.discord"]
