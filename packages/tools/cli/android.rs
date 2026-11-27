@@ -385,6 +385,7 @@ fn apksigner() -> Result<String, String> {
 }
 
 const CERTIFICATE_DIGEST: &str = "certificate SHA-256 digest:";
+const SOURCE_STAMP: &str = "Source Stamp";
 
 fn verify_apk(signer: &str, apk: &Path) -> Result<(), String> {
     let name = apk
@@ -406,7 +407,7 @@ fn verify_apk(signer: &str, apk: &Path) -> Result<(), String> {
     }
     let digests: Vec<&str> = printed
         .lines()
-        .filter(|line| line.starts_with("Signer") && line.contains(CERTIFICATE_DIGEST))
+        .filter(|line| !line.starts_with(SOURCE_STAMP) && line.contains(CERTIFICATE_DIGEST))
         .filter_map(|line| {
             line.split_once(CERTIFICATE_DIGEST)
                 .map(|(_, digest)| digest.trim())
