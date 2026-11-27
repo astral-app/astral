@@ -44,6 +44,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           submodules: true
+          fetch-depth: 0
           persist-credentials: false
 
       - uses: rui314/setup-mold@339e96b4ff1f3bd865856ba4cbbe8818a7acb038
@@ -71,7 +72,10 @@ jobs:
           cp artifacts/astral-ipa/astral.ipa "assets/astral-${version}-alpha.${GITHUB_RUN_NUMBER}.ipa"
           cp artifacts/astral-android/astral-module.apk assets/
           (cd artifacts/astral-android/sideload && zip -q "$GITHUB_WORKSPACE/assets/astral.apks" ./*.apk)
+          changes="$(astral release-notes)"
           notes="Alpha build from $(git rev-parse --short HEAD). Pre-release: may break.
+
+          ${changes}
 
           - iOS: sideload the IPA, add the AltStore source https://astral-app.github.io/astral/app-repo.json, or add the APT repo https://astral-app.github.io/astral/repo/ on a jailbroken device.
           - Android: install astral.apks with SAI or another split installer, or the module APK with LSPosed."
