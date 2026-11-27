@@ -102,6 +102,25 @@ static NSString *TextValue(NSDictionary *item, NSString *key)
     return @"";
 }
 
+static id ShapeOf(id value)
+{
+    if ([value isKindOfClass:NSArray.class]) {
+        NSMutableArray *shape = [NSMutableArray array];
+        for (id child in value) [shape addObject:ShapeOf(child)];
+        return shape;
+    }
+    if (![value isKindOfClass:NSDictionary.class]) return value ?: NSNull.null;
+    NSMutableDictionary *shape = [NSMutableDictionary dictionary];
+    NSString *type = [value[@"type"] isKindOfClass:NSString.class] ? value[@"type"] : @"";
+    BOOL label = [type isEqualToString:@"text"] || [type isEqualToString:@"heading"];
+    for (NSString *key in value) {
+        if (label && ([key isEqualToString:@"text"] || [key isEqualToString:@"color"])) continue;
+        if ([type isEqualToString:@"input"] && [key isEqualToString:@"value"]) continue;
+        shape[key] = ShapeOf(value[key]);
+    }
+    return shape;
+}
+
 static NSArray<NSDictionary *> *ItemList(id value)
 {
     NSMutableArray *items = [NSMutableArray array];
@@ -123,6 +142,10 @@ static NSArray<NSDictionary *> *ItemList(id value)
 @property (nonatomic) NSMutableDictionary<NSValue *, NSString *> *longActions;
 @property (nonatomic) NSMutableDictionary<NSValue *, NSString *> *actions;
 @property (nonatomic) NSMutableDictionary<NSValue *, UITextView *> *inputs;
+@property (nonatomic) NSMutableDictionary<NSString *, UITextView *> *keyedInputs;
+@property (nonatomic) NSMutableArray<UILabel *> *itemLabels;
+@property (nonatomic, copy) NSArray *renderedShape;
+@property (nonatomic, copy) NSDictionary<NSString *, NSString *> *keptTexts;
 @property (nonatomic) BOOL finished;
 @property (nonatomic) NSLayoutConstraint *fillHeight;
 @end
@@ -186,10 +209,55 @@ static NSArray<NSDictionary *> *ItemList(id value)
     [self render];
 }
 
+- (void)collectLabelItems:(NSArray *)items into:(NSMutableArray<NSDictionary *> *)labels
+{
+    for (NSDictionary *item in ItemList(items)) {
+        NSString *type = TextValue(item, @"type");
+        if ([type isEqualToString:@"text"] || [type isEqualToString:@"heading"]) [labels addObject:item];
+        [self collectLabelItems:item[@"items"] into:labels];
+    }
+}
+
+- (BOOL)updateInPlace
+{
+    NSArray *shape = @[ ShapeOf(self.spec[@"header"]), ShapeOf(self.spec[@"items"]) ];
+    if (!self.renderedShape || ![self.renderedShape isEqual:shape]) {
+        self.renderedShape = shape;
+        return NO;
+    }
+    NSMutableArray<NSDictionary *> *labels = [NSMutableArray array];
+    [self collectLabelItems:self.spec[@"header"] into:labels];
+    [self collectLabelItems:self.spec[@"items"] into:labels];
+    if (labels.count != self.itemLabels.count) return NO;
+    self.titleLabel.text = TextValue(self.spec, @"title");
+    self.subtitleLabel.text = TextValue(self.spec, @"subtitle");
+    [labels enumerateObjectsUsingBlock:^(NSDictionary *item, NSUInteger index, __unused BOOL *stop) {
+        UILabel *label = self.itemLabels[index];
+        BOOL heading = [TextValue(item, @"type") isEqualToString:@"heading"];
+        label.text = TextValue(item, @"text");
+        label.textColor = ColorValue(item[@"color"], heading ? MutedText() : PrimaryText());
+    }];
+    return YES;
+}
+
 - (void)render
 {
+    if ([self updateInPlace]) return;
+    self.itemLabels = [NSMutableArray array];
     self.actions = [NSMutableDictionary dictionary];
     self.inputs = [NSMutableDictionary dictionary];
+    NSMutableDictionary<NSString *, NSString *> *kept = [NSMutableDictionary dictionary];
+    NSString *focusedKey = nil;
+    NSRange focusedSelection = NSMakeRange(0, 0);
+    for (NSString *key in self.keyedInputs) {
+        UITextView *existing = self.keyedInputs[key];
+        kept[key] = existing.text ?: @"";
+        if (!existing.isFirstResponder) continue;
+        focusedKey = key;
+        focusedSelection = existing.selectedRange;
+    }
+    self.keptTexts = kept;
+    self.keyedInputs = [NSMutableDictionary dictionary];
     self.longActions = [NSMutableDictionary dictionary];
     self.titleLabel.text = TextValue(self.spec, @"title");
     self.subtitleLabel.text = TextValue(self.spec, @"subtitle");
@@ -207,6 +275,11 @@ static NSArray<NSDictionary *> *ItemList(id value)
         fills = fills || [item[@"fill"] boolValue];
     }
     self.fillHeight.active = fills;
+    self.keptTexts = nil;
+    UITextView *refocus = focusedKey ? self.keyedInputs[focusedKey] : nil;
+    if (!refocus) return;
+    [refocus becomeFirstResponder];
+    refocus.selectedRange = NSMakeRange(MIN(focusedSelection.location, refocus.text.length), 0);
 }
 
 - (void)send:(NSString *)action value:(NSString *)value
@@ -286,14 +359,16 @@ static NSArray<NSDictionary *> *ItemList(id value)
 {
     NSString *type = TextValue(item, @"type");
     UIView *view = nil;
-    if ([type isEqualToString:@"heading"])
+    if ([type isEqualToString:@"heading"]) {
         view = [self label:item size:NumberValue(item, @"size", 13) weight:UIFontWeightBold color:MutedText()];
-    else if ([type isEqualToString:@"text"])
+        [self.itemLabels addObject:(UILabel *)view];
+    } else if ([type isEqualToString:@"text"]) {
         view = [self label:item
                       size:NumberValue(item, @"size", 15)
                     weight:[item[@"bold"] boolValue] ? UIFontWeightSemibold : UIFontWeightRegular
                      color:PrimaryText()];
-    else if ([type isEqualToString:@"code"])
+        [self.itemLabels addObject:(UILabel *)view];
+    } else if ([type isEqualToString:@"code"])
         view = [self code:item];
     else if ([type isEqualToString:@"image"])
         view = [self image:item];
@@ -477,6 +552,19 @@ static NSArray<NSDictionary *> *ItemList(id value)
     return stack;
 }
 
+- (NSString *)initialTextFor:(NSDictionary *)item
+{
+    NSString *key = TextValue(item, @"key");
+    NSString *kept = key.length ? self.keptTexts[key] : nil;
+    return kept ?: TextValue(item, @"value");
+}
+
+- (void)track:(UITextView *)text item:(NSDictionary *)item
+{
+    NSString *key = TextValue(item, @"key");
+    if (key.length) self.keyedInputs[key] = text;
+}
+
 - (UIView *)labelledInput:(NSDictionary *)item
 {
     UITextView *text = [UITextView new];
@@ -487,7 +575,8 @@ static NSArray<NSDictionary *> *ItemList(id value)
     text.textContainerInset = UIEdgeInsetsMake(12, 8, 12, 8);
     text.scrollEnabled = NO;
     text.delegate = self;
-    text.text = TextValue(item, @"value");
+    text.text = [self initialTextFor:item];
+    [self track:text item:item];
     [text.heightAnchor constraintGreaterThanOrEqualToConstant:NumberValue(item, @"height", 96)].active = YES;
     UILabel *placeholder = [UILabel new];
     placeholder.text = TextValue(item, @"placeholder");
@@ -500,11 +589,14 @@ static NSArray<NSDictionary *> *ItemList(id value)
         [placeholder.leadingAnchor constraintEqualToAnchor:text.leadingAnchor constant:13],
         [placeholder.topAnchor constraintEqualToAnchor:text.topAnchor constant:12],
     ]];
+    __weak typeof(self) weakSelf = self;
+    NSString *changeAction = TextValue(item, @"change_action");
     [NSNotificationCenter.defaultCenter addObserverForName:UITextViewTextDidChangeNotification
                                                     object:text
                                                      queue:NSOperationQueue.mainQueue
                                                 usingBlock:^(__unused NSNotification *note) {
                                                     placeholder.hidden = text.text.length > 0;
+                                                    [weakSelf send:changeAction value:text.text];
                                                 }];
     UIButton *submit = [self button:@{@"label" : TextValue(item, @"submit_label"), @"style" : @"primary", @"action" : @""}];
     [submit removeTarget:self action:@selector(pressed:) forControlEvents:UIControlEventTouchUpInside];
@@ -530,7 +622,8 @@ static NSArray<NSDictionary *> *ItemList(id value)
     text.backgroundColor = UIColor.clearColor;
     text.scrollEnabled = NO;
     text.delegate = self;
-    text.text = TextValue(item, @"value");
+    text.text = [self initialTextFor:item];
+    [self track:text item:item];
     text.translatesAutoresizingMaskIntoConstraints = NO;
     UILabel *placeholder = [UILabel new];
     placeholder.text = TextValue(item, @"placeholder");
@@ -538,11 +631,14 @@ static NSArray<NSDictionary *> *ItemList(id value)
     placeholder.textColor = MutedText();
     placeholder.translatesAutoresizingMaskIntoConstraints = NO;
     placeholder.hidden = text.text.length > 0;
+    __weak typeof(self) weakSelf = self;
+    NSString *changeAction = TextValue(item, @"change_action");
     [NSNotificationCenter.defaultCenter addObserverForName:UITextViewTextDidChangeNotification
                                                     object:text
                                                      queue:NSOperationQueue.mainQueue
                                                 usingBlock:^(__unused NSNotification *note) {
                                                     placeholder.hidden = text.text.length > 0;
+                                                    [weakSelf send:changeAction value:text.text];
                                                 }];
     UIButtonConfiguration *configuration = UIButtonConfiguration.filledButtonConfiguration;
     configuration.image = [UIImage systemImageNamed:@"paperplane.fill"];
@@ -568,9 +664,10 @@ static NSArray<NSDictionary *> *ItemList(id value)
         [placeholder.centerYAnchor constraintEqualToAnchor:text.centerYAnchor],
         [send.trailingAnchor constraintEqualToAnchor:container.trailingAnchor constant:-6],
         [send.bottomAnchor constraintEqualToAnchor:container.bottomAnchor constant:-6],
-        [send.widthAnchor constraintEqualToConstant:32],
+        [send.widthAnchor constraintEqualToConstant:TextValue(item, @"action").length ? 32 : 0],
         [send.heightAnchor constraintEqualToConstant:32],
     ]];
+    send.hidden = TextValue(item, @"action").length == 0;
     return container;
 }
 
