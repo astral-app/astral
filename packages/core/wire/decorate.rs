@@ -1480,7 +1480,36 @@ fn finish_backgrounds(
     keep_quotes_inside(batch, backgrounds, out, changed);
     group_rows(batch, &mut backgrounds.rows, out, changed);
     forget_removed_rows(batch, backgrounds);
+    let retimed = refresh_time_texts(batch, backgrounds);
     publish_times(backgrounds);
+    if retimed.is_empty() {
+        return;
+    }
+    put_original_once(out, batch.bytes, changed);
+    for message in retimed {
+        unsafe { wire_apply_message_text(out, message) };
+    }
+}
+
+fn refresh_time_texts(batch: &Batch, backgrounds: &mut Backgrounds) -> Vec<u64> {
+    let mut retimed = Vec::new();
+    for span in batch.spans.iter().filter(|span| span.op == Op::Update) {
+        let text = read_time_text(batch.bytes, span);
+        if text.is_empty() {
+            continue;
+        }
+        let Some(state) = backgrounds.rows.values_mut().find(|state| state.timestamp == span.id) else {
+            continue;
+        };
+        if text == state.time_text {
+            continue;
+        }
+        state.time_text = text;
+        if state.time_shown == TimePlacement::Inline && state.message != 0 {
+            retimed.push(state.message);
+        }
+    }
+    retimed
 }
 
 fn message_backgrounds(batch: &Batch, out: &mut Out, changed: &mut c_int) {
