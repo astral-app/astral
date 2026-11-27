@@ -1,21 +1,24 @@
-local build, press, gateway, sent, toasted, watch
-local refreshed, timers = 0, {}
+local build, press, gateway, watch, opened, selector
+local timers = {}
 local text = "hello **world**"
 astral = {
 	log = function() end,
+	i18n = {
+		t = function(key)
+			return key
+		end,
+	},
 	events = {
 		on = function(_, fn)
 			gateway = fn
 		end,
 	},
 	discord = {
+		me = function()
+			return nil
+		end,
 		user = function(id)
 			return { id = id, username = "me" }
-		end,
-	},
-	messages = {
-		send_local = function(channel, message)
-			sent = { channel = channel, message = message }
 		end,
 	},
 	time = {
@@ -27,35 +30,35 @@ astral = {
 		composer = function(fn)
 			watch = fn
 		end,
-		refresh = function()
-			refreshed = refreshed + 1
-		end,
+		refresh = function() end,
 		composer_text = function()
 			return text
 		end,
-		toast = function()
-			toasted = true
+		sheet = function(spec)
+			opened = spec
+			return { close = function() end }
 		end,
-		insert = function(_, fn, on_press)
-			build, press = fn, on_press
+		insert = function(target, fn, on_press)
+			selector, build, press = target, fn, on_press
 		end,
 	},
 }
 dofile(arg[1])
-gateway({ type = "READY", data = { user = { id = "42" } } })
-assert(build({}) == nil)
-assert(#watch("hi") == 0)
-timers[1]()
-assert(refreshed == 1)
-watch("hi there")
-assert(#timers == 1)
-local button = build({})
-assert(button.action == "preview" and button.children[1].color == 0xFFABACB2)
-press({ channel_id = "9" }, "preview")
-assert(sent.channel == "9" and sent.message.content == text and sent.message.author.id == "42")
-watch("")
-assert(#timers == 2 and build({}) == nil)
-text = ""
-press({ channel_id = "9" }, "preview")
-assert(toasted)
+
+assert(selector.id == "composer.expressions" and selector.path == "^")
+assert(build() == nil)
+watch("hello")
+local button = build()
+assert(button and button.width == 32 and button.action == "preview")
+watch("   ")
+assert(build() == nil)
+gateway({ type = "READY", data = { user = { id = "1" } } })
+press()
+assert(opened and opened.title == "MESSAGE_PREVIEW")
+local row = opened.items[1]
+assert(row.items[1].round and row.items[2].items[2].text == "hello **world**")
+text = "  "
+opened = nil
+press()
+assert(opened == nil)
 print("preview-message ok")

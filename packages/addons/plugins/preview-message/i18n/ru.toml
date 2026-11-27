@@ -1,0 +1,3 @@
+MESSAGE_PREVIEW = "Предпросмотр сообщения"
+PREVIEW_FAILED = "Ошибка предпросмотра: {reason}"
+PREVIEW_MESSAGE = "Предпросмотр сообщения"

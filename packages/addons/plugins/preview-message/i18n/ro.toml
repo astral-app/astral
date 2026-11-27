@@ -1,0 +1,3 @@
+MESSAGE_PREVIEW = "Previzualizare mesaj"
+PREVIEW_FAILED = "Previzualizarea a eșuat: {reason}"
+PREVIEW_MESSAGE = "Previzualizează mesajul"

@@ -1,0 +1,3 @@
+MESSAGE_PREVIEW = "Преглед на съобщението"
+PREVIEW_FAILED = "Неуспешен преглед: {reason}"
+PREVIEW_MESSAGE = "Прегледай съобщението"
