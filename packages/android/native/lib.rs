@@ -170,6 +170,16 @@ pub extern "system" fn Java_app_astral_android_Native_openLink<'local>(
 }
 
 #[unsafe(no_mangle)]
+pub extern "system" fn Java_app_astral_android_Native_noteGuestSource<'local>(
+    mut env: JNIEnv<'local>,
+    _: JClass<'local>,
+    bundled: jboolean,
+    source: JString<'local>,
+) {
+    app::guest_source::note(bundled != JNI_FALSE, &text(&mut env, &source));
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_app_astral_android_Native_renderSvg<'local>(
     mut env: JNIEnv<'local>,
     _: JClass<'local>,

@@ -4,6 +4,7 @@ mod discord;
 pub mod exchange;
 mod ffi;
 pub mod guest_event;
+pub mod guest_source;
 pub mod host;
 pub mod launch;
 pub mod links;
