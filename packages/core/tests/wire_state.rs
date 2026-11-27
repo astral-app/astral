@@ -5,6 +5,7 @@ use astral_core::wire::host_calls::{astral_host_call_rewrite, astral_host_calls_
 use astral_core::wire::identifiers::{astral_wire_identifier, astral_wire_note_identifiers};
 use astral_core::wire::image_rewrite::{astral_wire_set_image_rewriter, wire_rewrite_images};
 use astral_core::wire::images::{astral_wire_refresh_images, wire_track_images};
+use astral_core::wire::insert::profile_user_of;
 use astral_core::wire::out::{AstralWireBuffer, Out};
 use astral_core::wire::properties::current;
 use astral_core::wire::tag::Tag;
@@ -184,4 +185,16 @@ fn eases_tweens_to_completion() {
     assert_eq!(unsafe { astral_wire_tween_frame(&mut buffer, 1300.0) }, 1);
     take(&buffer);
     assert_eq!(astral_wire_tweens_active(), 0);
+}
+
+#[test]
+fn profile_requests_name_the_opened_user() {
+    assert_eq!(
+        profile_user_of("GET", "/api/v9/users/598132992874905600/profile?with_mutual_guilds=true"),
+        Some(598_132_992_874_905_600)
+    );
+    assert_eq!(profile_user_of("GET", "/api/v10/users/42/profile"), Some(42));
+    assert_eq!(profile_user_of("POST", "/api/v9/users/42/profile"), None);
+    assert_eq!(profile_user_of("GET", "/api/v9/users/@me/profile"), None);
+    assert_eq!(profile_user_of("GET", "/api/v9/users/42/profile/extra"), None);
 }

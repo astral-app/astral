@@ -50,6 +50,7 @@ object PluginSheet {
         val dialog: Dialog,
         val title: TextView,
         val subtitle: TextView,
+        val header: LinearLayout,
         val content: LinearLayout,
         val event: (String, String, Boolean) -> Unit,
     ) {
@@ -83,6 +84,10 @@ object PluginSheet {
             gravity = Gravity.CENTER
             setPadding(dp(activity, INSET_DP), 0, dp(activity, INSET_DP), dp(activity, 10))
         }
+        val header = LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(activity, INSET_DP), 0, dp(activity, INSET_DP), 0)
+        }
         val content = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(activity, INSET_DP), 0, dp(activity, INSET_DP), dp(activity, INSET_DP))
@@ -94,6 +99,7 @@ object PluginSheet {
         root.addView(grabber)
         root.addView(title)
         root.addView(subtitle)
+        root.addView(header)
         root.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         dialog.setContentView(root)
         dialog.window?.apply {
@@ -104,7 +110,7 @@ object PluginSheet {
             setLayout(ViewGroup.LayoutParams.MATCH_PARENT, (height * fraction).toInt())
             setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         }
-        val rendered = Rendered(activity, dialog, title, subtitle, content, event)
+        val rendered = Rendered(activity, dialog, title, subtitle, header, content, event)
         dialog.setOnDismissListener { finish(sheet, rendered) }
         sheets[sheet] = rendered
         render(rendered, spec)
@@ -129,16 +135,22 @@ object PluginSheet {
     }
 
     private fun render(rendered: Rendered, spec: JSONObject) {
-        val activity = rendered.activity
         rendered.title.text = spec.optString("title")
         rendered.subtitle.text = spec.optString("subtitle")
         rendered.subtitle.visibility = if (spec.optString("subtitle").isEmpty()) View.GONE else View.VISIBLE
-        rendered.content.removeAllViews()
-        items(spec.optJSONArray("items")).forEach { item ->
+        fillStack(rendered, rendered.header, spec.optJSONArray("header"), allowFill = false)
+        rendered.header.visibility = if (rendered.header.childCount == 0) View.GONE else View.VISIBLE
+        fillStack(rendered, rendered.content, spec.optJSONArray("items"), allowFill = true)
+    }
+
+    private fun fillStack(rendered: Rendered, stack: LinearLayout, array: JSONArray?, allowFill: Boolean) {
+        val activity = rendered.activity
+        stack.removeAllViews()
+        items(array).forEach { item ->
             val view = viewFor(rendered, item) ?: return@forEach
-            val fills = item.optBoolean("fill")
+            val fills = allowFill && item.optBoolean("fill")
             val height = if (fills) 0 else ViewGroup.LayoutParams.WRAP_CONTENT
-            rendered.content.addView(view, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, height, if (fills) 1f else 0f).apply {
+            stack.addView(view, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, height, if (fills) 1f else 0f).apply {
                 topMargin = dp(activity, 12)
             })
         }

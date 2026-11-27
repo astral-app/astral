@@ -116,6 +116,8 @@ static NSArray<NSDictionary *> *ItemList(id value)
 @property (nonatomic, copy) NSDictionary *spec;
 @property (nonatomic, copy) AstralSheetEvent event;
 @property (nonatomic) UIStackView *stack;
+@property (nonatomic) UIStackView *headerStack;
+@property (nonatomic) NSLayoutConstraint *headerGap;
 @property (nonatomic) UILabel *titleLabel;
 @property (nonatomic) UILabel *subtitleLabel;
 @property (nonatomic) NSMutableDictionary<NSValue *, NSString *> *longActions;
@@ -151,8 +153,13 @@ static NSArray<NSDictionary *> *ItemList(id value)
     self.stack.spacing = 12;
     self.stack.translatesAutoresizingMaskIntoConstraints = NO;
     [scroll addSubview:self.stack];
+    self.headerStack = [UIStackView new];
+    self.headerStack.axis = UILayoutConstraintAxisVertical;
+    self.headerStack.spacing = 12;
+    self.headerStack.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:self.titleLabel];
     [self.view addSubview:self.subtitleLabel];
+    [self.view addSubview:self.headerStack];
     [self.view addSubview:scroll];
     UILayoutGuide *safe = self.view.safeAreaLayoutGuide;
     [NSLayoutConstraint activateConstraints:@[
@@ -162,7 +169,9 @@ static NSArray<NSDictionary *> *ItemList(id value)
         [self.subtitleLabel.topAnchor constraintEqualToAnchor:self.titleLabel.bottomAnchor constant:2],
         [self.subtitleLabel.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:kInset],
         [self.subtitleLabel.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor constant:-kInset],
-        [scroll.topAnchor constraintEqualToAnchor:self.subtitleLabel.bottomAnchor constant:14],
+        [self.headerStack.topAnchor constraintEqualToAnchor:self.subtitleLabel.bottomAnchor constant:14],
+        [self.headerStack.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:kInset],
+        [self.headerStack.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor constant:-kInset],
         [scroll.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor],
         [scroll.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor],
         [scroll.bottomAnchor constraintEqualToAnchor:self.view.keyboardLayoutGuide.topAnchor],
@@ -171,6 +180,8 @@ static NSArray<NSDictionary *> *ItemList(id value)
         [self.stack.leadingAnchor constraintEqualToAnchor:scroll.frameLayoutGuide.leadingAnchor constant:kInset],
         [self.stack.trailingAnchor constraintEqualToAnchor:scroll.frameLayoutGuide.trailingAnchor constant:-kInset],
     ]];
+    self.headerGap = [scroll.topAnchor constraintEqualToAnchor:self.headerStack.bottomAnchor];
+    self.headerGap.active = YES;
     self.fillHeight = [self.stack.heightAnchor constraintGreaterThanOrEqualToAnchor:scroll.frameLayoutGuide.heightAnchor constant:-kInset];
     [self render];
 }
@@ -182,6 +193,12 @@ static NSArray<NSDictionary *> *ItemList(id value)
     self.longActions = [NSMutableDictionary dictionary];
     self.titleLabel.text = TextValue(self.spec, @"title");
     self.subtitleLabel.text = TextValue(self.spec, @"subtitle");
+    for (UIView *view in self.headerStack.arrangedSubviews) [view removeFromSuperview];
+    for (NSDictionary *item in ItemList(self.spec[@"header"])) {
+        UIView *view = [self viewForItem:item];
+        if (view) [self.headerStack addArrangedSubview:view];
+    }
+    self.headerGap.constant = self.headerStack.arrangedSubviews.count ? 14 : 0;
     for (UIView *view in self.stack.arrangedSubviews) [view removeFromSuperview];
     BOOL fills = NO;
     for (NSDictionary *item in ItemList(self.spec[@"items"])) {
