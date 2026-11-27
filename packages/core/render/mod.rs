@@ -1,5 +1,17 @@
 pub mod cutout;
+#[cfg(feature = "highlight")]
 pub mod highlight;
+#[cfg(not(feature = "highlight"))]
+#[path = "highlight_off.rs"]
+pub mod highlight;
+#[cfg(feature = "graphics")]
 pub mod image;
+#[cfg(not(feature = "graphics"))]
+#[path = "image_off.rs"]
+pub mod image;
+#[cfg(feature = "graphics")]
+pub mod svg;
+#[cfg(not(feature = "graphics"))]
+#[path = "svg_off.rs"]
 pub mod svg;
 pub mod swatch;

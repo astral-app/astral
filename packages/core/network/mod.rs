@@ -1,4 +1,8 @@
 pub mod host_requests;
+#[cfg(feature = "http")]
+pub mod http;
+#[cfg(not(feature = "http"))]
+#[path = "http_off.rs"]
 pub mod http;
 pub mod policy;
 pub mod sink;
