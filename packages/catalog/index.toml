@@ -102,7 +102,7 @@ authors = [
 [[plugins]]
 id = "astral.cross-mod-badges"
 name = "Cross Mod Badges"
-version = "0.0.1"
+version = "0.0.2"
 description = "Shows the badges people have from other client mods, such as Vencord, Aliucord and BetterDiscord, on their profile."
 icon = "UserCircleIcon"
 base = "plugins/astral.cross-mod-badges/"
