@@ -89,35 +89,6 @@ static void MaterializeBody(NSMutableURLRequest *request)
     request.HTTPBody = StreamedBody(request.HTTPBodyStream);
 }
 
-static NSData *TakeData(AstralOwned owned)
-{
-    if (!owned.bytes) return nil;
-    NSData *data = [NSData dataWithBytes:owned.bytes length:owned.length];
-    astral_ios_free(owned);
-    return data;
-}
-
-static void TransformOutgoingMessage(NSMutableURLRequest *request)
-{
-    MaterializeBody(request);
-    if (!request.URL || !IsJSONBody(request)) return;
-    NSData *transformed = TakeData(astral_ios_transform_outgoing(AstralTextOf(HttpMethod(request)), AstralTextOf(request.URL.host),
-                                                                 AstralTextOf(request.URL.path), AstralTextOfData(request.HTTPBody)));
-    if (!transformed) return;
-    request.HTTPBody = transformed;
-    [request setValue:nil forHTTPHeaderField:@"Content-Length"];
-    [request setValue:nil forHTTPHeaderField:@"Transfer-Encoding"];
-}
-
-static NSURL *RewrittenImage(NSURLRequest *request)
-{
-    NSURL *url = request.URL;
-    if (!url) return nil;
-    NSString *rewritten = AstralTakeString(
-        astral_ios_rewrite_image(AstralTextOf(HttpMethod(request)), AstralTextOf(url.host), AstralTextOf(url.absoluteString)));
-    return rewritten ? [NSURL URLWithString:rewritten] : nil;
-}
-
 static NSArray *HeaderPairs(NSDictionary *fields)
 {
     NSMutableArray *pairs = [NSMutableArray array];
@@ -324,64 +295,45 @@ static NSDictionary *DiscordResult(NSData *data, NSURLResponse *response, NSErro
     [self.client URLProtocolDidFinishLoading:self];
 }
 
-- (NSURLResponse *)markedStaff:(NSHTTPURLResponse *)http body:(NSData **)body
-{
-    if (http.statusCode != kOk || !(*body).length) return http;
-    NSData *marked = TakeData(astral_ios_mark_staff_user(AstralTextOfData(*body)));
-    if (!marked) return http;
-    *body = marked;
-    NSMutableDictionary *headers = [http.allHeaderFields mutableCopy];
-    [headers removeObjectForKey:@"Content-Encoding"];
-    headers[@"Content-Length"] = [NSString stringWithFormat:@"%lu", (unsigned long)marked.length];
-    return [[NSHTTPURLResponse alloc] initWithURL:http.URL statusCode:kOk HTTPVersion:@"HTTP/1.1" headerFields:headers];
-}
-
 - (void)forwardRequest
 {
     NSMutableURLRequest *request = [self.request mutableCopy];
-    AstralRequestPlan plan = PlanFor(self.request);
-    NSURL *image = plan.rewrite_image ? RewrittenImage(request) : nil;
-    if (image) request.URL = image;
-    if (plan.transform_message) TransformOutgoingMessage(request);
-    NSData *interceptedRequest = nil;
-    if (plan.intercept) {
-        MaterializeBody(request);
-        interceptedRequest = JSONData(PlainRequest(request));
-        id decision = AstralTakeJSON(astral_ios_intercept_request(AstralTextOfData(interceptedRequest)));
-        if ([decision isKindOfClass:NSDictionary.class] && [decision[@"respond"] isKindOfClass:NSDictionary.class]) {
-            [self deliverLocalResponse:decision[@"respond"]];
-            return;
-        }
-        if ([decision isKindOfClass:NSDictionary.class] && [decision[@"request"] isKindOfClass:NSDictionary.class]) {
-            ApplyPlainRequest(request, decision[@"request"]);
-            interceptedRequest = JSONData(PlainRequest(request));
-        }
+    MaterializeBody(request);
+    id decision = AstralTakeJSON(astral_ios_network_begin(AstralTextOfData(JSONData(PlainRequest(request)))));
+    NSDictionary *plan = [decision isKindOfClass:NSDictionary.class] ? decision : @{};
+    if ([plan[@"block"] boolValue]) {
+        [self finishEmpty];
+        return;
     }
+    if ([plan[@"respond"] isKindOfClass:NSDictionary.class]) {
+        [self deliverLocalResponse:plan[@"respond"]];
+        return;
+    }
+    if ([plan[@"request"] isKindOfClass:NSDictionary.class]) ApplyPlainRequest(request, plan[@"request"]);
+    uint64_t exchange = [plan[@"exchange"] isKindOfClass:NSNumber.class] ? [plan[@"exchange"] unsignedLongLongValue] : 0;
     [NSURLProtocol setProperty:@YES forKey:kHandledKey inRequest:request];
-    BOOL markStaff = plan.mark_staff;
     __weak AstralNetworkFilter *weakSelf = self;
     self.forwarded = [[AstralNetworkFilter forwardingSession]
         dataTaskWithRequest:request
           completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
               AstralNetworkFilter *strongSelf = weakSelf;
-              if (!strongSelf) return;
-              if (error || !response) {
+              NSHTTPURLResponse *http = [response isKindOfClass:NSHTTPURLResponse.class] ? (NSHTTPURLResponse *)response : nil;
+              if (!strongSelf || error || !response) {
+                  if (exchange) astral_ios_network_abandon(exchange);
                   [strongSelf.client URLProtocol:strongSelf
                                 didFailWithError:error ?: [NSError errorWithDomain:NSURLErrorDomain code:NSURLErrorUnknown userInfo:nil]];
                   return;
               }
               NSData *body = data ?: [NSData data];
               NSURLResponse *delivered = response;
-              NSHTTPURLResponse *http = [response isKindOfClass:NSHTTPURLResponse.class] ? (NSHTTPURLResponse *)response : nil;
-              if (markStaff && http) delivered = [strongSelf markedStaff:http body:&body];
-              if (interceptedRequest && http) {
-                  NSData *received = JSONData(PlainResponse(http, body));
-                  id changed =
-                      AstralTakeJSON(astral_ios_intercept_response(AstralTextOfData(interceptedRequest), AstralTextOfData(received)));
+              if (exchange && http) {
+                  id changed = AstralTakeJSON(astral_ios_network_finish(exchange, AstralTextOfData(JSONData(PlainResponse(http, body)))));
                   if ([changed isKindOfClass:NSDictionary.class]) {
                       body = BodyOf(changed);
                       delivered = ResponseOf(http.URL, changed, body.length);
                   }
+              } else if (exchange) {
+                  astral_ios_network_abandon(exchange);
               }
               [strongSelf.client URLProtocol:strongSelf didReceiveResponse:delivered cacheStoragePolicy:NSURLCacheStorageNotAllowed];
               [strongSelf.client URLProtocol:strongSelf didLoadData:body];
@@ -428,14 +380,9 @@ static NSDictionary *DiscordResult(NSData *data, NSURLResponse *response, NSErro
         });
         return;
     }
-    AstralRequestPlan plan = PlanFor(self.request);
-    if (plan.block) {
+    if (PlanFor(self.request).block) {
         astral_ios_note_blocked_request();
         [self finishEmpty];
-        return;
-    }
-    if (!plan.intercept) {
-        [self forwardRequest];
         return;
     }
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{

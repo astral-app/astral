@@ -7,7 +7,6 @@ import java.lang.reflect.Modifier
 import java.lang.reflect.Proxy
 import java.net.URI
 import java.util.Collections
-import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 
@@ -75,9 +74,7 @@ object NetworkHooks {
     }
 
     private fun blockedReplacement(url: String): String? {
-        val uri = runCatching { URI(url) }.getOrNull() ?: return null
-        val host = uri.host?.lowercase(Locale.ROOT) ?: return null
-        if (!Native.isTelemetry(host, uri.rawPath ?: "/")) return null
+        if (NetworkExchange.plan("POST", url) and NetworkExchange.BLOCK == 0) return null
         return Native.sinkUrl().takeIf(String::isNotEmpty)
     }
 
@@ -183,20 +180,18 @@ object NetworkHooks {
             val request = chain.javaClass.getMethod("request").invoke(chain) ?: return null
             val requestType = loader.loadClass("okhttp3.Request")
             val url = requestType.getMethod("url").invoke(request) ?: return proceed(chain, request)
-            val urlType = url.javaClass
-            val host = (urlType.getMethod("host").invoke(url) as? String)?.lowercase(Locale.ROOT) ?: return proceed(chain, request)
-            val path = urlType.getMethod("encodedPath").invoke(url) as? String ?: "/"
-            if (Native.isTelemetry(host, path)) {
-                recordBlocked(url.toString())
+            val address = url.toString()
+            val requestMethod = requestType.getMethod("method").invoke(request) as? String ?: "GET"
+            val flags = NetworkExchange.plan(requestMethod, address)
+            if (flags and NetworkExchange.BLOCK != 0) {
+                recordBlocked(address)
                 return noContent(request, loader)
             }
-            val requestMethod = requestType.getMethod("method").invoke(request) as? String
-            val staffTools = runCatching { Native.staffDevToolsEnabled() }.getOrDefault(false)
             var outgoing = request
-            if ((staffTools || plainGateway()) && host.startsWith("gateway")) outgoing = removeGatewayCompression(outgoing, url, loader)
+            if (flags and NetworkExchange.PLAIN_GATEWAY != 0) outgoing = removeGatewayCompression(outgoing, url, loader)
             val response = proceed(chain, outgoing) ?: return null
-            if (!staffTools || requestMethod != "GET" || !Native.isCurrentUser(host, path)) return response
-            return markCurrentUser(response, loader)
+            if (flags and NetworkExchange.MARK_STAFF == 0) return response
+            return markCurrentUser(response, loader, requestMethod, address)
         } catch (error: InvocationTargetException) {
             throw error.targetException
         }
@@ -241,16 +236,20 @@ object NetworkHooks {
         return responseBuilder.getMethod("build").invoke(builder) ?: throw IllegalStateException("OkHttp returned no response")
     }
 
-    private fun markCurrentUser(response: Any, loader: ClassLoader): Any {
+    private fun markCurrentUser(response: Any, loader: ClassLoader, method: String, url: String): Any {
+        val exchange = NetworkExchange.begin(method, url, emptyList(), ByteArray(0), NetworkExchange.MARK_STAFF).exchange
         val responseType = loader.loadClass("okhttp3.Response")
-        val body = responseType.getMethod("body").invoke(response) ?: return response
-        val source = body.javaClass.getMethod("string").invoke(body) as? String ?: return response
-        val changed = Native.withStaffUser(source) ?: return response
+        val body = responseType.getMethod("body").invoke(response) ?: return response.also { NetworkExchange.abandon(exchange) }
+        val source = body.javaClass.getMethod("string").invoke(body) as? String ?: ""
+        val status = responseType.getMethod("code").invoke(response) as? Int ?: 0
+        val changed = NetworkExchange.finish(exchange, status, emptyList(), source.toByteArray(Charsets.UTF_8))
         val contentType = body.javaClass.getMethod("contentType").invoke(body)
-        val replacement = responseBody(loader, contentType, changed)
+        val replacement = responseBody(loader, contentType, changed?.body?.toString(Charsets.UTF_8) ?: source)
         val builder = responseType.getMethod("newBuilder").invoke(response)
-        builder.javaClass.getMethod("removeHeader", String::class.java).invoke(builder, "Content-Encoding")
-        builder.javaClass.getMethod("removeHeader", String::class.java).invoke(builder, "Content-Length")
+        if (changed != null) {
+            builder.javaClass.getMethod("removeHeader", String::class.java).invoke(builder, "Content-Encoding")
+            builder.javaClass.getMethod("removeHeader", String::class.java).invoke(builder, "Content-Length")
+        }
         builder.javaClass.getMethod("body", loader.loadClass("okhttp3.ResponseBody")).invoke(builder, replacement)
         return builder.javaClass.getMethod("build").invoke(builder) ?: throw IllegalStateException("OkHttp returned no response")
     }
@@ -288,5 +287,4 @@ object NetworkHooks {
         }
     }
 
-    private fun plainGateway(): Boolean = runCatching { Native.needsGatewayEvents() }.getOrDefault(false)
 }

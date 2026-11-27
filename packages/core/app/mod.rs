@@ -1,6 +1,7 @@
 pub mod debug;
 mod dev;
 mod discord;
+pub mod exchange;
 mod ffi;
 pub mod host;
 pub mod network;

@@ -69,48 +69,82 @@ object PhoenixOkHttp {
             val host = uri.host?.lowercase(Locale.ROOT) ?: return proceed(chain, request, requestType)
             val path = uri.rawPath ?: "/"
             rememberDiscordTemplate(chain, request, requestType, host, path, loader)
-            if (Native.isTelemetry(host, path)) {
-                val address = requestUrl.toString()
+            val method = typedField(requestType, String::class.java).get(request) as? String ?: "GET"
+            val flags = NetworkExchange.plan(method, requestUrl.toString())
+            if (flags and NetworkExchange.BLOCK != 0) {
                 blockedRequests.incrementAndGet()
                 Native.noteBlockedRequest()
                 Log.info("Blocked telemetry request " + path)
                 return noContent(request, loader)
             }
-            val staffTools = runCatching { Native.staffDevToolsEnabled() }.getOrDefault(false)
-            val method = typedField(requestType, String::class.java).get(request) as? String
             var outgoing = request
-            if ((staffTools || plainGateway()) && isGateway(host)) {
+            if (flags and NetworkExchange.PLAIN_GATEWAY != 0) {
                 outgoing = runCatching { removeGatewayCompression(outgoing, requestUrl) }
-                    .onFailure { Log.error("Failed to remove gateway compression for Staff DevTools", it) }
+                    .onFailure { Log.error("Failed to remove gateway compression", it) }
                     .getOrDefault(outgoing)
             }
-            if (method != null && Native.wantsHttp(method, host, path))
-                return interceptExchange(chain, outgoing, requestType, method, path, loader)
-            val response = proceed(chain, outgoing, requestType) ?: return null
-            if (!staffTools || method != "GET" || !Native.isCurrentUser(host, path)) return response
-            return runCatching { markCurrentUser(response, loader) }
-                .onFailure { Log.error("Failed to mark the current user as staff", it) }
-                .getOrDefault(response)
+            if (!NetworkExchange.needsExchange(flags)) return proceed(chain, outgoing, requestType)
+            return exchange(chain, outgoing, requestType, method, loader)
         } catch (error: InvocationTargetException) {
             throw error.targetException
         }
     }
 
-    private fun interceptExchange(chain: Any, request: Any, requestType: Class<*>, method: String, path: String, loader: ClassLoader): Any? {
-        val exchange = runCatching { exchangeOf(request, requestType, method, loader) }
-            .onFailure { Log.error("Failed to read a Discord request for plugins", it) }
+    private fun exchange(chain: Any, request: Any, requestType: Class<*>, method: String, loader: ClassLoader): Any? {
+        val urlType = loader.loadClass(PhoenixClasses.OKHTTP_URL)
+        val decision = runCatching {
+            val url = typedField(requestType, urlType).get(request)?.toString() ?: throw NoSuchFieldException("Phoenix request has no URL")
+            val headers = NetworkExchange.pairs(headerArray(requestHeaders(request, requestType)))
+            val body = requestBody(request, requestType)?.let { bodyBytes(it, loader) } ?: ByteArray(0)
+            NetworkExchange.begin(method, url, headers, body)
+        }.onFailure { Log.error("Failed to read a Discord request for plugins", it) }
             .getOrNull() ?: return proceed(chain, request, requestType)
-        val response = proceed(chain, request, requestType) ?: return null
-        return runCatching { interceptResponse(response, exchange, path, loader) }
-            .onFailure { Log.error("Failed to change a Discord response for a plugin", it) }
+        decision.respond?.let { plain ->
+            return runCatching { localResponse(request, loader, plain) }
+                .onFailure { Log.error("Failed to answer a Discord request for a plugin", it) }
+                .getOrElse { proceed(chain, request, requestType) }
+        }
+        val outgoing = decision.request?.let { changed ->
+            runCatching { rebuiltRequest(request, requestType, urlType, changed, loader) }
+                .onFailure { Log.error("Failed to rewrite a Discord request for a plugin", it) }
+                .getOrDefault(request)
+        } ?: request
+        val response = try {
+            proceed(chain, outgoing, requestType)
+        } catch (error: Throwable) {
+            NetworkExchange.abandon(decision.exchange)
+            throw error
+        }
+        if (response == null) {
+            NetworkExchange.abandon(decision.exchange)
+            return null
+        }
+        if (decision.exchange == 0L) return response
+        return runCatching { finishedResponse(response, decision.exchange, loader) }
+            .onFailure {
+                NetworkExchange.abandon(decision.exchange)
+                Log.error("Failed to change a Discord response for a plugin", it)
+            }
             .getOrDefault(response)
     }
 
-    private fun exchangeOf(request: Any, requestType: Class<*>, method: String, loader: ClassLoader): HttpExchange {
-        val url = typedField(requestType, loader.loadClass(PhoenixClasses.OKHTTP_URL)).get(request)?.toString() ?: throw NoSuchFieldException("Phoenix request has no URL")
-        val headers = headerArray(requestHeaders(request, requestType))
-        val body = requestBody(request, requestType)?.let { bodyBytes(it, loader) } ?: ByteArray(0)
-        return HttpExchange(method, url, headers, body)
+    private fun rebuiltRequest(request: Any, requestType: Class<*>, urlType: Class<*>, changed: NetworkExchange.Plain, loader: ClassLoader): Any {
+        val template = typedField(requestType, urlType).get(request) ?: throw NoSuchFieldException("Phoenix request has no URL")
+        val body = String(changed.body, StandardCharsets.UTF_8).takeIf(String::isNotEmpty)
+        return newRequest(template, requestType, urlType, changed.url, changed.method, changed.headerArray(), body, loader)
+    }
+
+    private fun finishedResponse(response: Any, exchange: Long, loader: ClassLoader): Any {
+        val bodyType = responseBodyBase(loader)
+        val body = typedField(response.javaClass, bodyType).get(response) ?: return response.also { NetworkExchange.abandon(exchange) }
+        val content = (body.javaClass.getMethod("n").invoke(body) as? String ?: "").toByteArray(StandardCharsets.UTF_8)
+        val contentType = body.javaClass.getMethod("i").invoke(body)?.toString()
+        val status = typedField(response.javaClass, Int::class.javaPrimitiveType!!).getInt(response)
+        val headers = instanceFields(response.javaClass).firstOrNull { field -> field.type.declaredConstructors.any { it.parameterTypes.contentEquals(arrayOf(Array<String>::class.java)) } }
+            ?.get(response)?.let(::headerArray) ?: emptyArray()
+        val changed = NetworkExchange.finish(exchange, status, NetworkExchange.pairs(headers), content)
+            ?: return rebuiltResponse(response, loader, status, contentType, content)
+        return rebuiltResponse(response, loader, changed.status, changed.header("content-type") ?: contentType, changed.body)
     }
 
     private fun requestHeadersField(requestType: Class<*>): Field =
@@ -343,19 +377,6 @@ object PhoenixOkHttp {
     private fun headerValue(headers: Array<String>, name: String): String? =
         headers.toList().chunked(2).firstOrNull { it.size == 2 && it[0].equals(name, ignoreCase = true) }?.get(1)
 
-    private fun interceptResponse(response: Any, request: HttpExchange, path: String, loader: ClassLoader): Any {
-        val bodyType = responseBodyBase(loader)
-        val body = typedField(response.javaClass, bodyType).get(response) ?: return response
-        val content = body.javaClass.getMethod("n").invoke(body) as? String ?: return response
-        val contentType = body.javaClass.getMethod("i").invoke(body)?.toString()
-        val status = typedField(response.javaClass, Int::class.javaPrimitiveType!!).getInt(response)
-        val headers = instanceFields(response.javaClass).firstOrNull { field -> field.type.declaredConstructors.any { it.parameterTypes.contentEquals(arrayOf(Array<String>::class.java)) } }
-            ?.get(response)?.let(::headerArray) ?: emptyArray()
-        val received = HttpExchange(request.method, request.url, headers, content.toByteArray(StandardCharsets.UTF_8), status)
-        if (!Native.interceptHttpResponse(request, path, received)) return rebuiltResponse(response, loader, status, contentType, content.toByteArray(StandardCharsets.UTF_8))
-        return rebuiltResponse(response, loader, received.status, contentType, received.body)
-    }
-
     private fun rebuiltResponse(response: Any, loader: ClassLoader, status: Int, contentType: String?, body: ByteArray): Any {
         val bodyType = responseBodyBase(loader)
         val builder = response.javaClass.getMethod("i").invoke(response) ?: return response
@@ -377,8 +398,6 @@ object PhoenixOkHttp {
             throw error.targetException
         }
     }
-
-    private fun isGateway(host: String): Boolean = host.startsWith("gateway") && host.endsWith(".discord.gg")
 
     private fun removeGatewayCompression(request: Any, requestUrl: Any): Any {
         val address = requestUrl.toString()
@@ -421,7 +440,12 @@ object PhoenixOkHttp {
             .onEach { it.isAccessible = true }
             .toList()
 
-    private fun noContent(request: Any, loader: ClassLoader): Any {
+    private fun noContent(request: Any, loader: ClassLoader): Any = response(request, loader, 204, "No Content", null, ByteArray(0))
+
+    private fun localResponse(request: Any, loader: ClassLoader, plain: NetworkExchange.Plain): Any =
+        response(request, loader, plain.status, "OK", plain.header("content-type"), plain.body)
+
+    private fun response(request: Any, loader: ClassLoader, status: Int, message: String, contentType: String?, body: ByteArray): Any {
         val responseBuilderType = loader.loadClass(PhoenixClasses.OKHTTP_RESPONSE_BUILDER)
         val protocolType = loader.loadClass(PhoenixClasses.OKHTTP_PROTOCOL)
         val protocol = protocolType.enumConstants?.firstOrNull { value ->
@@ -430,25 +454,10 @@ object PhoenixOkHttp {
         val builder = responseBuilderType.getConstructor().newInstance()
         typedField(responseBuilderType, loader.loadClass(PhoenixClasses.OKHTTP_REQUEST)).set(builder, request)
         typedField(responseBuilderType, protocolType).set(builder, protocol)
-        typedField(responseBuilderType, Int::class.javaPrimitiveType!!).setInt(builder, 204)
-        typedField(responseBuilderType, String::class.java).set(builder, "No Content")
-        typedField(responseBuilderType, responseBodyBase(loader)).set(builder, responseBody(loader, null, ""))
+        typedField(responseBuilderType, Int::class.javaPrimitiveType!!).setInt(builder, status)
+        typedField(responseBuilderType, String::class.java).set(builder, message)
+        typedField(responseBuilderType, responseBodyBase(loader)).set(builder, responseBody(loader, contentType, body))
         return responseBuilderType.getMethod("a").invoke(builder) ?: throw IllegalStateException("Phoenix returned no response")
-    }
-
-    private fun markCurrentUser(response: Any, loader: ClassLoader): Any {
-        val bodyType = responseBodyBase(loader)
-        val body = typedField(response.javaClass, bodyType).get(response) ?: return response
-        val content = body.javaClass.getMethod("n").invoke(body) as? String ?: return response
-        val updated = Native.withStaffUser(content) ?: return response
-        val contentType = body.javaClass.getMethod("i").invoke(body)?.toString()
-        val builder = response.javaClass.getMethod("i").invoke(response) ?: return response
-        val headers = field(builder.javaClass, "f").get(builder)
-        val removeHeader = headers.javaClass.getMethod("g", String::class.java)
-        removeHeader.invoke(headers, "Content-Encoding")
-        removeHeader.invoke(headers, "Content-Length")
-        typedField(builder.javaClass, bodyType).set(builder, responseBody(loader, contentType, updated))
-        return builder.javaClass.getMethod("a").invoke(builder) ?: response
     }
 
     private fun responseBody(loader: ClassLoader, contentType: String?, content: String): Any =
@@ -512,5 +521,4 @@ object PhoenixOkHttp {
         throw NoSuchFieldException(type.name + "." + name)
     }
 
-    private fun plainGateway(): Boolean = runCatching { Native.needsGatewayEvents() }.getOrDefault(false)
 }

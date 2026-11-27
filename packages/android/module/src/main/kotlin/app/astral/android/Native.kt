@@ -61,25 +61,17 @@ object Native {
     @JvmStatic external fun rewriteHostCall(frame: ByteArray): ByteArray?
     @JvmStatic external fun hostRequestWanted(frame: ByteArray): Boolean
     @JvmStatic external fun interceptHostRequest(frame: ByteArray): ByteArray?
-    @JvmStatic external fun wantsHttp(method: String, host: String, path: String): Boolean
-    @JvmStatic external fun interceptHttpRequest(exchange: HttpExchange, path: String): Boolean
-    @JvmStatic external fun interceptHttpResponse(request: HttpExchange, path: String, response: HttpExchange): Boolean
 
     @JvmStatic external fun recordExitReport(kind: String, timestamp: Long, reason: Int, description: String, trace: String)
 
-
-    @JvmStatic external fun isTelemetry(host: String, path: String): Boolean
-
-    @JvmStatic external fun isCurrentUser(host: String, path: String): Boolean
-
-
-
-
     @JvmStatic external fun staffDevToolsEnabled(): Boolean
 
-    @JvmStatic external fun withStaffUser(body: String): String?
-
     @JvmStatic external fun withStaffReady(message: String): String?
+
+    @JvmStatic external fun networkPlan(method: String, url: String): Int
+    @JvmStatic external fun networkBegin(request: String, stages: Int): String
+    @JvmStatic external fun networkFinish(exchange: Long, response: String): String?
+    @JvmStatic external fun networkAbandon(exchange: Long)
 
     @JvmStatic external fun noteBlockedRequest()
 

@@ -5,10 +5,9 @@ use std::sync::{Arc, OnceLock};
 
 use astral_core::app::state::Platform;
 use astral_core::app::{self, CompletedRequest, Launch};
-use astral_core::lua::host::http::{HttpRequest, HttpResponse};
 use jni::JNIEnv;
 use jni::JavaVM;
-use jni::objects::{JByteArray, JClass, JObject, JObjectArray, JString};
+use jni::objects::{JByteArray, JClass, JObjectArray, JString};
 use jni::sys::{
     JNI_FALSE, JNI_TRUE, JNI_VERSION_1_6, jboolean, jbyteArray, jdouble, jint, jlong, jstring,
 };
@@ -493,177 +492,6 @@ pub extern "system" fn Java_app_astral_android_Native_applyBackup<'local>(
     optional_java_text(&mut env, failure)
 }
 
-fn headers_from(env: &mut JNIEnv, array: &JObjectArray) -> Vec<(String, String)> {
-    let values = texts(env, array);
-    values
-        .chunks(2)
-        .filter(|pair| pair.len() == 2)
-        .map(|pair| (pair[0].to_ascii_lowercase(), pair[1].clone()))
-        .collect()
-}
-
-fn headers_to<'local>(
-    env: &mut JNIEnv<'local>,
-    headers: &[(String, String)],
-) -> jni::errors::Result<JObjectArray<'local>> {
-    let length = i32::try_from(headers.len() * 2).unwrap_or(0);
-    let array = env.new_object_array(length, "java/lang/String", JObject::null())?;
-    for (index, value) in headers
-        .iter()
-        .flat_map(|(name, value)| [name, value])
-        .enumerate()
-    {
-        let string = env.new_string(value)?;
-        env.set_object_array_element(&array, i32::try_from(index).unwrap_or(0), &string)?;
-        env.delete_local_ref(string)?;
-    }
-    Ok(array)
-}
-
-const STRING: &str = "Ljava/lang/String;";
-const STRINGS: &str = "[Ljava/lang/String;";
-const BYTES: &str = "[B";
-
-fn string_field(env: &mut JNIEnv, exchange: &JObject, name: &str) -> String {
-    let Ok(value) = env
-        .get_field(exchange, name, STRING)
-        .and_then(|value| value.l())
-    else {
-        return String::new();
-    };
-    text(env, &JString::from(value))
-}
-
-fn request_from(env: &mut JNIEnv, exchange: &JObject, path: &JString) -> HttpRequest {
-    let headers = env
-        .get_field(exchange, "headers", STRINGS)
-        .and_then(|value| value.l())
-        .map(JObjectArray::from)
-        .map(|array| headers_from(env, &array))
-        .unwrap_or_default();
-    let body = env
-        .get_field(exchange, "body", BYTES)
-        .and_then(|value| value.l())
-        .map(JByteArray::from)
-        .map(|array| bytes(env, &array))
-        .unwrap_or_default();
-    HttpRequest {
-        method: string_field(env, exchange, "method"),
-        url: string_field(env, exchange, "url"),
-        path: text(env, path),
-        headers,
-        body,
-    }
-}
-
-struct Stored<'a> {
-    method: &'a str,
-    url: &'a str,
-    headers: &'a [(String, String)],
-    body: &'a [u8],
-    status: i32,
-    respond: bool,
-}
-
-fn store_exchange(
-    env: &mut JNIEnv,
-    exchange: &JObject,
-    stored: &Stored,
-) -> jni::errors::Result<()> {
-    let method = env.new_string(stored.method)?;
-    let url = env.new_string(stored.url)?;
-    let headers = headers_to(env, stored.headers)?;
-    let body = env.byte_array_from_slice(stored.body)?;
-    env.set_field(exchange, "method", STRING, (&method).into())?;
-    env.set_field(exchange, "url", STRING, (&url).into())?;
-    env.set_field(exchange, "headers", STRINGS, (&headers).into())?;
-    env.set_field(exchange, "body", BYTES, (&body).into())?;
-    env.set_field(exchange, "status", "I", stored.status.into())?;
-    env.set_field(exchange, "respond", "Z", stored.respond.into())?;
-    Ok(())
-}
-
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_app_astral_android_Native_wantsHttp<'local>(
-    mut env: JNIEnv<'local>,
-    _: JClass<'local>,
-    method: JString<'local>,
-    host: JString<'local>,
-    path: JString<'local>,
-) -> jboolean {
-    flag(app::wants_http(
-        &text(&mut env, &method),
-        &text(&mut env, &host),
-        &text(&mut env, &path),
-    ))
-}
-
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_app_astral_android_Native_interceptHttpRequest<'local>(
-    mut env: JNIEnv<'local>,
-    _: JClass<'local>,
-    exchange: JObject<'local>,
-    path: JString<'local>,
-) -> jboolean {
-    let mut request = request_from(&mut env, &exchange, &path);
-    let decision = app::intercept_http_request(&mut request);
-    let stored = if let Some(response) = &decision.response {
-        Stored {
-            method: &request.method,
-            url: &request.url,
-            headers: &response.headers,
-            body: &response.body,
-            status: i32::try_from(response.status).unwrap_or_default(),
-            respond: true,
-        }
-    } else if decision.changed {
-        Stored {
-            method: &request.method,
-            url: &request.url,
-            headers: &request.headers,
-            body: &request.body,
-            status: 0,
-            respond: false,
-        }
-    } else {
-        return JNI_FALSE;
-    };
-    flag(store_exchange(&mut env, &exchange, &stored).is_ok())
-}
-
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_app_astral_android_Native_interceptHttpResponse<'local>(
-    mut env: JNIEnv<'local>,
-    _: JClass<'local>,
-    request_exchange: JObject<'local>,
-    path: JString<'local>,
-    response_exchange: JObject<'local>,
-) -> jboolean {
-    let request = request_from(&mut env, &request_exchange, &path);
-    let status = env
-        .get_field(&response_exchange, "status", "I")
-        .and_then(|value| value.i())
-        .unwrap_or(0);
-    let received = request_from(&mut env, &response_exchange, &path);
-    let mut response = HttpResponse {
-        status: i64::from(status),
-        headers: received.headers,
-        body: received.body,
-    };
-    if !app::intercept_http_response(&request, &mut response) {
-        return JNI_FALSE;
-    }
-    let stored = Stored {
-        method: &request.method,
-        url: &request.url,
-        headers: &response.headers,
-        body: &response.body,
-        status: i32::try_from(response.status).unwrap_or_default(),
-        respond: true,
-    };
-    flag(store_exchange(&mut env, &response_exchange, &stored).is_ok())
-}
-
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_app_astral_android_Native_hostRequestWanted<'local>(
     mut env: JNIEnv<'local>,
@@ -715,47 +543,11 @@ pub extern "system" fn Java_app_astral_android_Native_processGatewayMessage<'loc
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_app_astral_android_Native_isTelemetry<'local>(
-    mut env: JNIEnv<'local>,
-    _: JClass<'local>,
-    host: JString<'local>,
-    path: JString<'local>,
-) -> jboolean {
-    flag(app::is_telemetry(
-        &text(&mut env, &host),
-        &text(&mut env, &path),
-    ))
-}
-
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_app_astral_android_Native_isCurrentUser<'local>(
-    mut env: JNIEnv<'local>,
-    _: JClass<'local>,
-    host: JString<'local>,
-    path: JString<'local>,
-) -> jboolean {
-    flag(app::is_current_user(
-        &text(&mut env, &host),
-        &text(&mut env, &path),
-    ))
-}
-
-#[unsafe(no_mangle)]
 pub extern "system" fn Java_app_astral_android_Native_staffDevToolsEnabled<'local>(
     _: JNIEnv<'local>,
     _: JClass<'local>,
 ) -> jboolean {
     flag(app::staff_dev_tools_enabled())
-}
-
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_app_astral_android_Native_withStaffUser<'local>(
-    mut env: JNIEnv<'local>,
-    _: JClass<'local>,
-    body: JString<'local>,
-) -> jstring {
-    let transformed = app::with_staff_user(&text(&mut env, &body));
-    optional_java_text(&mut env, transformed)
 }
 
 #[unsafe(no_mangle)]
@@ -834,4 +626,49 @@ pub extern "system" fn Java_app_astral_android_Native_composerStyles<'local>(
         app::composer_styles(&text(&mut env, &value))
     };
     java_text(&mut env, &styles)
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_app_astral_android_Native_networkPlan<'local>(
+    mut env: JNIEnv<'local>,
+    _: JClass<'local>,
+    method: JString<'local>,
+    url: JString<'local>,
+) -> jni::sys::jint {
+    let flags = app::exchange::plan_flags(&text(&mut env, &method), &text(&mut env, &url), false);
+    jni::sys::jint::try_from(flags).unwrap_or_default()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_app_astral_android_Native_networkBegin<'local>(
+    mut env: JNIEnv<'local>,
+    _: JClass<'local>,
+    request: JString<'local>,
+    stages: jni::sys::jint,
+) -> jstring {
+    let stages = u32::try_from(stages).unwrap_or_default();
+    let decision = app::exchange::begin(&text(&mut env, &request), stages);
+    java_text(&mut env, &decision.to_string())
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_app_astral_android_Native_networkFinish<'local>(
+    mut env: JNIEnv<'local>,
+    _: JClass<'local>,
+    exchange: jni::sys::jlong,
+    response: JString<'local>,
+) -> jstring {
+    let exchange = u64::try_from(exchange).unwrap_or_default();
+    let changed =
+        app::exchange::finish(exchange, &text(&mut env, &response)).map(|value| value.to_string());
+    optional_java_text(&mut env, changed)
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_app_astral_android_Native_networkAbandon<'local>(
+    _: JNIEnv<'local>,
+    _: JClass<'local>,
+    exchange: jni::sys::jlong,
+) {
+    app::exchange::abandon(u64::try_from(exchange).unwrap_or_default());
 }
