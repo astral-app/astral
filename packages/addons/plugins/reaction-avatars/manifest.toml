@@ -1,7 +1,7 @@
 id = "astral.reaction-avatars"
 name = "Reaction Avatars"
 description = "Shows the people who reacted beside each message reaction."
-version = "0.0.1"
+version = "0.0.2"
 icon = "ReactionIcon"
 main = "main.lua"
 permissions = ["discord.api", "discord.messages", "events.gateway", "ui.insert"]

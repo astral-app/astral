@@ -6,10 +6,11 @@ local RETRY_AFTER_MS = 3000
 local REFRESH_COOLDOWN_MS = 10000
 local MAX_RATE_LIMIT_WAIT_MS = 10000
 local TOO_MANY_REQUESTS = 429
+local PARALLEL = 4
 
 local entries, entry_count = {}, 0
 local queue, queued = {}, {}
-local busy = false
+local active, paused = 0, false
 
 local function avatar_url(user)
 	if type(user.avatar) == "string" and user.avatar ~= "" then
@@ -76,24 +77,21 @@ local function finish(job, response)
 	elseif (response.status or 0) == 0 then
 		astral.time.after(RETRY_AFTER_MS, astral.ui.refresh)
 	end
+	active = active - 1
 	local wait = response.status == TOO_MANY_REQUESTS and rate_limit_wait(response.body) or 0
-	if wait > 0 then
+	if wait > 0 and not paused then
+		paused = true
 		astral.time.after(wait, function()
-			busy = false
+			paused = false
 			pump()
 		end)
-	else
-		busy = false
-		pump()
-	end
-end
-
-pump = function()
-	if busy or #queue == 0 then
 		return
 	end
-	local job = table.remove(queue, 1)
-	busy = true
+	pump()
+end
+
+local function start(job)
+	active = active + 1
 	local ok = pcall(function()
 		astral.discord.request({ path = job.path }, function(response)
 			finish(job, response)
@@ -101,6 +99,12 @@ pump = function()
 	end)
 	if not ok then
 		finish(job, { ok = false, status = 0 })
+	end
+end
+
+pump = function()
+	while not paused and active < PARALLEL and #queue > 0 do
+		start(table.remove(queue))
 	end
 end
 

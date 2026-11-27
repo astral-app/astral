@@ -111,8 +111,9 @@ local function pump_profiles()
 	end
 	local ok = pcall(function()
 		astral.discord.request({ path = "/users/" .. id .. "/profile" }, function(response)
-			local body = response and response.ok and response.body or {}
-			local profile = type(body.user_profile) == "table" and body.user_profile or {}
+			local ok, body = pcall(astral.json.decode, response and response.ok and response.body or "")
+			local profile = ok and type(body) == "table" and type(body.user_profile) == "table" and body.user_profile
+				or {}
 			done(profile.pronouns)
 		end)
 	end)
