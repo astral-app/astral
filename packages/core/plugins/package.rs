@@ -47,6 +47,7 @@ pub struct Package {
     pub permissions: Vec<String>,
     pub enabled_by_default: bool,
     pub modules: BTreeMap<String, (Vec<u8>, Vec<u8>)>,
+    pub shared_modules: Vec<String>,
     pub strings: BTreeMap<String, String>,
     pub fallback_strings: BTreeMap<String, String>,
     pub locale: String,
@@ -256,6 +257,11 @@ pub fn load(directory: &str, preferred: &[String], limits: Limits) -> Option<Pac
     permissions.sort();
     permissions.dedup();
     package.permissions = permissions;
+    package.shared_modules = manifest
+        .get("shared_modules")
+        .and_then(toml::Value::as_array)
+        .map(|list| list.iter().filter_map(|value| value.as_str().map(str::to_owned)).collect())
+        .unwrap_or_default();
     load_translations(&mut package, preferred);
     if !load_modules(&mut package, limits.modules) {
         return None;

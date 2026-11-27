@@ -1609,6 +1609,21 @@ pub unsafe fn cancel_network_request(state: *mut LuaState) -> Outcome {
     }
 }
 
+const SHARED_PREFIX: &str = "@";
+
+fn shared_owner(identifier: &str, module: &str) -> Result<&'static Plugin, String> {
+    let Some(owner) = super::find(identifier).map(|owner| unsafe { &*owner }) else {
+        return Err(format!("shared module '{module}' needs {identifier}, which is not installed"));
+    };
+    if !super::runnable(owner) {
+        return Err(format!("{identifier} is unsigned; turn on developer mode to load its modules"));
+    }
+    if !owner.package.shared_modules.iter().any(|shared| shared == module) {
+        return Err(format!("{identifier} does not share a module named '{module}'"));
+    }
+    Ok(owner)
+}
+
 pub unsafe fn require(state: *mut LuaState) -> Outcome {
     let plugin = me(state);
     let name = unsafe { check_text(state, 1) }?;
@@ -1620,11 +1635,15 @@ pub unsafe fn require(state: *mut LuaState) -> Outcome {
         return Ok(1);
     }
     unsafe { lua::pop(state, 1) };
-    let Some((source, bytecode)) = plugin.package.modules.get(&name) else {
-        return Err(format!("module '{name}' not found in {}", plugin.identifier()));
+    let (owner, module) = match name.strip_prefix(SHARED_PREFIX).and_then(|rest| rest.split_once('/')) {
+        Some((identifier, module)) => (shared_owner(identifier, module)?, module),
+        None => (&*plugin, name.as_str()),
     };
-    let chunk = std::ffi::CString::new(format!("={}/{name}", plugin.identifier())).unwrap_or_default();
-    let binary = plugin.signed && !bytecode.is_empty();
+    let Some((source, bytecode)) = owner.package.modules.get(module) else {
+        return Err(format!("module '{module}' not found in {}", owner.identifier()));
+    };
+    let chunk = std::ffi::CString::new(format!("={}/{module}", owner.identifier())).unwrap_or_default();
+    let binary = owner.signed && !bytecode.is_empty();
     let code = if binary { bytecode } else { source };
     let mode: &core::ffi::CStr = if binary { c"b" } else { c"t" };
     if unsafe { lua::luaL_loadbufferx(state, code.as_ptr().cast(), code.len(), chunk.as_ptr(), mode.as_ptr()) } != lua::OK {
