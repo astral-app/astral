@@ -635,14 +635,7 @@ object PhoenixBridge {
     }
 
     @JvmStatic
-    fun pickedMedia(slot: Long): String? =
-        PickedMedia.describe(activeActivity(), slot.toInt()) {
-            Native.refreshDecorations()
-            refreshEmoji()
-        }
-
-    @JvmStatic
-    fun pickedVideo(slot: Long): String? = PickedMedia.videoUri(slot.toInt())
+    fun fetchPickedMedia(limit: Long) = PickedMedia.fetch(limit.toInt())
 
     @JvmStatic
     fun pasteText(): String? {

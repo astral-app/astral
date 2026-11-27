@@ -51,8 +51,7 @@ pub enum Method {
     Speak,
     PlaySound,
     StopAudio,
-    PickedMedia,
-    PickedVideo,
+    FetchPickedMedia,
     DispatchGateway,
     PressNode,
     InsertComposerText,
@@ -71,7 +70,7 @@ enum Returns {
 }
 
 impl Method {
-    const ALL: [Method; 32] = [
+    const ALL: [Method; 31] = [
         Method::Deliver,
         Method::DiscordRequest,
         Method::ExportBackup,
@@ -94,8 +93,7 @@ impl Method {
         Method::Speak,
         Method::PlaySound,
         Method::StopAudio,
-        Method::PickedMedia,
-        Method::PickedVideo,
+        Method::FetchPickedMedia,
         Method::DispatchGateway,
         Method::PressNode,
         Method::InsertComposerText,
@@ -130,8 +128,7 @@ impl Method {
             Method::Speak => "speak",
             Method::PlaySound => "playSound",
             Method::StopAudio => "stopAudio",
-            Method::PickedMedia => "pickedMedia",
-            Method::PickedVideo => "pickedVideo",
+            Method::FetchPickedMedia => "fetchPickedMedia",
             Method::DispatchGateway => "dispatchGateway",
             Method::PressNode => "pressNode",
             Method::InsertComposerText => "insertComposerText",
@@ -150,7 +147,10 @@ impl Method {
             Method::PickFile | Method::ShowConfirm | Method::OpenSheet | Method::UpdateSheet => {
                 "(JLjava/lang/String;)V"
             }
-            Method::CancelFilePick | Method::CancelWebAuth | Method::CloseSheet => "(J)V",
+            Method::CancelFilePick
+            | Method::CancelWebAuth
+            | Method::CloseSheet
+            | Method::FetchPickedMedia => "(J)V",
             Method::ExportBackup
             | Method::ImportBackup
             | Method::RefreshEmoji
@@ -167,7 +167,6 @@ impl Method {
             }
             Method::EditText => "(JLjava/lang/String;Ljava/lang/String;I)V",
             Method::PasteText | Method::EnvironmentFacts => "()Ljava/lang/String;",
-            Method::PickedMedia | Method::PickedVideo => "(J)Ljava/lang/String;",
             Method::PressNode | Method::InsertComposerText => "(Ljava/lang/String;Z)Z",
         }
     }
@@ -189,10 +188,7 @@ impl Method {
     const fn returns(self) -> Returns {
         match self {
             Method::PressNode | Method::InsertComposerText => Returns::Flag,
-            Method::PasteText
-            | Method::EnvironmentFacts
-            | Method::PickedMedia
-            | Method::PickedVideo => Returns::Text,
+            Method::PasteText | Method::EnvironmentFacts => Returns::Text,
             _ => Returns::Nothing,
         }
     }
@@ -445,11 +441,8 @@ impl Bridge for JniBridge {
             Request::CancelFilePick { request } => {
                 into_reply(self.locked(Method::CancelFilePick, &[Argument::Long(signed(request))]))
             }
-            Request::PickedMedia { index } => {
-                into_reply(self.locked(Method::PickedMedia, &[Argument::Long(signed(index))]))
-            }
-            Request::PickedVideo { index } => {
-                into_reply(self.locked(Method::PickedVideo, &[Argument::Long(signed(index))]))
+            Request::FetchPickedMedia { limit } => {
+                into_reply(self.locked(Method::FetchPickedMedia, &[Argument::Long(signed(limit))]))
             }
             Request::PressNode { identifier, prefix } => into_reply(self.call(
                 Method::PressNode,
