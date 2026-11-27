@@ -10,6 +10,7 @@ pub mod network;
 mod pages;
 pub mod picked_media;
 mod platform;
+pub mod pressable;
 mod reports;
 pub mod state;
 mod theme;
@@ -35,7 +36,6 @@ pub use self::platform::picked_media_fetched;
 const IDENTIFIER_CAPACITY: usize = 128;
 const COMPOSER_EVENT_LIMIT: usize = 65_536;
 const SLIDE_PAYLOAD_LIMIT: usize = 4096;
-const SLIDER_PREFIX: &str = "astral.slider.";
 const ROW_LINK: core::ffi::c_int = 0;
 
 static STARTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -308,21 +308,9 @@ fn identifier_of(node: i32) -> Option<String> {
     Some(String::from_utf8_lossy(&buffer[..end]).into_owned())
 }
 
-pub fn press(node: i32) -> bool {
-    let Some(identifier) = identifier_of(node) else { return false };
-    if !crate::settings::navigator::handles(&identifier) {
-        return false;
-    }
-    crate::settings::navigator::tap(&identifier);
-    true
-}
-
-pub fn press_inserted_node(node: i32) -> bool {
-    identifier_of(node).is_some_and(|identifier| crate::lua::host::nodes::press_inserted_node(&identifier))
-}
-
-pub fn press_message_action(node: i32) -> bool {
-    identifier_of(node).is_some_and(|identifier| crate::lua::host::nodes::press_message_action(&identifier))
+pub fn press(node: i32) -> Option<pressable::Pressable> {
+    let identifier = identifier_of(node)?;
+    pressable::press(&identifier).then(|| pressable::pressable(&identifier))
 }
 
 pub fn composer_event(event: &[u8]) -> Option<Vec<u8>> {
@@ -407,7 +395,7 @@ pub fn slide(node: i32, payload: &[u8]) -> bool {
         let _held = wire();
         unsafe { crate::wire::events::astral_wire_event_value(payload.as_ptr(), payload.len(), &raw mut position) }
     };
-    if decoded == 0 || !identifier.starts_with(SLIDER_PREFIX) {
+    if decoded == 0 || pressable::pressable(&identifier) != pressable::Pressable::Slider {
         return false;
     }
     crate::settings::navigator::slide_position(&identifier, position);
@@ -767,14 +755,6 @@ pub fn complete_network_request(request: u64, response: &str) {
     }
     let parsed: Value = serde_json::from_str(response).unwrap_or_else(|_| json!({ "error": "unreadable response" }));
     lua_host::complete_network_request(request, &parsed);
-}
-
-pub fn press_inserted_identifier(identifier: &str) -> bool {
-    crate::lua::host::nodes::press_inserted_node(identifier)
-}
-
-pub fn press_message_identifier(identifier: &str) -> bool {
-    crate::lua::host::nodes::press_message_action(identifier)
 }
 
 pub fn set_menu_message(channel: u64, message: u64) {

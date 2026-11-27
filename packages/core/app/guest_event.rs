@@ -97,14 +97,14 @@ pub fn decode<'a>(event: &'a [u8], ids: &EventIds) -> Event<'a> {
 }
 
 fn press(node: i32) -> i32 {
-    if super::press(node) || super::press_inserted_node(node) {
-        return HANDLED;
+    match super::press(node) {
+        Some(super::pressable::Pressable::MessageAction) => HANDLED_CLOSE_MENU,
+        Some(_) => HANDLED,
+        None => {
+            super::touch_message(node, NO_ROW);
+            PASS
+        }
     }
-    if super::press_message_action(node) {
-        return HANDLED_CLOSE_MENU;
-    }
-    super::touch_message(node, NO_ROW);
-    PASS
 }
 
 pub fn handle(event: &[u8]) -> i32 {

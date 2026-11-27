@@ -7,7 +7,7 @@ mod network;
 mod shapes;
 mod text;
 
-use astral_core::app::{self, Launch, state::Platform};
+use astral_core::app::{self, Launch, pressable::Pressable, state::Platform};
 use astral_core::lua::enums::Event;
 
 pub use crate::bridge::{
@@ -41,6 +41,28 @@ impl AstralLifecycle {
         match self {
             AstralLifecycle::Foreground => Event::AppForeground,
             AstralLifecycle::Background => Event::AppBackground,
+        }
+    }
+}
+
+#[repr(u32)]
+#[derive(Clone, Copy)]
+pub enum AstralPressable {
+    Ignored,
+    Slider,
+    Navigator,
+    Inserted,
+    MessageAction,
+}
+
+impl AstralPressable {
+    const fn of(pressable: Pressable) -> Self {
+        match pressable {
+            Pressable::Ignored => AstralPressable::Ignored,
+            Pressable::Slider => AstralPressable::Slider,
+            Pressable::Navigator => AstralPressable::Navigator,
+            Pressable::Inserted => AstralPressable::Inserted,
+            Pressable::MessageAction => AstralPressable::MessageAction,
         }
     }
 }
@@ -124,13 +146,13 @@ pub extern "C" fn astral_ios_composer_styles(text: AstralText) -> AstralOwned {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn astral_ios_press_inserted_node(identifier: AstralText) -> bool {
-    app::press_inserted_identifier(&identifier.text())
+pub extern "C" fn astral_ios_pressable(identifier: AstralText) -> AstralPressable {
+    AstralPressable::of(app::pressable::pressable(&identifier.text()))
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn astral_ios_press_message_action(identifier: AstralText) -> bool {
-    app::press_message_identifier(&identifier.text())
+pub extern "C" fn astral_ios_press(identifier: AstralText) -> bool {
+    app::pressable::press(&identifier.text())
 }
 
 #[unsafe(no_mangle)]
@@ -291,16 +313,6 @@ pub extern "C" fn astral_ios_record_diagnostics(payload: AstralText, images: Ast
 #[unsafe(no_mangle)]
 pub extern "C" fn astral_ios_record_https_check(check: AstralText) {
     app::record_https_check(&check.text());
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn astral_ios_navigator_handles(identifier: AstralText) -> bool {
-    astral_core::settings::navigator::handles(&identifier.text())
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn astral_ios_navigator_tap(identifier: AstralText) {
-    astral_core::settings::navigator::tap(&identifier.text());
 }
 
 #[unsafe(no_mangle)]

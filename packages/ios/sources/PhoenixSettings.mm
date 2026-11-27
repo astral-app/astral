@@ -48,15 +48,8 @@ static HookPoints LocateHookPoints(const struct mach_header *image)
     return points;
 }
 
-static NSString *const kOverviewRow = @"settings.row.astral";
-static NSString *const kBack = @"astral.back";
 static const CGFloat kEdgeSwipeDistance = 60;
 static const CGFloat kEdgeSwipeStart = 24;
-static NSString *const kRowPrefix = @"astral.row.";
-static NSString *const kSwitchPrefix = @"astral.switch.";
-static NSString *const kSliderPrefix = @"astral.slider.";
-static NSString *const kActionPrefix = @"astral.action.";
-static NSString *const kTapPrefix = @"astral.tap.";
 
 static pthread_mutex_t gLock = PTHREAD_MUTEX_INITIALIZER;
 static AstralHostCall gHostOriginal;
@@ -472,23 +465,16 @@ static void Navigate(void (^work)(void))
 - (void)tapped:(UITapGestureRecognizer *)recognizer
 {
     if (recognizer.state != UIGestureRecognizerStateEnded) return;
-    NSString *identifier = recognizer.view.accessibilityIdentifier;
-    if ([identifier hasPrefix:kTapPrefix]) {
-        NSString *tap = [identifier copy];
-        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-            astral_ios_press_inserted_node(AstralTextOf(tap));
-        });
-    } else if ([identifier hasPrefix:kActionPrefix]) {
-        NSString *action = [identifier copy];
-        AstralDismissMessageMenu();
-        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-            astral_ios_press_message_action(AstralTextOf(action));
-        });
-    } else if (identifier && astral_ios_navigator_handles(AstralTextOf(identifier))) {
-        NSString *pressed = [identifier copy];
-        Navigate(^{
-            astral_ios_navigator_tap(AstralTextOf(pressed));
-        });
+    NSString *identifier = [recognizer.view.accessibilityIdentifier copy];
+    AstralPressable pressable = astral_ios_pressable(AstralTextOf(identifier));
+    void (^press)(void) = ^{
+        astral_ios_press(AstralTextOf(identifier));
+    };
+    if (pressable == AstralPressable_Navigator) {
+        Navigate(press);
+    } else if (pressable == AstralPressable_Inserted || pressable == AstralPressable_MessageAction) {
+        if (pressable == AstralPressable_MessageAction) AstralDismissMessageMenu();
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), press);
     }
 }
 @end
@@ -538,9 +524,6 @@ static AstralSliderTarget *gSliderTarget;
 
 static void RouteSlider(UIView *view, NSString *identifier)
 {
-    NSString *rest = [identifier substringFromIndex:kSliderPrefix.length];
-    NSRange dot = [rest rangeOfString:@"."];
-    if (dot.location == NSNotFound) return;
     UISlider *slider = FindSlider(view);
     if (!slider) {
         Log([NSString stringWithFormat:@"phoenix: no UISlider under %@:\n%@", identifier, Hierarchy(view, 0)]);
@@ -552,12 +535,6 @@ static void RouteSlider(UIView *view, NSString *identifier)
     if (!gSliderTarget) gSliderTarget = [AstralSliderTarget new];
     objc_setAssociatedObject(slider, &gSliderKeyKey, identifier, OBJC_ASSOCIATION_COPY_NONATOMIC);
     [slider addTarget:gSliderTarget action:@selector(changed:) forControlEvents:UIControlEventTouchUpInside | UIControlEventTouchUpOutside];
-}
-
-static BOOL Routed(NSString *identifier)
-{
-    return [identifier hasPrefix:kOverviewRow] || [identifier isEqualToString:kBack] || [identifier hasPrefix:kRowPrefix] ||
-           [identifier hasPrefix:kSwitchPrefix] || [identifier hasPrefix:kActionPrefix] || [identifier hasPrefix:kTapPrefix];
 }
 
 static void Route(UIView *view)
@@ -573,7 +550,8 @@ static void Route(UIView *view)
 static void SetIdentifier(UIView *view, SEL selector, NSString *identifier)
 {
     originalSetIdentifier(view, selector, identifier);
-    if ([identifier hasPrefix:kSliderPrefix]) {
+    AstralPressable pressable = astral_ios_pressable(AstralTextOf(identifier));
+    if (pressable == AstralPressable_Slider) {
         __weak UIView *weakSlider = view;
         dispatch_async(dispatch_get_main_queue(), ^{
             UIView *strongView = weakSlider;
@@ -581,7 +559,7 @@ static void SetIdentifier(UIView *view, SEL selector, NSString *identifier)
         });
         return;
     }
-    if (!Routed(identifier)) return;
+    if (pressable == AstralPressable_Ignored) return;
     __weak UIView *weakView = view;
     dispatch_async(dispatch_get_main_queue(), ^{
         UIView *strongView = weakView;
