@@ -64,9 +64,6 @@ object Native {
     @JvmStatic external fun withStaffReady(message: String): String?
 
     @JvmStatic external fun guestEvent(event: ByteArray): Int
-    @JvmStatic external fun engineDecide(previousClient: String, forcedLastLaunch: Boolean, kicks: Int): IntArray?
-    @JvmStatic external fun engineRefusedTitle(): String
-    @JvmStatic external fun engineRefusedMessage(): String
     @JvmStatic external fun pickedMediaFetched(entries: String)
     @JvmStatic external fun webAuthInitialCookies(request: Long, header: String)
     @JvmStatic external fun webAuthIsCallback(request: Long, url: String): Boolean

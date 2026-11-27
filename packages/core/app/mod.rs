@@ -1,7 +1,6 @@
 pub mod debug;
 mod dev;
 mod discord;
-pub mod engine;
 pub mod exchange;
 mod ffi;
 pub mod guest_event;
