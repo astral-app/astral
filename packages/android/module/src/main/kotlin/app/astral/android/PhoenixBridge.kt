@@ -436,7 +436,6 @@ object PhoenixBridge {
                 Native.completeWebAuth(request, null, null, "unavailable")
                 return@post
             }
-            val callback = runCatching { Uri.parse(callbackURL) }.getOrNull()
             val webView = WebView(activity)
             webView.layoutParams = android.view.ViewGroup.LayoutParams(
                 android.view.ViewGroup.LayoutParams.MATCH_PARENT,
@@ -445,8 +444,7 @@ object PhoenixBridge {
             webView.settings.javaScriptEnabled = true
             webView.settings.domStorageEnabled = true
             android.webkit.CookieManager.getInstance().setAcceptCookie(true)
-            val existingCookies = android.webkit.CookieManager.getInstance().getCookie(callbackURL).orEmpty()
-                .split(';').map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+            Native.webAuthInitialCookies(request, android.webkit.CookieManager.getInstance().getCookie(callbackURL).orEmpty())
             val completed = AtomicBoolean(false)
             lateinit var dialog: AlertDialog
             val finish: (String?, String?, String?) -> Unit = { resultURL, cookies, error ->
@@ -464,12 +462,11 @@ object PhoenixBridge {
                 .setNegativeButton("Cancel") { _, _ -> finish(null, null, "cancelled") }
                 .create()
             webView.webViewClient = object : WebViewClient() {
-                override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
-                    val uri = request.url
-                    if (request.isForMainFrame && callback != null && matchesWebAuthCallback(uri, callback)) {
-                        val cookies = android.webkit.CookieManager.getInstance().getCookie(uri.toString()).orEmpty()
-                            .split(';').map { it.trim() }.filter { it.isNotEmpty() && it !in existingCookies }.joinToString("; ")
-                        finish(uri.toString(), cookies, null)
+                override fun shouldOverrideUrlLoading(view: WebView, navigation: WebResourceRequest): Boolean {
+                    val address = navigation.url.toString()
+                    if (navigation.isForMainFrame && Native.webAuthIsCallback(request, address)) {
+                        val cookies = Native.webAuthNewCookies(request, android.webkit.CookieManager.getInstance().getCookie(address).orEmpty())
+                        finish(address, cookies, null)
                         return true
                     }
                     return false
@@ -486,15 +483,6 @@ object PhoenixBridge {
     @JvmStatic
     fun cancelWebAuth(request: Long) {
         mainHandler.post { pendingWebAuth[request]?.finish?.invoke(null, null, "cancelled") }
-    }
-
-    private fun matchesWebAuthCallback(url: Uri, callback: Uri): Boolean {
-        val urlPort = if (url.port == -1) 443 else url.port
-        val callbackPort = if (callback.port == -1) 443 else callback.port
-        return url.scheme.equals(callback.scheme, ignoreCase = true) &&
-            url.host.equals(callback.host, ignoreCase = true) &&
-            urlPort == callbackPort &&
-            url.encodedPath == callback.encodedPath
     }
 
     @JvmStatic

@@ -644,3 +644,43 @@ pub extern "system" fn Java_app_astral_android_Native_pickedMediaFetched<'local>
 ) {
     app::picked_media_fetched(&text(&mut env, &entries));
 }
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_app_astral_android_Native_webAuthInitialCookies<'local>(
+    mut env: JNIEnv<'local>,
+    _: JClass<'local>,
+    request: jni::sys::jlong,
+    header: JString<'local>,
+) {
+    app::web_auth::note_initial_cookies(
+        u64::try_from(request).unwrap_or_default(),
+        &text(&mut env, &header),
+    );
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_app_astral_android_Native_webAuthIsCallback<'local>(
+    mut env: JNIEnv<'local>,
+    _: JClass<'local>,
+    request: jni::sys::jlong,
+    url: JString<'local>,
+) -> jboolean {
+    flag(app::web_auth::is_callback(
+        u64::try_from(request).unwrap_or_default(),
+        &text(&mut env, &url),
+    ))
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_app_astral_android_Native_webAuthNewCookies<'local>(
+    mut env: JNIEnv<'local>,
+    _: JClass<'local>,
+    request: jni::sys::jlong,
+    header: JString<'local>,
+) -> jstring {
+    let cookies = app::web_auth::new_cookies(
+        u64::try_from(request).unwrap_or_default(),
+        &text(&mut env, &header),
+    );
+    java_text(&mut env, &cookies)
+}

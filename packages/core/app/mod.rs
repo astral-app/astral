@@ -12,6 +12,7 @@ mod platform;
 mod reports;
 pub mod state;
 mod theme;
+pub mod web_auth;
 
 use core::ffi::c_char;
 use std::ffi::CString;
@@ -477,6 +478,7 @@ pub fn complete_confirm(request: u64, accepted: bool) {
 }
 
 pub fn complete_web_auth(request: u64, url: Option<String>, cookies: Option<String>, error: Option<String>) {
+    web_auth::end(request);
     if request != 0 {
         lua_host::complete_web_auth(request, url, cookies, error);
     }

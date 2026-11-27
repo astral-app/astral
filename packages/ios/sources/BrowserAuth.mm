@@ -3,14 +3,13 @@
 #import <UIKit/UIKit.h>
 #import <WebKit/WebKit.h>
 
+#import "AstralCore.h"
 #import "PhoenixImage.h"
 
 @interface AstralWebAuthController : UIViewController <WKNavigationDelegate, UIAdaptivePresentationControllerDelegate>
 @property (nonatomic) uint64_t request;
-@property (nonatomic, copy) NSString *callbackURL;
 @property (nonatomic, strong) WKWebView *webView;
 @property (nonatomic, copy) void (^completion)(uint64_t, NSString *, NSString *, NSString *);
-@property (nonatomic, copy) NSSet<NSString *> *initialCookieValues;
 @property (nonatomic) BOOL completed;
 @end
 
@@ -31,34 +30,18 @@ static UIViewController *WebAuthTopController(void)
     return controller;
 }
 
-static BOOL URLMatchesCallback(NSURL *url, NSString *callbackURL)
+static NSData *CookiesJSON(NSArray<NSHTTPCookie *> *cookies)
 {
-    NSURLComponents *actual = [NSURLComponents componentsWithURL:url resolvingAgainstBaseURL:NO];
-    NSURLComponents *expected = [NSURLComponents componentsWithString:callbackURL];
-    return actual && expected && [actual.scheme.lowercaseString isEqualToString:expected.scheme.lowercaseString] &&
-           [actual.host.lowercaseString isEqualToString:expected.host.lowercaseString] &&
-           ((actual.port == nil && expected.port == nil) || [actual.port isEqualToNumber:expected.port]) &&
-           [actual.path isEqualToString:expected.path];
-}
-
-static NSArray<NSString *> *CookieValuesForURL(NSArray<NSHTTPCookie *> *cookies, NSURL *url)
-{
-    NSMutableArray<NSString *> *values = [NSMutableArray array];
-    NSString *host = url.host.lowercaseString;
-    NSString *path = url.path.length ? url.path : @"/";
+    NSMutableArray<NSDictionary *> *plain = [NSMutableArray arrayWithCapacity:cookies.count];
     for (NSHTTPCookie *cookie in cookies) {
-        NSString *domain =
-            [cookie.domain.lowercaseString stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"."]];
-        if (![host isEqualToString:domain]) continue;
-        NSString *cookiePath = cookie.path.length ? cookie.path : @"/";
-        BOOL pathMatches =
-            [path isEqualToString:cookiePath] ||
-            ([path hasPrefix:cookiePath] &&
-             ([cookiePath hasSuffix:@"/"] || (path.length > cookiePath.length && [path characterAtIndex:cookiePath.length] == '/')));
-        if (!pathMatches) continue;
-        [values addObject:[NSString stringWithFormat:@"%@=%@", cookie.name, cookie.value]];
+        [plain addObject:@{
+            @"name" : cookie.name ?: @"",
+            @"value" : cookie.value ?: @"",
+            @"domain" : cookie.domain ?: @"",
+            @"path" : cookie.path ?: @"",
+        }];
     }
-    return values;
+    return [NSJSONSerialization dataWithJSONObject:plain options:0 error:nil] ?: [NSData data];
 }
 
 @implementation AstralWebAuthController
@@ -121,13 +104,10 @@ static NSArray<NSString *> *CookieValuesForURL(NSArray<NSHTTPCookie *> *cookies,
 {
     WKHTTPCookieStore *store = self.webView.configuration.websiteDataStore.httpCookieStore;
     [store getAllCookies:^(NSArray<NSHTTPCookie *> *cookies) {
-        NSMutableArray<NSString *> *values = [NSMutableArray array];
-        NSArray<NSString *> *currentCookieValues = CookieValuesForURL(cookies, url);
-        for (NSString *value in currentCookieValues) {
-            if (![self.initialCookieValues containsObject:value]) [values addObject:value];
-        }
+        NSString *values = AstralTakeString(
+            astral_ios_web_auth_new_cookies(self.request, AstralTextOfData(CookiesJSON(cookies)), AstralTextOf(url.absoluteString)));
         dispatch_async(dispatch_get_main_queue(), ^{
-            [self finishWithURL:url.absoluteString cookies:[values componentsJoinedByString:@"; "] error:nil dismiss:YES];
+            [self finishWithURL:url.absoluteString cookies:values ?: @"" error:nil dismiss:YES];
         });
     }];
 }
@@ -142,7 +122,8 @@ static NSArray<NSString *> *CookieValuesForURL(NSArray<NSHTTPCookie *> *cookies,
                     decisionHandler:(void (^)(WKNavigationActionPolicy))decisionHandler
 {
     NSURL *url = navigationAction.request.URL;
-    if (navigationAction.targetFrame.isMainFrame && url && URLMatchesCallback(url, self.callbackURL)) {
+    if (navigationAction.targetFrame.isMainFrame && url &&
+        astral_ios_web_auth_is_callback(self.request, AstralTextOf(url.absoluteString))) {
         decisionHandler(WKNavigationActionPolicyCancel);
         [self completeCallback:url];
         return;
@@ -164,16 +145,14 @@ BOOL AstralOpenPluginWebAuth(uint64_t request, NSString *url, NSString *callback
         }
         AstralWebAuthController *controller = [AstralWebAuthController new];
         controller.request = request;
-        controller.callbackURL = callbackURL;
         controller.completion = completion;
         [controller loadViewIfNeeded];
         UINavigationController *navigation = [[UINavigationController alloc] initWithRootViewController:controller];
         navigation.modalPresentationStyle = UIModalPresentationPageSheet;
         gWebAuths[@(request)] = controller;
-        NSURL *callback = [NSURL URLWithString:callbackURL];
         WKHTTPCookieStore *store = controller.webView.configuration.websiteDataStore.httpCookieStore;
         [store getAllCookies:^(NSArray<NSHTTPCookie *> *cookies) {
-            controller.initialCookieValues = [NSSet setWithArray:CookieValuesForURL(cookies, callback)];
+            astral_ios_web_auth_note_initial_cookies(request, AstralTextOfData(CookiesJSON(cookies)), AstralTextOf(callbackURL));
             dispatch_async(dispatch_get_main_queue(), ^{
                 if (controller.completed) return;
                 UIViewController *presenter = WebAuthTopController();

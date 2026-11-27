@@ -363,3 +363,37 @@ pub unsafe extern "C" fn astral_ios_byte_range(
     }
     true
 }
+
+#[unsafe(no_mangle)]
+pub extern "C" fn astral_ios_web_auth_note_initial_cookies(
+    request: u64,
+    cookies: AstralText,
+    url: AstralText,
+) {
+    app::web_auth::note_initial_cookies(
+        request,
+        &app::web_auth::cookie_header(&cookies.text(), &url.text()),
+    );
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn astral_ios_web_auth_is_callback(request: u64, url: AstralText) -> bool {
+    app::web_auth::is_callback(request, &url.text())
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn astral_ios_web_auth_new_cookies(
+    request: u64,
+    cookies: AstralText,
+    url: AstralText,
+) -> AstralOwned {
+    AstralOwned::text(app::web_auth::new_cookies(
+        request,
+        &app::web_auth::cookie_header(&cookies.text(), &url.text()),
+    ))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn astral_ios_browser_login_url() -> AstralOwned {
+    AstralOwned::text(app::web_auth::browser_login_url())
+}

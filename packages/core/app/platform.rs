@@ -375,11 +375,14 @@ fn dispatch(method: Method, arguments: &Arguments) -> Value {
             });
             done()
         }
-        Method::WebAuth => flag(&host::request(Request::WebAuth {
-            request: arguments.identifier(0),
-            url: arguments.text(1),
-            callback_url: arguments.text(2),
-        })),
+        Method::WebAuth => {
+            super::web_auth::begin(arguments.identifier(0), arguments.text(2));
+            flag(&host::request(Request::WebAuth {
+                request: arguments.identifier(0),
+                url: arguments.text(1),
+                callback_url: arguments.text(2),
+            }))
+        }
         Method::CancelWebAuth => {
             host::request(Request::CancelWebAuth {
                 request: arguments.identifier(0),
