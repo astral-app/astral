@@ -2,3 +2,6 @@ rules:
   dangerous-triggers:
     ignore:
       - dependabot-merge.yml
+  self-repository:
+    ignore:
+      - alpha.yml

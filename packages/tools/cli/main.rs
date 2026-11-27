@@ -1,8 +1,8 @@
 use std::process::ExitCode;
 
 use astral_tools::{
-    android, android_compat, avd, check, compat, create, dev, device, doctor, fuzz, i18n, ipa,
-    lint, palette, readme, sideload, signing, stage, test, theos, vphone,
+    android, android_compat, avd, check, compat, create, dev, device, doctor, feed, fuzz, i18n,
+    ipa, lint, palette, readme, sideload, signing, stage, test, theos, vphone,
 };
 
 type Run = fn(&[String]) -> Result<(), String>;
@@ -52,6 +52,11 @@ const COMMANDS: &[(&str, &str, Run)] = &[
         dev::run,
     ),
     ("doctor", "doctor", doctor::run),
+    (
+        "feed",
+        "feed app-source --source <app-repo.json> --ipa <astral.ipa> --url <download URL> [--date <ISO date>] [--description <text>]",
+        feed::run,
+    ),
     ("format", "format", lint::format),
     (
         "i18n",

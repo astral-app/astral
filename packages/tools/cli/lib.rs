@@ -8,6 +8,7 @@ pub mod create;
 pub mod dev;
 pub mod device;
 pub mod doctor;
+pub mod feed;
 pub mod files;
 pub mod flags;
 pub mod fuzz;

@@ -1,0 +1,135 @@
+name: Alpha
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "version.txt"
+      - ".github/workflows/alpha.yml"
+      - ".github/workflows/artifacts.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: alpha
+  cancel-in-progress: true
+
+jobs:
+  build:
+    uses: ./.github/workflows/artifacts.yml
+    with:
+      ios_source: appstore
+      android_channel: alpha
+    secrets:
+      DKRYPT_API_KEY: ${{ secrets.DKRYPT_API_KEY }}
+
+  publish:
+    name: Publish the pre-release and feeds
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          path: artifacts
+
+      - name: Build the astral CLI
+        run: |
+          cargo build --quiet -p astral-tools
+          echo "$GITHUB_WORKSPACE/target/debug" >> "$GITHUB_PATH"
+
+      - name: Create the pre-release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version=$(cat version.txt)
+          tag="v${version}-alpha.${GITHUB_RUN_NUMBER}"
+          mkdir -p assets
+          deb=$(find artifacts/astral-deb -name '*.deb' | head -1)
+          cp "$deb" "assets/astral-${version}-alpha.${GITHUB_RUN_NUMBER}-iphoneos-arm64.deb"
+          cp artifacts/astral-ipa/astral.ipa "assets/astral-${version}-alpha.${GITHUB_RUN_NUMBER}.ipa"
+          find artifacts/astral-android -name '*.apk' -exec cp {} assets/ \;
+          cp artifacts/astral-checksums/SHA256SUMS artifacts/astral-checksums/provenance.json assets/
+          notes="Alpha build from $(git rev-parse --short HEAD). Pre-release: may break.
+
+          - iOS: sideload the IPA, add the AltStore source https://astral-app.github.io/astral/app-repo.json, or add the APT repo https://astral-app.github.io/astral/repo/ on a jailbroken device.
+          - Android: install the LSPatch APK, or the module APK with LSPosed."
+          gh release create "$tag" assets/* --prerelease --target "$GITHUB_SHA" --title "astral ${version} alpha ${GITHUB_RUN_NUMBER}" --notes "$notes"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Update the feeds
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+          VERSION: ${{ steps.release.outputs.version }}
+          REMOTE: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq && sudo apt-get install -y -qq apt-utils >/dev/null
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if git ls-remote --exit-code "$REMOTE" refs/heads/builds >/dev/null; then
+            git clone --quiet --depth 1 --branch builds "$REMOTE" site
+          else
+            git init --quiet -b builds site
+            git -C site remote add origin "$REMOTE"
+          fi
+          [ -f site/app-repo.json ] || cp packages/release/app-repo.json site/app-repo.json
+          cp packages/release/icon.png site/icon.png
+          ipa=$(find assets -name '*.ipa' | head -1)
+          url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$TAG/$(basename "$ipa")"
+          astral feed app-source --source site/app-repo.json --ipa "$ipa" --url "$url" --date "$(date -u +%Y-%m-%d)" --description "astral ${VERSION} alpha ${GITHUB_RUN_NUMBER} ($(git rev-parse --short HEAD))"
+          mkdir -p site/repo/debs
+          cp assets/*.deb site/repo/debs/
+          find site/repo/debs -name '*.deb' -printf '%T@ %p\n' | sort -rn | tail -n +6 | cut -d' ' -f2- | xargs -r rm -f
+          (
+            cd site/repo
+            apt-ftparchive packages debs > Packages
+            gzip -9kf Packages
+            apt-ftparchive \
+              -o APT::FTPArchive::Release::Origin=astral \
+              -o APT::FTPArchive::Release::Label=astral \
+              -o APT::FTPArchive::Release::Suite=stable \
+              -o APT::FTPArchive::Release::Codename=ios \
+              -o APT::FTPArchive::Release::Architectures=iphoneos-arm64 \
+              -o APT::FTPArchive::Release::Components=main \
+              -o "APT::FTPArchive::Release::Description=astral alpha builds" \
+              release . > Release
+          )
+          cp packages/release/icon.png site/repo/CydiaIcon.png
+          touch site/.nojekyll
+          git -C site add -A
+          git -C site commit --quiet -m "alpha ${GITHUB_RUN_NUMBER}"
+          git -C site push --quiet origin builds
+
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9
+        with:
+          path: site
+
+  pages:
+    name: Deploy the feeds
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346
