@@ -25,10 +25,32 @@ const MAX_PAGE_NODES: usize = 1024;
 const MAX_NAVIGATORS: usize = 8;
 const MAX_PAGES: usize = 4;
 const MAX_CHILDREN: usize = 4096;
+static ANIMATED_SWITCH: std::sync::Mutex<Option<Vec<u8>>> = std::sync::Mutex::new(None);
 const SWITCH_ON: u32 = 0xFF58_65F2;
 const SWITCH_OFF: i32 = 0x1F00_0000;
 const THUMB: u32 = 0xFFFF_FFFF;
 const SWITCH_BORDER: i32 = 530_028_447;
+
+pub fn animate_switch(key: &[u8]) {
+    *ANIMATED_SWITCH.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(key.to_vec());
+}
+
+fn take_animated_switch(key: &[u8]) -> bool {
+    let mut animated = ANIMATED_SWITCH.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    if animated.as_deref() != Some(key) {
+        return false;
+    }
+    *animated = None;
+    true
+}
+
+fn switch_offset(on: bool) -> f64 {
+    if on { 28.0 } else { 0.0 }
+}
+
+fn switch_look(on: bool) -> (f64, u32) {
+    (switch_offset(on), if on { SWITCH_ON } else { SWITCH_OFF as u32 })
+}
 const SLIDER_ACTIVE: u32 = 0xFF58_65F2;
 const SLIDER_INACTIVE: u32 = 0xFF4E_5058;
 const TRANSLUCENT_FILL: u32 = 0x1FFF_FFFF;
@@ -923,12 +945,14 @@ impl Builder<'_> {
 
     fn switch(&mut self, key: &[u8], on: bool) -> i32 {
         let properties = self.properties;
+        let animated = take_animated_switch(key);
+        let shown = on != animated;
         let identifier = [b"astral.switch.".as_slice(), key].concat();
         let track = self.node(b"view", 14);
         self.flag(properties.accessibility_hidden, true);
         self.out.prop_string(properties.accessibility_id, &identifier);
         self.out.prop_string(properties.align, b"stretch");
-        if on {
+        if shown {
             self.long(properties.background, SWITCH_ON);
         } else {
             self.out.prop_int(properties.background, SWITCH_OFF);
@@ -950,9 +974,12 @@ impl Builder<'_> {
         self.out.prop_number(properties.height, 20.0);
         self.out.prop_string(properties.justify, b"center");
         self.out.prop_number(properties.radius, 9999.0);
-        self.out.prop_number(properties.translate_x, if on { 28.0 } else { 0.0 });
+        self.out.prop_number(properties.translate_x, switch_offset(shown));
         self.out.prop_number(properties.width, 20.0);
         self.children(track, &[thumb]);
+        if animated {
+            super::tween::wire_tween_slide(thumb, track, switch_look(shown), switch_look(on));
+        }
         track
     }
 

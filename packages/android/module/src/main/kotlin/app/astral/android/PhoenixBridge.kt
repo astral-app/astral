@@ -826,6 +826,7 @@ object PhoenixBridge {
         try {
             method.invoke(host, ops, ops.size)
             NavigationBack.refresh()
+            scheduleTween()
         } catch (error: Throwable) {
             Log.error("Failed to deliver astral's ViewWire update", error)
         } finally {

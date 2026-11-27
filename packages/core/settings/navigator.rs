@@ -355,6 +355,7 @@ pub fn tap(identifier: &str) {
         } else if identifier == BACK {
             navigator.pop();
         } else if let Some(rest) = identifier.strip_prefix(SWITCH_PREFIX) {
+            crate::wire::pages::animate_switch(rest.as_bytes());
             navigator.act(&format!("switch.{rest}"));
         } else if let Some(rest) = identifier.strip_prefix(ROW_PREFIX) {
             navigator.act(rest);

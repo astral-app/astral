@@ -11,6 +11,15 @@ const MIN_PULSE_MS: f64 = 200.0;
 const MAX_PULSE_MS: f64 = 10_000.0;
 
 #[derive(Clone, Copy)]
+struct Slide {
+    track: i32,
+    from: f64,
+    to: f64,
+    from_color: u32,
+    to_color: u32,
+}
+
+#[derive(Clone, Copy)]
 struct Tween {
     node: i32,
     width: f64,
@@ -18,6 +27,7 @@ struct Tween {
     started: Option<f64>,
     fade_only: bool,
     pulse: Option<(f64, f64)>,
+    slide: Option<Slide>,
 }
 
 static TWEENS: Mutex<Vec<Tween>> = Mutex::new(Vec::new());
@@ -46,8 +56,29 @@ fn pulse_opacity(elapsed: f64, period: f64, delay: f64) -> f64 {
     PULSE_FLOOR + (1.0 - PULSE_FLOOR) * wave
 }
 
+fn mixed_channel(from: u32, to: u32, shift: u32, amount: f64) -> u32 {
+    let (from, to) = (f64::from((from >> shift) & 0xFF), f64::from((to >> shift) & 0xFF));
+    ((from + (to - from) * amount).round().clamp(0.0, 255.0) as u32) << shift
+}
+
+fn mixed_color(from: u32, to: u32, amount: f64) -> u32 {
+    [24, 16, 8, 0]
+        .iter()
+        .fold(0, |color, shift| color | mixed_channel(from, to, *shift, amount))
+}
+
 fn put_frame(out: &mut Out, tween: &Tween, amount: f64) {
     let properties = properties::current();
+    if let Some(slide) = tween.slide {
+        out.update(tween.node, 1);
+        out.prop_number(properties.translate_x, slide.from + (slide.to - slide.from) * amount);
+        out.update(slide.track, 1);
+        out.prop_long(
+            properties.background,
+            i64::from(mixed_color(slide.from_color, slide.to_color, amount)),
+        );
+        return;
+    }
     if tween.fade_only {
         out.update(tween.node, 1);
         out.prop_number(properties.opacity, amount);
@@ -68,6 +99,7 @@ pub extern "C" fn wire_tween_in(node: i32, width: f64, inset: f64) {
         started: None,
         fade_only: false,
         pulse: None,
+        slide: None,
     });
 }
 
@@ -81,6 +113,26 @@ pub extern "C" fn wire_tween_fade(node: i32) {
         started: None,
         fade_only: true,
         pulse: None,
+        slide: None,
+    });
+}
+
+pub fn wire_tween_slide(thumb: i32, track: i32, from: (f64, u32), to: (f64, u32)) {
+    forget(thumb);
+    start(Tween {
+        node: thumb,
+        width: 0.0,
+        inset: 0.0,
+        started: None,
+        fade_only: false,
+        pulse: None,
+        slide: Some(Slide {
+            track,
+            from: from.0,
+            to: to.0,
+            from_color: from.1,
+            to_color: to.1,
+        }),
     });
 }
 
@@ -93,6 +145,7 @@ pub fn wire_tween_pulse(node: i32, period: f64, delay: f64) {
         started: None,
         fade_only: true,
         pulse: Some((period.clamp(MIN_PULSE_MS, MAX_PULSE_MS), delay.clamp(0.0, MAX_PULSE_MS))),
+        slide: None,
     });
 }
 
@@ -150,5 +203,12 @@ mod tests {
         let tweens = TWEENS.lock().unwrap();
         assert!(!tweens.iter().any(|tween| tween.node == 901));
         assert!(tweens.iter().any(|tween| tween.node == 902 && tween.pulse.is_none()));
+    }
+
+    #[test]
+    fn switch_colors_blend_per_channel() {
+        assert_eq!(mixed_color(0x1F00_0000, 0xFF58_65F2, 0.0), 0x1F00_0000);
+        assert_eq!(mixed_color(0x1F00_0000, 0xFF58_65F2, 1.0), 0xFF58_65F2);
+        assert_eq!(mixed_color(0x0000_0000, 0xFEFE_FEFE, 0.5), 0x7F7F_7F7F);
     }
 }
