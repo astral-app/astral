@@ -525,7 +525,7 @@ base = "themes/soft.toml"
 [[icon-packs]]
 id = "liquid-glass"
 name = "Liquid Glass"
-version = "0.0.1"
+version = "0.0.2"
 description = "Discord's icons redrawn as frosted glass, after dor4a's Liquid Glass pack."
 base = "icon-packs/liquid-glass/"
 authors = [{ name = "eternal", id = "263689920210534400" }, { name = "dor4a", id = "455513497288310785" }]

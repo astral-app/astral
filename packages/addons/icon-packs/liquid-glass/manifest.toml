@@ -1,7 +1,7 @@
 id = "liquid-glass"
 name = "Liquid Glass"
 description = "Discord's icons redrawn as frosted glass, after dor4a's Liquid Glass pack."
-version = "0.0.1"
+version = "0.0.2"
 
 [[authors]]
 name = "eternal"
@@ -10,3 +10,10 @@ id = "263689920210534400"
 [[authors]]
 name = "dor4a"
 id = "455513497288310785"
+
+[aliases]
+ic_mana_paintbrush_thick = "ic_mana_paintbrush_thin"
+ic_mana_puzzle_piece_plus = "ic_mana_puzzle_piece"
+ic_mana_puzzle_piece_minus = "ic_mana_puzzle_piece"
+ic_mana_puzzle_piece_retry = "ic_mana_puzzle_piece"
+ic_mana_settings_arrow_up = "ic_mana_settings"
