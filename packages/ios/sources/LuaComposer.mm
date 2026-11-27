@@ -7,6 +7,9 @@
 static const void *kComposerKey = &kComposerKey;
 static NSString *const kBaseAttributesKey = @"astral.liveMarkdown.baseAttributes";
 static NSHashTable<UITextView *> *gComposerViews;
+static NSCache<NSString *, UIImage *> *gRunImages;
+static NSMutableSet<NSString *> *gLoadingImages;
+static const NSInteger kImageRunTag = 0x41494D47;
 
 static BOOL IsComposer(UITextView *textView)
 {
@@ -31,7 +34,7 @@ static NSDictionary *BaseAttributes(NSAttributedString *storage, NSUInteger inde
     NSMutableDictionary *base = [NSMutableDictionary dictionary];
     for (NSAttributedStringKey key in @[
              NSFontAttributeName, NSForegroundColorAttributeName, NSBackgroundColorAttributeName, NSStrikethroughStyleAttributeName,
-             NSUnderlineStyleAttributeName
+             NSUnderlineStyleAttributeName, NSKernAttributeName
          ]) {
         id value = attributes[key];
         if (value) base[key] = value;
@@ -55,7 +58,7 @@ static void RestoreBaseAttributes(NSTextStorage *storage)
         NSDictionary *base = entry[@"base"];
         for (NSAttributedStringKey key in @[
                  NSFontAttributeName, NSForegroundColorAttributeName, NSBackgroundColorAttributeName, NSStrikethroughStyleAttributeName,
-                 NSUnderlineStyleAttributeName
+                 NSUnderlineStyleAttributeName, NSKernAttributeName
              ]) {
             id value = base[key];
             if (value)
@@ -133,6 +136,75 @@ static void ApplyStyle(NSTextStorage *storage, UITextView *textView, NSString *s
     if (styled) [storage addAttribute:NSFontAttributeName value:styled range:range];
 }
 
+static CGFloat ImageSide(UITextView *textView)
+{
+    return round((textView.font ?: [UIFont systemFontOfSize:16]).pointSize * 1.375);
+}
+
+static void HideRun(NSTextStorage *storage, UITextView *textView, NSRange range)
+{
+    if (!range.length || NSMaxRange(range) > storage.length) return;
+    StoreBaseAttributes(storage, range);
+    UIFont *tiny = [UIFont systemFontOfSize:0.01];
+    CGFloat side = ImageSide(textView);
+    CGFloat glyphs = [[storage.string substringWithRange:range] sizeWithAttributes:@{NSFontAttributeName : tiny}].width;
+    [storage addAttribute:NSForegroundColorAttributeName value:UIColor.clearColor range:range];
+    [storage addAttribute:NSFontAttributeName value:tiny range:range];
+    [storage addAttribute:NSKernAttributeName value:@(MAX(side + 2 - glyphs, 0)) range:NSMakeRange(NSMaxRange(range) - 1, 1)];
+}
+
+static void Paint(UITextView *textView);
+
+static void LoadRunImage(NSString *url)
+{
+    if ([gRunImages objectForKey:url] || [gLoadingImages containsObject:url]) return;
+    NSURL *link = [NSURL URLWithString:url];
+    if (!link) return;
+    [gLoadingImages addObject:url];
+    [[NSURLSession.sharedSession dataTaskWithURL:link
+                               completionHandler:^(NSData *data, __unused NSURLResponse *response, __unused NSError *error) {
+                                   UIImage *image = data ? [UIImage imageWithData:data] : nil;
+                                   dispatch_async(dispatch_get_main_queue(), ^{
+                                       [gLoadingImages removeObject:url];
+                                       if (!image) return;
+                                       [gRunImages setObject:image forKey:url];
+                                       for (UITextView *textView in gComposerViews.allObjects) {
+                                           objc_setAssociatedObject(textView, kComposerKey, nil, OBJC_ASSOCIATION_COPY_NONATOMIC);
+                                           Paint(textView);
+                                       }
+                                   });
+                               }] resume];
+}
+
+static void PlaceRunImages(UITextView *textView, NSArray<NSDictionary *> *images)
+{
+    for (UIView *view in textView.subviews.copy)
+        if (view.tag == kImageRunTag) [view removeFromSuperview];
+    if (!images.count) return;
+    NSLayoutManager *layout = textView.layoutManager;
+    NSTextContainer *container = textView.textContainer;
+    [layout ensureLayoutForTextContainer:container];
+    CGFloat side = ImageSide(textView);
+    UIEdgeInsets inset = textView.textContainerInset;
+    for (NSDictionary *run in images) {
+        UIImage *image = [gRunImages objectForKey:run[@"image"]];
+        if (!image) {
+            LoadRunImage(run[@"image"]);
+            continue;
+        }
+        NSRange glyphs = [layout glyphRangeForCharacterRange:[run[@"range"] rangeValue] actualCharacterRange:nil];
+        if (!glyphs.length) continue;
+        CGRect bounds = [layout boundingRectForGlyphRange:glyphs inTextContainer:container];
+        CGRect line = [layout lineFragmentRectForGlyphAtIndex:glyphs.location effectiveRange:nil];
+        UIImageView *view = [[UIImageView alloc] initWithImage:image];
+        view.tag = kImageRunTag;
+        view.contentMode = UIViewContentModeScaleAspectFit;
+        view.userInteractionEnabled = NO;
+        view.frame = CGRectMake(inset.left + bounds.origin.x + 1, inset.top + CGRectGetMidY(line) - side / 2, side, side);
+        [textView addSubview:view];
+    }
+}
+
 static void Paint(UITextView *textView)
 {
     if (!textView.window || textView.markedTextRange || !IsComposer(textView)) return;
@@ -141,6 +213,7 @@ static void Paint(UITextView *textView)
     id styles = AstralTakeJSON(astral_ios_composer_styles(AstralTextOf(textView.text ?: @"")));
     NSArray<NSDictionary *> *runs = [styles isKindOfClass:NSArray.class] ? styles : @[];
     NSMutableArray<NSDictionary *> *styled = [NSMutableArray array];
+    NSMutableArray<NSDictionary *> *images = [NSMutableArray array];
     for (NSDictionary *run in runs) {
         NSUInteger start = [run[@"start"] unsignedIntegerValue];
         NSUInteger length = [run[@"length"] unsignedIntegerValue];
@@ -149,15 +222,23 @@ static void Paint(UITextView *textView)
         NSUInteger first = UTF16Offset(utf8, start - 1);
         NSUInteger end = UTF16Offset(utf8, start - 1 + length);
         if (first == NSNotFound || end == NSNotFound || end <= first || end > textView.textStorage.length) continue;
-        [styled addObject:@{@"range" : [NSValue valueWithRange:NSMakeRange(first, end - first)], @"style" : style}];
+        NSValue *range = [NSValue valueWithRange:NSMakeRange(first, end - first)];
+        NSString *image = [run[@"image"] isKindOfClass:NSString.class] ? run[@"image"] : nil;
+        if ([style isEqualToString:@"image"] && image.length)
+            [images addObject:@{@"range" : range, @"image" : image}];
+        else
+            [styled addObject:@{@"range" : range, @"style" : style}];
     }
-    NSString *key = [NSString stringWithFormat:@"%@\n%@", textView.text ?: @"", styled];
+    NSString *key = [NSString stringWithFormat:@"%@\n%@\n%@", textView.text ?: @"", styled, images];
     if ([objc_getAssociatedObject(textView, kComposerKey) isEqual:key]) return;
     NSTextStorage *storage = textView.textStorage;
     RestoreBaseAttributes(storage);
     [storage beginEditing];
     for (NSDictionary *run in styled) ApplyStyle(storage, textView, run[@"style"], [run[@"range"] rangeValue]);
+    for (NSDictionary *run in images)
+        if ([gRunImages objectForKey:run[@"image"]]) HideRun(storage, textView, [run[@"range"] rangeValue]);
     [storage endEditing];
+    PlaceRunImages(textView, images);
     objc_setAssociatedObject(textView, kComposerKey, key, OBJC_ASSOCIATION_COPY_NONATOMIC);
     [textView setNeedsDisplay];
 }
@@ -172,6 +253,8 @@ void AstralInstallLuaComposer(void)
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         gComposerViews = [NSHashTable weakObjectsHashTable];
+        gRunImages = [NSCache new];
+        gLoadingImages = [NSMutableSet set];
         for (NSNotificationName name in @[ UITextViewTextDidChangeNotification, UITextViewTextDidBeginEditingNotification ]) {
             [NSNotificationCenter.defaultCenter addObserverForName:name
                                                             object:nil

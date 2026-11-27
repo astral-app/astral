@@ -266,6 +266,7 @@ impl State {
             "name": string_or(properties, "name", ""),
             "owner_id": string_or(properties, "owner_id", ""),
             "roles": roles,
+            "emojis": guild_emojis(record),
         });
         self.remember(cache_key, Some(found))
     }
@@ -474,14 +475,28 @@ impl State {
         if let Some(hit) = self.hit(&cache_key) {
             return hit;
         }
-        let described = self
-            .message_containing(emoji_id)
-            .and_then(|(channel, message)| self.raw_message(&channel, &message))
-            .and_then(|record| {
-                emoji_in_content(record.get("content").and_then(Value::as_str).unwrap_or_default(), emoji_id)
-                    .or_else(|| emoji_in_reactions(&record, emoji_id))
-            });
+        let described = self.emoji_in_guilds(emoji_id).or_else(|| {
+            self.message_containing(emoji_id)
+                .and_then(|(channel, message)| self.raw_message(&channel, &message))
+                .and_then(|record| {
+                    emoji_in_content(record.get("content").and_then(Value::as_str).unwrap_or_default(), emoji_id)
+                        .or_else(|| emoji_in_reactions(&record, emoji_id))
+                })
+        });
         self.remember(cache_key, described)
+    }
+
+    fn emoji_in_guilds(&mut self, emoji_id: &str) -> Option<Value> {
+        let needle = format!("\"id\":\"{emoji_id}\"");
+        let record = parsed(
+            self.column("SELECT v FROM guilds WHERE instr(v, ?) > 0 LIMIT 1", &[needle.as_bytes()]),
+            true,
+        )?;
+        guild_emojis(&record)
+            .as_array()?
+            .iter()
+            .find(|emoji| emoji.get("id").and_then(Value::as_str) == Some(emoji_id))
+            .cloned()
     }
 
     fn current_user(&self) -> Option<String> {
@@ -656,6 +671,19 @@ fn muted_now(setting: &Value, now: &str) -> bool {
         .and_then(|config| config.get("end_time"))
         .and_then(Value::as_str);
     end.is_none_or(|end| end.get(..TIMESTAMP_PREFIX).unwrap_or(end) > now.get(..TIMESTAMP_PREFIX).unwrap_or(now))
+}
+
+fn guild_emojis(record: &Value) -> Value {
+    let emojis: Vec<Value> = array(record, "emojis")
+        .iter()
+        .filter_map(|emoji| {
+            let id = emoji.get("id").and_then(Value::as_str).filter(|id| snowflake(id))?;
+            let name = emoji.get("name").and_then(Value::as_str)?;
+            let animated = emoji.get("animated").and_then(Value::as_bool).unwrap_or(false);
+            Some(json!({"id": id, "name": name, "animated": animated}))
+        })
+        .collect();
+    Value::Array(emojis)
 }
 
 fn emoji_in_content(content: &str, emoji_id: &str) -> Option<Value> {

@@ -233,7 +233,7 @@ fn composer_styles(work: &Path) {
         &root,
         "formatter",
         &manifest("astral.composer-test", &["ui.composer"]),
-        "astral.ui.composer(function(text)\n  return {{start = 1, length = 2, style = 'bold'}, {start = 2, length = 1, style = 'italic'}, {start = 1, length = #text, style = 'spoiler'}, {start = 3, length = 1, style = 'underline'}, {start = 1, length = 1, style = 'unknown'}}\nend)\n",
+        "astral.ui.composer(function(text)\n  return {{start = 1, length = 2, style = 'bold'}, {start = 2, length = 1, style = 'italic'}, {start = 1, length = #text, style = 'spoiler'}, {start = 3, length = 1, style = 'underline'}, {start = 1, length = 1, style = 'unknown'}, {start = 3, length = 1, style = 'image', image = 'https://cdn.discordapp.com/emojis/1.png'}, {start = 3, length = 1, style = 'image', image = 'https://example.com/1.png'}}\nend)\n",
     );
     plugin(
         &root,
@@ -245,7 +245,12 @@ fn composer_styles(work: &Path) {
     let styles = events::composer_styles("éx".as_bytes());
     assert_eq!(
         styles,
-        json!([{"start": 1, "length": 2, "style": "bold"}, {"start": 1, "length": 3, "style": "spoiler"}, {"start": 3, "length": 1, "style": "underline"}])
+        json!([
+            {"start": 1, "length": 2, "style": "bold"},
+            {"start": 1, "length": 3, "style": "spoiler"},
+            {"start": 3, "length": 1, "style": "underline"},
+            {"start": 3, "length": 1, "style": "image", "image": "https://cdn.discordapp.com/emojis/1.png"}
+        ])
     );
     assert_eq!(events::composer_styles("x".repeat(COMPOSER_LIMIT).as_bytes()), json!([]));
     assert_eq!(eval("astral.composer-restricted", "return astral.storage.get('allowed')"), "false");
