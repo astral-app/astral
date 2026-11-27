@@ -239,6 +239,7 @@ fn build(arguments: &[String]) -> Result<(), String> {
     }
     for file in outputs {
         open_phoenix_access(&file, &jar, &work.0)?;
+        strip_split_copies(&file, &jar, &work.0)?;
         let target = output
             .join("sideload")
             .join(file.file_name().unwrap_or_default());
@@ -503,12 +504,6 @@ fn open_phoenix_access(
     if !crate::phoenix::opens_android_access_gate(&archive.read(&entry)?) {
         return Ok(());
     }
-    let keystore = work.join("lspatch.keystore");
-    std::fs::write(
-        &keystore,
-        crate::ipa_archive::Ipa::open(patcher)?.read(LSPATCH_KEYSTORE)?,
-    )
-    .map_err(|error| error.to_string())?;
     crate::ipa_archive::rewrite(
         apk,
         "phoenix-access",
@@ -523,7 +518,66 @@ fn open_phoenix_access(
         },
         Vec::new(),
     )?;
-    let aligned = work.join("phoenix-aligned.apk");
+    resign(apk, patcher, work)?;
+    println!("opened Phoenix's access gate in {}", apk.display());
+    Ok(())
+}
+
+const SPLIT_REDUNDANT: [&str; 2] = ["assets/lspatch/origin.apk", "assets/lspatch/modules/"];
+const CONFIG_SPLIT_PREFIX: &str = "config.";
+
+pub fn redundant_in_split(name: &str) -> bool {
+    SPLIT_REDUNDANT
+        .iter()
+        .any(|prefix| name == *prefix || (prefix.ends_with('/') && name.starts_with(prefix)))
+}
+
+pub fn is_config_split(file_name: &str) -> bool {
+    file_name.starts_with(CONFIG_SPLIT_PREFIX)
+}
+
+fn strip_split_copies(
+    apk: &std::path::Path,
+    patcher: &std::path::Path,
+    work: &std::path::Path,
+) -> Result<(), String> {
+    let file_name = apk
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let names = crate::ipa_archive::Ipa::open(apk)?.names();
+    if !is_config_split(&file_name) || !names.iter().any(|name| redundant_in_split(name)) {
+        return Ok(());
+    }
+    crate::ipa_archive::rewrite(
+        apk,
+        "split-copies",
+        |name| {
+            if redundant_in_split(name) {
+                crate::ipa_archive::Action::Drop
+            } else {
+                crate::ipa_archive::Action::Keep
+            }
+        },
+        Vec::new(),
+    )?;
+    resign(apk, patcher, work)?;
+    println!("removed LSPatch's duplicate copies from {}", apk.display());
+    Ok(())
+}
+
+fn resign(
+    apk: &std::path::Path,
+    patcher: &std::path::Path,
+    work: &std::path::Path,
+) -> Result<(), String> {
+    let keystore = work.join("lspatch.keystore");
+    std::fs::write(
+        &keystore,
+        crate::ipa_archive::Ipa::open(patcher)?.read(LSPATCH_KEYSTORE)?,
+    )
+    .map_err(|error| error.to_string())?;
+    let aligned = work.join("resign-aligned.apk");
     repo::run(
         work,
         &build_tool("zipalign")?,
@@ -555,6 +609,5 @@ fn open_phoenix_access(
             &repo::text(&aligned),
         ]),
     )?;
-    println!("opened Phoenix's access gate in {}", apk.display());
     Ok(())
 }
