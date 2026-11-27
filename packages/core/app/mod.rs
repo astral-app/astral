@@ -670,6 +670,17 @@ pub fn icon_path(name: &str) -> String {
     app().map(|current| current.icon_path(name)).unwrap_or_default()
 }
 
+pub fn font_faces() -> String {
+    app().map_or_else(
+        || "{\"ready\":false}".to_owned(),
+        |current| {
+            let mut faces = current.font_faces();
+            faces["ready"] = serde_json::json!(true);
+            faces.to_string()
+        },
+    )
+}
+
 pub fn emoji_url(codepoints: &str) -> String {
     app().map(|current| current.emoji_url(codepoints)).unwrap_or_default()
 }
@@ -733,6 +744,9 @@ fn select_pack(current: &App, kind: PackKind, identifier: &str) -> bool {
     match kind {
         PackKind::Icons => refresh_images(current),
         PackKind::Emoji => refresh_emoji(),
+        PackKind::Fonts => {
+            host::request(Request::RefreshSettings);
+        }
     }
     true
 }

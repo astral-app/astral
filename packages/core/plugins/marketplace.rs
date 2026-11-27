@@ -28,6 +28,7 @@ pub const KIND_PLUGIN: c_int = 0;
 pub const KIND_THEME: c_int = 1;
 pub const KIND_ICON_PACK: c_int = 2;
 pub const KIND_EMOJI_PACK: c_int = 3;
+pub const KIND_FONT_PACK: c_int = 4;
 
 pub type Fetch = unsafe extern "C" fn(*mut c_void, *const c_char, usize, *mut AstralRustString) -> c_int;
 pub type Installed = unsafe extern "C" fn(*mut c_void, c_int, *const c_char, usize);
@@ -261,6 +262,7 @@ impl Config {
         result.insert("themes".into(), entries("themes"));
         result.insert("icon-packs".into(), entries("icon-packs"));
         result.insert("emoji-packs".into(), entries("emoji-packs"));
+        result.insert("font-packs".into(), entries("font-packs"));
         Some(Value::Object(result))
     }
 
@@ -542,7 +544,7 @@ fn refresh(notify: Notify) {
 fn install(package: Value, kind: c_int, notify: Notify) {
     let Some(config) = config() else { return };
     let identifier = package.get("id").and_then(Value::as_str).unwrap_or("").to_owned();
-    if !valid_package_identifier(&identifier) || !(KIND_PLUGIN..=KIND_EMOJI_PACK).contains(&kind) {
+    if !valid_package_identifier(&identifier) || !(KIND_PLUGIN..=KIND_FONT_PACK).contains(&kind) {
         return;
     }
     let claimed = with_catalog(|catalog| {
@@ -561,6 +563,7 @@ fn install(package: Value, kind: c_int, notify: Notify) {
             KIND_THEME => config.install_theme(&package).map(|()| identifier.clone()),
             KIND_ICON_PACK => config.install_pack(&package, "icon-packs"),
             KIND_EMOJI_PACK => config.install_pack(&package, "emoji-packs"),
+            KIND_FONT_PACK => config.install_pack(&package, "font-packs"),
             _ => config.install_plugin(&package),
         };
         with_catalog(|catalog| match &result {

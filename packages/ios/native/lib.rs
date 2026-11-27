@@ -252,6 +252,11 @@ pub extern "C" fn astral_ios_icon_path(name: AstralText) -> AstralOwned {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn astral_ios_font_faces() -> AstralOwned {
+    AstralOwned::text(app::font_faces())
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn astral_ios_emoji_url(codepoints: AstralText) -> AstralOwned {
     AstralOwned::text(app::emoji_url(&codepoints.text()))
 }

@@ -11,6 +11,8 @@ use crate::support::toml_json;
 
 const ICON_PACKS: &str = "icon-packs";
 const EMOJI_PACKS: &str = "emoji-packs";
+const FONT_PACKS: &str = "font-packs";
+const FONT_FACES: [&str; 5] = ["normal", "medium", "semibold", "bold", "extrabold"];
 const ICON_CACHE_LIMIT: usize = 4096;
 
 #[derive(Default)]
@@ -98,7 +100,11 @@ impl AstralPacksHandle {
 
     fn list(&self, kind: &str) -> Vec<Value> {
         let emoji = kind == EMOJI_PACKS;
-        let description = if emoji { "Discord's own emoji" } else { "Discord's own icons" };
+        let description = match kind {
+            EMOJI_PACKS => "Discord's own emoji",
+            FONT_PACKS => "Discord's own font",
+            _ => "Discord's own icons",
+        };
         let mut result = vec![json!({"id": "discord", "name": "Discord", "description": description, "bundled": true})];
         let mut seen = HashSet::from(["discord".to_owned()]);
         for root in [&self.state, &self.resources] {
@@ -122,7 +128,7 @@ impl AstralPacksHandle {
                     continue;
                 }
                 let pack_text = String::from_utf8_lossy(&pack).into_owned();
-                if !emoji {
+                if kind == ICON_PACKS {
                     let icons = join_path(&pack, b"icons");
                     manifest["count"] = json!(list_directory(path(icons.as_ptr().cast(), icons.len())).len());
                 }
@@ -196,6 +202,36 @@ impl AstralPacksHandle {
             .unwrap_or_default();
         cache.icon_paths.insert(name.to_owned(), found.clone());
         found
+    }
+
+    fn font_faces(&self) -> Value {
+        let active = self.setting_string("font-pack", "discord");
+        if active == "discord" || !safe_name(&active) {
+            return json!({});
+        }
+        let Some(pack) = self.list(FONT_PACKS).into_iter().rev().find(|pack| text(pack, "id") == active) else {
+            return json!({});
+        };
+        let directory = text(&pack, "directory");
+        let mut faces = serde_json::Map::new();
+        for face in FONT_FACES {
+            let Some(value) = pack
+                .get("faces")
+                .and_then(|faces| faces.get(face))
+                .and_then(Value::as_str)
+                .filter(|value| safe_name(value))
+            else {
+                continue;
+            };
+            let file = resolve_inside(directory.as_bytes(), format!("fonts/{value}").as_bytes())
+                .map(|file| String::from_utf8_lossy(&file).into_owned())
+                .filter(|file| std::path::Path::new(file).is_file());
+            faces.insert(
+                face.into(),
+                file.map_or_else(|| json!({"name": value}), |file| json!({"file": file})),
+            );
+        }
+        json!({"id": active, "faces": faces})
     }
 
     fn emoji_url(&self, codepoints: &str) -> String {
@@ -278,26 +314,34 @@ pub unsafe extern "C" fn astral_packs_close(packs: *mut AstralPacksHandle) {
     }
 }
 
+fn pack_kind(code: c_int) -> (&'static str, &'static str) {
+    match code {
+        1 => (EMOJI_PACKS, "emoji-pack"),
+        2 => (FONT_PACKS, "font-pack"),
+        _ => (ICON_PACKS, "icon-pack"),
+    }
+}
+
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn astral_packs_list(packs: *const AstralPacksHandle, emoji: c_int) -> AstralRustString {
-    let list = handle(packs)
-        .map(|packs| packs.list(if emoji != 0 { EMOJI_PACKS } else { ICON_PACKS }))
-        .unwrap_or_default();
+pub unsafe extern "C" fn astral_packs_font_faces(packs: *const AstralPacksHandle) -> AstralRustString {
+    let faces = handle(packs).map(AstralPacksHandle::font_faces).unwrap_or_else(|| json!({}));
+    AstralRustString::new(faces.to_string().into_bytes())
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn astral_packs_list(packs: *const AstralPacksHandle, kind: c_int) -> AstralRustString {
+    let list = handle(packs).map(|packs| packs.list(pack_kind(kind).0)).unwrap_or_default();
     AstralRustString::new(Value::Array(list).to_string().into_bytes())
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn astral_packs_select(
     packs: *const AstralPacksHandle,
-    emoji: c_int,
+    kind: c_int,
     identifier: *const c_char,
     length: usize,
 ) -> c_int {
-    let (kind, key) = if emoji != 0 {
-        (EMOJI_PACKS, "emoji-pack")
-    } else {
-        (ICON_PACKS, "icon-pack")
-    };
+    let (kind, key) = pack_kind(kind);
     c_int::from(handle(packs).is_some_and(|packs| packs.select(kind, key, string_of(identifier, length))))
 }
 
