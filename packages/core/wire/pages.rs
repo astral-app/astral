@@ -126,6 +126,8 @@ pub struct AstralCardSpec {
     pub has_settings: c_int,
     pub on: c_int,
     pub failed: c_int,
+    pub action: *const c_char,
+    pub action_primary: c_int,
 }
 
 #[repr(C)]
@@ -197,6 +199,8 @@ struct Card {
     error: Vec<u8>,
     avatars: Vec<Vec<u8>>,
     has_settings: bool,
+    action: Option<Vec<u8>>,
+    action_primary: bool,
     on: bool,
     failed: bool,
 }
@@ -259,6 +263,8 @@ fn page_of(spec: &AstralPageSpec) -> PageSpec {
                     .map(|avatar| text_or_empty(*avatar))
                     .collect(),
                 has_settings: card.has_settings != 0,
+                action: text(card.action),
+                action_primary: card.action_primary != 0,
                 on: card.on != 0,
                 failed: card.failed != 0,
             })
@@ -1148,6 +1154,28 @@ impl Builder<'_> {
         button
     }
 
+    fn pill_button(&mut self, key: &[u8], label: &[u8], primary: bool) -> i32 {
+        let properties = self.properties;
+        let identifier = [b"astral.row.".as_slice(), key].concat();
+        let button = self.node(b"view", 9);
+        self.out.prop_string(properties.accessibility_id, &identifier);
+        self.out.prop_string(properties.align, b"center");
+        self.out.prop_string(properties.justify, b"center");
+        self.long(properties.background, if primary { SWITCH_ON } else { TRANSLUCENT_FILL });
+        self.out.prop_quad(properties.padding, [14.0, 7.0, 14.0, 7.0]);
+        self.out.prop_number(properties.radius, 16.0);
+        self.events(properties.on, b"press");
+        self.out.prop_string(properties.role, b"button");
+        self.out.prop_number(properties.shrink, 0.0);
+        let text = if primary {
+            self.colored_text(label, style(13.0, 600, 1.0, 1, false), 0xFFFF_FFFF)
+        } else {
+            self.text(label, style(13.0, 600, 1.0, 1, false))
+        };
+        self.children(button, &[text]);
+        button
+    }
+
     fn chip(&mut self, chip: &Chip) -> i32 {
         let properties = self.properties;
         let identifier = [b"astral.row.".as_slice(), &chip.key].concat();
@@ -1262,11 +1290,15 @@ impl Builder<'_> {
         self.out.prop_number(properties.min_width, 0.0);
         self.children(heading, &heading_children);
         let mut actions_children = Vec::new();
-        if card.has_settings {
-            actions_children.push(self.round_button(&settings_key, b"res://ic_mana_settings", 32.0));
+        if let Some(label) = &card.action {
+            actions_children.push(self.pill_button(&card.key, label, card.action_primary));
+        } else {
+            if card.has_settings {
+                actions_children.push(self.round_button(&settings_key, b"res://ic_mana_settings", 32.0));
+            }
+            actions_children.push(self.round_button(&overflow_key, b"res://ic_mana_more_horizontal", 32.0));
+            actions_children.push(self.switch(&card.key, card.on));
         }
-        actions_children.push(self.round_button(&overflow_key, b"res://ic_mana_more_horizontal", 32.0));
-        actions_children.push(self.switch(&card.key, card.on));
         let actions = self.node(b"view", 4);
         self.out.prop_string(properties.direction, b"row");
         self.out.prop_string(properties.align, b"center");
@@ -1318,10 +1350,10 @@ impl Builder<'_> {
         let properties = self.properties;
         let mut children = Vec::new();
         if let Some(toolbar) = &page.toolbar {
-            children.push(self.toolbar(toolbar));
+            children.push(self.reuse_or_build(format!("{toolbar:?}"), |builder| builder.toolbar(toolbar)));
         }
         for card in page.cards.iter().take(65 - children.len()) {
-            children.push(self.card(card));
+            children.push(self.reuse_or_build(format!("{card:?}"), |builder| builder.card(card)));
         }
         let list = self.node(b"view", 4);
         self.out.prop_string(properties.direction, b"column");
@@ -1350,8 +1382,7 @@ impl Builder<'_> {
     fn sections(&mut self, page: &PageSpec) -> Vec<i32> {
         let mut sections = Vec::new();
         if page.toolbar.is_some() || !page.cards.is_empty() {
-            let signature = format!("{:?}{:?}", page.toolbar, page.cards);
-            sections.push(self.reuse_or_build(signature, |builder| builder.card_list(page)));
+            sections.push(self.card_list(page));
         }
         for section in &page.sections {
             if sections.len() >= 16 {
