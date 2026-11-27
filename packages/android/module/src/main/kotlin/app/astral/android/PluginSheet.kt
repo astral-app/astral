@@ -55,6 +55,10 @@ object PluginSheet {
         val event: (String, String, Boolean) -> Unit,
     ) {
         var finished = false
+        var keyedInputs = mutableMapOf<String, EditText>()
+        var keptTexts = emptyMap<String, String>()
+        var itemLabels = mutableListOf<TextView>()
+        var renderedShape: String? = null
     }
 
     fun open(activity: Activity, sheet: Long, spec: JSONObject, event: (String, String, Boolean) -> Unit) {
@@ -134,13 +138,82 @@ object PluginSheet {
         rendered.event("", "", true)
     }
 
+    private fun shapeOf(value: Any?): Any? = when (value) {
+        is JSONArray -> JSONArray().also { shape -> (0 until value.length()).forEach { shape.put(shapeOf(value.opt(it))) } }
+        is JSONObject -> JSONObject().also { shape ->
+            val type = value.optString("type")
+            val label = type == "text" || type == "heading"
+            value.keys().asSequence().sorted().forEach { key ->
+                val skipped = (label && (key == "text" || key == "color")) || (type == "input" && key == "value")
+                if (!skipped) shape.put(key, shapeOf(value.opt(key)))
+            }
+        }
+        else -> value
+    }
+
+    private fun labelItems(array: JSONArray?, into: MutableList<JSONObject>) {
+        items(array).forEach { item ->
+            val type = item.optString("type")
+            if (type == "text" || type == "heading") into.add(item)
+            labelItems(item.optJSONArray("items"), into)
+        }
+    }
+
+    private fun updateInPlace(rendered: Rendered, spec: JSONObject): Boolean {
+        val shape = JSONArray().put(shapeOf(spec.optJSONArray("header"))).put(shapeOf(spec.optJSONArray("items"))).toString()
+        if (rendered.renderedShape != shape) {
+            rendered.renderedShape = shape
+            return false
+        }
+        val labels = mutableListOf<JSONObject>()
+        labelItems(spec.optJSONArray("header"), labels)
+        labelItems(spec.optJSONArray("items"), labels)
+        if (labels.size != rendered.itemLabels.size) return false
+        val palette = palette(rendered.activity)
+        rendered.title.text = spec.optString("title")
+        rendered.subtitle.text = spec.optString("subtitle")
+        labels.forEachIndexed { index, item ->
+            val label = rendered.itemLabels[index]
+            val fallback = if (item.optString("type") == "heading") palette.muted else palette.primary
+            label.text = item.optString("text")
+            label.setTextColor(color(item.opt("color"), fallback, rendered.activity))
+        }
+        return true
+    }
+
     private fun render(rendered: Rendered, spec: JSONObject) {
+        if (updateInPlace(rendered, spec)) return
+        rendered.itemLabels = mutableListOf()
+        rendered.keptTexts = rendered.keyedInputs.mapValues { it.value.text.toString() }
+        val focused = rendered.keyedInputs.entries.firstOrNull { it.value.hasFocus() }
+        val focusedKey = focused?.key
+        val selection = focused?.value?.selectionStart ?: 0
+        rendered.keyedInputs = mutableMapOf()
         rendered.title.text = spec.optString("title")
         rendered.subtitle.text = spec.optString("subtitle")
         rendered.subtitle.visibility = if (spec.optString("subtitle").isEmpty()) View.GONE else View.VISIBLE
         fillStack(rendered, rendered.header, spec.optJSONArray("header"), allowFill = false)
         rendered.header.visibility = if (rendered.header.childCount == 0) View.GONE else View.VISIBLE
         fillStack(rendered, rendered.content, spec.optJSONArray("items"), allowFill = true)
+        rendered.keptTexts = emptyMap()
+        val refocus = focusedKey?.let { rendered.keyedInputs[it] } ?: return
+        refocus.requestFocus()
+        refocus.setSelection(selection.coerceIn(0, refocus.text.length))
+    }
+
+    private fun track(rendered: Rendered, field: EditText, item: JSONObject) {
+        val key = item.optString("key")
+        field.setText(rendered.keptTexts[key] ?: item.optString("value"))
+        if (key.isNotEmpty()) rendered.keyedInputs[key] = field
+        val changeAction = item.optString("change_action")
+        if (changeAction.isEmpty()) return
+        field.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(text: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(text: CharSequence?, start: Int, before: Int, count: Int) = Unit
+            override fun afterTextChanged(text: android.text.Editable?) {
+                rendered.event(changeAction, text?.toString().orEmpty(), false)
+            }
+        })
     }
 
     private fun fillStack(rendered: Rendered, stack: LinearLayout, array: JSONArray?, allowFill: Boolean) {
@@ -163,8 +236,8 @@ object PluginSheet {
         val activity = rendered.activity
         val palette = palette(activity)
         val view: View = when (item.optString("type")) {
-            "heading" -> label(activity, item, 13f, true, palette.muted)
-            "text" -> label(activity, item, 15f, item.optBoolean("bold"), palette.primary)
+            "heading" -> label(activity, item, 13f, true, palette.muted).also { rendered.itemLabels.add(it) }
+            "text" -> label(activity, item, 15f, item.optBoolean("bold"), palette.primary).also { rendered.itemLabels.add(it) }
             "code" -> code(activity, item, palette)
             "image" -> image(activity, item)
             "icon" -> icon(activity, item, palette)
@@ -350,7 +423,6 @@ object PluginSheet {
         val layout = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
         val field = EditText(activity).apply {
             hint = item.optString("placeholder")
-            setText(item.optString("value"))
             setTextColor(palette.primary)
             setHintTextColor(palette.muted)
             background = rounded(palette.surface, dp(activity, CORNER_DP).toFloat())
@@ -360,6 +432,7 @@ object PluginSheet {
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
             filters = arrayOf(InputFilter.LengthFilter(MAXIMUM_INPUT))
         }
+        track(rendered, field, item)
         val submit = Button(activity).apply {
             text = item.optString("submit_label")
             isAllCaps = false
@@ -391,13 +464,13 @@ object PluginSheet {
         }
         val text = EditText(activity).apply {
             hint = item.optString("placeholder")
-            setText(item.optString("value"))
             setTextColor(palette.primary)
             setHintTextColor(palette.muted)
             background = null
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
             filters = arrayOf(InputFilter.LengthFilter(MAXIMUM_INPUT))
         }
+        track(rendered, text, item)
         val send = ImageButton(activity).apply {
             setImageResource(android.R.drawable.ic_menu_send)
             setColorFilter(Color.WHITE)
@@ -411,7 +484,7 @@ object PluginSheet {
             }
         }
         container.addView(text, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        container.addView(send, LinearLayout.LayoutParams(dp(activity, 32), dp(activity, 32)))
+        if (item.optString("action").isNotEmpty()) container.addView(send, LinearLayout.LayoutParams(dp(activity, 32), dp(activity, 32)))
         return container
     }
 

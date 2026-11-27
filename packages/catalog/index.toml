@@ -288,7 +288,7 @@ authors = [{ name = "adrian", id = "224617799434108928" }]
 [[plugins]]
 id = "astral.text-replace"
 name = "Text Replace"
-version = "0.0.1"
+version = "0.0.2"
 description = "Rewrites outgoing message text with literal or Lua pattern rules."
 icon = "TextIcon"
 base = "plugins/astral.text-replace/"

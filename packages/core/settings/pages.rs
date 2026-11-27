@@ -427,6 +427,12 @@ fn author_avatars(plugin: &Value) -> Vec<Value> {
         .collect()
 }
 
+fn has_plugin_settings(plugin: &Value) -> bool {
+    ["switches", "textSettings", "settingsButtons"]
+        .iter()
+        .any(|kind| !array(plugin, kind).is_empty())
+}
+
 fn plugin_card(plugin: &Value) -> Value {
     let version = string(plugin, "version");
     let mut card = json!({
@@ -434,7 +440,7 @@ fn plugin_card(plugin: &Value) -> Value {
         "title": string(plugin, "name"),
         "authors": author_names(plugin),
         "avatars": author_avatars(plugin),
-        "hasSettings": !array(plugin, "switches").is_empty(),
+        "hasSettings": has_plugin_settings(plugin),
         "description": string(plugin, "description"),
         "version": if flag(plugin, "signed") { format!("v{version}") } else { tr_with("ASTRAL_VERSION_UNSIGNED", &[("version", version.clone())]) },
         "icon": plugin_icon(plugin),

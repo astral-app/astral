@@ -686,7 +686,9 @@ function astral.ui.confirm(spec, callback) end
 ---@field round? boolean a circular `image`
 ---@field spacing? number gap between the children of `row` and `column`
 ---@field lines? integer at most this many lines of text
----@field action? string sent to the handler when the item is tapped or the input is submitted
+---@field action? string sent to the handler when the item is tapped or the input is submitted; an `input` without it has no send button
+---@field change_action? string sent with the input's text on every edit
+---@field key? string an `input` keeps its typed text and focus across `update` while its key stays the same
 ---@field height? number fixed height of a scrolling `code` block, or its minimum with `fill`
 ---@field fill? boolean a `code` block grows into the sheet's free space and scrolls inside it
 ---@class astral.Sheet
