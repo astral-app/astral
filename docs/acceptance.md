@@ -2,6 +2,21 @@
 
 Results from running astral on real Phoenix builds. Each row names the device, the Discord build and what was seen. Open problems link to the fix that closes them.
 
+## Phoenix access gate, 2026-11-27
+
+A fresh account outside the Phoenix rollout was used in isolated app copies. The account reached the No Access dialog on Android before the corrected evaluators were patched.
+
+| Device and build | Install path | Result |
+| --- | --- | --- |
+| vphone, iOS 27.2.1, Discord 357.0 (124951) | Injected dylib | Phoenix opens; astral reports two patched evaluators, ready compatibility and native Phoenix settings |
+| vphone, iOS 27.2.1, Discord 357.0 (124951) | Sideload IPA, external astral tweak disabled | Phoenix opens; both evaluators are already patched in the IPA; astral reports ready compatibility and native Phoenix settings |
+| arm64 AVD, Discord 357.0 alpha (357200) | Vector 2.2, API 102 | Phoenix opens across cold relaunches; astral reports access opened; General shows Phoenix and Lua 5.4 |
+| arm64 AVD, Discord 357.0 alpha (357200) | LSPatch 1.2 (487), Vector scope removed | Phoenix opens; astral reports access already open; settings and Plugins render, and General shows Phoenix and Lua 5.4 |
+
+The sideload IPA path was exercised on the vphone with its external astral filter removed; this does not substitute for a separate physical device running stock iOS. App extensions were removed only from the isolated VM installation; the generated IPA retains the required extensions.
+
+The locator validates the experiment descriptor and the two matching evaluator guards. Android needs both immediate and register-offset byte loads, packed ELF relocations and anonymous executable replacement pages for runtime patching. Writing the original file-backed pages prevents execute permission from being restored on the AVD. The Android library links the NDK compiler runtime so cache invalidation resolves at load time.
+
 ## iOS: vphone, Discord 356.0 (124376), jailbroken tweak install
 
 | Area | Result |

@@ -8,7 +8,7 @@ astral is complete when every supported Phoenix behaviour works on iOS and Andro
 | --- | --- |
 | Shared core | Rust: ViewWire rewriter, Lua host, settings navigator, cache, plugins, themes, packs, catalog, `/debug` and diagnostics |
 | iOS | Theos package and sideload IPA; settings, plugins and reports run on the Rust app layer; Phoenix access gate opened for non-testers |
-| Android | Xposed module and LSPatch APK; same Rust app layer; Phoenix access gate opened at build time |
+| Android | Xposed module and LSPatch APK; same Rust app layer; Phoenix access gate opened at runtime or build time |
 | Plugins | 44 signed Lua ports of Unbound plugins ([parity](unbound-parity.md)) |
 | Plugin API | Generic primitives: `ui.patch`, `ui.insert`, `ui.style_text`, sheets, message actions, commands, `discord.request`, `net.intercept`, gateway events, files, media, timers, storage |
 | Tooling | `astral` CLI in Rust; vphone and AVD deploy, dev server, signing, compatibility scans |
@@ -16,7 +16,7 @@ astral is complete when every supported Phoenix behaviour works on iOS and Andro
 ## Open work
 
 1. **Device acceptance.** Run every install mode on the vphone and the AVD, one at a time. Record the Phoenix version, plugin results, settings navigation, packs, backups, restarts and logs.
-2. **Phoenix unlock on a non-tester account.** The access-gate patch is verified to apply without crashing; opening Phoenix on an account outside the test group is still unproven.
+2. **Phoenix compatibility.** A non-tester account opens Phoenix on the vphone and AVD through all four install paths ([acceptance](acceptance.md#phoenix-access-gate-2026-11-27)); repeat these checks when Discord changes the gate.
 3. **Generic APIs.** Long-press on inserted nodes and Discord's markup view, once a plugin needs them.
 4. **API gaps.** Richer inserts (video, Lottie, markup, long-press), `files.info`, Discord settings overrides and a server long-press hook.
 5. **Port parity.** Close the gaps in [unbound-parity.md](unbound-parity.md#known-gaps) and mirror Unbound plugin fixes as they land.

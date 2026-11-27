@@ -1,6 +1,7 @@
 mod apk_signer;
 mod bridge;
 mod facts;
+mod phoenix_access;
 
 use std::sync::{Arc, OnceLock};
 
@@ -683,4 +684,26 @@ pub extern "system" fn Java_app_astral_android_Native_webAuthNewCookies<'local>(
         &text(&mut env, &header),
     );
     java_text(&mut env, &cookies)
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_app_astral_android_Native_preparePhoenixAccess<'local>(
+    mut env: JNIEnv<'local>,
+    _: JClass<'local>,
+    directory: JString<'local>,
+    apks: JObjectArray<'local>,
+) -> jstring {
+    let result = phoenix_access::prepare(&text(&mut env, &directory), &texts(&mut env, &apks));
+    java_text(&mut env, &result.unwrap_or_else(|error| error))
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_app_astral_android_Native_openPhoenixAccess<'local>(
+    mut env: JNIEnv<'local>,
+    _: JClass<'local>,
+) -> jstring {
+    java_text(
+        &mut env,
+        &phoenix_access::open().unwrap_or_else(|error| error),
+    )
 }

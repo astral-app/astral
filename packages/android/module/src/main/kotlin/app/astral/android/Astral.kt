@@ -31,6 +31,7 @@ class Astral : XposedModule() {
         EnvironmentFacts.framework = runCatching { "$frameworkName $frameworkVersion".trim() }.getOrDefault("")
         runCatching { ForcePhoenix.apply(param.applicationInfo.dataDir) }.onFailure { Log.error("Failed to keep Phoenix as Discord's client", it) }
         NativeLibrary.load(moduleApplicationInfo, param.applicationInfo)
+        runCatching { PhoenixAccessGate.install(param.applicationInfo, param.classLoader) }.onFailure { Log.error("Failed to prepare Phoenix access", it) }
         val names = runCatching { PropertyTable.names(param.applicationInfo, param.classLoader) }
             .onFailure { Log.error("Failed to read Phoenix's property table", it) }
             .getOrNull()

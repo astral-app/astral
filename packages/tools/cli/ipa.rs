@@ -207,9 +207,6 @@ fn open_phoenix_access(ipa_path: &Path) -> Result<(), String> {
             ipa_path.display()
         ));
     }
-    if !crate::phoenix::opens_access_gate(&ipa.read(&framework)?) {
-        return Ok(());
-    }
     archive::rewrite(
         ipa_path,
         "phoenix-access",

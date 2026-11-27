@@ -504,6 +504,72 @@ fn view<'a>(view: *const AstralImageView) -> Option<Image<'a>> {
     parse(unsafe { view.as_ref() }?)
 }
 
+fn phoenix_access_gate(image: &Image) -> Option<[u64; 2]> {
+    use super::phoenix_gate;
+    let mut strings = Vec::new();
+    for section in &image.strings {
+        let bytes = image.bytes(section.addr, section.size)?;
+        strings.extend(phoenix_gate::experiment_offsets(bytes).map(|offset| section.addr + offset as u64));
+    }
+    let mut descriptors = Vec::new();
+    for section in &image.data {
+        let bytes = image.bytes(section.addr, section.size)?;
+        for (index, pointer) in bytes.as_chunks::<8>().0.iter().enumerate() {
+            let pointer = u64::from_le_bytes(*pointer);
+            let target = if image.file.is_some() {
+                image.text_base + (pointer & 0xffff_ffff)
+            } else {
+                pointer.wrapping_sub(image.slide as u64)
+            };
+            if strings.contains(&target) {
+                descriptors.push(section.addr + index as u64 * 8);
+            }
+        }
+    }
+    let mut starts = Vec::new();
+    let mut address = image.text_base;
+    let (mut value, mut shift) = (0u64, 0);
+    for byte in image.function_starts()? {
+        if shift >= 64 {
+            return None;
+        }
+        value |= u64::from(byte & 0x7f) << shift;
+        if byte & 0x80 != 0 {
+            shift += 7;
+            continue;
+        }
+        if value == 0 {
+            break;
+        }
+        address = address.checked_add(value)?;
+        if address >= image.text.addr && address < image.text.addr + image.text.size {
+            starts.push(address);
+        }
+        value = 0;
+        shift = 0;
+    }
+    phoenix_gate::evaluators(
+        image.bytes(image.text.addr, image.text.size)?,
+        image.text.addr,
+        &starts,
+        &descriptors,
+    )
+    .ok()
+    .map(|entries| entries.map(|entry| entry - image.text_base))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn astral_locate_phoenix_access_gate(image: *const AstralImageView, out: *mut u64, capacity: usize) -> usize {
+    if out.is_null() || capacity < 2 {
+        return 0;
+    }
+    let Some(entries) = view(image).and_then(|image| phoenix_access_gate(&image)) else {
+        return 0;
+    };
+    unsafe { core::slice::from_raw_parts_mut(out, 2) }.copy_from_slice(&entries);
+    2
+}
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn astral_locate_function_referencing(image: *const AstralImageView, needle: *const c_char) -> u64 {
     if needle.is_null() {

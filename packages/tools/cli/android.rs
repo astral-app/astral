@@ -493,7 +493,7 @@ fn open_phoenix_access(
     patcher: &std::path::Path,
     work: &std::path::Path,
 ) -> Result<(), String> {
-    let mut archive = crate::ipa_archive::Ipa::open(apk)?;
+    let archive = crate::ipa_archive::Ipa::open(apk)?;
     let Some(entry) = archive
         .names()
         .into_iter()
@@ -501,9 +501,6 @@ fn open_phoenix_access(
     else {
         return Ok(());
     };
-    if !crate::phoenix::opens_android_access_gate(&archive.read(&entry)?) {
-        return Ok(());
-    }
     crate::ipa_archive::rewrite(
         apk,
         "phoenix-access",

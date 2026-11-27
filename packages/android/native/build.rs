@@ -48,6 +48,16 @@ fn main() {
     println!("cargo:rustc-link-search=native={}", output.display());
     println!("cargo:rustc-link-lib=static=astral_vendor");
     if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("android") {
+        let builtins = Command::new(&compiler)
+            .arg("--print-libgcc-file-name")
+            .output()
+            .expect("locate compiler runtime");
+        assert!(
+            builtins.status.success(),
+            "could not locate compiler runtime"
+        );
+        let builtins = String::from_utf8(builtins.stdout).expect("compiler runtime path");
+        println!("cargo:rustc-link-arg={}", builtins.trim());
         println!("cargo:rustc-link-lib=log");
         println!("cargo:rustc-link-arg=-Wl,-z,max-page-size=16384");
     }
