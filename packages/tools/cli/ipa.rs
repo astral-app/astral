@@ -149,6 +149,92 @@ pub fn add_url_scheme(ipa_path: &Path, scheme: &str) -> Result<(), String> {
     )
 }
 
+pub const ALTERNATE_ICONS: [&str; 2] = ["AstralIcon", "AstralMidnightIcon"];
+const PHONE_SIZES: [&str; 2] = ["60x60@2x", "60x60@3x"];
+const PAD_SIZES: [&str; 2] = ["76x76@2x~ipad", "83.5x83.5@2x~ipad"];
+
+fn icon_entry(files: &[String]) -> plist::Value {
+    let mut entry = plist::Dictionary::new();
+    entry.insert(
+        "CFBundleIconFiles".into(),
+        plist::Value::Array(files.iter().cloned().map(plist::Value::String).collect()),
+    );
+    entry.insert("UIPrerenderedIcon".into(), plist::Value::Boolean(false));
+    plist::Value::Dictionary(entry)
+}
+
+fn dictionary_at<'a>(
+    parent: &'a mut plist::Dictionary,
+    key: &str,
+) -> Option<&'a mut plist::Dictionary> {
+    if !parent
+        .get(key)
+        .is_some_and(|value| value.as_dictionary().is_some())
+    {
+        parent.insert(
+            key.into(),
+            plist::Value::Dictionary(plist::Dictionary::new()),
+        );
+    }
+    parent
+        .get_mut(key)
+        .and_then(plist::Value::as_dictionary_mut)
+}
+
+pub fn add_icon_entries(info: &mut plist::Dictionary) {
+    for (key, stems) in [
+        ("CFBundleIcons", vec!["60x60"]),
+        ("CFBundleIcons~ipad", vec!["60x60", "76x76", "83.5x83.5"]),
+    ] {
+        let Some(alternates) = dictionary_at(info, key)
+            .and_then(|icons| dictionary_at(icons, "CFBundleAlternateIcons"))
+        else {
+            continue;
+        };
+        for name in ALTERNATE_ICONS {
+            let files: Vec<String> = stems.iter().map(|stem| format!("{name}{stem}")).collect();
+            alternates.insert(name.into(), icon_entry(&files));
+        }
+    }
+}
+
+fn add_alternate_icons(ipa_path: &Path) -> Result<(), String> {
+    let mut ipa = Ipa::open(ipa_path)?;
+    let app = ipa.app()?;
+    let info_path = format!("{app}Info.plist");
+    let data = ipa.read(&info_path)?;
+    let mut info = archive::read_plist(&data)?;
+    add_icon_entries(&mut info);
+    let encoded = archive::write_plist(info, archive::is_binary_plist(&data))?;
+    drop(ipa);
+    let source = repo::root()?.join("packages/ios/app-icons");
+    let mut additions = Vec::new();
+    for name in ALTERNATE_ICONS {
+        for size in PHONE_SIZES.iter().chain(PAD_SIZES.iter()) {
+            let file = format!("{name}{size}.png");
+            let data =
+                std::fs::read(source.join(&file)).map_err(|error| format!("{file}: {error}"))?;
+            additions.push(archive::Addition {
+                name: format!("{app}{file}"),
+                mode: 0o644,
+                data,
+            });
+        }
+    }
+    archive::rewrite(
+        ipa_path,
+        "alternate-icons",
+        |name| {
+            if name != info_path {
+                return Action::Keep;
+            }
+            let encoded = encoded.clone();
+            Action::Patch(Box::new(move |_| Ok(encoded)))
+        },
+        additions,
+    )
+}
+
 pub fn build_open_in_astral(work: &Path, host: &HostApp) -> Result<PathBuf, String> {
     if !cfg!(target_os = "macos") {
         return Err("Safari extensions require macOS".into());
@@ -250,6 +336,8 @@ pub fn build(ipa: &Path, deb: &Path, destination: &Path) -> Result<(), String> {
     )?;
     add_url_scheme(&built, URL_SCHEME)
         .map_err(|error| format!("registering astral's URL scheme failed: {error}"))?;
+    add_alternate_icons(&built)
+        .map_err(|error| format!("adding astral's app icons failed: {error}"))?;
     let extension = build_open_in_astral(&work.0, &host_app(ipa)?)?;
     groups::add_open_in_astral(&built, &extension)?;
     groups::add_extension_manifest(&built, &source_entries, &REQUIRED_EXTENSIONS)

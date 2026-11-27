@@ -1,6 +1,7 @@
 ASTRAL_ABOUT = "概要"
 ASTRAL_ADDONS = "アドオン"
 ASTRAL_ANIMATED_EMOJI = "アニメーション絵文字"
+ASTRAL_APP_ICON = "アプリアイコン"
 ASTRAL_AUTHORS = "作者"
 ASTRAL_AUTOMATIC = "自動"
 ASTRAL_BACKUP = "バックアップ"

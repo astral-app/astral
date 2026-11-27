@@ -183,7 +183,8 @@ fn section(title: &str, rows: Vec<Value>) -> Value {
 }
 
 fn page(title: &str, sections: Vec<Value>) -> Value {
-    json!({"title": title, "sections": objects(Value::Array(sections))})
+    let filled: Vec<Value> = sections.into_iter().filter(|section| !array(section, "rows").is_empty()).collect();
+    json!({"title": title, "sections": objects(Value::Array(filled))})
 }
 
 fn plugin_with_id(identifier: &str) -> Option<Value> {
@@ -872,6 +873,42 @@ fn choice_rows(items: &[Value], active: &str, prefix: &str, icon: &str) -> Vec<V
         .collect()
 }
 
+const APP_ICON_PREFIX: &str = "app-icon.";
+
+fn app_icon_title(name: &str) -> String {
+    let variant = name.strip_prefix("Astral").unwrap_or(name).strip_suffix("Icon").unwrap_or(name);
+    if variant.is_empty() {
+        "astral".into()
+    } else {
+        format!("astral {variant}")
+    }
+}
+
+fn app_icon_rows() -> Vec<Value> {
+    let state = host("appIcons", &json!([]));
+    let icons = array(&state, "icons");
+    if !flag(&state, "supported") || icons.is_empty() {
+        return Vec::new();
+    }
+    let current = string(&state, "current");
+    let choice = |key: &str, title: &str, selected: bool| {
+        row(
+            &format!("{APP_ICON_PREFIX}{key}"),
+            title,
+            "res://astral_galaxy",
+            if selected { ROW_SELECTED } else { ROW_CHOICE },
+        )
+    };
+    let mut rows = vec![choice("", "Discord", current.is_empty())];
+    rows.extend(
+        icons
+            .iter()
+            .filter_map(Value::as_str)
+            .map(|name| choice(name, &app_icon_title(name), current == name)),
+    );
+    rows
+}
+
 fn design_page() -> Value {
     let themes = choice_rows(
         &host_list("themes"),
@@ -914,6 +951,7 @@ fn design_page() -> Value {
         tr("ASTRAL_DESIGN"),
         vec![
             section(tr("ASTRAL_THEMES"), themes),
+            section(tr("ASTRAL_APP_ICON"), app_icon_rows()),
             section(tr("ASTRAL_ICON_PACKS"), packs),
             section(tr("ASTRAL_EMOJI_PACKS"), emoji),
             section(
@@ -1494,6 +1532,9 @@ pub fn action(route: &str, key: &str, changed: Changed) -> Option<String> {
         if key == "switch.emoji-animated" {
             let animated = host("emojiAnimated", &json!([])).as_bool().unwrap_or(false);
             return simple("setEmojiAnimated", &json!([!animated]));
+        }
+        if let Some(icon) = key.strip_prefix(APP_ICON_PREFIX) {
+            return simple("setAppIcon", &json!([icon]));
         }
         if let Some(pack) = key.strip_prefix("icon-pack.") {
             return simple("selectIconPack", &json!([pack]));

@@ -1,6 +1,7 @@
 ASTRAL_ABOUT = "Om"
 ASTRAL_ADDONS = "Tilføjelser"
 ASTRAL_ANIMATED_EMOJI = "Animerede emojis"
+ASTRAL_APP_ICON = "Appikon"
 ASTRAL_AUTHORS = "Forfattere"
 ASTRAL_AUTOMATIC = "Automatisk"
 ASTRAL_BACKUP = "Sikkerhedskopi"

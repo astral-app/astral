@@ -1,6 +1,7 @@
 ASTRAL_ABOUT = "Tentang"
 ASTRAL_ADDONS = "Add-on"
 ASTRAL_ANIMATED_EMOJI = "Emoji animasi"
+ASTRAL_APP_ICON = "Ikon aplikasi"
 ASTRAL_AUTHORS = "Pembuat"
 ASTRAL_AUTOMATIC = "Otomatis"
 ASTRAL_BACKUP = "Cadangan"

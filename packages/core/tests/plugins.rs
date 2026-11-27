@@ -203,14 +203,19 @@ fn theme_parity(work: &Path) {
     on_page("activeTheme", move |_, _| json!(active));
     configure_pages(handle, "0.0.1");
     let design = astral_core::settings::pages::model("design");
-    for section in design["sections"].as_array().into_iter().flatten() {
-        assert!(section["rows"].as_array().is_some_and(|rows| rows.iter().all(Value::is_object)));
+    let sections = design["sections"].as_array().cloned().unwrap_or_default();
+    for section in &sections {
+        assert!(
+            section["rows"]
+                .as_array()
+                .is_some_and(|rows| !rows.is_empty() && rows.iter().all(Value::is_object))
+        );
     }
     let mut converted = false;
     astral_core::settings::navigator::with_spec(&design, |spec| {
         let title = unsafe { core::ffi::CStr::from_ptr(spec.title) };
         assert_eq!(title.to_str(), Ok("Design"));
-        assert_eq!(spec.count, 5);
+        assert_eq!(spec.count, sections.len());
         converted = true;
     });
     assert!(converted);

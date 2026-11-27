@@ -296,6 +296,11 @@ pub extern "C" fn astral_ios_decorations_pending() -> bool {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn astral_ios_refresh_settings() {
+    app::refresh_settings();
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn astral_ios_refresh_decorations() {
     app::refresh_decorations();
 }

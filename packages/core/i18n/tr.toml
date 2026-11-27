@@ -1,6 +1,7 @@
 ASTRAL_ABOUT = "Hakkında"
 ASTRAL_ADDONS = "Eklentiler"
 ASTRAL_ANIMATED_EMOJI = "Hareketli emojiler"
+ASTRAL_APP_ICON = "Uygulama simgesi"
 ASTRAL_AUTHORS = "Yazarlar"
 ASTRAL_AUTOMATIC = "Otomatik"
 ASTRAL_BACKUP = "Yedek"

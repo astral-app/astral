@@ -1,6 +1,7 @@
 ASTRAL_ABOUT = "Névjegy"
 ASTRAL_ADDONS = "Bővítmények"
 ASTRAL_ANIMATED_EMOJI = "Animált emojik"
+ASTRAL_APP_ICON = "Alkalmazásikon"
 ASTRAL_AUTHORS = "Szerzők"
 ASTRAL_AUTOMATIC = "Automatikus"
 ASTRAL_BACKUP = "Biztonsági mentés"

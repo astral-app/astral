@@ -1,6 +1,7 @@
 ASTRAL_ABOUT = "เกี่ยวกับ"
 ASTRAL_ADDONS = "ส่วนเสริม"
 ASTRAL_ANIMATED_EMOJI = "อีโมจิเคลื่อนไหว"
+ASTRAL_APP_ICON = "ไอคอนแอป"
 ASTRAL_AUTHORS = "ผู้สร้าง"
 ASTRAL_AUTOMATIC = "อัตโนมัติ"
 ASTRAL_BACKUP = "สำรองข้อมูล"

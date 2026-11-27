@@ -81,6 +81,10 @@ pub enum Request<'a> {
         message: &'a str,
     },
     RefreshEmoji,
+    AppIcons,
+    SetAppIcon {
+        name: &'a str,
+    },
     OpenReport {
         text: &'a str,
         url: &'a str,

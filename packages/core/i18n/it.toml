@@ -1,6 +1,7 @@
 ASTRAL_ABOUT = "Informazioni"
 ASTRAL_ADDONS = "Componenti aggiuntivi"
 ASTRAL_ANIMATED_EMOJI = "Emoji animate"
+ASTRAL_APP_ICON = "Icona dell'app"
 ASTRAL_AUTHORS = "Autori"
 ASTRAL_AUTOMATIC = "Automatico"
 ASTRAL_BACKUP = "Backup"

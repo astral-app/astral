@@ -1,6 +1,7 @@
 ASTRAL_ABOUT = "Про застосунок"
 ASTRAL_ADDONS = "Доповнення"
 ASTRAL_ANIMATED_EMOJI = "Анімовані емодзі"
+ASTRAL_APP_ICON = "Значок застосунку"
 ASTRAL_AUTHORS = "Автори"
 ASTRAL_AUTOMATIC = "Автоматично"
 ASTRAL_BACKUP = "Резервна копія"
