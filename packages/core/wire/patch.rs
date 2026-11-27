@@ -102,12 +102,14 @@ struct Patched {
     see_through: Vec<i32>,
     background: u32,
     cleared: bool,
+    written: Option<AstralNodePatch>,
 }
 
 struct ScaledText {
     owner: i32,
     base: f64,
     scaled: bool,
+    scale: f64,
 }
 
 #[derive(Default)]
@@ -367,6 +369,10 @@ fn put_original(out: &mut Out, slot: Slot, raw: Option<&RawProp>, properties: &A
 }
 
 fn write_patch(out: &mut Out, id: i32, patched: &mut Patched, patch: &AstralNodePatch) -> bool {
+    if patched.written.as_ref() == Some(patch) {
+        return false;
+    }
+    patched.written = Some(*patch);
     let properties = properties::current();
     let wanted = slot_mask(patch_fields(patch));
     let touched = wanted | patched.applied;
@@ -437,12 +443,13 @@ fn write_scaled(out: &mut Out, scaled: &mut HashMap<i32, ScaledText>, owner: i32
     };
     let mut wrote = false;
     for (id, text) in scaled.iter_mut().filter(|(_, text)| text.owner == owner) {
-        if scale == 1.0 && !text.scaled {
+        if (scale == 1.0 && !text.scaled) || (text.scaled && text.scale == scale) {
             continue;
         }
         out.update(*id, 1);
         out.prop_number(font_size, text.base * scale);
         text.scaled = scale != 1.0;
+        text.scale = scale;
         wrote = true;
     }
     wrote
@@ -486,6 +493,7 @@ fn collect_texts(scaled: &mut HashMap<i32, ScaledText>, bytes: *const u8, spans:
                         owner,
                         base,
                         scaled: false,
+                        scale: 1.0,
                     },
                 );
             }
@@ -504,6 +512,20 @@ fn collect_texts(scaled: &mut HashMap<i32, ScaledText>, bytes: *const u8, spans:
             queue.push((child(data, list, position), depth + 1));
         }
     }
+}
+
+fn reapply_after_update(state: &mut State, id: i32, bytes: *const u8, length: usize, out: &mut Out, changed: &mut c_int) {
+    let Some(patched) = state.patched.get_mut(&id) else { return };
+    let Some(patch) = patched.written.take() else { return };
+    if patched.applied == 0 {
+        patched.written = Some(patch);
+        return;
+    }
+    if *changed == 0 {
+        out.put(unsafe { core::slice::from_raw_parts(bytes, length) });
+    }
+    *changed = 1;
+    write_patch(out, id, patched, &patch);
 }
 
 #[unsafe(export_name = "wirePatchNodes")]
@@ -535,6 +557,10 @@ pub unsafe extern "C" fn wire_patch_nodes(
                     state.patched.remove(&removed);
                     state.scaled.remove(&removed);
                 }
+                continue;
+            }
+            if span.op == Op::Update {
+                reapply_after_update(state, span.id, bytes, length, out, changed);
                 continue;
             }
             if span.op != Op::Create {

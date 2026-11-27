@@ -54,13 +54,24 @@ pub fn lock() -> Held {
     Held
 }
 
+const LOCK_PATIENCE: std::time::Duration = std::time::Duration::from_millis(4);
+const LOCK_RETRY: std::time::Duration = std::time::Duration::from_micros(100);
+
+fn lock_within(patience: std::time::Duration) -> Option<std::sync::MutexGuard<'static, ()>> {
+    let deadline = std::time::Instant::now() + patience;
+    loop {
+        match LOCK.try_lock() {
+            Ok(guard) => return Some(guard),
+            Err(std::sync::TryLockError::Poisoned(poisoned)) => return Some(poisoned.into_inner()),
+            Err(std::sync::TryLockError::WouldBlock) if std::time::Instant::now() < deadline => std::thread::sleep(LOCK_RETRY),
+            Err(std::sync::TryLockError::WouldBlock) => return None,
+        }
+    }
+}
+
 pub fn try_lock() -> Option<Held> {
     if DEPTH.get() == 0 {
-        let guard = match LOCK.try_lock() {
-            Ok(guard) => guard,
-            Err(std::sync::TryLockError::Poisoned(poisoned)) => poisoned.into_inner(),
-            Err(std::sync::TryLockError::WouldBlock) => return None,
-        };
+        let guard = lock_within(LOCK_PATIENCE)?;
         HELD.with(|held| *held.borrow_mut() = Some(guard));
     }
     DEPTH.set(DEPTH.get() + 1);
