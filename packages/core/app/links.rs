@@ -3,7 +3,7 @@ use std::sync::Mutex;
 use serde_json::json;
 
 use super::host::{self, Request};
-use crate::settings::pages::{install_linked, link_package};
+use crate::settings::pages::{install_linked, link_package, linked_installed};
 use crate::support::translations::{tr, tr_with};
 
 pub const PROMPT: u64 = u64::MAX - 1;
@@ -50,7 +50,7 @@ fn prompt(url: &str) {
     let Some((kind, identifier)) = install_target(url) else {
         return;
     };
-    let Some((name, description)) = link_package(&kind, &identifier) else {
+    let Some(package) = link_package(&kind, &identifier) else {
         host::request(Request::ShowToast {
             title: tr("ASTRAL_LINK_UNKNOWN_ADDON"),
             message: &identifier,
@@ -58,14 +58,16 @@ fn prompt(url: &str) {
         return;
     };
     *PENDING.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = Some((kind, identifier));
-    let message = [description.as_str(), tr("ASTRAL_LINK_FROM_MARKETPLACE")]
-        .into_iter()
-        .filter(|line| !line.is_empty())
-        .collect::<Vec<_>>()
-        .join("\n\n");
+    let details = [
+        json!({"icon": "res://ic_mana_shop", "text": tr("ASTRAL_LINK_FROM_MARKETPLACE")}),
+        json!({"icon": "res://ic_mana_shield", "text": tr("ASTRAL_LINK_SIGNED")}),
+    ];
     let spec = json!({
-        "title": tr_with("ASTRAL_LINK_INSTALL_TITLE", &[("name", name)]),
-        "message": message,
+        "title": tr_with("ASTRAL_LINK_INSTALL_TITLE", &[("name", package.name)]),
+        "message": package.description,
+        "icon": package.icon,
+        "subtitle": package.byline,
+        "details": details,
         "image": "",
         "confirm": tr("ASTRAL_LINK_INSTALL"),
         "cancel": tr("ASTRAL_LINK_CANCEL"),
@@ -81,6 +83,21 @@ fn prompt(url: &str) {
 pub fn answered(install: bool) {
     let pending = PENDING.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).take();
     if let Some((kind, identifier)) = pending.filter(|_| install) {
-        std::thread::spawn(move || install_linked(&kind, &identifier));
+        std::thread::spawn(move || {
+            let name = link_package(&kind, &identifier).map(|package| package.name).unwrap_or_default();
+            let (installed_kind, installed_identifier) = (kind.clone(), identifier.clone());
+            let done: crate::support::host_callback::Changed = std::sync::Arc::new(move || {
+                let key = if linked_installed(&installed_kind, &installed_identifier) {
+                    "ASTRAL_LINK_INSTALLED"
+                } else {
+                    "ASTRAL_LINK_INSTALL_FAILED"
+                };
+                host::request(Request::ShowToast {
+                    title: &tr_with(key, &[("name", name.clone())]),
+                    message: "",
+                });
+            });
+            install_linked(&kind, &identifier, done);
+        });
     }
 }

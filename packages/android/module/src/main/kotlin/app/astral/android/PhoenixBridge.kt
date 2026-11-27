@@ -398,7 +398,11 @@ object PhoenixBridge {
                 .setPositiveButton(options.optString("confirm", "OK")) { _, _ -> answer(true) }
                 .setNegativeButton(options.optString("cancel", "Cancel")) { _, _ -> answer(false) }
                 .setOnDismissListener { answer(false) }
-            val message = options.optString("message")
+            val details = options.optJSONArray("details")
+            val lines = (0 until (details?.length() ?: 0)).mapNotNull { details?.optJSONObject(it)?.optString("text") }.filter { it.isNotEmpty() }
+            val message = listOf(options.optString("subtitle"), options.optString("message"), lines.joinToString("\n") { "• $it" })
+                .filter { it.isNotEmpty() }
+                .joinToString("\n\n")
             if (message.isNotEmpty()) builder.setMessage(message)
             val image = options.optString("image")
             if (image.isNotEmpty()) builder.setView(confirmImage(activity, image))

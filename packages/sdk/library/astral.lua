@@ -664,6 +664,9 @@ function astral.ui.alert(title, message) end
 ---@field title string
 ---@field message? string
 ---@field image? string https URL shown above the title
+---@field icon? string a Discord icon name such as "StarIcon", or a res:// URI, shown in a tile above the title
+---@field subtitle? string a short line under the title
+---@field details? { icon?: string, text: string }[] up to 6 rows in a card under the message
 ---@field confirm? string
 ---@field cancel? string
 ---@field destructive? boolean

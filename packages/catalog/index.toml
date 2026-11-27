@@ -34,7 +34,7 @@ authors = [{ name = "V", id = "343383572805058560" }, { name = "adrian", id = "2
 [[plugins]]
 id = "astral.reviewdb"
 name = "ReviewDB"
-version = "0.0.3"
+version = "0.0.4"
 description = "Leave reviews on other users' profiles and see what others think of you."
 icon = "StarIcon"
 base = "plugins/astral.reviewdb/"
