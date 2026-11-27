@@ -400,6 +400,7 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
             &std::path::absolute(&ipa_path).map_err(|error| error.to_string())?,
             &crate::device::newest_deb()?,
             &built,
+            "",
         )?;
         built
     };

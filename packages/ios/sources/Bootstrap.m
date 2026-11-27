@@ -8,6 +8,7 @@
 #import "AstralDynamicCutout.h"
 #import "AstralState.h"
 #import "BrowserLogin.h"
+#import "BuildNumber.h"
 #import "CrashReports.h"
 #import "EmojiComposer.h"
 #import "EngineSelection.h"
@@ -228,6 +229,7 @@ static void ObserveLifecycle(void)
 __attribute__((constructor)) static void AstralBootstrap(void)
 {
     if (!AstralIsDiscordApp()) return;
+    AstralRestoreDiscordBuild();
     AstralInstallBrowserLogin();
     AstralRouteIncomingLinks();
     AstralInstallNetworkFilter(^BOOL {

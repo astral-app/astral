@@ -13,7 +13,7 @@ const CYAN_REPOSITORY: &str = "https://github.com/asdfzxcvbn/pyzule-rw";
 const CYAN_COMMIT: &str = "740d3716dcd98c20c000f12cdb88f1f0b2a533a4";
 const PILLOW_VERSION: &str = "11.3.0";
 pub const URL_SCHEME: &str = "astral";
-const USAGE: &str = "usage: astral build-ipa --ipa <decrypted Discord.ipa> [--deb <astral.deb>] [--output <astral.ipa>]";
+const USAGE: &str = "usage: astral build-ipa --ipa <decrypted Discord.ipa> [--deb <astral.deb>] [--output <astral.ipa>] [--build-suffix <n>]";
 
 fn cyan_binary() -> Result<PathBuf, String> {
     let cache = repo::path(&[".tools-cache", &format!("cyan-{CYAN_COMMIT}")]);
@@ -112,6 +112,43 @@ fn sign_ad_hoc(extension: &Path) -> Result<(), String> {
         ]),
     )
     .map_err(|error| format!("signing OpenInAstral.appex failed: {error}"))
+}
+
+pub const ORIGINAL_BUILD_KEY: &str = "AstralDiscordBuild";
+
+pub fn stamp_build_info(info: &mut plist::Dictionary, suffix: &str) {
+    let original = archive::text(info, "CFBundleVersion");
+    if original.is_empty() || suffix.is_empty() {
+        return;
+    }
+    info.insert(ORIGINAL_BUILD_KEY.into(), original.clone().into());
+    info.insert(
+        "CFBundleVersion".into(),
+        format!("{original}.{suffix}").into(),
+    );
+}
+
+pub fn stamp_build(ipa_path: &Path, suffix: &str) -> Result<(), String> {
+    let mut ipa = Ipa::open(ipa_path)?;
+    let app = ipa.app()?;
+    let info_path = format!("{app}Info.plist");
+    let data = ipa.read(&info_path)?;
+    let mut info = archive::read_plist(&data)?;
+    stamp_build_info(&mut info, suffix);
+    let encoded = archive::write_plist(info, archive::is_binary_plist(&data))?;
+    drop(ipa);
+    archive::rewrite(
+        ipa_path,
+        "build-number",
+        |name| {
+            if name != info_path {
+                return Action::Keep;
+            }
+            let encoded = encoded.clone();
+            Action::Patch(Box::new(move |_| Ok(encoded)))
+        },
+        Vec::new(),
+    )
 }
 
 pub fn bundle_identifier(ipa_path: &Path) -> Result<String, String> {
@@ -307,7 +344,7 @@ fn open_phoenix_access(ipa_path: &Path) -> Result<(), String> {
     )
 }
 
-pub fn build(ipa: &Path, deb: &Path, destination: &Path) -> Result<(), String> {
+pub fn build(ipa: &Path, deb: &Path, destination: &Path, build_suffix: &str) -> Result<(), String> {
     if loads_astral(ipa)? {
         return Err("the IPA already loads astral.dylib; use a clean Discord IPA".into());
     }
@@ -338,6 +375,8 @@ pub fn build(ipa: &Path, deb: &Path, destination: &Path) -> Result<(), String> {
         .map_err(|error| format!("registering astral's URL scheme failed: {error}"))?;
     add_alternate_icons(&built)
         .map_err(|error| format!("adding astral's app icons failed: {error}"))?;
+    stamp_build(&built, build_suffix)
+        .map_err(|error| format!("stamping the build number failed: {error}"))?;
     let extension = build_open_in_astral(&work.0, &host_app(ipa)?)?;
     groups::add_open_in_astral(&built, &extension)?;
     groups::add_extension_manifest(&built, &source_entries, &REQUIRED_EXTENSIONS)
@@ -360,6 +399,7 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
         .string("ipa", "")
         .string("deb", "")
         .string("output", &repo::text(&repo::path(&["astral.ipa"])))
+        .string("build-suffix", "")
         .parse(arguments)?;
     let ipa = flags.get("ipa");
     if ipa.is_empty() {
@@ -372,5 +412,10 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
         deb if deb.is_empty() => device::newest_deb()?,
         deb => absolute(&deb)?,
     };
-    build(&absolute(&ipa)?, &deb, &absolute(&flags.get("output"))?)
+    build(
+        &absolute(&ipa)?,
+        &deb,
+        &absolute(&flags.get("output"))?,
+        &flags.get("build-suffix"),
+    )
 }
