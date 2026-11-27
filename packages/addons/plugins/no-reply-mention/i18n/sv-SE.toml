@@ -1,0 +1,6 @@
+ADD_USER = "Lägg till användare"
+ADD_USER_ID_SUBTITLE = "Svar kan nämna dessa användare när undantaget är aktiverat"
+EXCEPTIONS = "Undantag"
+ONLY_PING_LISTED = "Pinga bara listade användare"
+ONLY_PING_LISTED_OFF = "Svar nämner ingen som standard"
+ONLY_PING_LISTED_ON = "Svar nämner bara användarna som listas ovan"

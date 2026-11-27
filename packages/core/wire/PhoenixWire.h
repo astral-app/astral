@@ -260,7 +260,10 @@ typedef enum {
     AstralPatchTextScale = 1 << 8,
     AstralPatchGradient = 1 << 9,
     AstralPatchSeeThrough = 1 << 10,
-    AstralPatchSelectable = 1 << 11
+    AstralPatchSelectable = 1 << 11,
+    AstralPatchLabelText = 1 << 12,
+    AstralPatchLabelColor = 1 << 13,
+    AstralPatchLabelTint = 1 << 14
 } AstralPatchField;
 
 typedef struct {
@@ -277,6 +280,9 @@ typedef struct {
     double gradientAngle;
     uint32_t gradientStops[8];
     uint32_t gradientCount;
+    char labelText[32];
+    uint32_t labelColor;
+    uint32_t labelTint;
 } AstralNodePatch;
 
 typedef struct {

@@ -1,0 +1,6 @@
+ADD_USER = "Thêm người dùng"
+ADD_USER_ID_SUBTITLE = "Khi bật ngoại lệ, phản hồi có thể nhắc đến những người dùng này"
+EXCEPTIONS = "Ngoại lệ"
+ONLY_PING_LISTED = "Chỉ ping người dùng trong danh sách"
+ONLY_PING_LISTED_OFF = "Theo mặc định, phản hồi không nhắc đến ai"
+ONLY_PING_LISTED_ON = "Phản hồi chỉ nhắc đến những người dùng trong danh sách trên"

@@ -1,0 +1,6 @@
+ADD_USER = "Adaugă utilizator"
+ADD_USER_ID_SUBTITLE = "Răspunsurile pot menționa acești utilizatori când excepția este activată"
+EXCEPTIONS = "Excepții"
+ONLY_PING_LISTED = "Menționează doar utilizatorii din listă"
+ONLY_PING_LISTED_OFF = "Implicit, răspunsurile nu menționează pe nimeni"
+ONLY_PING_LISTED_ON = "Răspunsurile menționează doar utilizatorii de mai sus"

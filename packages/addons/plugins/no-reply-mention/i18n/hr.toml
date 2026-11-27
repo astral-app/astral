@@ -1,0 +1,6 @@
+ADD_USER = "Dodaj korisnika"
+ADD_USER_ID_SUBTITLE = "Odgovori mogu spominjati ove korisnike kad je iznimka uključena"
+EXCEPTIONS = "Iznimke"
+ONLY_PING_LISTED = "Spominji samo navedene korisnike"
+ONLY_PING_LISTED_OFF = "Odgovori prema zadanim postavkama nikoga ne spominju"
+ONLY_PING_LISTED_ON = "Odgovori spominju samo gore navedene korisnike"

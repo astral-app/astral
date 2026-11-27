@@ -1,0 +1,6 @@
+ADD_USER = "Kullanıcı ekle"
+ADD_USER_ID_SUBTITLE = "İstisna etkinken yanıtlar bu kullanıcılardan bahsedebilir"
+EXCEPTIONS = "İstisnalar"
+ONLY_PING_LISTED = "Yalnızca Listedekileri Etiketle"
+ONLY_PING_LISTED_OFF = "Yanıtlar varsayılan olarak kimseden bahsetmez"
+ONLY_PING_LISTED_ON = "Yanıtlar yalnızca yukarıda listelenen kullanıcılardan bahseder"

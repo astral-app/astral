@@ -831,6 +831,7 @@ function astral.ui.style_text(styler) end
 ---@field text_scale? number 0.5 to 3, scales every text inside the node
 ---@field gradient? { angle?: number, colors: (astral.Color|integer|string)[] } a background gradient of up to 8 colours
 ---@field see_through? boolean children painted with this node's own background turn transparent, so a new background shows through
+---@field label? { text?: string, color?: astral.Color|integer|string, tint?: astral.Color|integer|string } sets the text and colour of the texts inside the node and tints its images; the patcher runs again when Discord flips `checked`
 
 ---@param selector string|astral.PatchSelector
 ---@param patcher fun(node: astral.PatchTarget): astral.NodePatch?

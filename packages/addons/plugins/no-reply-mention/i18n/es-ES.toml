@@ -1,0 +1,6 @@
+ADD_USER = "Añadir usuario"
+ADD_USER_ID_SUBTITLE = "Las respuestas pueden mencionar a estos usuarios cuando la excepción está activada"
+EXCEPTIONS = "Excepciones"
+ONLY_PING_LISTED = "Mencionar solo a los usuarios de la lista"
+ONLY_PING_LISTED_OFF = "Las respuestas no mencionan a nadie por defecto"
+ONLY_PING_LISTED_ON = "Las respuestas mencionan solo a los usuarios de la lista anterior"

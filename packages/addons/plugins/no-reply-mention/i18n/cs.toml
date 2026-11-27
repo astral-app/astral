@@ -1,0 +1,6 @@
+ADD_USER = "Přidat uživatele"
+ADD_USER_ID_SUBTITLE = "Když je výjimka zapnutá, odpovědi mohou tyto uživatele zmínit"
+EXCEPTIONS = "Výjimky"
+ONLY_PING_LISTED = "Pingovat jen uvedené uživatele"
+ONLY_PING_LISTED_OFF = "Odpovědi ve výchozím stavu nikoho nezmíní"
+ONLY_PING_LISTED_ON = "Odpovědi zmíní jen uživatele uvedené výše"

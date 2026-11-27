@@ -169,7 +169,7 @@ pub unsafe extern "C" fn astral_lua_patch_node(target: *const AstralPatchTarget,
             let top = unsafe { lua::lua_gettop(state) };
             unsafe {
                 lua::push_reference(state, reference);
-                push_patch_target(state, target, prefix_length, false);
+                push_patch_target(state, target, prefix_length, true);
             }
             if !host::call(plugin, 1, 1, "node patch") {
                 unsafe { lua::lua_settop(state, top) };

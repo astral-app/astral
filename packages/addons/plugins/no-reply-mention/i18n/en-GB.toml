@@ -1,0 +1,6 @@
+ADD_USER = "Add user"
+ADD_USER_ID_SUBTITLE = "Replies can mention these users when the exception is enabled"
+EXCEPTIONS = "Exceptions"
+ONLY_PING_LISTED = "Only Ping Listed Users"
+ONLY_PING_LISTED_OFF = "Replies do not mention anyone by default"
+ONLY_PING_LISTED_ON = "Replies mention only the users listed above"

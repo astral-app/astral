@@ -1,0 +1,6 @@
+ADD_USER = "Lisää käyttäjä"
+ADD_USER_ID_SUBTITLE = "Vastaukset voivat mainita nämä käyttäjät, kun poikkeus on käytössä"
+EXCEPTIONS = "Poikkeukset"
+ONLY_PING_LISTED = "Mainitse vain luetellut käyttäjät"
+ONLY_PING_LISTED_OFF = "Vastaukset eivät oletuksena mainitse ketään"
+ONLY_PING_LISTED_ON = "Vastaukset mainitsevat vain yllä luetellut käyttäjät"
