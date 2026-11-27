@@ -1410,7 +1410,7 @@ pub fn category() -> Value {
     json!({"title": "astral", "rows": [
         {"key": "general", "title": "astral", "icon": "res://astral_galaxy"},
         {"key": "plugins", "title": tr("ASTRAL_PLUGINS"), "icon": "res://ic_mana_puzzle_piece"},
-        {"key": "design", "title": tr("ASTRAL_DESIGN"), "icon": "res://ic_mana_paintbrush_thick"},
+        {"key": "design", "title": tr("ASTRAL_DESIGN"), "icon": "res://ic_mana_paint_palette"},
         {"key": "marketplace", "title": tr("ASTRAL_MARKETPLACE"), "icon": "res://ic_mana_shop"},
         {"key": "updates", "title": tr("ASTRAL_UPDATES"), "icon": "res://ic_mana_download"},
     ]})
