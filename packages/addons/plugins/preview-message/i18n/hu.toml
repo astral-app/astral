@@ -1,0 +1,3 @@
+MESSAGE_PREVIEW = "Üzenet előnézete"
+PREVIEW_FAILED = "Az előnézet sikertelen: {reason}"
+PREVIEW_MESSAGE = "Üzenet előnézete"
