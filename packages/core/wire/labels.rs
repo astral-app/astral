@@ -1,12 +1,14 @@
 use super::tag::{Op, Tag};
 use core::ffi::{c_char, c_int};
 use std::collections::HashMap;
+use std::sync::Mutex;
 
 use super::abi::{
     AstralLabelContext, Callback, LABEL_AUTHOR, LABEL_CHANNEL, LABEL_COMPOSER, LABEL_MEMBER, LABEL_PROFILE, LABEL_REPLY, avatar_user,
     current_channel, prefixed, tracked_author,
 };
 use super::format::{Span, child, property_cursor, type_is};
+use super::out::{AstralWireBuffer, Out};
 use super::properties;
 
 pub type Relabeler = unsafe extern "C" fn(*const AstralLabelContext, *const c_char, usize, *mut c_char, usize) -> c_int;
@@ -21,6 +23,90 @@ const LABEL_DEPTH: usize = 8;
 const LABEL_ROWS: [(&core::ffi::CStr, c_int); 2] = [(c"navigation.channel:", LABEL_CHANNEL), (c"channel.details.member:", LABEL_MEMBER)];
 
 static RELABELER: Callback = Callback::new();
+static SHOWN: Mutex<Option<HashMap<i32, Shown>>> = Mutex::new(None);
+const SHOWN_CAPACITY: usize = 1024;
+
+struct Shown {
+    original: Vec<u8>,
+    context: AstralLabelContext,
+    text: Vec<u8>,
+}
+
+fn with_shown<T>(work: impl FnOnce(&mut HashMap<i32, Shown>) -> T) -> T {
+    let mut guard = SHOWN.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    work(guard.get_or_insert_with(HashMap::new))
+}
+
+fn remember_shown(node: i32, original: &[u8], context: AstralLabelContext, text: &[u8]) {
+    with_shown(|shown| {
+        if shown.len() >= SHOWN_CAPACITY && !shown.contains_key(&node) {
+            shown.clear();
+        }
+        shown.insert(
+            node,
+            Shown {
+                original: original.to_vec(),
+                context,
+                text: text.to_vec(),
+            },
+        );
+    });
+}
+
+fn relabeled(relabeler: Relabeler, context: &AstralLabelContext, original: &[u8]) -> Option<Vec<u8>> {
+    if original.len() >= LABEL_CAPACITY {
+        return None;
+    }
+    let mut terminated = original.to_vec();
+    terminated.push(0);
+    let mut text = [0 as c_char; LABEL_CAPACITY];
+    let written = unsafe {
+        relabeler(
+            context,
+            terminated.as_ptr().cast(),
+            original.len(),
+            text.as_mut_ptr(),
+            LABEL_CAPACITY,
+        )
+    };
+    if written < 0 || written as usize >= LABEL_CAPACITY {
+        return None;
+    }
+    Some(unsafe { core::slice::from_raw_parts(text.as_ptr().cast::<u8>(), written as usize) }.to_vec())
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn astral_wire_refresh_labels(buffer: *mut AstralWireBuffer) -> c_int {
+    let Some(buffer) = (unsafe { buffer.as_mut() }) else { return 0 };
+    *buffer = AstralWireBuffer {
+        bytes: core::ptr::null_mut(),
+        length: 0,
+    };
+    let Some(relabeler) = RELABELER.get::<Relabeler>() else { return 0 };
+    let properties = properties::current();
+    let mut out = Out::batch();
+    let wrote = with_shown(|shown| {
+        let mut wrote = false;
+        for (node, entry) in shown.iter_mut() {
+            let Some(text) = relabeled(relabeler, &entry.context, &entry.original) else {
+                continue;
+            };
+            if text == entry.text {
+                continue;
+            }
+            out.update(*node, 1);
+            out.prop_string(properties.text, &text);
+            entry.text = text;
+            wrote = true;
+        }
+        wrote
+    });
+    if !wrote {
+        out.discard();
+        return 0;
+    }
+    c_int::from(out.finish(buffer))
+}
 
 #[unsafe(no_mangle)]
 pub extern "C" fn astral_wire_set_relabeler(relabeler: Option<Relabeler>) {
@@ -128,6 +214,18 @@ struct Relabel<'a> {
 }
 
 impl Relabel<'_> {
+    fn add_shown(&mut self, node: i32, at: &StringAt, context: &AstralLabelContext) {
+        let original = at.text(self.bytes).to_vec();
+        let edits = self.edits.len();
+        self.add(at, context);
+        let text = if self.edits.len() > edits {
+            self.edits[edits].text.clone()
+        } else {
+            original.clone()
+        };
+        remember_shown(node, &original, *context, &text);
+    }
+
     fn add(&mut self, at: &StringAt, context: &AstralLabelContext) {
         if self.edits.len() >= MAX_EDITS || at.length >= LABEL_CAPACITY {
             return;
@@ -303,7 +401,13 @@ fn collect(relabel: &mut Relabel, spans: &[Span]) {
     let mut authors: Vec<(i32, u64)> = Vec::new();
     for span in spans {
         let data = &bytes[..span.end];
-        if span.op == Op::SetChildren {
+        if span.op == Op::Remove {
+            with_shown(|shown| {
+                for position in 0..span.child_count {
+                    shown.remove(&child(data, span, position));
+                }
+            });
+        } else if span.op == Op::SetChildren {
             for position in 0..span.child_count {
                 if links.len() < MAX_LINKS {
                     links.entry(child(data, span, position)).or_insert(span.id);
@@ -335,7 +439,7 @@ fn collect(relabel: &mut Relabel, spans: &[Span]) {
         if message != 0
             && let Some(text) = string_at(data, span, properties.text)
         {
-            relabel.add(&text, &label_context(LABEL_AUTHOR, message, current_channel(), 0));
+            relabel.add_shown(span.id, &text, &label_context(LABEL_AUTHOR, message, current_channel(), 0));
             continue;
         }
         if span.op != Op::Create || !contains(bytes, span, b"replyPreview") {

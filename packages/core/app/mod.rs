@@ -367,6 +367,7 @@ pub fn pending_updates() -> Vec<u8> {
         collect(&mut merged, |buffer| unsafe {
             wire::decorate::astral_wire_refresh_author_tags(buffer)
         });
+        collect(&mut merged, |buffer| unsafe { wire::labels::astral_wire_refresh_labels(buffer) });
         collect(&mut merged, |buffer| unsafe {
             wire::decorate::astral_wire_refresh_message_backgrounds(buffer)
         });

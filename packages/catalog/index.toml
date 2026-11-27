@@ -141,7 +141,7 @@ authors = [
 [[plugins]]
 id = "astral.message-logger"
 name = "Message Logger"
-version = "0.0.1"
+version = "0.0.2"
 description = "Keeps deleted messages in the chat in red and shows what edited messages said before."
 icon = "EyeSlashIcon"
 base = "plugins/astral.message-logger/"
