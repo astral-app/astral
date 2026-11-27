@@ -103,7 +103,7 @@ const COMMANDS: &[(&str, &str, Run)] = &[
         sideload::run,
     ),
     ("sign", "sign [--key <pem>]", signing::run),
-    ("stage", "stage <directory>", stage::run),
+    ("stage", "stage [--catalog] <directory>", stage::run),
     ("test", "test [--phoenix <PhoenixFatClient>]", test::run),
     (
         "vphone",

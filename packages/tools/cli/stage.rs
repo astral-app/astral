@@ -2,6 +2,32 @@ use std::path::Path;
 
 use crate::files;
 use crate::repo;
+use crate::signing;
+
+fn stage_plugin(folder: &Path, destination: &Path) -> Result<(), String> {
+    let mut paths = signing::signed_paths(folder)?;
+    paths.push("signature".into());
+    for path in paths {
+        files::copy(&folder.join(&path), &destination.join(&path))?;
+    }
+    Ok(())
+}
+
+pub fn stage_catalog(target: &Path) -> Result<(), String> {
+    if target.exists() {
+        std::fs::remove_dir_all(target).map_err(|error| error.to_string())?;
+    }
+    for folder in repo::plugin_folders()? {
+        let manifest = signing::read_manifest(&folder)?;
+        stage_plugin(&folder, &target.join("plugins").join(&manifest.id))?;
+    }
+    files::copy_glob(&repo::path(&["packages", "catalog", "index.toml*"]), target)?;
+    files::copy_glob(
+        &repo::path(&["packages", "catalog", "themes", "*.toml"]),
+        &target.join("themes"),
+    )?;
+    Ok(())
+}
 
 pub fn stage_resources(target: &Path) -> Result<(), String> {
     if target.exists() {
@@ -51,8 +77,9 @@ pub fn stage_resources(target: &Path) -> Result<(), String> {
 }
 
 pub fn run(arguments: &[String]) -> Result<(), String> {
-    let [target] = arguments else {
-        return Err("usage: astral stage <directory>".into());
-    };
-    stage_resources(Path::new(target))
+    match arguments {
+        [flag, target] if flag == "--catalog" => stage_catalog(Path::new(target)),
+        [target] => stage_resources(Path::new(target)),
+        _ => Err("usage: astral stage [--catalog] <directory>".into()),
+    }
 }
