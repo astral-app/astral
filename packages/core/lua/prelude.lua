@@ -212,6 +212,7 @@ end
 Color.Black = Color.new(0xFF000000)
 Color.White = Color.new(0xFFFFFFFF)
 Color.Blurple = Color.new(0xFF5865F2)
+Color.Muted = Color.new(0xFF949BA4)
 
 function Color.contrasting(backgrounds)
 	local white, black = math.huge, math.huge
@@ -270,6 +271,14 @@ end
 function Pill:build()
 	if self.icon then
 		return { icon = self.icon, text = self.text, tint = self.tint and self.tint.value or nil }
+	end
+	if self.shape == astral.Shape.Text then
+		return {
+			text = self.text,
+			color = 0,
+			text_color = (self.text_color or Color.Muted).value,
+			shape = self.shape,
+		}
 	end
 	local stops = #self.stops > 0 and self.stops or { Color.Blurple }
 	local built = {

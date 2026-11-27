@@ -109,6 +109,7 @@ lua_enums! {
     Shape {
         Pill = "pill",
         Op = "op",
+        Text = "text",
     }
     Event {
         AppForeground = "app.foreground",

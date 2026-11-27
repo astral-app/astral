@@ -111,7 +111,7 @@ authors = [{ name = "adrian", id = "224617799434108928" }]
 [[plugins]]
 id = "astral.pronoundb"
 name = "PronounDB"
-version = "0.0.1"
+version = "0.0.2"
 description = "Shows people's pronouns from PronounDB beside their name in messages."
 icon = "UserCircleIcon"
 base = "plugins/astral.pronoundb/"

@@ -1,10 +1,10 @@
 id = "astral.pronoundb"
 name = "PronounDB"
 description = "Shows people's pronouns from PronounDB beside their name in messages."
-version = "0.0.1"
+version = "0.0.2"
 icon = "UserCircleIcon"
 main = "main.lua"
-permissions = ["network"]
+permissions = ["network", "discord.api"]
 
 [[authors]]
 name = "Tyman"

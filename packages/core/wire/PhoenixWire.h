@@ -99,6 +99,7 @@ typedef enum {
     kAstralTagPill,
     kAstralTagOriginalPoster,
     kAstralTagIcon,
+    kAstralTagText,
 } AstralTagShape;
 
 typedef struct {

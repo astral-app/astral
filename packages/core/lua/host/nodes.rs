@@ -44,6 +44,7 @@ const INSERT_ALIGN: u32 = 1 << 15;
 const TAG_PILL: c_int = 0;
 const TAG_ORIGINAL_POSTER: c_int = 1;
 const TAG_ICON: c_int = 2;
+const TAG_TEXT: c_int = 3;
 
 fn plugin_icon_uri(plugin: &Plugin, icon: &str) -> Option<String> {
     if icon.len() >= 500 {
@@ -776,10 +777,10 @@ unsafe fn collect_tags(state: *mut LuaState, plugin: &Plugin, tags: &mut [Astral
                     }
                     lua::pop(state, 1);
                 }
-                tag.shape = if unsafe { field_text(state, "shape") }.as_deref() == Some("op") {
-                    TAG_ORIGINAL_POSTER
-                } else {
-                    TAG_PILL
+                tag.shape = match unsafe { field_text(state, "shape") }.as_deref() {
+                    Some("op") => TAG_ORIGINAL_POSTER,
+                    Some("text") => TAG_TEXT,
+                    _ => TAG_PILL,
                 };
             }
         }
