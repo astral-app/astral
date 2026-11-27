@@ -16,7 +16,7 @@ authors = [{ name = "adrian", id = "224617799434108928" }]
 [[plugins]]
 id = "astral.sticker-preview"
 name = "Sticker Preview"
-version = "0.0.1"
+version = "0.0.2"
 description = "Displays a preview of a selected sticker instead of sending it immediately."
 icon = "StickerIcon"
 base = "plugins/astral.sticker-preview/"

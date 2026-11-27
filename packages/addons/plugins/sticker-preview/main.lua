@@ -1,7 +1,15 @@
 local STICKER_LOCATION = "sticker_reply"
 local SEND_PLACEHOLDER = "\u{200B}"
-local PREVIEW_SIZE = 72
-local STICKER_URL = "https://media.discordapp.net/stickers/%s.webp?size=160&quality=lossless"
+local PREVIEW_SIZE = 80
+local STICKER_SIZE = 76
+local FRAME_RADIUS = 12
+local STICKER_RADIUS = 8
+local FRAME_BACKGROUND = "#2B2D31"
+local FRAME_BORDER = 0x14FFFFFF
+local MEDIA = "https://media.discordapp.net/stickers/"
+local FORMAT_APNG, FORMAT_LOTTIE, FORMAT_GIF = 2, 3, 4
+
+local formats = {}
 
 local staged = {}
 local pending = {}
@@ -23,6 +31,42 @@ local function location(request)
 	local decoded = astral.base64.decode(encoded)
 	local properties = decoded and astral.json.decode(decoded)
 	return type(properties) == "table" and properties.location or nil
+end
+
+local function learn_format(id)
+	if formats[id] ~= nil then
+		return
+	end
+	formats[id] = false
+	pcall(function()
+		astral.discord.request({ path = "/stickers/" .. id }, function(response)
+			local ok, sticker = pcall(astral.json.decode, response and response.ok and response.body or "")
+			formats[id] = ok and type(sticker) == "table" and math.tointeger(sticker.format_type) or false
+			astral.ui.refresh()
+		end)
+	end)
+end
+
+local function sticker_node(id)
+	learn_format(id)
+	local format = formats[id]
+	local node = { width = STICKER_SIZE, height = STICKER_SIZE, radius = STICKER_RADIUS, fixed = true }
+	if format == FORMAT_LOTTIE then
+		node.type = astral.InsertNodeType.Lottie
+		node.uri = MEDIA .. id .. ".json"
+		return node
+	end
+	node.type = astral.InsertNodeType.Image
+	if format == FORMAT_GIF then
+		node.icon = MEDIA .. id .. ".gif?size=160"
+		node.animated = true
+	elseif format == FORMAT_APNG then
+		node.icon = MEDIA .. id .. ".png?size=160"
+		node.animated = true
+	else
+		node.icon = MEDIA .. id .. ".webp?size=160&quality=lossless"
+	end
+	return node
 end
 
 local function stickers_in(channel_id)
@@ -139,17 +183,24 @@ astral.ui.insert({ id = "composer.attachments^^^^^^^^" }, function(node)
 	for index, id in ipairs(stickers) do
 		previews[#previews + 1] = {
 			type = astral.InsertNodeType.View,
-			background = "#2B2D31",
-			radius = 16,
-			padding = 8,
+			background = FRAME_BORDER,
+			radius = FRAME_RADIUS,
+			padding = 1,
+			width = PREVIEW_SIZE,
+			height = PREVIEW_SIZE,
+			fixed = true,
 			margin = { 8, 0, 0, 0 },
 			action = "remove_" .. index,
 			children = {
 				{
-					type = astral.InsertNodeType.Image,
-					icon = string.format(STICKER_URL, id),
-					width = PREVIEW_SIZE,
-					height = PREVIEW_SIZE,
+					type = astral.InsertNodeType.View,
+					background = FRAME_BACKGROUND,
+					radius = FRAME_RADIUS - 1,
+					fill = true,
+					fill_height = true,
+					justify = astral.Justify.Center,
+					align = astral.Align.Center,
+					children = { sticker_node(id) },
 				},
 			},
 		}

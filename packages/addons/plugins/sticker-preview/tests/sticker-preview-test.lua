@@ -1,4 +1,5 @@
 local interceptor, inserter, presser, composer, dispatched = nil, nil, nil, "", nil
+local sticker_reply
 astral = {
 	log = function() end,
 	net = {
@@ -19,6 +20,8 @@ astral = {
 				return { content = "", nonce = "5", sticker_ids = { "77" } }
 			elseif text == "typed" then
 				return { content = "\u{200B}hi", nonce = "6" }
+			elseif text == '{"format_type":4}' then
+				return { format_type = 4 }
 			end
 			return nil
 		end,
@@ -27,6 +30,11 @@ astral = {
 		end,
 		array = function()
 			return {}
+		end,
+	},
+	discord = {
+		request = function(_, fn)
+			sticker_reply = fn
 		end,
 	},
 	time = {
@@ -66,7 +74,13 @@ assert(answer.status == 200 and dispatched.data.id == "5")
 assert(composer == "\u{200B}")
 local preview = inserter.build({ channel_id = "9" })
 assert(preview.justify == astral.Justify.End and preview.children[1].action == "remove_1")
-assert(preview.children[1].children[1].icon:find("/stickers/77.webp", 1, true))
+local frame = preview.children[1]
+assert(frame.width == 80 and frame.radius == 12)
+local sticker = frame.children[1].children[1]
+assert(sticker.width == 76 and sticker.icon:find("/stickers/77.webp", 1, true))
+sticker_reply({ ok = true, body = '{"format_type":4}' })
+sticker = inserter.build({ channel_id = "9" }).children[1].children[1].children[1]
+assert(sticker.animated and sticker.icon:find("/stickers/77.gif", 1, true))
 
 local rewritten = interceptor.request({ id = 2, path = "/api/v9/channels/9/messages", headers = {}, body = "typed" })
 assert(rewritten.body == "content=hi;stickers=77")
