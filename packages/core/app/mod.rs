@@ -3,6 +3,7 @@ mod dev;
 mod discord;
 pub mod exchange;
 mod ffi;
+pub mod guest_event;
 pub mod host;
 pub mod network;
 mod pages;
@@ -55,6 +56,7 @@ fn now_seconds() -> i64 {
 }
 
 fn resolve_properties(names: &[String]) -> usize {
+    guest_event::remember(names);
     if names.is_empty() {
         return 0;
     }

@@ -220,33 +220,6 @@ pub extern "system" fn Java_app_astral_android_Native_eval<'local>(
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_app_astral_android_Native_press<'local>(
-    _: JNIEnv<'local>,
-    _: JClass<'local>,
-    node: jint,
-) -> jboolean {
-    flag(app::press(node))
-}
-
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_app_astral_android_Native_pressInsertedNode<'local>(
-    _: JNIEnv<'local>,
-    _: JClass<'local>,
-    node: jint,
-) -> jboolean {
-    flag(app::press_inserted_node(node))
-}
-
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_app_astral_android_Native_pressMessageAction<'local>(
-    _: JNIEnv<'local>,
-    _: JClass<'local>,
-    node: jint,
-) -> jboolean {
-    flag(app::press_message_action(node))
-}
-
-#[unsafe(no_mangle)]
 pub extern "system" fn Java_app_astral_android_Native_composerEvent<'local>(
     mut env: JNIEnv<'local>,
     _: JClass<'local>,
@@ -255,16 +228,6 @@ pub extern "system" fn Java_app_astral_android_Native_composerEvent<'local>(
     let event = bytes(&mut env, &event);
     let before = app::composer_event(&event);
     java_bytes(&mut env, before)
-}
-
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_app_astral_android_Native_touchMessage<'local>(
-    _: JNIEnv<'local>,
-    _: JClass<'local>,
-    node: jint,
-    row: jlong,
-) {
-    app::touch_message(node, row);
 }
 
 #[unsafe(no_mangle)]
@@ -292,17 +255,6 @@ pub extern "system" fn Java_app_astral_android_Native_tweenFrame<'local>(
 ) -> jbyteArray {
     let frame = app::tween_frame(now_ms);
     java_bytes(&mut env, Some(frame))
-}
-
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_app_astral_android_Native_slide<'local>(
-    mut env: JNIEnv<'local>,
-    _: JClass<'local>,
-    node: jint,
-    payload: JByteArray<'local>,
-) -> jboolean {
-    let payload = bytes(&mut env, &payload);
-    flag(app::slide(node, &payload))
 }
 
 #[unsafe(no_mangle)]
@@ -671,4 +623,14 @@ pub extern "system" fn Java_app_astral_android_Native_networkAbandon<'local>(
     exchange: jni::sys::jlong,
 ) {
     app::exchange::abandon(u64::try_from(exchange).unwrap_or_default());
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_app_astral_android_Native_guestEvent<'local>(
+    env: JNIEnv<'local>,
+    _: JClass<'local>,
+    event: JByteArray<'local>,
+) -> jni::sys::jint {
+    let bytes = env.convert_byte_array(&event).unwrap_or_default();
+    app::guest_event::handle(&bytes)
 }
