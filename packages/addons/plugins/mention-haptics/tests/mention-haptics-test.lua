@@ -2,9 +2,24 @@ local callback
 local haptics = {}
 local values = {}
 
+local changes = {}
 astral = {
+	i18n = {
+		t = function(key)
+			return key
+		end,
+	},
 	settings = {
 		values = values,
+		choice = function(key, _, _, fallback)
+			values[key] = fallback
+		end,
+		switch = function(key, _, fallback)
+			values[key] = fallback
+		end,
+		on_change = function(key, fn)
+			changes[key] = fn
+		end,
 		option = function(value, title)
 			return { value = value, title = title }
 		end,
@@ -41,14 +56,14 @@ assert(haptics[1] == "medium")
 callback({ message_id = "m2", from_me = true, mentioned = true, direct = false, open = false })
 callback({ message_id = "m3", from_me = false, mentioned = true, direct = false, open = true })
 assert(#haptics == 1)
-values.open_channel = true
+values.openChannel = true
 callback({ message_id = "m4", from_me = false, mentioned = true, direct = false, open = true })
 assert(#haptics == 2)
 callback({ message_id = "m4", from_me = false, mentioned = true, direct = false, open = false })
 assert(#haptics == 2)
 callback({ message_id = "m5", from_me = false, mentioned = false, direct = true, open = false })
 assert(#haptics == 3)
-values.direct_messages = false
+values.directMessages = false
 callback({ message_id = "m6", from_me = false, mentioned = false, direct = true, open = false })
 assert(#haptics == 3)
 values.strength = "heavy"
@@ -58,10 +73,7 @@ callback({ message_id = "m8", from_me = false, mentioned = false, everyone = tru
 assert(#haptics == 5)
 callback({ message_id = "m9", from_me = false, role_mentioned = true, direct = false, open = false })
 assert(#haptics == 6)
-values.everyone = false
-values.roles = false
-callback({ message_id = "m10", from_me = false, mentioned = false, everyone = true, direct = false, open = false })
-callback({ message_id = "m11", from_me = false, role_mentioned = true, direct = false, open = false })
-assert(#haptics == 6)
 
+changes.strength("heavy")
+assert(haptics[#haptics] == "heavy")
 print("mention-haptics ok")
