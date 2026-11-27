@@ -54,6 +54,7 @@ class Astral : XposedModule() {
         runCatching { ResourceImages.install(this, param.applicationInfo, resources) }.onFailure { Log.error("Failed to install astral's images", it) }
         Capture.configure(param.applicationInfo.dataDir)
         PhoenixBridge.install(this, param.classLoader)
+        runCatching { GuestSource.install(this, param.classLoader) }.onFailure { Log.error("Failed to watch where Phoenix loads its app code", it) }
         runCatching { EmojiComposer.install(this) }.onFailure { Log.error("Failed to install emoji composer support", it) }
         runCatching { NavigationBack.install(this, param.classLoader) }.onFailure { Log.error("Failed to route system back", it) }
         runCatching { IncomingLinks.install(this) }.onFailure { Log.error("Failed to route incoming astral links", it) }

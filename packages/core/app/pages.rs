@@ -196,6 +196,7 @@ fn dispatch(current: &App, method: Method, arguments: &Arguments, reply: Option<
         }),
         Method::Context => json!({
             "recovering": current.recovering(),
+            "appCode": super::guest_source::current().map_or("", |source| if source.bundled { "built-in" } else { "ota" }),
             "discordVersion": current.discord_version,
             "compatibility": READY,
         }),

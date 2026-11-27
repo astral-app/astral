@@ -240,6 +240,7 @@ fn reports_section() -> Value {
 
 struct Context {
     recovering: bool,
+    app_code: String,
     discord_version: String,
     compatibility: String,
 }
@@ -248,9 +249,24 @@ fn context() -> Context {
     let value = host("context", &json!([]));
     Context {
         recovering: flag(&value, "recovering"),
+        app_code: string(&value, "appCode"),
         discord_version: string(&value, "discordVersion"),
         compatibility: string(&value, "compatibility"),
     }
+}
+
+fn app_code_row(app_code: &str) -> Value {
+    if app_code.is_empty() {
+        return Value::Null;
+    }
+    let ota = app_code == "ota";
+    with(
+        row("app-code", tr("ASTRAL_APP_CODE"), "res://ic_mana_download", ROW_INFO),
+        json!({
+            "detail": if ota { tr("ASTRAL_APP_CODE_OTA") } else { tr("ASTRAL_APP_CODE_BUILT_IN") },
+            "subtitle": if ota { tr("ASTRAL_OTA_GUEST_MESSAGE") } else { "" },
+        }),
+    )
 }
 
 fn general_page(context: &Context) -> Value {
@@ -334,6 +350,7 @@ fn general_page(context: &Context) -> Value {
             section(
                 tr("ASTRAL_DIAGNOSTICS"),
                 vec![
+                    app_code_row(&context.app_code),
                     with(
                         row("recovery", tr("ASTRAL_RECOVERY"), "res://ic_mana_refresh", ROW_INFO),
                         json!({"detail": if context.recovering { tr("ASTRAL_PLUGINS_PAUSED_AFTER_A_CRASH") } else { tr("ASTRAL_NORMAL") }}),
