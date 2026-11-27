@@ -1,4 +1,4 @@
-signature = "X1DEkwy2CwUzMVaFOYOUGWc0YYosbJft7arbNLeWx2he/Uj2+wHbcKXBxzoQBBlu18958HcgbHSrTRp2FIexAA=="
+signature = "Bz6auFq0ypdcBDodbPz6+cBucwb39mDCH6nCuGaTj52jX6Lnm3BrNe+CI3viMUqupNQ3s3OnEzKrakX9vO14Bg=="
 
 [files]
 "icons/ic_mana_accessibility@3x.png" = "560c3ab8f90fc878551974862c2ff2b643c278e12aac52529e1de09471cbf186"
@@ -398,4 +398,4 @@ signature = "X1DEkwy2CwUzMVaFOYOUGWc0YYosbJft7arbNLeWx2he/Uj2+wHbcKXBxzoQBBlu189
 "icons/ic_mana_x_small_bold@3x.png" = "0f679644dc9e5df488395b4e6b9274554f4b50ad62ee1d7806a6d1383c578ea3"
 "icons/ic_mana_xbox_neutral@3x.png" = "7994d1f6b43c80ffba7b173d23b4cbd11d2d82ac94c5c65a11da78b01596b06a"
 "icons/ic_mana_youtube_neutral@3x.png" = "582e4438543a3c40b7d868bbae2ba4d8c2e027ef09dbeb6a32336bebb9e100c5"
-"manifest.toml" = "da9f3a03358b1b50b330b4e6644eed4ec3013b0aa930e19593c028a0ceb65a1c"
+"manifest.toml" = "2ac1f838bea214df4426e9048fc385c91ec4b93b1da11e5f2a32ea51a7b15a09"

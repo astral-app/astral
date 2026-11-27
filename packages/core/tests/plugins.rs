@@ -128,7 +128,10 @@ fn shared_packs(work: &Path) {
     );
     write(&local.join("emoji-packs/sample/coverage.txt"), "1f600\r\n1f469+1f4bb\n2764!\n");
     write(&local.join("emoji-packs/sample/animated.txt"), "1f600\n");
-    write(&bundled.join("icon-packs/sample/manifest.toml"), "id = 'sample'\nname = 'Icons'\n");
+    write(
+        &bundled.join("icon-packs/sample/manifest.toml"),
+        "id = 'sample'\nname = 'Icons'\n[aliases]\nic_alias = 'ic_test'\nic_escape = '../secret'\n",
+    );
     write(&bundled.join("icon-packs/sample/icons/ic_test@2x.png"), "two");
     let handle = settings(&local);
     let packs = Packs::open(handle, &local, &bundled);
@@ -149,6 +152,8 @@ fn shared_packs(work: &Path) {
         packs.icon("ic_test"),
         bundled.join("icon-packs/sample/icons/ic_test@2x.png").to_string_lossy()
     );
+    assert_eq!(packs.icon("ic_alias"), packs.icon("ic_test"));
+    assert!(packs.icon("ic_escape").is_empty());
     assert!(packs.icon("ic_../../secret").is_empty());
     assert!(packs.select(PACK_ICONS, "discord") && packs.icon("ic_test").is_empty());
     assert!(packs.select(PACK_EMOJI, "discord") && packs.emoji("1f600").is_empty());

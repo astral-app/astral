@@ -21,6 +21,7 @@ struct Cache {
     animated_coverage: HashSet<String>,
     loaded_icons: Option<String>,
     icon_directory: String,
+    icon_aliases: HashMap<String, String>,
     icon_paths: HashMap<String, String>,
 }
 
@@ -50,6 +51,25 @@ fn lines(directory: &str, name: &str) -> HashSet<String> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+fn icon_aliases(pack: &Value) -> HashMap<String, String> {
+    pack.get("aliases")
+        .and_then(Value::as_object)
+        .into_iter()
+        .flatten()
+        .filter_map(|(name, target)| Some((name.clone(), target.as_str()?.to_owned())))
+        .filter(|(name, target)| safe_name(name) && safe_name(target))
+        .collect()
+}
+
+fn icon_file(directory: &str, name: &str) -> Option<String> {
+    [3, 2, 1]
+        .into_iter()
+        .filter(|_| !directory.is_empty())
+        .filter_map(|scale| resolve_inside(directory.as_bytes(), format!("icons/{name}@{scale}x.png").as_bytes()))
+        .map(|file| String::from_utf8_lossy(&file).into_owned())
+        .find(|file| std::path::Path::new(file).exists())
 }
 
 fn coverage_key(codepoints: &str) -> String {
@@ -153,16 +173,13 @@ impl AstralPacksHandle {
             (cache.loaded_icons.as_deref() == Some(active.as_str())).then(|| cache.icon_directory.clone())
         };
         let directory = directory.unwrap_or_else(|| {
-            let found = self
-                .list(ICON_PACKS)
-                .iter()
-                .rev()
-                .find(|pack| text(pack, "id") == active)
-                .map(|pack| text(pack, "directory"))
-                .unwrap_or_default();
+            let pack = self.list(ICON_PACKS).into_iter().rev().find(|pack| text(pack, "id") == active);
+            let found = pack.as_ref().map(|pack| text(pack, "directory")).unwrap_or_default();
+            let aliases = pack.as_ref().map(icon_aliases).unwrap_or_default();
             let mut cache = self.cache.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
             cache.loaded_icons = Some(active.clone());
             cache.icon_directory = found.clone();
+            cache.icon_aliases = aliases;
             cache.icon_paths.clear();
             found
         });
@@ -173,12 +190,9 @@ impl AstralPacksHandle {
         if cache.icon_paths.len() >= ICON_CACHE_LIMIT {
             cache.icon_paths.clear();
         }
-        let found = [3, 2, 1]
-            .into_iter()
-            .filter(|_| !directory.is_empty())
-            .filter_map(|scale| resolve_inside(directory.as_bytes(), format!("icons/{name}@{scale}x.png").as_bytes()))
-            .map(|file| String::from_utf8_lossy(&file).into_owned())
-            .find(|file| std::path::Path::new(file).exists())
+        let alias = cache.icon_aliases.get(name).map(String::as_str);
+        let found = icon_file(&directory, name)
+            .or_else(|| alias.and_then(|alias| icon_file(&directory, alias)))
             .unwrap_or_default();
         cache.icon_paths.insert(name.to_owned(), found.clone());
         found
