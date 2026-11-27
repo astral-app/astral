@@ -1,0 +1,68 @@
+name: Assemble the site
+description: Builds the GitHub Pages site (AltStore source, APT repo, marketplace catalog) and uploads it as the Pages artifact.
+
+inputs:
+  ipa:
+    description: A new sideload IPA to add to the AltStore source
+    default: ""
+  ipa-url:
+    description: Where the new IPA is downloaded from
+    default: ""
+  description:
+    description: The new version's release notes
+    default: ""
+  token:
+    description: A token that can read the repository's releases
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Assemble
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        IPA: ${{ inputs.ipa }}
+        IPA_URL: ${{ inputs.ipa-url }}
+        DESCRIPTION: ${{ inputs.description }}
+        SITE_URL: https://astral-app.github.io/astral
+      run: |
+        set -euo pipefail
+        rm -rf site && mkdir -p site/repo/debs
+        touch site/.nojekyll
+        cp packages/release/icon.png site/icon.png
+        cp packages/release/icon.png site/repo/CydiaIcon.png
+        if ! curl --fail --silent --show-error --location "$SITE_URL/app-repo.json" -o site/app-repo.json; then
+          cp packages/release/app-repo.json site/app-repo.json
+        fi
+        if [ -n "$IPA" ]; then
+          astral feed app-source --source site/app-repo.json --ipa "$IPA" --url "$IPA_URL" --date "$(date -u +%Y-%m-%d)" --description "$DESCRIPTION"
+        fi
+        gh release list --repo "$GITHUB_REPOSITORY" --limit 20 --json tagName,isPrerelease \
+          --jq '.[] | select(.isPrerelease and (.tagName | test("-alpha\\."))) | .tagName' | head -5 |
+          while read -r tag; do
+            gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern '*.deb' --dir site/repo/debs --clobber || true
+          done
+        if [ -n "$(find site/repo/debs -name '*.deb' -print -quit)" ]; then
+          sudo apt-get update -qq && sudo apt-get install -y -qq apt-utils >/dev/null
+          (
+            cd site/repo
+            apt-ftparchive packages debs > Packages
+            gzip -9kf Packages
+            apt-ftparchive \
+              -o APT::FTPArchive::Release::Origin=astral \
+              -o APT::FTPArchive::Release::Label=astral \
+              -o APT::FTPArchive::Release::Suite=stable \
+              -o APT::FTPArchive::Release::Codename=ios \
+              -o APT::FTPArchive::Release::Architectures=iphoneos-arm64 \
+              -o APT::FTPArchive::Release::Components=main \
+              -o "APT::FTPArchive::Release::Description=astral alpha builds" \
+              release . > Release
+          )
+        fi
+        astral stage stage
+        cp -R stage/catalog site/catalog
+
+    - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9
+      with:
+        path: site

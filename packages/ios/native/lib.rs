@@ -1,6 +1,7 @@
 #![allow(clippy::missing_safety_doc)]
 
 mod bridge;
+#[cfg(target_vendor = "apple")]
 mod facts;
 mod network;
 mod shapes;

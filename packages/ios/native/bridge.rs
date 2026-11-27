@@ -284,6 +284,16 @@ fn adopt(reply: &AstralReply) -> Reply {
 
 pub struct CallbackBridge(pub AstralBridge);
 
+#[cfg(target_vendor = "apple")]
+fn merged_facts(platform: &str) -> String {
+    crate::facts::merge(platform)
+}
+
+#[cfg(not(target_vendor = "apple"))]
+fn merged_facts(platform: &str) -> String {
+    platform.to_owned()
+}
+
 impl Bridge for CallbackBridge {
     fn deliver(&self, bytes: &[u8]) {
         unsafe { (self.0.deliver)(bytes.as_ptr(), bytes.len()) };
@@ -294,9 +304,9 @@ impl Bridge for CallbackBridge {
         let outgoing = outgoing(&request).request();
         let reply = adopt(&unsafe { (self.0.handle)(&raw const outgoing) });
         match reply {
-            Reply::Text(platform) if facts => Reply::Text(Some(crate::facts::merge(
-                platform.as_deref().unwrap_or("{}"),
-            ))),
+            Reply::Text(platform) if facts => {
+                Reply::Text(Some(merged_facts(platform.as_deref().unwrap_or("{}"))))
+            }
             reply => reply,
         }
     }
