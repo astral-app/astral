@@ -50,7 +50,7 @@ pub struct App {
     pub discord_directory: String,
     pub discord_version: String,
     pub languages: Vec<String>,
-    pub recovering: bool,
+    recovering: AtomicBool,
     pub environment: Mutex<Value>,
     settings: usize,
     packs: usize,
@@ -132,7 +132,7 @@ pub fn install(setup: Setup) -> &'static App {
             discord_directory: setup.discord_directory,
             discord_version: setup.discord_version,
             languages: setup.languages,
-            recovering: setup.recovering,
+            recovering: AtomicBool::new(setup.recovering),
             environment: Mutex::new(setup.environment),
             settings: settings as usize,
             packs: packs as usize,
@@ -141,6 +141,14 @@ pub fn install(setup: Setup) -> &'static App {
 }
 
 impl App {
+    pub fn recovering(&self) -> bool {
+        self.recovering.load(Ordering::Acquire)
+    }
+
+    pub fn end_recovery(&self) -> bool {
+        self.recovering.swap(false, Ordering::AcqRel)
+    }
+
     pub fn settings_handle(&self) -> *const AstralSettingsHandle {
         self.settings as *const AstralSettingsHandle
     }

@@ -801,6 +801,23 @@ pub fn start(directories: Vec<String>, settings: *const AstralSettingsHandle, st
     refresh_decorations();
 }
 
+pub fn resume() -> usize {
+    let _held = lock();
+    if !host().started {
+        return 0;
+    }
+    host().start_enabled = true;
+    let mut started = 0;
+    for plugin in plugins() {
+        if unsafe { (*plugin).enabled && !(*plugin).running() } && start_plugin(plugin) {
+            started += 1;
+        }
+    }
+    drop(_held);
+    refresh_decorations();
+    started
+}
+
 pub fn rescan() {
     let _held = lock();
     if host().started {

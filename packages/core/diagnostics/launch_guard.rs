@@ -11,7 +11,7 @@ use crate::support::translations::tr_with;
 
 const FILE: &str = "launch-guard.json";
 const ROLL_BACK_AFTER: c_int = 2;
-const RECOVERY_AFTER: c_int = 3;
+pub const RECOVERY_AFTER: c_int = 3;
 const CATEGORY: &str = "default";
 
 #[repr(C)]

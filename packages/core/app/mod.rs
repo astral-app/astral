@@ -11,6 +11,7 @@ mod pages;
 pub mod picked_media;
 mod platform;
 pub mod pressable;
+mod recovery;
 mod reports;
 pub mod state;
 mod theme;
@@ -205,7 +206,7 @@ pub fn start() -> usize {
         lua_host::start(
             vec![format!("{}/plugins", current.state), format!("{}/plugins", current.resources)],
             current.settings_handle(),
-            !safe_mode && !current.recovering,
+            !safe_mode && !current.recovering(),
             Config {
                 preferred_languages: current.languages.clone(),
                 storage_path: format!("{}/plugin-storage.sqlite", current.state),
@@ -217,6 +218,9 @@ pub fn start() -> usize {
         debug::register();
         pages::configure(current);
         dev::start(current);
+        if current.recovering() && !safe_mode {
+            recovery::prompt();
+        }
     }
     lua_host::plugins().len()
 }
@@ -462,7 +466,9 @@ pub fn sheet_event(sheet: u64, action: String, value: String, closed: bool) {
 }
 
 pub fn complete_confirm(request: u64, accepted: bool) {
-    if request != 0 {
+    if request == recovery::PROMPT {
+        recovery::answered(accepted);
+    } else if request != 0 {
         lua_host::complete_confirm(request, accepted);
     }
 }
