@@ -57,6 +57,7 @@ object PhoenixBridge {
     private const val MAIN_ACTIVITY = "com.discord.nativeapp.MainActivity"
     private const val EXPORT_BACKUP_REQUEST = 0xA571
     private const val IMPORT_BACKUP_REQUEST = 0xA572
+    private const val SYNC_FOLDER_REQUEST = 0xA573
     private const val PICK_FILE_REQUEST = 0xA573
     private const val MAXIMUM_BACKUP_BYTES = 1 shl 20
 
@@ -236,13 +237,18 @@ object PhoenixBridge {
             .setExceptionMode(ExceptionMode.PROTECTIVE)
             .intercept { chain ->
                 val request = chain.getArg(0) as? Int ?: return@intercept chain.proceed()
-                if (request != EXPORT_BACKUP_REQUEST && request != IMPORT_BACKUP_REQUEST && request != PICK_FILE_REQUEST) {
+                if (request != EXPORT_BACKUP_REQUEST && request != IMPORT_BACKUP_REQUEST && request != PICK_FILE_REQUEST && request != SYNC_FOLDER_REQUEST) {
                     return@intercept chain.proceed()
                 }
                 val resultValue = chain.proceed()
                 val activity = chain.thisObject as? Activity ?: return@intercept resultValue
                 val result = chain.getArg(1) as? Int ?: Activity.RESULT_CANCELED
                 val data = chain.getArg(2) as? Intent
+                if (request == SYNC_FOLDER_REQUEST) {
+                    val tree = if (result == Activity.RESULT_OK) data?.data else null
+                    if (tree != null) runCatching { SyncFolder.chosen(activity, tree) }.onFailure { Log.error("Failed to keep access to the sync folder", it) }
+                    return@intercept resultValue
+                }
                 if (request == PICK_FILE_REQUEST) {
                     val requestID = pendingFilePick
                     pendingFilePick = null
@@ -596,6 +602,25 @@ object PhoenixBridge {
                 }
         }
     }
+
+    @JvmStatic
+    fun syncFolderName(): String? = SyncFolder.name()
+
+    @JvmStatic
+    fun syncChooseFolder() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+            .addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+        startDocumentPicker(intent, SYNC_FOLDER_REQUEST)
+    }
+
+    @JvmStatic
+    fun syncForgetFolder() = SyncFolder.forget()
+
+    @JvmStatic
+    fun syncRead(): String? = SyncFolder.read()
+
+    @JvmStatic
+    fun syncWrite(contents: String): Boolean = SyncFolder.write(contents)
 
     @JvmStatic
     fun importBackup() {

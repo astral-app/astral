@@ -43,6 +43,8 @@ enum Method {
     EmojiPacks,
     ActiveEmojiPack,
     EmojiAnimated,
+    SyncFolder,
+    ToggleSync,
     AppIcons,
     SetAppIcon,
     Catalog,
@@ -93,6 +95,8 @@ impl Method {
             "emojiPacks" => Method::EmojiPacks,
             "activeEmojiPack" => Method::ActiveEmojiPack,
             "emojiAnimated" => Method::EmojiAnimated,
+            "syncFolder" => Method::SyncFolder,
+            "toggleSync" => Method::ToggleSync,
             "appIcons" => Method::AppIcons,
             "setAppIcon" => Method::SetAppIcon,
             "catalog" => Method::Catalog,
@@ -251,6 +255,15 @@ fn dispatch(current: &App, method: Method, arguments: &Arguments, reply: Option<
         Method::EmojiPacks => current.packs(PackKind::Emoji),
         Method::ActiveEmojiPack => json!(current.active_pack(PackKind::Emoji)),
         Method::EmojiAnimated => json!(current.emoji_animated()),
+        Method::SyncFolder => json!(super::sync::folder().unwrap_or_default()),
+        Method::ToggleSync => {
+            if super::sync::folder().is_some() {
+                super::sync::forget();
+            } else {
+                super::sync::choose();
+            }
+            Value::Null
+        }
         Method::AppIcons => match host::request(Request::AppIcons) {
             host::Reply::Text(Some(text)) => serde_json::from_str(&text).unwrap_or(Value::Null),
             _ => Value::Null,

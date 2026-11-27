@@ -60,6 +60,11 @@ pub enum Method {
     OpenSheet,
     UpdateSheet,
     CloseSheet,
+    SyncFolderName,
+    SyncChooseFolder,
+    SyncForgetFolder,
+    SyncRead,
+    SyncWrite,
 }
 
 #[derive(Clone, Copy)]
@@ -70,7 +75,7 @@ enum Returns {
 }
 
 impl Method {
-    const ALL: [Method; 31] = [
+    const ALL: [Method; 36] = [
         Method::Deliver,
         Method::DiscordRequest,
         Method::ExportBackup,
@@ -102,6 +107,11 @@ impl Method {
         Method::OpenSheet,
         Method::UpdateSheet,
         Method::CloseSheet,
+        Method::SyncFolderName,
+        Method::SyncChooseFolder,
+        Method::SyncForgetFolder,
+        Method::SyncRead,
+        Method::SyncWrite,
     ];
 
     const fn name(self) -> &'static str {
@@ -137,6 +147,11 @@ impl Method {
             Method::OpenSheet => "openSheet",
             Method::UpdateSheet => "updateSheet",
             Method::CloseSheet => "closeSheet",
+            Method::SyncFolderName => "syncFolderName",
+            Method::SyncChooseFolder => "syncChooseFolder",
+            Method::SyncForgetFolder => "syncForgetFolder",
+            Method::SyncRead => "syncRead",
+            Method::SyncWrite => "syncWrite",
         }
     }
 
@@ -155,6 +170,8 @@ impl Method {
             | Method::ImportBackup
             | Method::RefreshEmoji
             | Method::RestartGatewaySession
+            | Method::SyncChooseFolder
+            | Method::SyncForgetFolder
             | Method::StopAudio => "()V",
             Method::OpenReport
             | Method::TriggerHaptic
@@ -166,7 +183,11 @@ impl Method {
                 "(JLjava/lang/String;Ljava/lang/String;)V"
             }
             Method::EditText => "(JLjava/lang/String;Ljava/lang/String;I)V",
-            Method::PasteText | Method::EnvironmentFacts => "()Ljava/lang/String;",
+            Method::PasteText
+            | Method::EnvironmentFacts
+            | Method::SyncFolderName
+            | Method::SyncRead => "()Ljava/lang/String;",
+            Method::SyncWrite => "(Ljava/lang/String;)Z",
             Method::PressNode | Method::InsertComposerText => "(Ljava/lang/String;Z)Z",
         }
     }
@@ -182,13 +203,21 @@ impl Method {
                 | Method::OpenSheet
                 | Method::UpdateSheet
                 | Method::CloseSheet
+                | Method::SyncFolderName
+                | Method::SyncChooseFolder
+                | Method::SyncForgetFolder
+                | Method::SyncRead
+                | Method::SyncWrite
         )
     }
 
     const fn returns(self) -> Returns {
         match self {
-            Method::PressNode | Method::InsertComposerText => Returns::Flag,
-            Method::PasteText | Method::EnvironmentFacts => Returns::Text,
+            Method::PressNode | Method::InsertComposerText | Method::SyncWrite => Returns::Flag,
+            Method::PasteText
+            | Method::EnvironmentFacts
+            | Method::SyncFolderName
+            | Method::SyncRead => Returns::Text,
             _ => Returns::Nothing,
         }
     }
@@ -501,6 +530,13 @@ impl Bridge for JniBridge {
                     Argument::Text(body),
                 ],
             )),
+            Request::SyncFolderName => into_reply(self.call(Method::SyncFolderName, &[])),
+            Request::SyncChooseFolder => into_reply(self.locked(Method::SyncChooseFolder, &[])),
+            Request::SyncForgetFolder => into_reply(self.call(Method::SyncForgetFolder, &[])),
+            Request::SyncRead => into_reply(self.call(Method::SyncRead, &[])),
+            Request::SyncWrite { contents } => {
+                into_reply(self.call(Method::SyncWrite, &[Argument::Text(contents)]))
+            }
             Request::AppIcons
             | Request::SetAppIcon { .. }
             | Request::KeepAlive { .. }

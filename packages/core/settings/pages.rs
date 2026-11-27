@@ -269,6 +269,17 @@ fn app_code_row(app_code: &str) -> Value {
     )
 }
 
+fn sync_row() -> Value {
+    let folder = host_text("syncFolder");
+    with(
+        row("sync", tr("ASTRAL_SYNC"), "res://ic_mana_refresh", ROW_LINK),
+        json!({
+            "detail": if folder.is_empty() { tr("ASTRAL_SYNC_OFF").to_owned() } else { folder },
+            "subtitle": tr("ASTRAL_SYNC_SUBTITLE"),
+        }),
+    )
+}
+
 fn general_page(context: &Context) -> Value {
     let stats = astral_wire_stats();
     let developer = setting("developer-mode");
@@ -344,6 +355,7 @@ fn general_page(context: &Context) -> Value {
                         row("import-backup", tr("ASTRAL_IMPORT_SETTINGS"), "res://ic_mana_refresh", ROW_LINK),
                         json!({"subtitle": tr("ASTRAL_RESTORE_A_BACKUP_AND_REINSTALL_ITS")}),
                     ),
+                    sync_row(),
                 ],
             ),
             reports_section(),
@@ -1493,6 +1505,7 @@ pub fn action(route: &str, key: &str, changed: Changed) -> Option<String> {
             return None;
         }
         "export-backup" => return simple("exportBackup", &json!([])),
+        "sync" => return simple("toggleSync", &json!([])),
         "import-backup" => {
             host_with("importBackup", &json!([]), changed);
             return None;

@@ -301,6 +301,11 @@ pub extern "C" fn astral_ios_refresh_settings() {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn astral_ios_sync_chosen() {
+    app::sync::chosen();
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn astral_ios_refresh_decorations() {
     app::refresh_decorations();
 }

@@ -16,6 +16,7 @@ pub mod pressable;
 mod recovery;
 mod reports;
 pub mod state;
+pub mod sync;
 mod theme;
 pub mod web_auth;
 
@@ -271,12 +272,16 @@ pub fn mark_visible() {
     guard_file(crate::diagnostics::launch_guard::astral_launch_guard_mark_shown);
     if STARTED.load(Ordering::Acquire) {
         guard_file(crate::diagnostics::exit_record::astral_exit_record_clear);
+        std::thread::spawn(sync::pull);
     }
 }
 
 pub fn mark_hidden() {
     guard_file(crate::diagnostics::launch_guard::astral_launch_guard_mark_hidden);
     guard_file(crate::diagnostics::exit_record::astral_exit_record_mark_ended);
+    if STARTED.load(Ordering::Acquire) {
+        std::thread::spawn(sync::push);
+    }
 }
 
 pub fn mark_ready() {
