@@ -471,7 +471,10 @@ static void Navigate(void (^work)(void))
         astral_ios_press(AstralTextOf(identifier));
     };
     if (pressable == AstralPressable_Navigator) {
-        Navigate(press);
+        Navigate(^{
+            press();
+            ScheduleTween();
+        });
     } else if (pressable == AstralPressable_Inserted || pressable == AstralPressable_MessageAction) {
         if (pressable == AstralPressable_MessageAction) AstralDismissMessageMenu();
         dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), press);
