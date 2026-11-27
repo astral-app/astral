@@ -2,26 +2,10 @@ use std::path::Path;
 
 use crate::files;
 use crate::repo;
-use crate::signing;
-
-fn stage_plugin(folder: &Path, destination: &Path) -> Result<(), String> {
-    let mut paths = signing::signed_paths(folder)?;
-    paths.push("signature".into());
-    for path in paths {
-        files::copy(&folder.join(&path), &destination.join(&path))?;
-    }
-    Ok(())
-}
 
 pub fn stage_resources(target: &Path) -> Result<(), String> {
     if target.exists() {
         std::fs::remove_dir_all(target).map_err(|error| error.to_string())?;
-    }
-    for folder in repo::plugin_folders()? {
-        let manifest = signing::read_manifest(&folder)?;
-        for parent in ["plugins", "catalog/plugins"] {
-            stage_plugin(&folder, &target.join(parent).join(&manifest.id))?;
-        }
     }
     let mut copies = vec![
         (

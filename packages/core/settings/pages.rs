@@ -529,10 +529,6 @@ fn plugin_page(identifier: &str) -> Value {
             json!({"subtitle": author_names(&plugin)}),
         ));
     }
-    about.push(with(
-        row("source", tr("ASTRAL_SOURCE"), "res://ic_mana_download", ROW_INFO),
-        json!({"detail": if flag(&plugin, "bundled") { tr("ASTRAL_BUNDLED") } else { tr("ASTRAL_MARKETPLACE") }}),
-    ));
     let mut permissions: Vec<Value> = array(&plugin, "permissions")
         .iter()
         .filter_map(Value::as_str)
@@ -560,10 +556,10 @@ fn plugin_page(identifier: &str) -> Value {
         ));
         status.push(row("retry", tr("ASTRAL_TRY_AGAIN"), "res://ic_mana_refresh", ROW_LINK));
     }
-    let mut manage = vec![reset_row()];
-    if !flag(&plugin, "bundled") {
-        manage.push(row("uninstall", tr("ASTRAL_UNINSTALL"), "res://ic_mana_trash", ROW_LINK));
-    }
+    let manage = vec![
+        reset_row(),
+        row("uninstall", tr("ASTRAL_UNINSTALL"), "res://ic_mana_trash", ROW_LINK),
+    ];
     page(
         &string(&plugin, "name"),
         vec![
@@ -1327,7 +1323,7 @@ fn plugin_action(identifier: &str, key: &str, changed: &Changed) -> Option<Strin
         }
     } else if key == "reset" {
         host("resetSettings", &json!([identifier]));
-    } else if key == "uninstall" && !flag(&plugin, "bundled") {
+    } else if key == "uninstall" {
         let _ = std::fs::remove_dir_all(string(&plugin, "directory"));
         host("removeStorage", &json!([identifier]));
         host("remove", &json!([identifier]));

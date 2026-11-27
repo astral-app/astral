@@ -45,7 +45,6 @@ pub struct Package {
     pub main_bytecode: Vec<u8>,
     pub authors: Vec<(String, String)>,
     pub permissions: Vec<String>,
-    pub enabled_by_default: bool,
     pub modules: BTreeMap<String, (Vec<u8>, Vec<u8>)>,
     pub shared_modules: Vec<String>,
     pub strings: BTreeMap<String, String>,
@@ -243,7 +242,6 @@ pub fn load(directory: &str, preferred: &[String], limits: Limits) -> Option<Pac
     package.version = string_at(&manifest, "version", "");
     package.description = string_at(&manifest, "description", "");
     package.icon = string_at(&manifest, "icon", "");
-    package.enabled_by_default = manifest.get("enabled_by_default").and_then(toml::Value::as_bool).unwrap_or(false);
     let icon_svg = string_at(&manifest, "iconSvg", "");
     if icon_svg.len() < limits.icon_svg {
         package.icon_svg = icon_svg;
@@ -281,7 +279,6 @@ fn header(package: &Package) -> Value {
         "directory": package.directory,
         "authors": package.authors,
         "permissions": package.permissions,
-        "enabledByDefault": package.enabled_by_default,
         "locale": package.locale,
         "strings": package.strings,
         "fallbackStrings": package.fallback_strings,

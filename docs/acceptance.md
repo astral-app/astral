@@ -21,7 +21,7 @@ The locator validates the experiment descriptor and the two matching evaluator g
 
 | Area | Result |
 | --- | --- |
-| Plugin host | All 15 bundled plugins start with no errors after local development copies were removed |
+| Plugin host | Plugins installed from the marketplace start with no errors after local development copies were removed |
 | Settings | astral's section, General, Plugins, Design, Marketplace and Updates pages render and navigate; back works |
 | Display cutout | astral's logo shows in the Dynamic Island |
 | Mention Avatars, Role Color Everywhere | Mention chips show the avatar and role colour |
@@ -42,7 +42,7 @@ The locator validates the experiment descriptor and the two matching evaluator g
 
 | Area | Result |
 | --- | --- |
-| Plugin host | All 15 bundled plugins start; Phoenix stays the client across relaunches |
+| Plugin host | Plugins installed from the marketplace start; Phoenix stays the client across relaunches |
 | Telemetry filter | `/api/v9/science` requests are blocked |
 | Clear URLs | Did not work: the network rewrite depended on obfuscated OkHttp class names. Outgoing text is now rewritten at the send itself: astral checks the composer's last typed text against the value Phoenix echoes, transforms it when the send button is pressed and delivers one corrected text change first. Sends and edits are cleaned |
 | Updates | The catalog refreshes at launch and, at most every 6 hours, when Discord returns to the foreground. Pending addon updates install on their own unless "Update automatically" is off; a newer astral in the catalog shows one notice per version. The repository catalog had announced astral 0.0.3 while builds are 0.0.1; `astral test` now checks it against `version.txt` |
