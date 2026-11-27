@@ -286,6 +286,46 @@ local function visible_reviews(state)
 	return system, users
 end
 
+local function banned()
+	return type(reviewdb_user) == "table" and type(reviewdb_user.banInfo) == "table"
+end
+
+local function composer_items(state, users)
+	local items = {}
+	if state.target == my_id or state.server or banned() then
+		return items
+	end
+	if not token() then
+		items[1] = {
+			type = astral.SheetItemType.Buttons,
+			buttons = { { label = t("SIGN_IN_TO_REVIEW"), action = "sign_in" } },
+		}
+		return items
+	end
+	local has_own = false
+	for _, review in ipairs(users) do
+		has_own = has_own or (type(review.sender) == "table" and review.sender.discordID == my_id)
+	end
+	items[#items + 1] =
+		{ type = astral.SheetItemType.Heading, text = has_own and t("UPDATE_YOUR_REVIEW") or t("LEAVE_A_REVIEW") }
+	if has_own then
+		items[#items + 1] = {
+			type = astral.SheetItemType.Text,
+			text = t("UPDATE_REPLACES"),
+			size = 13,
+			color = astral.SheetColor.Muted,
+		}
+	end
+	items[#items + 1] = {
+		type = astral.SheetItemType.Input,
+		placeholder = has_own and t("UPDATE_PLACEHOLDER", { name = state.name })
+			or t("REVIEW_PLACEHOLDER", { name = state.name }),
+		submit_label = has_own and t("UPDATE_REVIEW") or t("SUBMIT_REVIEW"),
+		action = "submit",
+	}
+	return items
+end
+
 local function render(state)
 	local system, users = visible_reviews(state)
 	local items = {}
@@ -337,41 +377,13 @@ local function render(state)
 		items[#items + 1] =
 			{ type = astral.SheetItemType.Buttons, buttons = { { label = t("LOAD_MORE"), action = "load_more" } } }
 	end
-	local own_profile = state.target == my_id
-	if not own_profile and not state.server and token() then
-		local has_own = false
-		for _, review in ipairs(users) do
-			has_own = has_own or (type(review.sender) == "table" and review.sender.discordID == my_id)
-		end
-		items[#items + 1] =
-			{ type = astral.SheetItemType.Heading, text = has_own and t("UPDATE_YOUR_REVIEW") or t("LEAVE_A_REVIEW") }
-		if has_own then
-			items[#items + 1] = {
-				type = astral.SheetItemType.Text,
-				text = t("UPDATE_REPLACES"),
-				size = 13,
-				color = astral.SheetColor.Muted,
-			}
-		end
-		items[#items + 1] = {
-			type = astral.SheetItemType.Input,
-			placeholder = has_own and t("UPDATE_PLACEHOLDER", { name = state.name })
-				or t("REVIEW_PLACEHOLDER", { name = state.name }),
-			submit_label = has_own and t("UPDATE_REVIEW") or t("SUBMIT_REVIEW"),
-			action = "submit",
-		}
-	elseif not own_profile and not token() then
-		items[#items + 1] = {
-			type = astral.SheetItemType.Buttons,
-			buttons = { { label = t("SIGN_IN_TO_REVIEW"), action = "sign_in" } },
-		}
-	end
 	local title = state.server and t("SERVER_REVIEWS_FOR", { name = state.name })
 		or t("REVIEWS_FOR", { name = state.name })
 	return {
 		title = title,
 		subtitle = count_text(state.count or #users),
 		expanded = true,
+		header = composer_items(state, users),
 		items = items,
 	}
 end

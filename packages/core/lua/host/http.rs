@@ -705,6 +705,7 @@ pub fn wants_http(method: &str, host_name: &str, path: &str) -> bool {
     if !crate::network::policy::is_discord_host(host_name) {
         return false;
     }
+    crate::wire::insert::note_profile_request(method, path);
     let _held = host::lock();
     if (is_command_index(method, path) || is_interaction(method, path)) && has_commands() {
         return true;

@@ -4,6 +4,7 @@ use core::ffi::{c_char, c_int};
 use std::collections::HashMap;
 use std::ffi::CString;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use super::abi::{AstralPatchTarget, Callback, current_channel, wire_message_author};
 use super::children::{wire_discord_children, wire_discord_parent};
@@ -266,12 +267,36 @@ fn prefix_length(prefixes: &[Vec<u8>], identifier: &[u8]) -> usize {
     prefixes.iter().find(|prefix| identifier.starts_with(prefix)).map_or(0, Vec::len)
 }
 
+static PROFILE_USER: AtomicU64 = AtomicU64::new(0);
+
+pub fn profile_user_of(method: &str, path: &str) -> Option<u64> {
+    if method != "GET" {
+        return None;
+    }
+    let route = path.split('?').next()?.strip_prefix("/api/v")?;
+    let (version, rest) = route.split_once('/')?;
+    if version.is_empty() || !version.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    let user = rest.strip_prefix("users/")?.strip_suffix("/profile")?;
+    if user.is_empty() || !user.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    user.parse().ok()
+}
+
+pub fn note_profile_request(method: &str, path: &str) {
+    if let Some(user) = profile_user_of(method, path) {
+        PROFILE_USER.store(user, Ordering::Relaxed);
+    }
+}
+
 fn batch_avatar_user(spans: &[Span]) -> u64 {
     spans
         .iter()
         .filter(|span| span.op == Op::Create)
         .find_map(|span| tracked_value(span.id, TRACK_AVATAR_IMAGE).filter(|user| *user != 0))
-        .unwrap_or(0)
+        .unwrap_or_else(|| PROFILE_USER.load(Ordering::Relaxed))
 }
 
 fn remember_children(target: &mut Target, children: impl Iterator<Item = i32>) {
