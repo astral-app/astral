@@ -147,9 +147,17 @@ impl State {
         let Some(oldest) = self.targets.iter().min_by_key(|(_, target)| target.seen).map(|(id, _)| *id) else {
             return false;
         };
-        self.targets.remove(&oldest);
-        unpublish(oldest);
+        self.discard(oldest);
         true
+    }
+
+    fn discard(&mut self, id: i32) {
+        if let Some(target) = self.targets.remove(&id) {
+            for inserted in &target.inserted {
+                super::tween::wire_tween_forget(*inserted);
+            }
+        }
+        unpublish(id);
     }
 
     fn note_seen(&mut self, bytes: *const u8, spans: &[Span]) {
@@ -341,6 +349,8 @@ fn put_node(out: &mut Out, id: i32, node: &AstralInsertNode) {
     let has = |field: u32| node.fields & field != 0;
     if has(PULSE) && node.pulse_ms > 0.0 {
         super::tween::wire_tween_pulse(id, node.pulse_ms, node.pulse_delay_ms);
+    } else {
+        super::tween::forget_pulse(id);
     }
     if has(COLOR) {
         put_long(out, properties.color, node.color);
@@ -733,8 +743,7 @@ fn note_base(state: &mut State, node: i32, identifier: &[u8], user: u64) {
     if let Some(stale) = state.bases.iter().find(|base| base.node == node).map(|base| base.resolved)
         && stale > 0
     {
-        state.targets.remove(&stale);
-        unpublish(stale);
+        state.discard(stale);
     }
     let base = PathBase {
         node,
@@ -759,8 +768,7 @@ fn retarget(state: &mut State, prefixes: &[Vec<u8>], data: &[u8], span: &Span, w
     }
     if prefix_length(prefixes, identifier) == 0 {
         if tracked.is_some() {
-            state.targets.remove(&span.id);
-            unpublish(span.id);
+            state.discard(span.id);
         }
         return;
     }
@@ -813,8 +821,7 @@ pub unsafe extern "C" fn wire_insert_nodes(
                 Some(Op::Remove) => {
                     for position in 0..span.child_count {
                         let removed = child(data, span, position);
-                        state.targets.remove(&removed);
-                        unpublish(removed);
+                        state.discard(removed);
                     }
                 }
                 Some(Op::SetChildren) => {
