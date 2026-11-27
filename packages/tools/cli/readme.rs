@@ -176,6 +176,10 @@ fn check(files: &BTreeMap<PathBuf, String>) -> Result<(), String> {
     ))
 }
 
+pub fn regenerate() -> Result<(), String> {
+    write(&render()?)
+}
+
 pub fn test() -> Result<(), String> {
     check(&render()?)
 }
