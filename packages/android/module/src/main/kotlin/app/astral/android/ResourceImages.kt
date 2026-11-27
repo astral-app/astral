@@ -72,11 +72,11 @@ object ResourceImages {
     }
 
     private fun drawable(resources: Resources, name: String): Drawable? = runCatching {
-        ownAsset(name)?.let { file ->
+        val path = Native.iconPath(name)
+        if (path.isEmpty()) {
+            val file = ownAsset(name) ?: return@runCatching null
             return@runCatching if (file.extension == "png") pngDrawable(resources, file) else svgDrawable(resources, file)
         }
-        val path = Native.iconPath(name)
-        if (path.isEmpty()) return@runCatching null
         if (path.endsWith(".svg")) return@runCatching svgDrawable(resources, File(path))
         val bitmap = BitmapFactory.decodeFile(path) ?: return@runCatching null
         val scale = if (path.endsWith("@3x.png")) 3 else if (path.endsWith("@2x.png")) 2 else 1

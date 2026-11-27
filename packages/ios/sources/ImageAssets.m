@@ -95,6 +95,8 @@ static UIImage *AstralImage(NSString *name)
         if (tinted) [gImages setObject:tinted forKey:name];
         return tinted;
     }
+    UIImage *packed = AstralIconPackImage(name);
+    if (packed) return packed;
     UIImage *cached = [gImages objectForKey:name];
     if (cached) return cached;
     [gLock lock];

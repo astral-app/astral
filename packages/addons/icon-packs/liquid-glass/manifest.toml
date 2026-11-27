@@ -1,7 +1,7 @@
 id = "liquid-glass"
 name = "Liquid Glass"
 description = "Discord's icons redrawn as frosted glass, after dor4a's Liquid Glass pack."
-version = "0.0.2"
+version = "0.0.3"
 
 [[authors]]
 name = "eternal"
