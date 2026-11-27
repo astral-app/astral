@@ -161,7 +161,7 @@ impl AstralPacksHandle {
     }
 
     fn icon_path(&self, name: &str) -> String {
-        if !name.starts_with("ic_") || !safe_name(name) {
+        if !(name.starts_with("ic_") || name.starts_with("astral_")) || !safe_name(name) {
             return String::new();
         }
         let active = self.setting_string("icon-pack", "discord");

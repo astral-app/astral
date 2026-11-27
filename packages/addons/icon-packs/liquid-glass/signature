@@ -1,6 +1,7 @@
-signature = "Bz6auFq0ypdcBDodbPz6+cBucwb39mDCH6nCuGaTj52jX6Lnm3BrNe+CI3viMUqupNQ3s3OnEzKrakX9vO14Bg=="
+signature = "ftiJ72X48ohOW7YxkuT55xbOAexsscuYBtuUTsIcwLGiiIqJKaZ/Lu5lw2++Bq7wy00QAtrVWqlTS3YWIMCXDA=="
 
 [files]
+"icons/astral_logo@3x.png" = "f9bf97aaf7b87f5ab12753d153529b05ceda22fafc46c4062b79c6495c646814"
 "icons/ic_mana_accessibility@3x.png" = "560c3ab8f90fc878551974862c2ff2b643c278e12aac52529e1de09471cbf186"
 "icons/ic_mana_achievements@3x.png" = "712d16b5f367c064a0005c81e87564a613ee5512503ba48288e10b544fd73166"
 "icons/ic_mana_activities@3x.png" = "247c24f71ce14bb8f8bb3670a4669e7d7cf6f95d3e847475ae0f5b435fc1c686"
@@ -398,4 +399,4 @@ signature = "Bz6auFq0ypdcBDodbPz6+cBucwb39mDCH6nCuGaTj52jX6Lnm3BrNe+CI3viMUqupNQ
 "icons/ic_mana_x_small_bold@3x.png" = "0f679644dc9e5df488395b4e6b9274554f4b50ad62ee1d7806a6d1383c578ea3"
 "icons/ic_mana_xbox_neutral@3x.png" = "7994d1f6b43c80ffba7b173d23b4cbd11d2d82ac94c5c65a11da78b01596b06a"
 "icons/ic_mana_youtube_neutral@3x.png" = "582e4438543a3c40b7d868bbae2ba4d8c2e027ef09dbeb6a32336bebb9e100c5"
-"manifest.toml" = "2ac1f838bea214df4426e9048fc385c91ec4b93b1da11e5f2a32ea51a7b15a09"
+"manifest.toml" = "2730ec33e0be07011441c0bd43d2320bdcb359e5d90f894a0e13decd403e4124"
