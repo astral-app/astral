@@ -186,47 +186,43 @@ fn entitlements(signature: &[u8], offset: usize) -> Option<&[u8]> {
     blob.get(8..length)
 }
 
-pub fn app_groups(data: &[u8]) -> Vec<String> {
-    let Ok(file) = parse(data) else {
-        return Vec::new();
-    };
-    let Some(signature) = file.code_signature() else {
-        return Vec::new();
-    };
+pub fn entitlement_dictionary(data: &[u8]) -> Option<plist::Dictionary> {
+    let file = parse(data).ok()?;
+    let signature = file.code_signature()?;
     if big(signature, 0) != Some(SUPER_BLOB) {
-        return Vec::new();
+        return None;
     }
     let count = big(signature, 8).unwrap_or(0) as usize;
     for index in 0..count {
         let entry = 12 + index * 8;
-        let Some(slot) = big(signature, entry) else {
-            return Vec::new();
-        };
-        if slot != ENTITLEMENTS_SLOT {
+        if big(signature, entry)? != ENTITLEMENTS_SLOT {
             continue;
         }
-        let Some(blob) =
-            big(signature, entry + 4).and_then(|offset| entitlements(signature, offset as usize))
-        else {
-            return Vec::new();
+        let blob = big(signature, entry + 4)
+            .and_then(|offset| entitlements(signature, offset as usize))?;
+        return match plist::Value::from_reader(std::io::Cursor::new(blob)) {
+            Ok(plist::Value::Dictionary(values)) => Some(values),
+            _ => None,
         };
-        let Ok(plist::Value::Dictionary(values)) =
-            plist::Value::from_reader(std::io::Cursor::new(blob))
-        else {
-            return Vec::new();
-        };
-        return values
-            .get(APP_GROUPS)
-            .and_then(plist::Value::as_array)
-            .map(|groups| {
-                groups
-                    .iter()
-                    .filter_map(plist::Value::as_string)
-                    .filter(|group| !group.is_empty())
-                    .map(str::to_owned)
-                    .collect()
-            })
-            .unwrap_or_default();
     }
-    Vec::new()
+    None
+}
+
+pub fn app_groups(data: &[u8]) -> Vec<String> {
+    entitlement_dictionary(data)
+        .and_then(|values| {
+            values
+                .get(APP_GROUPS)
+                .and_then(plist::Value::as_array)
+                .cloned()
+        })
+        .map(|groups| {
+            groups
+                .iter()
+                .filter_map(plist::Value::as_string)
+                .filter(|group| !group.is_empty())
+                .map(str::to_owned)
+                .collect()
+        })
+        .unwrap_or_default()
 }

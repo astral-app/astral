@@ -13,6 +13,17 @@ on:
         type: choice
         options: [alpha, beta, stable]
         default: alpha
+  workflow_call:
+    inputs:
+      ios_source:
+        type: string
+        default: appstore
+      android_channel:
+        type: string
+        default: alpha
+    secrets:
+      DKRYPT_API_KEY:
+        required: true
   schedule:
     - cron: "17 5 * * 1"
 
@@ -20,7 +31,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: release-artifacts
+  group: release-artifacts-${{ github.event_name }}
   cancel-in-progress: true
 
 env:

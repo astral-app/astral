@@ -1,0 +1,24 @@
+{
+  "name": "astral (alpha)",
+  "identifier": "app.astral.ios.repo",
+  "subtitle": "Pre-release builds of astral for Discord on iOS.",
+  "iconURL": "https://astral-app.github.io/astral/icon.png",
+  "website": "https://github.com/astral-app/astral",
+  "tintColor": "7c5cff",
+  "apps": [
+    {
+      "name": "astral",
+      "bundleIdentifier": "com.hammerandchisel.discord",
+      "developerName": "astral",
+      "subtitle": "A native client mod for Discord, with Lua plugins.",
+      "localizedDescription": "Pre-release builds of astral, a native client mod for Discord on iOS and Android with Lua plugins. These alpha builds come straight from the main branch and may break.",
+      "iconURL": "https://astral-app.github.io/astral/icon.png",
+      "tintColor": "7c5cff",
+      "category": "social",
+      "beta": true,
+      "versions": [],
+      "appPermissions": { "entitlements": [], "privacy": {} }
+    }
+  ],
+  "news": []
+}
