@@ -40,6 +40,7 @@ const INSERT_FILL_HEIGHT: u32 = 1 << 14;
 const INSERT_COVER: u32 = 1 << 16;
 const INSERT_FIXED: u32 = 1 << 17;
 const INSERT_PULSE: u32 = 1 << 18;
+const INSERT_ANIMATED: u32 = 1 << 19;
 const INSERT_ALIGN: u32 = 1 << 15;
 const TAG_PILL: c_int = 0;
 const TAG_ORIGINAL_POSTER: c_int = 1;
@@ -267,6 +268,9 @@ unsafe fn read_insert_style(state: *mut LuaState, node: &mut AstralInsertNode) {
         }
         if node.kind == INSERT_IMAGE && field_flag(state, "cover") {
             node.fields |= INSERT_COVER;
+        }
+        if node.kind == INSERT_IMAGE && field_flag(state, "animated") {
+            node.fields |= INSERT_ANIMATED;
         }
         if field_flag(state, "fixed") {
             node.fields |= INSERT_FIXED;

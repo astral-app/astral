@@ -830,6 +830,7 @@ function astral.ui.patch(selector, patcher) end
 ---@field muted? boolean a player plays without sound
 ---@field fill_height? boolean take the full height of the parent
 ---@field cover? boolean an image fills its box, cropping instead of fitting
+---@field animated? boolean an image plays its animation (GIF, APNG, animated WebP)
 ---@field fixed? boolean never shrink to make room for siblings
 ---@field text? string
 ---@field icon? string a Discord icon name, res:// URI, https URL or a png in the plugin folder
