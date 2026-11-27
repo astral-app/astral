@@ -96,6 +96,12 @@ pub fn wire_tween_pulse(node: i32, period: f64, delay: f64) {
     });
 }
 
+pub fn forget_pulse(node: i32) {
+    if let Ok(mut tweens) = TWEENS.lock() {
+        tweens.retain(|tween| tween.node != node || tween.pulse.is_none());
+    }
+}
+
 #[unsafe(export_name = "wireTweenForget")]
 pub extern "C" fn wire_tween_forget(node: i32) {
     forget(node);
@@ -129,4 +135,20 @@ pub unsafe extern "C" fn astral_wire_tween_frame(buffer: *mut AstralWireBuffer, 
         progress < 1.0
     });
     c_int::from(out.finish(buffer))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reused_nodes_lose_their_pulse_but_keep_other_tweens() {
+        wire_tween_pulse(901, 1200.0, 0.0);
+        wire_tween_fade(902);
+        forget_pulse(901);
+        forget_pulse(902);
+        let tweens = TWEENS.lock().unwrap();
+        assert!(!tweens.iter().any(|tween| tween.node == 901));
+        assert!(tweens.iter().any(|tween| tween.node == 902 && tween.pulse.is_none()));
+    }
 }
