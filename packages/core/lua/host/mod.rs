@@ -659,7 +659,7 @@ pub fn sync_insert_prefixes() {
     );
 }
 
-fn runnable(plugin: &Plugin) -> bool {
+pub(crate) fn runnable(plugin: &Plugin) -> bool {
     plugin.bundled || plugin.signed || with_store(false, |store| store.get_boolean("astral", "developer-mode", false))
 }
 
@@ -760,6 +760,7 @@ fn sorted_entries(root: &str) -> Vec<String> {
 pub fn scan() {
     let directories = host().directories.clone();
     let bundled_directory = host().config.bundled_directory.clone();
+    let mut added = Vec::new();
     for root in directories {
         let bundled = !bundled_directory.is_empty() && root.starts_with(&bundled_directory);
         for entry in sorted_entries(&root) {
@@ -775,9 +776,12 @@ pub fn scan() {
             let plugin = Box::into_raw(plugin);
             host().plugins.push(plugin);
             unsafe { (*plugin).enabled = stored_bool(&enabled_key, fallback) };
-            if unsafe { (*plugin).enabled } && host().start_enabled {
-                start_plugin(plugin);
-            }
+            added.push(plugin);
+        }
+    }
+    for plugin in added {
+        if unsafe { (*plugin).enabled } && host().start_enabled {
+            start_plugin(plugin);
         }
     }
 }

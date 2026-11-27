@@ -437,6 +437,32 @@ fn bytecode_only_when_signed(work: &Path) {
     stop_host();
 }
 
+fn shared_modules(work: &Path) {
+    let root = work.join("shared-host");
+    plugin(
+        &root,
+        "library",
+        "id = 'astral.library'\nname = 'Library'\nversion = '1.0'\nmain = 'main.lua'\nshared_modules = ['lib.greet']\n",
+        "return true",
+    );
+    write(
+        &root.join("plugins/library/lib/greet.lua"),
+        "return function(name) return 'hi ' .. name end\n",
+    );
+    write(&root.join("plugins/library/lib/private.lua"), "return 'secret'\n");
+    plugin(
+        &root,
+        "consumer",
+        &manifest("astral.consumer", &[]),
+        "astral.state.greeting = require('@astral.library/lib.greet')('ada')\n",
+    );
+    start_host(&root, developer_settings(&root), None);
+    assert_eq!(eval("astral.consumer", "return astral.state.greeting"), "hi ada");
+    assert!(eval("astral.consumer", "return select(2, pcall(require, '@astral.library/lib.private'))").contains("does not share"));
+    assert!(eval("astral.consumer", "return select(2, pcall(require, '@astral.missing/lib.greet'))").contains("not installed"));
+    stop_host();
+}
+
 #[derive(Clone, Default)]
 struct NativeUi {
     alert: (String, String),
@@ -1309,6 +1335,7 @@ fn lua_host_scenarios() {
     node_patch(&work);
     node_insert(&work);
     bytecode_only_when_signed(&work);
+    shared_modules(&work);
     file_picker_and_dialogs(&work);
     gateway_message_events_and_haptics(&work);
     slider_settings_and_navigation(&work);

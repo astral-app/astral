@@ -35,7 +35,7 @@ The selector `"code:"` targets every code block in a message: `node.code` is its
 ```
 packages/addons/plugins/<name>/manifest.toml   {"id", "name", "description", "authors": [{"name", "id"}], "version", "main": "main.lua"}
 packages/addons/plugins/<name>/main.lua        at most 256 KB
-packages/addons/plugins/<name>/**/*.lua        modules, loaded with require("lib.util"), at most 1 MB together
+packages/addons/plugins/<name>/**/*.lua        modules, loaded with require("lib.util"), at most 1 MB together; "shared_modules" in the manifest lets other plugins require them as "@<id>/lib.util"
 packages/addons/plugins/<name>/tests/*.lua     run by astral test against a mocked `astral` table and the prelude
 ```
 
@@ -121,6 +121,7 @@ Each plugin gets its own `lua_State` with `base`, `table`, `string`, `math`, `ut
 | `astral.permissions.any/all/combine(granted, Permission.X, ...)` | Permission bit checks |
 | `astral.storage.get/set/remove/keys` | The plugin's own data (strings, numbers, booleans, tables), kept in a SQLite database on the device, up to 512 KB per plugin and removed on uninstall |
 | `require("lib.util")` | Loads `lib/util.lua` from the plugin's folder once and returns what it returns |
+| `require("@astral.other/lib.util")` | Loads `lib/util.lua` from another installed plugin that lists `"lib.util"` in its manifest's `shared_modules`. The module runs in the calling plugin's own state, with the caller's permissions; an unsigned owner needs Developer mode |
 
 ## Permissions
 
