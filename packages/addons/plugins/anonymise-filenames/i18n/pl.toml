@@ -1,0 +1,8 @@
+ANONYMISE_BY_DEFAULT = "Domyślnie anonimizuj"
+FILE_NAME = "Nazwa pliku"
+FILE_NAME_SUBTITLE = "Każdy plik jest przesyłany pod tą nazwą z własnym rozszerzeniem."
+LENGTH = "Długość"
+METHOD = "Metoda"
+METHOD_CONSISTENT = "Stała nazwa"
+METHOD_RANDOM = "Losowe znaki"
+METHOD_TIMESTAMP = "Znacznik czasu"

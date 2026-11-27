@@ -113,6 +113,7 @@ pub const PATCH_HIDDEN: u32 = 1 << 7;
 pub const PATCH_TEXT_SCALE: u32 = 1 << 8;
 pub const PATCH_GRADIENT: u32 = 1 << 9;
 pub const PATCH_SEE_THROUGH: u32 = 1 << 10;
+pub const PATCH_SELECTABLE: u32 = 1 << 11;
 pub const PATCH_GRADIENT_STOPS: usize = 8;
 
 #[repr(C)]

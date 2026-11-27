@@ -1,14 +1,18 @@
 # Plugins
 
-43 first-party plugins for astral, each in its own folder here.
+48 first-party plugins for astral, each in its own folder here.
 
 <!-- Generated from each manifest.toml by `astral readme`. Do not edit by hand. -->
 
 - <img src="../../assets/readme-icons/reaction-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Always Animate](always-animate/): Animates avatars, server icons, banners and emoji everywhere, not only when you tap them.
+- <img src="../../assets/readme-icons/file-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Anonymise File Names](anonymise-filenames/): Replaces the names of files you upload with random characters, a fixed name or a timestamp, keeping the extension.
+- <img src="../../assets/readme-icons/eye-slash-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Blur NSFW](blur-nsfw/): Blurs attachments in age-restricted channels until you tap them.
 - <img src="../../assets/readme-icons/chat-dots-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Channel Typing Indicators](channel-typing-indicators/): Shows typing dots beside channels where people are typing.
 - <img src="../../assets/readme-icons/chat-dots-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Chat Bubbles](chat-bubbles/): Draws a rounded bubble behind each message's text, media and embeds.
 - <img src="../../assets/readme-icons/link-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Clear URLs](clear-urls/): Removes common tracking parameters from links before messages are sent or edited.
 - <img src="../../assets/readme-icons/user-circle-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Cross Mod Badges](cross-mod-badges/): Shows the badges people have from other client mods, such as Vencord, Aliucord and BetterDiscord, on their profile.
+- <img src="../../assets/readme-icons/keyboard-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Custom Commands](custom-commands/): Create slash commands that send saved text, images, and videos.
+- <img src="../../assets/readme-icons/image-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Dearrow](dearrow/): Makes YouTube embed titles and thumbnails less sensationalist, powered by DeArrow.
 - <img src="../../assets/readme-icons/eye-slash-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Declutter](declutter/): Hides buttons, upsells and profile decorations you never use: the gift button, Server Boosts, call buttons, avatar decorations, nameplates, server tags and more.
 - <img src="../../assets/readme-icons/eye-slash-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Enhanced Blocking](enhanced-blocking/): Hides messages by user, keyword or reply author, including people you blocked, edits and messages already loaded.
 - <img src="../../assets/readme-icons/reaction-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Expression Tools](expression-tools/): Useful tools for custom emojis.
@@ -37,6 +41,7 @@
 - <img src="../../assets/readme-icons/reaction-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Reaction Avatars](reaction-avatars/): Shows the people who reacted beside each message reaction.
 - <img src="../../assets/readme-icons/star-icon.svg" width="20" height="20" align="absmiddle" alt=""> [ReviewDB](reviewdb/): Leave reviews on other users' profiles and see what others think of you.
 - <img src="../../assets/readme-icons/paint-palette-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Role Color Everywhere](role-color-everywhere/): Colors mentions, message text, role headers and names beside avatars with members' role colors.
+- <img src="../../assets/readme-icons/text-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Selectable Bios](selectable-bios/): Lets you select and copy any part of someone's profile bio.
 - <img src="../../assets/readme-icons/paint-palette-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Settings Theme](settings-theme/): Shows your theme behind User Settings and every page in it, which Discord leaves plain.
 - <img src="../../assets/readme-icons/text-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Shiki Codeblocks](shiki-codeblocks/): Highlights code blocks with VS Code-style syntax colors.
 - <img src="../../assets/readme-icons/show-me-your-name.svg" width="20" height="20" align="absmiddle" alt=""> [Show Me Your Name](show-me-your-name/): Display usernames next to display names, or show usernames only.

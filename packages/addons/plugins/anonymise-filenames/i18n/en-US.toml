@@ -1,0 +1,8 @@
+ANONYMISE_BY_DEFAULT = "Anonymise by Default"
+FILE_NAME = "File Name"
+FILE_NAME_SUBTITLE = "Every file is uploaded with this name and its own extension."
+LENGTH = "Length"
+METHOD = "Method"
+METHOD_CONSISTENT = "Consistent"
+METHOD_RANDOM = "Random Characters"
+METHOD_TIMESTAMP = "Timestamp"

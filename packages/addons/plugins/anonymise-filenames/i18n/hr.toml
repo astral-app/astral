@@ -1,0 +1,8 @@
+ANONYMISE_BY_DEFAULT = "Zadano anonimiziraj"
+FILE_NAME = "Naziv datoteke"
+FILE_NAME_SUBTITLE = "Svaka se datoteka prenosi s ovim nazivom i vlastitim nastavkom."
+LENGTH = "Duljina"
+METHOD = "Metoda"
+METHOD_CONSISTENT = "Dosljedno"
+METHOD_RANDOM = "Nasumični znakovi"
+METHOD_TIMESTAMP = "Vremenska oznaka"

@@ -1,0 +1,3 @@
+ATTACHMENTS = "添付ファイル"
+ATTACHMENTS_SUBTITLE = "アップロードされた画像、GIF、動画をタップするまでぼかします"
+BLUR = "ぼかし"

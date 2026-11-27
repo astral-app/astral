@@ -1,0 +1,19 @@
+id = "astral.custom-commands"
+name = "Custom Commands"
+description = "Create slash commands that send saved text, images, and videos."
+version = "0.0.1"
+icon = "KeyboardIcon"
+main = "main.lua"
+permissions = ["commands", "storage", "ui.dialogs", "ui.toasts", "files.read"]
+
+[[authors]]
+name = "V"
+id = "343383572805058560"
+
+[[authors]]
+name = "Luny"
+id = "821472922140803112"
+
+[[authors]]
+name = "adrian"
+id = "224617799434108928"

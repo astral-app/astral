@@ -1,0 +1,8 @@
+ANONYMISE_BY_DEFAULT = "Анонимизировать по умолчанию"
+FILE_NAME = "Имя файла"
+FILE_NAME_SUBTITLE = "Каждый файл загружается с этим именем и своим расширением."
+LENGTH = "Длина"
+METHOD = "Способ"
+METHOD_CONSISTENT = "Постоянное имя"
+METHOD_RANDOM = "Случайные символы"
+METHOD_TIMESTAMP = "Метка времени"

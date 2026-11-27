@@ -1,0 +1,8 @@
+ANONYMISE_BY_DEFAULT = "デフォルトで匿名化"
+FILE_NAME = "ファイル名"
+FILE_NAME_SUBTITLE = "すべてのファイルがこの名前と元の拡張子でアップロードされます。"
+LENGTH = "長さ"
+METHOD = "方式"
+METHOD_CONSISTENT = "固定"
+METHOD_RANDOM = "ランダムな文字列"
+METHOD_TIMESTAMP = "タイムスタンプ"

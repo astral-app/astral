@@ -1,0 +1,8 @@
+ANONYMISE_BY_DEFAULT = "Anonimizează implicit"
+FILE_NAME = "Numele fișierului"
+FILE_NAME_SUBTITLE = "Fiecare fișier este încărcat cu acest nume și cu propria extensie."
+LENGTH = "Lungime"
+METHOD = "Metodă"
+METHOD_CONSISTENT = "Consecvent"
+METHOD_RANDOM = "Caractere aleatorii"
+METHOD_TIMESTAMP = "Marcaj temporal"

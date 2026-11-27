@@ -93,6 +93,7 @@ extern "C" {
     X(radiusTopRight, 392)                                                                                                                 \
     X(role, 414)                                                                                                                           \
     X(round, 418)                                                                                                                          \
+    X(selectable, 430)                                                                                                                     \
     X(scale, 428)                                                                                                                          \
     X(shrink, 460)                                                                                                                         \
     X(size, 463)                                                                                                                           \

@@ -1,0 +1,8 @@
+ANONYMISE_BY_DEFAULT = "Anonymisera som standard"
+FILE_NAME = "Filnamn"
+FILE_NAME_SUBTITLE = "Alla filer laddas upp med det här namnet och sitt eget filtillägg."
+LENGTH = "Längd"
+METHOD = "Metod"
+METHOD_CONSISTENT = "Konsekvent"
+METHOD_RANDOM = "Slumpmässiga tecken"
+METHOD_TIMESTAMP = "Tidsstämpel"

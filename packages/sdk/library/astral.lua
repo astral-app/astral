@@ -590,8 +590,9 @@ astral.i18n = {}
 ---@type string
 astral.i18n.locale = ""
 ---@param key string
+---@param values? table<string, string|number>
 ---@return string
-function astral.i18n.t(key) end
+function astral.i18n.t(key, values) end
 
 astral.audio = {}
 ---@param text string

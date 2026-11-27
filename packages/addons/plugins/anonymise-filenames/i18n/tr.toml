@@ -1,0 +1,8 @@
+ANONYMISE_BY_DEFAULT = "Varsayılan Olarak Anonimleştir"
+FILE_NAME = "Dosya Adı"
+FILE_NAME_SUBTITLE = "Her dosya bu adla ve kendi uzantısıyla yüklenir."
+LENGTH = "Uzunluk"
+METHOD = "Yöntem"
+METHOD_CONSISTENT = "Sabit"
+METHOD_RANDOM = "Rastgele Karakterler"
+METHOD_TIMESTAMP = "Zaman Damgası"

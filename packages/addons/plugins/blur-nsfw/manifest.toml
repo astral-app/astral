@@ -1,0 +1,15 @@
+id = "astral.blur-nsfw"
+name = "Blur NSFW"
+description = "Blurs attachments in age-restricted channels until you tap them."
+version = "0.0.1"
+icon = "EyeSlashIcon"
+main = "main.lua"
+permissions = ["events.gateway", "net.discord"]
+
+[[authors]]
+name = "V"
+id = "343383572805058560"
+
+[[authors]]
+name = "adrian"
+id = "224617799434108928"

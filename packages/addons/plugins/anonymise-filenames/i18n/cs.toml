@@ -1,0 +1,8 @@
+ANONYMISE_BY_DEFAULT = "Anonymizovat ve výchozím stavu"
+FILE_NAME = "Název souboru"
+FILE_NAME_SUBTITLE = "Každý soubor se nahraje s tímto názvem a svou vlastní příponou."
+LENGTH = "Délka"
+METHOD = "Metoda"
+METHOD_CONSISTENT = "Stálý název"
+METHOD_RANDOM = "Náhodné znaky"
+METHOD_TIMESTAMP = "Časové razítko"

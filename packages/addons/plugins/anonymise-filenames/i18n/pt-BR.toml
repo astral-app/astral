@@ -1,0 +1,8 @@
+ANONYMISE_BY_DEFAULT = "Anonimizar por padrão"
+FILE_NAME = "Nome do arquivo"
+FILE_NAME_SUBTITLE = "Todos os arquivos são enviados com este nome e a sua própria extensão."
+LENGTH = "Comprimento"
+METHOD = "Método"
+METHOD_CONSISTENT = "Consistente"
+METHOD_RANDOM = "Caracteres aleatórios"
+METHOD_TIMESTAMP = "Data e hora"

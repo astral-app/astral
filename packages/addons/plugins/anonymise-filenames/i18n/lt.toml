@@ -1,0 +1,8 @@
+ANONYMISE_BY_DEFAULT = "Anonimizuoti pagal numatytuosius"
+FILE_NAME = "Failo pavadinimas"
+FILE_NAME_SUBTITLE = "Kiekvienas failas įkeliamas su šiuo pavadinimu ir savo plėtiniu."
+LENGTH = "Ilgis"
+METHOD = "Būdas"
+METHOD_CONSISTENT = "Pastovus"
+METHOD_RANDOM = "Atsitiktiniai simboliai"
+METHOD_TIMESTAMP = "Laiko žyma"

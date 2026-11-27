@@ -1,0 +1,8 @@
+ANONYMISE_BY_DEFAULT = "डिफ़ॉल्ट रूप से गुमनाम करें"
+FILE_NAME = "फ़ाइल का नाम"
+FILE_NAME_SUBTITLE = "हर फ़ाइल इसी नाम और अपने एक्सटेंशन के साथ अपलोड होती है।"
+LENGTH = "लंबाई"
+METHOD = "तरीका"
+METHOD_CONSISTENT = "एक जैसा"
+METHOD_RANDOM = "रैंडम अक्षर"
+METHOD_TIMESTAMP = "टाइमस्टैम्प"

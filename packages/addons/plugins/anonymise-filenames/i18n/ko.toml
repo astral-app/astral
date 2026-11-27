@@ -1,0 +1,8 @@
+ANONYMISE_BY_DEFAULT = "기본으로 익명화"
+FILE_NAME = "파일 이름"
+FILE_NAME_SUBTITLE = "모든 파일이 원래 확장자를 유지한 채 이 이름으로 업로드돼요."
+LENGTH = "길이"
+METHOD = "방식"
+METHOD_CONSISTENT = "고정 이름"
+METHOD_RANDOM = "무작위 문자"
+METHOD_TIMESTAMP = "타임스탬프"
