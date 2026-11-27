@@ -128,6 +128,9 @@ pub fn test_signatures() -> Result<(), String> {
     for folder in &folders {
         signing::verify_plugin(folder, &key)?;
     }
+    for folder in repo::pack_folders()? {
+        signing::verify_pack(&folder, &key)?;
+    }
     signing::verify_catalog(&key)
 }
 

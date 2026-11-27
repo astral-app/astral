@@ -136,11 +136,50 @@ fn private_key(path: &str) -> Result<SigningKey, String> {
         .map_err(|error| format!("signing key is not an Ed25519 PKCS#8 PEM: {error}"))
 }
 
-fn plugin_files(folder: &Path) -> Result<BTreeMap<String, String>, String> {
-    signed_paths(folder)?
+pub fn pack_paths(folder: &Path) -> Result<Vec<String>, String> {
+    fn walk(root: &Path, directory: &Path, paths: &mut Vec<String>) -> Result<(), String> {
+        for entry in std::fs::read_dir(directory)
+            .map_err(|error| error.to_string())?
+            .flatten()
+        {
+            let entry = entry.path();
+            if name_of(&entry).starts_with('.') {
+                continue;
+            }
+            if entry.is_dir() {
+                walk(root, &entry, paths)?;
+                continue;
+            }
+            let relative = entry
+                .strip_prefix(root)
+                .map_err(|error| error.to_string())?
+                .to_string_lossy()
+                .replace('\\', "/");
+            if relative != "signature" {
+                paths.push(relative);
+            }
+        }
+        Ok(())
+    }
+    let mut paths = Vec::new();
+    walk(folder, folder, &mut paths)?;
+    paths.sort();
+    Ok(paths)
+}
+
+fn digests(folder: &Path, paths: Vec<String>) -> Result<BTreeMap<String, String>, String> {
+    paths
         .into_iter()
         .map(|path| Ok((path.clone(), digest(&folder.join(&path))?)))
         .collect()
+}
+
+fn plugin_files(folder: &Path) -> Result<BTreeMap<String, String>, String> {
+    digests(folder, signed_paths(folder)?)
+}
+
+fn pack_files(folder: &Path) -> Result<BTreeMap<String, String>, String> {
+    digests(folder, pack_paths(folder)?)
 }
 
 unsafe extern "C" fn collect(
@@ -236,10 +275,21 @@ pub fn compile_plugin(folder: &Path) -> Result<(), String> {
 
 pub fn write_plugin_signature(folder: &Path, key: &SigningKey) -> Result<(), String> {
     compile_plugin(folder)?;
-    let files = plugin_files(folder)?;
-    let signature = STANDARD.encode(key.sign(&signature_message(&files)).to_bytes());
+    write_signature(folder, &plugin_files(folder)?, key)
+}
+
+pub fn write_pack_signature(folder: &Path, key: &SigningKey) -> Result<(), String> {
+    write_signature(folder, &pack_files(folder)?, key)
+}
+
+fn write_signature(
+    folder: &Path,
+    files: &BTreeMap<String, String>,
+    key: &SigningKey,
+) -> Result<(), String> {
+    let signature = STANDARD.encode(key.sign(&signature_message(files)).to_bytes());
     let mut document = format!("signature = \"{signature}\"\n\n[files]\n");
-    for (path, sum) in &files {
+    for (path, sum) in files {
         document.push_str(&format!("\"{path}\" = \"{sum}\"\n"));
     }
     std::fs::write(folder.join("signature"), document).map_err(|error| error.to_string())
@@ -260,9 +310,21 @@ fn verify(key: &VerifyingKey, message: &[u8], encoded: &str) -> bool {
 }
 
 pub fn verify_plugin(folder: &Path, key: &VerifyingKey) -> Result<(), String> {
+    verify_files(folder, plugin_files(folder), key)
+}
+
+pub fn verify_pack(folder: &Path, key: &VerifyingKey) -> Result<(), String> {
+    verify_files(folder, pack_files(folder), key)
+}
+
+fn verify_files(
+    folder: &Path,
+    current: Result<BTreeMap<String, String>, String>,
+    key: &VerifyingKey,
+) -> Result<(), String> {
     let name = name_of(folder);
     let signature = read_plugin_signature(folder).map_err(|error| format!("{name}: {error}"))?;
-    let current = plugin_files(folder).map_err(|error| format!("{name}: {error}"))?;
+    let current = current.map_err(|error| format!("{name}: {error}"))?;
     if current.len() != signature.files.len() {
         return Err(format!(
             "{name}: signature lists different files from the folder (run astral sign)"
@@ -314,6 +376,10 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
     let key = private_key(&flags.get("key"))?;
     for folder in repo::plugin_folders()? {
         write_plugin_signature(&folder, &key)
+            .map_err(|error| format!("{}: {error}", name_of(&folder)))?;
+    }
+    for folder in repo::pack_folders()? {
+        write_pack_signature(&folder, &key)
             .map_err(|error| format!("{}: {error}", name_of(&folder)))?;
     }
     let index = std::fs::read(repo::path(&["packages", "catalog", "index.toml"]))

@@ -2,6 +2,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::OnceLock;
 
+pub const PACK_KINDS: [&str; 2] = ["icon-packs", "emoji-packs"];
+
 pub fn root() -> Result<PathBuf, String> {
     let mut directory = std::env::current_dir().map_err(|error| error.to_string())?;
     loop {
@@ -151,6 +153,22 @@ pub fn plugin_folders() -> Result<Vec<PathBuf>, String> {
         .map(|entry| entry.path())
         .filter(|folder| folder.join("manifest.toml").is_file())
         .collect();
+    folders.sort();
+    Ok(folders)
+}
+
+pub fn pack_folders() -> Result<Vec<PathBuf>, String> {
+    let mut folders = Vec::new();
+    for kind in PACK_KINDS {
+        let directory = path(&["packages", "addons", kind]);
+        folders.extend(
+            std::fs::read_dir(&directory)
+                .map_err(|error| format!("{}: {error}", directory.display()))?
+                .flatten()
+                .map(|entry| entry.path())
+                .filter(|folder| folder.join("manifest.toml").is_file()),
+        );
+    }
     folders.sort();
     Ok(folders)
 }
