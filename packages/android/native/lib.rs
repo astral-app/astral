@@ -161,6 +161,15 @@ pub extern "system" fn Java_app_astral_android_Native_markReady<'local>(
 }
 
 #[unsafe(no_mangle)]
+pub extern "system" fn Java_app_astral_android_Native_openLink<'local>(
+    mut env: JNIEnv<'local>,
+    _: JClass<'local>,
+    url: JString<'local>,
+) -> jboolean {
+    flag(app::links::open(&text(&mut env, &url)))
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_app_astral_android_Native_renderSvg<'local>(
     mut env: JNIEnv<'local>,
     _: JClass<'local>,

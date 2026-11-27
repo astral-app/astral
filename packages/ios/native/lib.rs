@@ -146,6 +146,11 @@ pub extern "C" fn astral_ios_composer_styles(text: AstralText) -> AstralOwned {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn astral_ios_open_link(url: AstralText) -> bool {
+    app::links::open(&url.text())
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn astral_ios_pressable(identifier: AstralText) -> AstralPressable {
     AstralPressable::of(app::pressable::pressable(&identifier.text()))
 }

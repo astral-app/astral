@@ -4,6 +4,7 @@
 
 #import "AppExtensions.h"
 #import "AstralCore.h"
+#import "IncomingLinks.h"
 #import "AstralDynamicCutout.h"
 #import "AstralState.h"
 #import "BrowserLogin.h"
@@ -228,6 +229,7 @@ __attribute__((constructor)) static void AstralBootstrap(void)
 {
     if (!AstralIsDiscordApp()) return;
     AstralInstallBrowserLogin();
+    AstralRouteIncomingLinks();
     AstralInstallNetworkFilter(^BOOL {
         return astral_ios_staff_dev_tools();
     });

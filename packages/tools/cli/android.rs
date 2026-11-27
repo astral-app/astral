@@ -239,6 +239,7 @@ fn build(arguments: &[String]) -> Result<(), String> {
     }
     for file in outputs {
         open_phoenix_access(&file, &jar, &work.0)?;
+        register_link_scheme(&file, &jar, &work.0)?;
         strip_split_copies(&file, &jar, &work.0)?;
         let target = output
             .join("sideload")
@@ -517,6 +518,45 @@ fn open_phoenix_access(
     )?;
     resign(apk, patcher, work)?;
     println!("opened Phoenix's access gate in {}", apk.display());
+    Ok(())
+}
+
+const MANIFEST: &str = "AndroidManifest.xml";
+const LINK_ACTIVITY: &str = "com.discord.main.MainActivity";
+const LINK_SCHEME: &str = "astral";
+
+fn register_link_scheme(
+    apk: &std::path::Path,
+    patcher: &std::path::Path,
+    work: &std::path::Path,
+) -> Result<(), String> {
+    let name = apk
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or_default();
+    if is_config_split(name) {
+        return Ok(());
+    }
+    let manifest = crate::ipa_archive::Ipa::open(apk)?.read(MANIFEST)?;
+    let Some(patched) = crate::axml::add_scheme_filter(&manifest, LINK_ACTIVITY, LINK_SCHEME)?
+    else {
+        return Ok(());
+    };
+    crate::ipa_archive::rewrite(
+        apk,
+        "link-scheme",
+        |entry| {
+            if entry == MANIFEST {
+                let patched = patched.clone();
+                crate::ipa_archive::Action::Patch(Box::new(move |_| Ok(patched)))
+            } else {
+                crate::ipa_archive::Action::Keep
+            }
+        },
+        Vec::new(),
+    )?;
+    resign(apk, patcher, work)?;
+    println!("registered {LINK_SCHEME}:// links in {}", apk.display());
     Ok(())
 }
 

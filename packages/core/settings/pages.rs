@@ -1209,6 +1209,18 @@ fn install_from_key(key: &str, changed: &Changed) {
     }
 }
 
+pub fn link_package(kind: &str, identifier: &str) -> Option<(String, String)> {
+    let package = catalog_package(kind, identifier)?;
+    Some((string(&package, "name"), string(&package, "description")))
+}
+
+pub fn install_linked(kind: &str, identifier: &str) {
+    install_from_key(
+        &format!("{kind}.{identifier}"),
+        &(Arc::new(crate::settings::navigator::refresh) as Changed),
+    );
+}
+
 fn set_enabled(identifier: &str, enabled: bool) {
     host("setEnabled", &json!([identifier, enabled]));
 }

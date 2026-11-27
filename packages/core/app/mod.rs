@@ -6,6 +6,7 @@ mod ffi;
 pub mod guest_event;
 pub mod host;
 pub mod launch;
+pub mod links;
 pub mod network;
 mod pages;
 pub mod picked_media;
@@ -198,6 +199,10 @@ pub fn prepare(launch: Launch) -> &'static App {
     current
 }
 
+pub fn started() -> bool {
+    STARTED.load(Ordering::Acquire)
+}
+
 pub fn start() -> usize {
     let Some(current) = app() else { return 0 };
     if !STARTED.swap(true, Ordering::AcqRel) {
@@ -221,6 +226,7 @@ pub fn start() -> usize {
         if current.recovering() && !safe_mode {
             recovery::prompt();
         }
+        links::open_early();
     }
     lua_host::plugins().len()
 }
@@ -468,6 +474,8 @@ pub fn sheet_event(sheet: u64, action: String, value: String, closed: bool) {
 pub fn complete_confirm(request: u64, accepted: bool) {
     if request == recovery::PROMPT {
         recovery::answered(accepted);
+    } else if request == links::PROMPT {
+        links::answered(accepted);
     } else if request != 0 {
         lua_host::complete_confirm(request, accepted);
     }

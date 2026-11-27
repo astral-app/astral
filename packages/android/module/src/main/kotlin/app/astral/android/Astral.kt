@@ -56,6 +56,7 @@ class Astral : XposedModule() {
         PhoenixBridge.install(this, param.classLoader)
         runCatching { EmojiComposer.install(this) }.onFailure { Log.error("Failed to install emoji composer support", it) }
         runCatching { NavigationBack.install(this, param.classLoader) }.onFailure { Log.error("Failed to route system back", it) }
+        runCatching { IncomingLinks.install(this) }.onFailure { Log.error("Failed to route incoming astral links", it) }
         runCatching { CutoutOverlay.install(this, resources) }.onFailure { Log.error("Failed to install the display cutout overlay", it) }
         runCatching { PhoenixClasses.resolve(param.applicationInfo, param.classLoader) }.onFailure { Log.error("Failed to find Phoenix's OkHttp classes", it) }
         runCatching { NetworkHooks.install(this, param.classLoader) }.onFailure { Log.error("Failed to hook Discord's network stack", it) }
