@@ -1,6 +1,6 @@
 # Plugins
 
-48 first-party plugins for astral, each in its own folder here.
+47 first-party plugins for astral, each in its own folder here.
 
 <!-- Generated from each manifest.toml by `astral readme`. Do not edit by hand. -->
 

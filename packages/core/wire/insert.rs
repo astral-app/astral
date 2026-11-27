@@ -137,6 +137,7 @@ struct State {
     bases: Vec<PathBase>,
     clock: u64,
     seen: HashMap<i32, Vec<u8>>,
+    orphans: Vec<i32>,
 }
 
 impl State {
@@ -713,6 +714,20 @@ fn insert_at_image(state: &mut State, bytes: *const u8, spans: &[Span], span: &S
     state.track(parent, target);
 }
 
+fn remove_orphans(state: &mut State, writer: &mut Writer) {
+    if state.orphans.is_empty() {
+        return;
+    }
+    let mut staged = Out::default();
+    staged.put_op(Op::Remove);
+    staged.put32(state.orphans.len() as u32);
+    for id in state.orphans.drain(..) {
+        staged.put(&id.to_le_bytes());
+    }
+    writer.append(&staged);
+    staged.discard();
+}
+
 fn note_bases(state: &mut State, bytes: *const u8, spans: &[Span]) {
     for span in spans {
         let data = batch_of(bytes, span);
@@ -743,6 +758,9 @@ fn note_base(state: &mut State, node: i32, identifier: &[u8], user: u64) {
     if let Some(stale) = state.bases.iter().find(|base| base.node == node).map(|base| base.resolved)
         && stale > 0
     {
+        if let Some(target) = state.targets.get(&stale) {
+            state.orphans.extend(target.inserted.iter().copied());
+        }
         state.discard(stale);
     }
     let base = PathBase {
@@ -869,6 +887,7 @@ pub unsafe extern "C" fn wire_insert_nodes(
             }
         }
         note_bases(state, bytes, spans);
+        remove_orphans(state, &mut writer);
         let mut bases = core::mem::take(&mut state.bases);
         for base in bases.iter_mut() {
             if base.resolved != 0 && state.targets.contains_key(&base.resolved) {

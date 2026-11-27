@@ -378,6 +378,7 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
         write_pack_signature(&folder, &key)
             .map_err(|error| format!("{}: {error}", name_of(&folder)))?;
     }
+    crate::readme::regenerate()?;
     let index = std::fs::read(repo::path(&["packages", "catalog", "index.toml"]))
         .map_err(|error| error.to_string())?;
     let signature = STANDARD.encode(key.sign(&index).to_bytes());
