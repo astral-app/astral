@@ -1283,6 +1283,10 @@ fn bubble_late_blocks(
     }
 }
 
+fn has_block_content(state: &Row) -> bool {
+    state.blocks.iter().any(|block| !block.children.is_empty() || block.card != 0)
+}
+
 fn background_style(state: &Row) -> Option<(c_int, AstralMessageBackgroundStyle)> {
     let mut style = AstralMessageBackgroundStyle::default();
     let Some(decorator) = BACKGROUND_DECORATOR.get::<AstralMessageBackgroundDecorator>() else {
@@ -1304,7 +1308,7 @@ fn background_style(state: &Row) -> Option<(c_int, AstralMessageBackgroundStyle)
 fn apply_background_style(out: &mut Out, state: &mut Row, inside: &mut Vec<i32>, original: Option<&[u8]>, changed: &mut c_int) {
     let Some((result, style)) = background_style(state) else { return };
     let active = result > 0 && valid_style(&style);
-    let bubble = active && style.bubble != 0 && !state.blocks.is_empty();
+    let bubble = active && style.bubble != 0 && has_block_content(state);
     let text = text_block(state);
     let mut reply = if bubble && state.reply != 0 {
         style.reply
@@ -1867,37 +1871,78 @@ fn keep_tags(batch: &Batch, out: &mut Out, changed: &mut c_int, parent: i32, chi
 }
 
 fn decorate_tags(batch: &Batch, decorator: AstralDecorator, out: &mut Out, changed: &mut c_int) {
+    let mut handled = Vec::new();
     for span in batch.spans {
         if span.op != Op::SetChildren || span.child_count == 0 || span.child_count as usize > MAX_TAGGED_CHILDREN {
             continue;
         }
         let children = batch.children(span, MAX_TAGGED_CHILDREN);
         let Some(message) = author_in(&children) else { continue };
-        let Some((tags, count)) = decorate_author(decorator, message) else {
-            keep_tags(batch, out, changed, span.id, &children, message);
+        handled.push(span.id);
+        apply_author_tags(batch, decorator, out, changed, span.id, &children, message);
+    }
+    for (parent, message) in recycled_authors(batch, &handled) {
+        let children = discord_children(parent);
+        if children.is_empty() || children.len() > MAX_TAGGED_CHILDREN {
+            continue;
+        }
+        apply_author_tags(batch, decorator, out, changed, parent, &children, message);
+    }
+}
+
+fn recycled_authors(batch: &Batch, handled: &[i32]) -> Vec<(i32, u64)> {
+    let accessibility = properties::current().accessibility_id;
+    let mut recycled = Vec::new();
+    for span in batch.spans.iter().filter(|span| span.op == Op::Update) {
+        let Some(message) = find_string(batch.bytes, span, accessibility).and_then(|text| prefixed(text, b"message.author:")) else {
             continue;
         };
-        let tags = &tags[..count];
-        with_decorated(|decorated| {
-            let Some(slot) = decorated_slot(decorated, span.id) else { return };
-            slot.message = message;
-            if tags.is_empty() && slot.nodes.is_empty() {
-                slot.signature = tag_signature(&[]);
-                return;
-            }
-            put_original_once(out, batch.bytes, changed);
-            if tags.is_empty() {
-                remove_tags(out, slot);
-                slot.signature = tag_signature(&[]);
-                return;
-            }
-            if !(slot.roots.is_empty() && slot.trailing.is_empty()) && tag_signature(tags) == slot.signature {
-                put_tagged_children(out, span.id, &children, slot);
-                return;
-            }
-            write_tags(out, span.id, &children, tags, slot);
-        });
+        let parent = super::children::wire_discord_parent(span.id);
+        if parent == 0 || handled.contains(&parent) {
+            continue;
+        }
+        let stale = with_decorated(|decorated| decorated.get(&parent).is_some_and(|slot| slot.message != message));
+        if stale {
+            recycled.push((parent, message));
+        }
     }
+    recycled
+}
+
+fn apply_author_tags(
+    batch: &Batch,
+    decorator: AstralDecorator,
+    out: &mut Out,
+    changed: &mut c_int,
+    parent: i32,
+    children: &[i32],
+    message: u64,
+) {
+    let Some((tags, count)) = decorate_author(decorator, message) else {
+        keep_tags(batch, out, changed, parent, children, message);
+        return;
+    };
+    let tags = &tags[..count];
+    with_decorated(|decorated| {
+        let Some(slot) = decorated_slot(decorated, parent) else { return };
+        slot.message = message;
+        if tags.is_empty() && slot.nodes.is_empty() {
+            slot.signature = tag_signature(&[]);
+            return;
+        }
+        put_original_once(out, batch.bytes, changed);
+        if tags.is_empty() {
+            remove_tags(out, slot);
+            slot.signature = tag_signature(&[]);
+            out.put_children(parent, children);
+            return;
+        }
+        if !(slot.roots.is_empty() && slot.trailing.is_empty()) && tag_signature(tags) == slot.signature {
+            put_tagged_children(out, parent, children, slot);
+            return;
+        }
+        write_tags(out, parent, children, tags, slot);
+    });
 }
 
 fn batch_of_length<'a>(bytes: *const u8, pointer: *const Span, count: usize, length: usize) -> Batch<'a> {
