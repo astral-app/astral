@@ -45,6 +45,12 @@ static PLATFORM: RwLock<Platform> = RwLock::new(Platform {
 });
 static FILTER: Mutex<String> = Mutex::new(String::new());
 static MARKET_KIND: Mutex<String> = Mutex::new(String::new());
+const MARKET_KINDS: [(&str, &str); 4] = [
+    ("plugin", "ASTRAL_MARKET_PLUGINS"),
+    ("theme", "ASTRAL_MARKET_THEMES"),
+    ("icon-pack", "ASTRAL_MARKET_ICON_PACKS"),
+    ("emoji-pack", "ASTRAL_MARKET_EMOJI_PACKS"),
+];
 
 fn platform<T>(read: impl FnOnce(&Platform) -> T) -> T {
     read(&PLATFORM.read().unwrap_or_else(|poisoned| poisoned.into_inner()))
@@ -1012,11 +1018,17 @@ fn design_page() -> Value {
 }
 
 fn installed_version(identifier: &str, kind: &str) -> Option<String> {
-    if kind == "theme" {
-        return host_list("themes")
+    let listed = match kind {
+        "theme" => "themes",
+        "icon-pack" => "iconPacks",
+        "emoji-pack" => "emojiPacks",
+        _ => "",
+    };
+    if !listed.is_empty() {
+        return host_list(listed)
             .iter()
-            .find(|theme| string(theme, "id") == identifier)
-            .map(|theme| string(theme, "version"));
+            .find(|entry| string(entry, "id") == identifier)
+            .map(|entry| string(entry, "version"));
     }
     plugin_with_id(identifier).map(|plugin| string(&plugin, "version"))
 }
@@ -1063,10 +1075,11 @@ fn package_card(package: &Value, kind: &str) -> Value {
         Some(_) if newer => tr("ASTRAL_UPDATE").into(),
         Some(_) => tr("ASTRAL_INSTALLED").into(),
     });
-    let icon = if kind == "theme" {
-        "res://ic_mana_paint_palette".to_owned()
-    } else {
-        package_icon(package, &identifier)
+    let icon = match kind {
+        "theme" => "res://ic_mana_paint_palette".to_owned(),
+        "icon-pack" => "res://ic_mana_image".to_owned(),
+        "emoji-pack" => "res://ic_mana_reaction".to_owned(),
+        _ => package_icon(package, &identifier),
     };
     json!({
         "key": format!("{kind}.{identifier}"),
@@ -1090,10 +1103,16 @@ fn marketplace_page() -> Value {
     let packages = catalog();
     let current = market_kind();
     let counts = |kind: &str| array(&packages, &format!("{kind}s")).len().to_string();
-    let chips = json!([
-        {"key": "market.plugin", "title": tr_with("ASTRAL_MARKET_PLUGINS", &[("count", counts("plugin"))]), "selected": current == "plugin"},
-        {"key": "market.theme", "title": tr_with("ASTRAL_MARKET_THEMES", &[("count", counts("theme"))]), "selected": current == "theme"},
-    ]);
+    let chips: Vec<Value> = MARKET_KINDS
+        .iter()
+        .map(|(kind, title)| {
+            json!({
+                "key": format!("market.{kind}"),
+                "title": tr_with(title, &[("count", counts(kind))]),
+                "selected": current == *kind,
+            })
+        })
+        .collect();
     let cards: Vec<Value> = array(&packages, &format!("{current}s"))
         .iter()
         .map(|package| package_card(package, &current))

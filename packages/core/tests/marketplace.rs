@@ -65,7 +65,7 @@ fn wait_for(condition: impl Fn() -> bool) {
 }
 
 #[test]
-fn installs_signed_plugins_and_themes_from_a_file_catalog() {
+fn installs_signed_plugins_themes_and_packs_from_a_file_catalog() {
     unsafe { astral_core::support::log::astral_set_log_sink(Some(print_log), core::ptr::null_mut(), None) };
     let root = std::env::temp_dir().join(format!("astral-marketplace-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
@@ -76,6 +76,10 @@ fn installs_signed_plugins_and_themes_from_a_file_catalog() {
     copy_tree(
         &repository().join("packages/addons/plugins/fix-gif-download"),
         &catalog.join("plugins/astral.fix-gif-download"),
+    );
+    copy_tree(
+        &repository().join("packages/addons/emoji-packs/fluent"),
+        &catalog.join("emoji-packs/fluent"),
     );
     let settings_path = state.join("settings.json").to_string_lossy().into_owned();
     let settings = unsafe { astral_settings_open(settings_path.as_ptr().cast(), settings_path.len(), 0) };
@@ -128,16 +132,29 @@ fn installs_signed_plugins_and_themes_from_a_file_catalog() {
         .find(|entry| entry["id"] == "mana")
         .unwrap()
         .to_string();
+    let pack = listed["emoji-packs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entry| entry["id"] == "fluent")
+        .unwrap()
+        .to_string();
     unsafe {
+        astral_marketplace_install(pack.as_ptr().cast(), pack.len(), 3, Some(changed), core::ptr::null_mut(), None);
         astral_marketplace_install(theme.as_ptr().cast(), theme.len(), 1, Some(changed), core::ptr::null_mut(), None);
         astral_marketplace_install(plugin.as_ptr().cast(), plugin.len(), 0, Some(changed), core::ptr::null_mut(), None);
     }
-    let mut done = vec![
-        receiver.recv_timeout(Duration::from_secs(10)).unwrap(),
-        receiver.recv_timeout(Duration::from_secs(10)).unwrap(),
-    ];
+    let mut done: Vec<_> = (0..3).map(|_| receiver.recv_timeout(Duration::from_secs(10)).unwrap()).collect();
     done.sort();
-    assert_eq!(done, vec![(0, "astral.fix-gif-download".to_owned()), (1, "mana".to_owned())]);
+    assert_eq!(
+        done,
+        vec![
+            (0, "astral.fix-gif-download".to_owned()),
+            (1, "mana".to_owned()),
+            (3, "fluent".to_owned())
+        ]
+    );
+    assert!(state.join("emoji-packs/fluent/coverage.txt").is_file());
     assert!(state.join("themes/mana.toml").is_file());
     assert!(state.join("plugins/astral.fix-gif-download/main.lua").is_file());
     assert!(!state.join("plugins/.astral.fix-gif-download.installing").exists());

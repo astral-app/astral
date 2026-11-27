@@ -495,6 +495,13 @@ authors = [
 ]
 
 [[themes]]
+id = "astral"
+name = "astral"
+version = "0.0.1"
+description = "Violet and cyan, like mana seen from the astral"
+base = "themes/astral.toml"
+
+[[themes]]
 id = "mana"
 name = "Mana"
 version = "0.0.2"
@@ -514,3 +521,19 @@ name = "Soft"
 version = "0.0.2"
 description = "Rounder corners and slightly larger text"
 base = "themes/soft.toml"
+
+[[icon-packs]]
+id = "liquid-glass"
+name = "Liquid Glass"
+version = "0.0.1"
+description = "Discord's icons redrawn as frosted glass, after dor4a's Liquid Glass pack."
+base = "icon-packs/liquid-glass/"
+authors = [{ name = "eternal", id = "263689920210534400" }, { name = "dor4a", id = "455513497288310785" }]
+
+[[emoji-packs]]
+id = "fluent"
+name = "Fluent"
+version = "0.0.1"
+description = "Microsoft's Fluent emoji, animated where Microsoft drew them"
+base = "emoji-packs/fluent/"
+authors = [{ name = "Microsoft", id = "0" }, { name = "adrian", id = "224617799434108928" }]
