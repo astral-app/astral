@@ -119,9 +119,16 @@ pub fn running_plugins() -> Vec<*mut Plugin> {
         .collect()
 }
 
+pub static BUSY_FALLBACKS: core::sync::atomic::AtomicU64 = core::sync::atomic::AtomicU64::new(0);
+
 pub fn busy<T>(fallback: T) -> T {
+    BUSY_FALLBACKS.fetch_add(1, core::sync::atomic::Ordering::AcqRel);
     host::redraw_after_busy();
     fallback
+}
+
+pub fn busy_fallbacks() -> u64 {
+    BUSY_FALLBACKS.load(core::sync::atomic::Ordering::Acquire)
 }
 
 fn label_node_kind(kind: c_int) -> NodeKind {

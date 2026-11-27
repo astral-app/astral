@@ -116,7 +116,7 @@ pub const PATCH_SEE_THROUGH: u32 = 1 << 10;
 pub const PATCH_GRADIENT_STOPS: usize = 8;
 
 #[repr(C)]
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, PartialEq)]
 pub struct AstralNodePatch {
     pub fields: u32,
     pub background: u32,

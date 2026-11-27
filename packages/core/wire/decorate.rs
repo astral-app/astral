@@ -1752,7 +1752,8 @@ fn tag_signature(tags: &[AstralTag]) -> u64 {
     hash ^ tags.len() as u64
 }
 
-fn decorate_author(decorator: AstralDecorator, message: u64) -> ([AstralTag; MAX_TAGS], usize) {
+fn decorate_author(decorator: AstralDecorator, message: u64) -> Option<([AstralTag; MAX_TAGS], usize)> {
+    let fallbacks = crate::lua::host::hooks::busy_fallbacks();
     let context = AstralDecorationContext {
         prefix: c"message.author:".as_ptr(),
         message_id: message,
@@ -1771,7 +1772,10 @@ fn decorate_author(decorator: AstralDecorator, message: u64) -> ([AstralTag; MAX
     if count != 0 {
         STAT_TAGGED.fetch_add(1, Ordering::Relaxed);
     }
-    (tags, count.min(MAX_TAGS))
+    if crate::lua::host::hooks::busy_fallbacks() != fallbacks {
+        return None;
+    }
+    Some((tags, count.min(MAX_TAGS)))
 }
 
 fn put_tagged_children(out: &mut Out, parent: i32, children: &[i32], roots: &[i32]) {
@@ -1819,6 +1823,17 @@ fn author_in(children: &[i32]) -> Option<u64> {
     })
 }
 
+fn keep_tags(batch: &Batch, out: &mut Out, changed: &mut c_int, parent: i32, children: &[i32], message: u64) {
+    with_decorated(|decorated| {
+        let Some(slot) = decorated.get_mut(&parent) else { return };
+        if slot.message != message || slot.roots.is_empty() {
+            return;
+        }
+        put_original_once(out, batch.bytes, changed);
+        put_tagged_children(out, parent, children, &slot.roots);
+    });
+}
+
 fn decorate_tags(batch: &Batch, decorator: AstralDecorator, out: &mut Out, changed: &mut c_int) {
     for span in batch.spans {
         if span.op != Op::SetChildren || span.child_count == 0 || span.child_count as usize > MAX_TAGGED_CHILDREN {
@@ -1826,7 +1841,10 @@ fn decorate_tags(batch: &Batch, decorator: AstralDecorator, out: &mut Out, chang
         }
         let children = batch.children(span, MAX_TAGGED_CHILDREN);
         let Some(message) = author_in(&children) else { continue };
-        let (tags, count) = decorate_author(decorator, message);
+        let Some((tags, count)) = decorate_author(decorator, message) else {
+            keep_tags(batch, out, changed, span.id, &children, message);
+            continue;
+        };
         let tags = &tags[..count];
         with_decorated(|decorated| {
             let Some(slot) = decorated_slot(decorated, span.id) else { return };
@@ -1910,7 +1928,9 @@ pub unsafe extern "C" fn astral_wire_refresh_author_tags(buffer: *mut AstralWire
         if children.is_empty() || children.len() > MAX_TAGGED_CHILDREN {
             continue;
         }
-        let (tags, count) = decorate_author(decorator, message);
+        let Some((tags, count)) = decorate_author(decorator, message) else {
+            continue;
+        };
         let tags = &tags[..count];
         with_decorated(|decorated| {
             let Some(slot) = decorated.get_mut(&parent) else { return };
