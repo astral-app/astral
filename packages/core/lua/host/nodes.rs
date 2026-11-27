@@ -714,7 +714,77 @@ fn remembered_tags(context: &AstralDecorationContext, tags: &mut [AstralTag], fr
     Some(count)
 }
 
-unsafe fn collect_tags(state: *mut LuaState, plugin: &Plugin, tags: &mut [AstralTag], count: &mut usize) {
+struct TagPress<'a> {
+    registration: u64,
+    message: &'a str,
+    user: &'a str,
+}
+
+const TAG_PRESS_PREFIX: &str = "astral.tag.";
+
+unsafe fn write_tag_action(state: *mut LuaState, tag: &mut AstralTag, pressed: Option<&TagPress>) {
+    let Some(pressed) = pressed else { return };
+    let Some(action) = (unsafe { field_text(state, "action") }) else {
+        return;
+    };
+    if action.is_empty() || action.contains(':') || action.len() > 24 {
+        return;
+    }
+    let identifier = format!(
+        "{TAG_PRESS_PREFIX}{}:{action}:{}:{}",
+        pressed.registration, pressed.message, pressed.user
+    );
+    write_text(&mut tag.action_id, &identifier);
+}
+
+pub fn press_decoration(identifier: &str) -> bool {
+    let _held = host::lock();
+    let Some(rest) = identifier.strip_prefix(TAG_PRESS_PREFIX) else {
+        return false;
+    };
+    let mut parts = rest.splitn(4, ':');
+    let (Some(registration), Some(action), Some(message), Some(user)) = (parts.next(), parts.next(), parts.next(), parts.next()) else {
+        return false;
+    };
+    let Ok(registration) = registration.parse::<u64>() else {
+        return false;
+    };
+    for plugin in running_plugins() {
+        let Some(press) = (unsafe { &*plugin })
+            .decorators
+            .iter()
+            .find(|decorator| decorator.registration == registration)
+            .and_then(|decorator| decorator.press)
+        else {
+            continue;
+        };
+        let channel = snowflake(crate::wire::ids::astral_wire_current_channel());
+        let guild = guild_of(&channel);
+        let state = unsafe { (*plugin).state() };
+        let top = unsafe { lua::lua_gettop(state) };
+        unsafe {
+            lua::push_reference(state, press);
+            lua::lua_createtable(state, 0, 4);
+            set_text(state, "message_id", message);
+            set_optional(state, "user_id", user);
+            set_optional(state, "channel_id", &channel);
+            if let Some(guild) = &guild {
+                set_text(state, "guild_id", guild);
+            }
+            lua::push_str(state, action);
+        }
+        if !host::call(plugin, 2, 0, "decoration press") {
+            unsafe { lua::lua_settop(state, top) };
+            host::fail_and_stop(plugin);
+            return true;
+        }
+        unsafe { lua::lua_settop(state, top) };
+        return true;
+    }
+    false
+}
+
+unsafe fn collect_tags(state: *mut LuaState, plugin: &Plugin, tags: &mut [AstralTag], count: &mut usize, pressed: Option<&TagPress>) {
     if !unsafe { lua::is_table(state, -1) } {
         unsafe { lua::pop(state, 1) };
         return;
@@ -740,6 +810,7 @@ unsafe fn collect_tags(state: *mut LuaState, plugin: &Plugin, tags: &mut [Astral
                 if let Some(text) = unsafe { field_text(state, "text") } {
                     write_text(&mut tag.text, &text);
                 }
+                unsafe { write_tag_action(state, tag, pressed) };
                 unsafe { lua::pop(state, 1) };
                 continue;
             }
@@ -777,6 +848,7 @@ unsafe fn collect_tags(state: *mut LuaState, plugin: &Plugin, tags: &mut [Astral
                     }
                     lua::pop(state, 1);
                 }
+                unsafe { write_tag_action(state, tag, pressed) };
                 tag.shape = match unsafe { field_text(state, "shape") }.as_deref() {
                     Some("op") => TAG_ORIGINAL_POSTER,
                     Some("text") => TAG_TEXT,
@@ -799,8 +871,12 @@ fn decorate_with_lua(context: &AstralDecorationContext, tags: &mut [AstralTag]) 
     let guild = guild_of(&channel);
     let mut count = 0;
     for plugin in running_plugins() {
-        let decorators: Vec<c_int> = unsafe { &*plugin }.decorators.iter().map(|(_, reference)| *reference).collect();
-        for reference in decorators {
+        let decorators: Vec<(c_int, Option<u64>)> = unsafe { &*plugin }
+            .decorators
+            .iter()
+            .map(|decorator| (decorator.reference, decorator.press.map(|_| decorator.registration)))
+            .collect();
+        for (reference, registration) in decorators {
             if count >= tags.len() {
                 break;
             }
@@ -816,7 +892,12 @@ fn decorate_with_lua(context: &AstralDecorationContext, tags: &mut [AstralTag]) 
                 }
             }
             if host::call(plugin, 1, 1, "decorate") {
-                unsafe { collect_tags(state, &*plugin, tags, &mut count) };
+                let pressed = registration.map(|registration| TagPress {
+                    registration,
+                    message: &message,
+                    user: &user,
+                });
+                unsafe { collect_tags(state, &*plugin, tags, &mut count, pressed.as_ref()) };
             }
             if unsafe { (*plugin).failed } {
                 break;

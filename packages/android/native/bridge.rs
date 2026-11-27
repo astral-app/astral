@@ -37,6 +37,7 @@ pub enum Method {
     RefreshEmoji,
     ShowAlert,
     ShowToast,
+    ShowTooltip,
     TriggerHaptic,
     CopyText,
     PickFile,
@@ -75,7 +76,7 @@ enum Returns {
 }
 
 impl Method {
-    const ALL: [Method; 36] = [
+    const ALL: [Method; 37] = [
         Method::Deliver,
         Method::DiscordRequest,
         Method::ExportBackup,
@@ -84,6 +85,7 @@ impl Method {
         Method::RefreshEmoji,
         Method::ShowAlert,
         Method::ShowToast,
+        Method::ShowTooltip,
         Method::TriggerHaptic,
         Method::CopyText,
         Method::PickFile,
@@ -124,6 +126,7 @@ impl Method {
             Method::RefreshEmoji => "refreshEmoji",
             Method::ShowAlert => "showAlert",
             Method::ShowToast => "showToast",
+            Method::ShowTooltip => "showTooltip",
             Method::TriggerHaptic => "triggerHaptic",
             Method::CopyText => "copyText",
             Method::PickFile => "pickFile",
@@ -177,6 +180,7 @@ impl Method {
             | Method::TriggerHaptic
             | Method::CopyText
             | Method::OpenUrl
+            | Method::ShowTooltip
             | Method::DispatchGateway => "(Ljava/lang/String;)V",
             Method::ShowAlert | Method::ShowToast => "(Ljava/lang/String;Ljava/lang/String;)V",
             Method::OpenWebAuth | Method::Notify | Method::Speak | Method::PlaySound => {
@@ -384,6 +388,9 @@ impl Bridge for JniBridge {
                 Method::ShowToast,
                 &[Argument::Text(title), Argument::Text(message)],
             )),
+            Request::ShowTooltip { text } => {
+                into_reply(self.locked(Method::ShowTooltip, &[Argument::Text(text)]))
+            }
             Request::TriggerHaptic { strength } => {
                 succeeded(&self.locked(Method::TriggerHaptic, &[Argument::Text(strength)]))
             }

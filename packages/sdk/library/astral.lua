@@ -412,6 +412,10 @@ function Pill:text_colored(color) end
 ---@param shape astral.Shape
 ---@return astral.Pill
 function Pill:shaped(shape) end
+---Makes the pill tappable; the decorator's `on_press(node, action)` receives `action`.
+---@param action string
+---@return astral.Pill
+function Pill:on_press(action) end
 ---@return astral.BuiltPill
 function Pill:build() end
 
@@ -699,6 +703,9 @@ function astral.ui.confirm(spec, callback) end
 ---@return astral.SheetHandle
 function astral.ui.sheet(spec, handler) end
 function astral.ui.toast(title, message) end
+---Shows a short tooltip above the point the user last touched; needs `ui.toasts`.
+---@param text string
+function astral.ui.tooltip(text) end
 function astral.ui.web_auth(url, callback_url, callback) end
 function astral.ui.cancel_web_auth(request) end
 function astral.ui.copy(value) end
@@ -769,7 +776,8 @@ function astral.ui.composer(formatter) end
 function astral.ui.dismiss() end
 ---@param target astral.Target
 ---@param decorator fun(node: astral.Node): astral.Decoration
-function astral.ui.decorate(target, decorator) end
+---@param on_press? fun(node: astral.Node, action: string)
+function astral.ui.decorate(target, decorator, on_press) end
 ---@param target astral.Target
 ---@param relabeler fun(node: astral.Node): string?
 function astral.ui.relabel(target, relabeler) end

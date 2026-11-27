@@ -1,3 +1,7 @@
+local t = astral.i18n.t
+
+astral.settings.switch("overRoleIcons", t("OVER_ROLE_ICONS"), false, { subtitle = t("OVER_ROLE_ICONS_SUBTITLE") })
+
 local DAY_MS = 24 * 60 * 60 * 1000
 local WINDOW_MS = 7 * DAY_MS
 local DISCORD_EPOCH = 1420070400000
@@ -43,12 +47,29 @@ local function is_new_member(guild_id, member, now)
 	return now - guild_created_at(guild_id) >= WINDOW_MS
 end
 
+local function has_role_icon(node, member)
+	local guild = node:guild()
+	for _, role_id in ipairs(member and member.roles or {}) do
+		local role = guild and guild.roles[role_id]
+		if role and type(role.icon) == "string" and role.icon ~= "" then
+			return true
+		end
+	end
+	return false
+end
+
 astral.ui.decorate(astral.Target.MessageAuthor, function(node)
-	if not node.user_id or not node.guild_id then
+	if not node.user_id or not node.guild_id or node:is_bot() then
 		return nil
 	end
-	if not is_new_member(node.guild_id, node:member(), astral.time.now_ms()) then
+	local member = node:member()
+	if not is_new_member(node.guild_id, member, astral.time.now_ms()) then
 		return nil
 	end
-	return astral.Pill(astral.i18n.t("NEW_MEMBER"), { icon = "sprout.png" })
+	if has_role_icon(node, member) and not astral.settings.values.overRoleIcons then
+		return nil
+	end
+	return astral.Pill(t("NEW_HERE"), { icon = "sprout.png" }):on_press("sprout")
+end, function()
+	astral.ui.tooltip(t("NEW_HERE"))
 end)

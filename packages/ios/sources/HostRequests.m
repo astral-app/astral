@@ -562,6 +562,12 @@ static AstralReply HandleShowToast(const AstralRequest *request)
     return Done();
 }
 
+static AstralReply HandleShowTooltip(const AstralRequest *request)
+{
+    AstralShowTooltip(AstralStringOfText(request->first));
+    return Done();
+}
+
 static AstralReply HandleTriggerHaptic(const AstralRequest *request)
 {
     return Haptic(AstralStringOfText(request->first));

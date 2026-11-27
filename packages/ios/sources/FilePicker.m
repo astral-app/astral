@@ -312,3 +312,67 @@ void AstralEditText(NSString *title, NSString *value, NSUInteger maximumLength, 
         [top presentViewController:editor animated:YES completion:nil];
     });
 }
+
+static CGPoint gLastTouch;
+static UIView *gTooltipView;
+
+void AstralNoteTouch(CGPoint point)
+{
+    gLastTouch = point;
+}
+
+static UIView *TooltipBubble(NSString *text)
+{
+    UIView *bubble = [UIView new];
+    bubble.backgroundColor = [UIColor colorWithRed:0.07 green:0.07 blue:0.08 alpha:0.98];
+    bubble.layer.cornerRadius = 8;
+    bubble.isAccessibilityElement = YES;
+    bubble.accessibilityLabel = text;
+    UILabel *label = [UILabel new];
+    label.text = text;
+    label.textColor = UIColor.whiteColor;
+    label.font = [UIFont systemFontOfSize:14 weight:UIFontWeightSemibold];
+    label.numberOfLines = 3;
+    label.textAlignment = NSTextAlignmentCenter;
+    [bubble addSubview:label];
+    CGSize fitted = [label sizeThatFits:CGSizeMake(260, CGFLOAT_MAX)];
+    label.frame = CGRectMake(12, 8, fitted.width, fitted.height);
+    bubble.frame = CGRectMake(0, 0, fitted.width + 24, fitted.height + 16);
+    return bubble;
+}
+
+void AstralShowTooltip(NSString *text)
+{
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIWindow *window = AstralPhoenixWindow();
+        if (!window) return;
+        [gTooltipView removeFromSuperview];
+        UIView *bubble = TooltipBubble(text);
+        CGSize size = bubble.frame.size;
+        CGFloat inset = 8;
+        CGFloat x = MIN(MAX(gLastTouch.x - size.width / 2, inset), window.bounds.size.width - size.width - inset);
+        CGFloat above = gLastTouch.y - size.height - 18;
+        CGFloat y = above >= window.safeAreaInsets.top + inset ? above : gLastTouch.y + 18;
+        bubble.frame = CGRectMake(x, y, size.width, size.height);
+        bubble.alpha = 0;
+        bubble.transform = CGAffineTransformMakeScale(0.9, 0.9);
+        [window addSubview:bubble];
+        gTooltipView = bubble;
+        [UIView animateWithDuration:0.15
+                         animations:^{
+                             bubble.alpha = 1;
+                             bubble.transform = CGAffineTransformIdentity;
+                         }];
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            if (gTooltipView != bubble) return;
+            [UIView animateWithDuration:0.2
+                animations:^{
+                    bubble.alpha = 0;
+                }
+                completion:^(__unused BOOL finished) {
+                    [bubble removeFromSuperview];
+                    if (gTooltipView == bubble) gTooltipView = nil;
+                }];
+        });
+    });
+}

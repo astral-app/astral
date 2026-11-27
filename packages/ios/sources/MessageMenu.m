@@ -4,6 +4,7 @@
 #import <objc/runtime.h>
 
 #import "AstralCore.h"
+#import "FilePicker.h"
 #include "PhoenixWire.h"
 
 static void (*gOriginalSendEvent)(UIWindow *, SEL, UIEvent *);
@@ -54,6 +55,7 @@ static void SendEvent(UIWindow *self, SEL selector, UIEvent *event)
     if (event.type == UIEventTypeTouches) {
         for (UITouch *touch in event.allTouches) {
             if (touch.phase != UITouchPhaseBegan || !touch.view) continue;
+            AstralNoteTouch([touch locationInView:nil]);
             uint64_t message = MessageAt(touch.view);
             if (!message) message = MessageAtRow(touch.view);
             if (message) astral_ios_set_menu_message(astral_wire_current_channel(), message);

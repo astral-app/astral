@@ -196,6 +196,13 @@ pub struct Timer {
     pub interval: i64,
 }
 
+pub struct Decorator {
+    pub target: crate::lua::enums::Target,
+    pub reference: c_int,
+    pub registration: u64,
+    pub press: Option<c_int>,
+}
+
 #[derive(Default)]
 pub struct Plugin {
     pub package: Package,
@@ -211,7 +218,7 @@ pub struct Plugin {
     pub settings_buttons: Vec<SettingsButton>,
     pub text_settings: Vec<TextSetting>,
     pub setting_count: usize,
-    pub decorators: Vec<(crate::lua::enums::Target, c_int)>,
+    pub decorators: Vec<Decorator>,
     pub relabelers: Vec<(crate::lua::enums::Target, c_int)>,
     pub text_stylers: Vec<c_int>,
     pub outgoing_message_transforms: Vec<c_int>,

@@ -426,6 +426,11 @@ object PhoenixBridge {
     }
 
     @JvmStatic
+    fun showTooltip(text: String) {
+        Tooltips.show(text)
+    }
+
+    @JvmStatic
     fun showToast(title: String, message: String) {
         mainHandler.post {
             val activity = activeActivity() ?: return@post

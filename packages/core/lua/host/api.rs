@@ -518,6 +518,19 @@ unsafe fn ui_toast(state: *mut LuaState) -> Outcome {
     }
 }
 
+unsafe fn ui_tooltip(state: *mut LuaState) -> Outcome {
+    unsafe { require_permission(state, Capability::UiToasts) }?;
+    let text = unsafe { check_text(state, 1) }?;
+    if text.is_empty() || text.len() > 240 {
+        return Err("astral.ui.tooltip: text must be 1 to 240 bytes".into());
+    }
+    match platform_call("showTooltip", &serde_json::json!([text])) {
+        Platform::Missing => Err("astral.ui.tooltip: tooltips are unavailable on this build".into()),
+        Platform::Threw => Err("astral.ui.tooltip: could not show the tooltip".into()),
+        Platform::Value(_) => Ok(0),
+    }
+}
+
 unsafe fn ui_copy(state: *mut LuaState) -> Outcome {
     unsafe { require_permission(state, Capability::UiClipboard) }?;
     let text = unsafe { check_bytes(state, 1) }?;
@@ -812,6 +825,7 @@ lua_function!(astral_lua_discord_message, discord_message);
 lua_function!(astral_lua_discord_raw_message, discord_raw_message);
 lua_function!(astral_lua_discord_permissions, discord_permissions);
 lua_function!(astral_lua_ui_toast, ui_toast);
+lua_function!(astral_lua_ui_tooltip, ui_tooltip);
 lua_function!(astral_lua_ui_copy, ui_copy);
 lua_function!(astral_lua_ui_paste, ui_paste);
 lua_function!(astral_lua_ui_open, ui_open);

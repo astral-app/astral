@@ -182,7 +182,7 @@ authors = [{ name = "arHSM", id = "841509053422632990" }, { name = "adrian", id 
 [[plugins]]
 id = "astral.new-member-sprout"
 name = "New Member Sprout"
-version = "0.0.1"
+version = "0.0.2"
 description = "Shows desktop's new member sprout beside people who joined the server in the last week."
 icon = "UserPlusIcon"
 base = "plugins/astral.new-member-sprout/"

@@ -84,16 +84,12 @@ pub fn bytecode_path(source: &str) -> String {
 
 pub fn signed_paths(folder: &Path) -> Result<Vec<String>, String> {
     let manifest = read_manifest(folder)?;
-    let mut paths =
-        std::collections::BTreeSet::from(["manifest.toml".to_owned(), manifest.main.clone()]);
-    if let Ok(entries) = std::fs::read_dir(folder.join("i18n")) {
-        for entry in entries.flatten() {
-            let name = entry.file_name().to_string_lossy().into_owned();
-            if name.ends_with(".toml") {
-                paths.insert(format!("i18n/{name}"));
-            }
-        }
-    }
+    let mut paths: std::collections::BTreeSet<String> = pack_paths(folder)?
+        .into_iter()
+        .filter(|path| path != "README.md" && path.split('/').next() != Some("tests"))
+        .collect();
+    paths.insert("manifest.toml".to_owned());
+    paths.insert(manifest.main.clone());
     for module in plugin_modules(folder)? {
         paths.insert(bytecode_path(&module));
         paths.insert(module);

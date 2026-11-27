@@ -246,6 +246,7 @@ pub(crate) fn install_api(plugin: *mut Plugin) {
                 ("sheet_update", update_sheet),
                 ("sheet_close", close_sheet),
                 ("toast", api::astral_lua_ui_toast),
+                ("tooltip", api::astral_lua_ui_tooltip),
                 ("copy", api::astral_lua_ui_copy),
                 ("paste", api::astral_lua_ui_paste),
                 ("open", api::astral_lua_ui_open),
