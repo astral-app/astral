@@ -180,6 +180,14 @@ pub extern "system" fn Java_app_astral_android_Native_noteGuestSource<'local>(
 }
 
 #[unsafe(no_mangle)]
+pub extern "system" fn Java_app_astral_android_Native_syncChosen<'local>(
+    _: JNIEnv<'local>,
+    _: JClass<'local>,
+) {
+    app::sync::chosen();
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_app_astral_android_Native_renderSvg<'local>(
     mut env: JNIEnv<'local>,
     _: JClass<'local>,

@@ -81,6 +81,13 @@ pub enum Request<'a> {
         message: &'a str,
     },
     RefreshEmoji,
+    SyncFolderName,
+    SyncChooseFolder,
+    SyncForgetFolder,
+    SyncRead,
+    SyncWrite {
+        contents: &'a str,
+    },
     AppIcons,
     SetAppIcon {
         name: &'a str,

@@ -9,6 +9,7 @@
 #import <objc/runtime.h>
 
 #import "AstralCore.h"
+#import "SyncFolder.h"
 #import "BrowserAuth.h"
 #import "ConfirmSheet.h"
 #import "EmojiComposer.h"
@@ -792,6 +793,33 @@ static AstralReply HandleSetAppIcon(const AstralRequest *request)
                                             }];
     });
     return Flag(YES);
+}
+
+static AstralReply HandleSyncFolderName(__unused const AstralRequest *request)
+{
+    return Text(AstralSyncFolderName());
+}
+
+static AstralReply HandleSyncChooseFolder(__unused const AstralRequest *request)
+{
+    AstralChooseSyncFolder();
+    return Done();
+}
+
+static AstralReply HandleSyncForgetFolder(__unused const AstralRequest *request)
+{
+    AstralForgetSyncFolder();
+    return Done();
+}
+
+static AstralReply HandleSyncRead(__unused const AstralRequest *request)
+{
+    return Text(AstralReadSyncFile());
+}
+
+static AstralReply HandleSyncWrite(const AstralRequest *request)
+{
+    return Flag(AstralWriteSyncFile(AstralStringOfText(request->first)));
 }
 
 static AstralReply HandleInjectGateway(const AstralRequest *request)

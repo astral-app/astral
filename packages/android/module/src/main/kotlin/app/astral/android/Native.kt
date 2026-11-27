@@ -93,6 +93,7 @@ object Native {
     @JvmStatic external fun markHidden()
 
     @JvmStatic external fun markReady()
+    @JvmStatic external fun syncChosen()
     @JvmStatic external fun noteGuestSource(bundled: Boolean, source: String)
     @JvmStatic external fun openLink(url: String): Boolean
 

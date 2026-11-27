@@ -45,6 +45,11 @@ pub enum AstralRequestKind {
     InjectGateway,
     AppIcons,
     SetAppIcon,
+    SyncFolderName,
+    SyncChooseFolder,
+    SyncForgetFolder,
+    SyncRead,
+    SyncWrite,
 }
 
 #[repr(C)]
@@ -168,6 +173,11 @@ fn outgoing<'a>(request: &Request<'a>) -> Outgoing<'a> {
         Request::OpenUrl { url } => Outgoing::new(Kind::OpenUrl).texts(&[url]),
         Request::AppIcons => Outgoing::new(Kind::AppIcons),
         Request::SetAppIcon { name } => Outgoing::new(Kind::SetAppIcon).texts(&[name]),
+        Request::SyncFolderName => Outgoing::new(Kind::SyncFolderName),
+        Request::SyncChooseFolder => Outgoing::new(Kind::SyncChooseFolder),
+        Request::SyncForgetFolder => Outgoing::new(Kind::SyncForgetFolder),
+        Request::SyncRead => Outgoing::new(Kind::SyncRead),
+        Request::SyncWrite { contents } => Outgoing::new(Kind::SyncWrite).texts(&[contents]),
         Request::Notify {
             delay_ms,
             title,
