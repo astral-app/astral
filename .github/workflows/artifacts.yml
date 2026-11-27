@@ -182,7 +182,18 @@ jobs:
             "https://github.com/JingMatrix/LSPatch/releases/download/$LSPATCH_VERSION/$LSPATCH_JAR" -o "$LSPATCH_JAR"
           echo "$LSPATCH_SHA256  $LSPATCH_JAR" | sha256sum -c -
 
+      - name: Find Discord for Android's version
+        id: discord-android
+        run: echo "code=$(astral android version --channel "$CHANNEL")" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        id: discord-android-cache
+        with:
+          path: discord
+          key: discord-android-${{ steps.discord-android.outputs.code }}
+
       - name: Download Discord for Android
+        if: steps.discord-android-cache.outputs.cache-hit != 'true'
         run: astral android download --channel "$CHANNEL" --output discord
 
       - name: Install the Rust Android targets
