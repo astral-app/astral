@@ -73,7 +73,9 @@ jobs:
 
           - iOS: sideload the IPA, add the AltStore source https://astral-app.github.io/astral/app-repo.json, or add the APT repo https://astral-app.github.io/astral/repo/ on a jailbroken device.
           - Android: install astral.apks with SAI or another split installer, or the module APK with LSPosed."
-          gh release create "$tag" assets/* --prerelease --target "$GITHUB_SHA" --title "astral ${version} alpha ${GITHUB_RUN_NUMBER}" --notes "$notes"
+          gh release create "$tag" --draft --prerelease --target "$GITHUB_SHA" --title "astral ${version} alpha ${GITHUB_RUN_NUMBER}" --notes "$notes"
+          gh release upload "$tag" assets/*
+          gh release edit "$tag" --draft=false
           ipa="assets/astral-${version}-alpha.${GITHUB_RUN_NUMBER}.ipa"
           {
             echo "tag=$tag"
