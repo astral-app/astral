@@ -913,6 +913,44 @@ static int hideLateCard(const AstralPatchTarget *target, AstralNodePatch *patch)
     return 1;
 }
 
+static int selectBio(const AstralPatchTarget *target, AstralNodePatch *patch)
+{
+    if (strcmp(target->identifier, "bio.scroll") != 0) return 0;
+    patch->fields = AstralPatchSelectable;
+    return 1;
+}
+
+static void lateTextSelectableTest(void)
+{
+    AstralWireBuffer out;
+    const char *prefixes[] = {"bio.scroll"};
+    astral_wire_set_patch_prefixes(prefixes, 1);
+    astral_wire_set_node_patcher(selectBio);
+    Batch owner = {.length = 0};
+    b8(&owner, 1);
+    create(&owner, 1201, "scroll", 1);
+    b16(&owner, 9);
+    b8(&owner, 6);
+    bstr(&owner, "bio.scroll");
+    assert(astral_settings_rewrite(owner.bytes, owner.length, &out));
+    astral_wire_buffer_free(&out);
+    Batch late = {.length = 0};
+    b8(&late, 1);
+    create(&late, 1202, "view", 0);
+    create(&late, 1203, "text", 1);
+    b16(&late, 499);
+    b8(&late, 6);
+    bstr(&late, "bio");
+    children(&late, 1202, 1, (int[]){1203});
+    children(&late, 1201, 1, (int[]){1202});
+    assert(astral_settings_rewrite(late.bytes, late.length, &out));
+    astral_wire_summarise(out.bytes, out.length, sink, NULL);
+    assert(strstr(line, "[2,1203,[[430,2,true]]]") || strstr(line, "[2,1203,[[430,2,1]]]"));
+    astral_wire_buffer_free(&out);
+    astral_wire_set_node_patcher(NULL);
+    astral_wire_set_patch_prefixes(NULL, 0);
+}
+
 static void latePrefixPatchTest(void)
 {
     AstralWireBuffer out;
@@ -1043,6 +1081,7 @@ int main(void)
     messageBackgroundTest();
     nodePatchTest();
     latePrefixPatchTest();
+    lateTextSelectableTest();
     decorationTest();
     gradientTagTest();
     relabelTest();
