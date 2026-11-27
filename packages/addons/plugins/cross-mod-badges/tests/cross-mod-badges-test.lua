@@ -1,9 +1,23 @@
 local intercept, rewrite, released
+local intercepts = {}
 local network
 astral = {
 	log = function() end,
+	i18n = {
+		t = function()
+			return "{mod}: {name}"
+		end,
+	},
+	discord = {
+		me = function()
+			return "42"
+		end,
+	},
 	json = {
-		decode = function()
+		decode = function(text)
+			if text == "catalog" then
+				return { badges = { { badge_id = 22 } } }
+			end
 			return { badges = {} }
 		end,
 		encode = function(value)
@@ -16,7 +30,8 @@ astral = {
 	net = {
 		HOLD = "hold",
 		intercept = function(definition)
-			intercept = definition
+			intercept = intercept or definition
+			intercepts[#intercepts + 1] = definition
 		end,
 		request = function(_, fn)
 			network = fn
@@ -43,5 +58,11 @@ assert(#result.body.badges == 2)
 local icon = result.body.badges[1].icon
 local url = rewrite("https://cdn.discordapp.com/badge-icons/" .. icon .. ".png")
 assert(url and (url:find("example.com", 1, true) or url:find("clientmodbadges", 1, true)))
+assert(
+	result.body.badges[1].description == "Vencord: Contributor"
+		or result.body.badges[2].description == "Vencord: Contributor"
+)
 assert(intercept.request(request) == nil)
+local catalog = intercepts[2].response({ path = "/api/v9/users/@me/badges" }, { status = 200, body = "catalog" })
+assert(#catalog.body.badges == 3 and catalog.body.badges[2].owned and catalog.body.badges[2].badge_id > 22)
 print("cross-mod-badges ok")
