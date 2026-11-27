@@ -161,7 +161,7 @@ jobs:
           path: packages/android/build/astral/astral-module.apk
 
   package:
-    name: Build the package
+    name: Build the iOS tweak
     needs: check
     runs-on: macos-latest
     steps:

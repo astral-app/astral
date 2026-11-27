@@ -10,7 +10,6 @@ use crate::settings::store::{AstralSettingsHandle, store};
 use crate::support::bridge::{AstralRustString, optional, text};
 use crate::support::host_callback::{AstralCallback, Changed, Reply, adopt_changed};
 use crate::support::translations::{tr, tr_with};
-use crate::wire::decorate::astral_wire_stats;
 
 const PLUGIN_ROUTE: &str = "plugin:";
 const PLUGIN_SETTINGS_ROUTE: &str = "plugin-settings:";
@@ -246,8 +245,6 @@ fn reports_section() -> Value {
 }
 
 struct Context {
-    recovering: bool,
-    app_code: String,
     discord_version: String,
     compatibility: String,
 }
@@ -255,25 +252,9 @@ struct Context {
 fn context() -> Context {
     let value = host("context", &json!([]));
     Context {
-        recovering: flag(&value, "recovering"),
-        app_code: string(&value, "appCode"),
         discord_version: string(&value, "discordVersion"),
         compatibility: string(&value, "compatibility"),
     }
-}
-
-fn app_code_row(app_code: &str) -> Value {
-    if app_code.is_empty() {
-        return Value::Null;
-    }
-    let ota = app_code == "ota";
-    with(
-        row("app-code", tr("ASTRAL_APP_CODE"), "res://ic_mana_download", ROW_INFO),
-        json!({
-            "detail": if ota { tr("ASTRAL_APP_CODE_OTA") } else { tr("ASTRAL_APP_CODE_BUILT_IN") },
-            "subtitle": if ota { tr("ASTRAL_OTA_GUEST_MESSAGE") } else { "" },
-        }),
-    )
 }
 
 fn sync_row() -> Value {
@@ -288,9 +269,7 @@ fn sync_row() -> Value {
 }
 
 fn general_page(context: &Context) -> Value {
-    let stats = astral_wire_stats();
     let developer = setting("developer-mode");
-    let blocked = host("blockedRequests", &json!([])).as_u64().unwrap_or(0).to_string();
     let developer_subtitle = if developer {
         tr_with("ASTRAL_PAIRING_CODE", &[("code", host_text("pairingCode"))])
     } else {
@@ -315,14 +294,6 @@ fn general_page(context: &Context) -> Value {
                         row("discord", "Discord", "res://ic_mana_mobile_phone_settings", ROW_INFO),
                         json!({"detail": context.discord_version}),
                     ),
-                    with(
-                        row("engine", tr("ASTRAL_ENGINE"), "res://ic_mana_settings", ROW_INFO),
-                        json!({"detail": "Phoenix"}),
-                    ),
-                    with(
-                        row("runtime", tr("ASTRAL_PLUGIN_RUNTIME"), "res://ic_mana_puzzle_piece", ROW_INFO),
-                        json!({"detail": "Lua 5.4"}),
-                    ),
                 ],
             ),
             section(
@@ -339,15 +310,6 @@ fn general_page(context: &Context) -> Value {
                     with(
                         row("staff-devtools", tr("ASTRAL_STAFF_DEVTOOLS"), "res://ic_mana_wrench", ROW_SWITCH),
                         json!({"on": setting("staff-devtools"), "subtitle": staff_subtitle}),
-                    ),
-                    with(
-                        row(
-                            "force-phoenix",
-                            tr("ASTRAL_FORCE_PHOENIX"),
-                            "res://ic_mana_settings_arrow_up",
-                            ROW_INFO,
-                        ),
-                        json!({"detail": tr("ASTRAL_ON"), "subtitle": tr("ASTRAL_THE_REACT_NATIVE_FALLBACK_STAYS_OFF")}),
                     ),
                 ],
             ),
@@ -369,22 +331,6 @@ fn general_page(context: &Context) -> Value {
             section(
                 tr("ASTRAL_DIAGNOSTICS"),
                 vec![
-                    app_code_row(&context.app_code),
-                    with(
-                        row("recovery", tr("ASTRAL_RECOVERY"), "res://ic_mana_refresh", ROW_INFO),
-                        json!({"detail": if context.recovering { tr("ASTRAL_PLUGINS_PAUSED_AFTER_A_CRASH") } else { tr("ASTRAL_NORMAL") }}),
-                    ),
-                    with(
-                        row("decorations", tr("ASTRAL_DECORATIONS"), "res://ic_mana_bug", ROW_INFO),
-                        json!({
-                            "detail": stats.tagged.to_string(),
-                            "subtitle": format!("{} authors, {} users, {} channels resolved", stats.authors, stats.with_user, stats.with_channel),
-                        }),
-                    ),
-                    with(
-                        row("telemetry", tr("ASTRAL_TELEMETRY_BLOCKED"), "res://ic_mana_shield", ROW_INFO),
-                        json!({"detail": blocked, "subtitle": tr("ASTRAL_REQUESTS_TO_DISCORDS_ANALYTICS_AND_SENTRY")}),
-                    ),
                     with(
                         row("reload", tr("ASTRAL_RELOAD_PLUGINS"), "res://ic_mana_refresh", ROW_LINK),
                         json!({"subtitle": tr("ASTRAL_RESTART_EVERY_ENABLED_PLUGIN")}),
@@ -986,18 +932,6 @@ fn design_page() -> Value {
             section(tr("ASTRAL_APP_ICON"), app_icon_rows()),
             section(tr("ASTRAL_ICON_PACKS"), packs),
             section(tr("ASTRAL_EMOJI_PACKS"), emoji),
-            section(
-                tr("ASTRAL_HOW_THEMES_APPLY"),
-                vec![with(
-                    row(
-                        "theme-note",
-                        tr("ASTRAL_RECOLOURS_PHOENIX_VIEWS_RIGHT_AWAY"),
-                        "res://ic_mana_circle_information",
-                        ROW_INFO,
-                    ),
-                    json!({"subtitle": tr("ASTRAL_COLOURS_CHANGE_ON_SCREEN_AS_SOON")}),
-                )],
-            ),
             section(
                 tr("ASTRAL_GET_MORE"),
                 vec![
