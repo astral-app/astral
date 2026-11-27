@@ -692,11 +692,12 @@ local function encoded(text)
 	end))
 end
 
-function sign_in(done)
-	local url = "https://discord.com/oauth2/authorize?client_id="
-		.. CLIENT_ID
-		.. "&response_type=code&scope=identify&redirect_uri="
-		.. encoded(AUTH_REDIRECT_URI)
+local function authorize_url()
+	return "client_id=" .. CLIENT_ID .. "&response_type=code&scope=identify&redirect_uri=" .. encoded(AUTH_REDIRECT_URI)
+end
+
+local function sign_in_in_browser(done)
+	local url = "https://discord.com/oauth2/authorize?" .. authorize_url()
 	astral.ui.web_auth(url, AUTH_REDIRECT_URI, function(location, _, error)
 		if type(location) ~= "string" or location:sub(1, #AUTH_REDIRECT_URI) ~= AUTH_REDIRECT_URI then
 			if error and error ~= "cancelled" then
@@ -708,6 +709,30 @@ function sign_in(done)
 			return
 		end
 		finish_sign_in(location, done)
+	end)
+end
+
+function sign_in(done)
+	astral.ui.confirm({
+		title = t("AUTHORIZE"),
+		message = t("AUTHORIZE_CONFIRM"),
+		confirm = t("AUTHORIZE_CONFIRM_BUTTON"),
+	}, function(accepted)
+		if not accepted then
+			return
+		end
+		astral.discord.request({
+			method = "POST",
+			path = "/oauth2/authorize?" .. authorize_url(),
+			body = { permissions = "0", authorize = true, integration_type = 0 },
+		}, function(response)
+			local location = response and response.ok and type(response.json) == "table" and response.json.location
+			if type(location) == "string" and location:sub(1, #AUTH_REDIRECT_URI) == AUTH_REDIRECT_URI then
+				finish_sign_in(location, done)
+				return
+			end
+			sign_in_in_browser(done)
+		end)
 	end)
 end
 

@@ -1,6 +1,7 @@
 local menu
 local buttons, switches, inserter, presser, gateway = {}, {}, nil, nil, nil
 local requests, stored, toasts, sheets, auth = {}, {}, {}, {}, nil
+local discord_requests = {}
 local strings = {
 	REVIEWDB = "ReviewDB",
 	REVIEW_COUNT = "{count, plural, one {# review} other {# reviews}}",
@@ -87,9 +88,16 @@ astral = {
 			auth = { url = url, callback = callback, fn = fn }
 		end,
 		open = function() end,
-		confirm = function() end,
+		confirm = function(_, fn)
+			if fn then
+				fn(true)
+			end
+		end,
 	},
 	discord = {
+		request = function(options, callback)
+			discord_requests[#discord_requests + 1] = { options = options, callback = callback }
+		end,
 		user = function(id)
 			return id == "42" and { username = "friend" } or nil
 		end,
@@ -155,6 +163,9 @@ sheet.handler("up:9", "")
 assert(toasts[#toasts] == "AUTHORIZE_TO_VOTE")
 
 sheet.handler("sign_in", "")
+local authorize = discord_requests[#discord_requests]
+assert(authorize.options.method == "POST" and authorize.options.path:find("/oauth2/authorize?client_id=", 1, true))
+authorize.callback({ ok = false, status = 401 })
 assert(auth.callback == "https://manti.vendicated.dev/api/reviewdb/auth")
 auth.fn("https://manti.vendicated.dev/api/reviewdb/auth?code=abc")
 requests[#requests].callback({ ok = true, status = 200, json = { token = "secret" } })
@@ -172,3 +183,14 @@ sheet.handler("submit", "lovely person")
 local put = requests[#requests]
 assert(put.options.method == "PUT" and put.options.body == "comment=lovely person;vote=nil")
 print("reviewdb ok")
+
+local reauthorize_count = #discord_requests
+buttons.authorize.callback()
+local again = discord_requests[#discord_requests]
+assert(#discord_requests == reauthorize_count + 1)
+again.callback({
+	ok = true,
+	status = 200,
+	json = { location = "https://manti.vendicated.dev/api/reviewdb/auth?code=fresh" },
+})
+assert(requests[#requests].options.url == "https://manti.vendicated.dev/api/reviewdb/auth?code=fresh&clientMod=enmity")
