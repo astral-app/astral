@@ -23,7 +23,6 @@ jobs:
   build:
     uses: ./.github/workflows/artifacts.yml
     with:
-      ios_source: testflight
       android_channel: alpha
       package_suffix: ~alpha.${{ github.run_number }}
     secrets:
