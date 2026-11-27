@@ -1,10 +1,18 @@
 id = "astral.message-link-embeds"
 name = "Message Link Embeds"
 description = "Adds a preview under messages that link to other Discord messages, and opens the linked message when tapped."
-version = "0.0.1"
+version = "0.0.2"
 icon = "LinkIcon"
 main = "main.lua"
-permissions = ["discord.messages", "discord.messages.content", "discord.users", "ui.insert", "ui.navigate"]
+permissions = [
+	"discord.guilds",
+	"discord.members",
+	"discord.messages",
+	"discord.messages.content",
+	"discord.users",
+	"ui.insert",
+	"ui.navigate",
+]
 
 [[authors]]
 name = "sunnie"
