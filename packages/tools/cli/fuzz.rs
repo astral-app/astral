@@ -146,10 +146,17 @@ pub fn bench(arguments: &[String]) -> Result<(), String> {
 }
 
 pub fn replay(arguments: &[String]) -> Result<(), String> {
-    let usage =
-        || "usage: astral replay <plugin folder>... <capture directory or .bin batches>".to_owned();
+    let usage = || {
+        "usage: astral replay [--out <directory>] <plugin folder>... <capture directory or .bin batches>".to_owned()
+    };
     let (mut plugins, mut batches) = (Vec::new(), Vec::new());
-    for argument in arguments {
+    let mut output = None;
+    let mut arguments = arguments.iter();
+    while let Some(argument) = arguments.next() {
+        if argument == "--out" {
+            output = arguments.next().map(PathBuf::from);
+            continue;
+        }
         let path = PathBuf::from(argument);
         if path.is_dir() && path.join("manifest.toml").exists() {
             plugins.push(argument.clone());
@@ -168,7 +175,8 @@ pub fn replay(arguments: &[String]) -> Result<(), String> {
     if plugins.is_empty() || batches.is_empty() {
         return Err(usage());
     }
-    replay_batches(&plugins, &batches)
+    batches.sort();
+    replay_batches(&plugins, &batches, output.as_deref())
 }
 
 const SETTINGS_RECHECK_MS: u64 = 500;
@@ -185,7 +193,14 @@ fn plugin_root(plugins: &[String]) -> Result<repo::Scratch, String> {
     Ok(work)
 }
 
-fn replay_batches(plugins: &[String], batches: &[String]) -> Result<(), String> {
+fn replay_batches(
+    plugins: &[String],
+    batches: &[String],
+    output: Option<&std::path::Path>,
+) -> Result<(), String> {
+    if let Some(output) = output {
+        std::fs::create_dir_all(output).map_err(|error| error.to_string())?;
+    }
     use astral_core::lua::host::{self as lua_host, Config};
     let work = plugin_root(plugins)?;
     let settings = repo::text(&work.0.join("settings.json"));
@@ -217,8 +232,20 @@ fn replay_batches(plugins: &[String], batches: &[String]) -> Result<(), String> 
             continue;
         }
         replayed += 1;
-        if let Some(_changed) = astral_core::app::rewrite(&bytes) {
+        let changed = astral_core::app::rewrite(&bytes);
+        if changed.is_some() {
             rewritten += 1;
+        }
+        if let Some(output) = output {
+            let name = PathBuf::from(batch)
+                .file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            std::fs::write(output.join(&name), &bytes).map_err(|error| error.to_string())?;
+            if let Some(changed) = &changed {
+                std::fs::write(output.join(format!("{name}.out")), changed)
+                    .map_err(|error| error.to_string())?;
+            }
         }
     }
     let stats = astral_core::wire::decorate::astral_wire_stats();
