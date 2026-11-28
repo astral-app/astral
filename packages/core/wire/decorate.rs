@@ -664,11 +664,14 @@ fn write_corners(out: &mut Out, state: &Row, shown: bool, radius: f64) {
     }
 }
 
+fn header_in_block(state: &Row) -> bool {
+    state.header != 0 && state.blocks.iter().any(|block| block.id == state.header)
+}
+
 fn mergeable(state: &Row, bubble: bool, header_outside: bool) -> bool {
     bubble
-        && header_outside
+        && (header_outside || header_in_block(state))
         && state.column != 0
-        && state.blocks.iter().all(|block| block.card == 0)
         && state.blocks.iter().any(|block| block.media)
         && state.blocks.iter().any(|block| !block.media)
 }
