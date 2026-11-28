@@ -246,6 +246,12 @@ fn replay_batches(
                 std::fs::write(output.join(format!("{name}.out")), changed)
                     .map_err(|error| error.to_string())?;
             }
+            astral_core::app::request_decoration_refresh();
+            let refreshed = astral_core::app::pending_updates();
+            if !refreshed.is_empty() {
+                std::fs::write(output.join(format!("{name}.refresh")), refreshed)
+                    .map_err(|error| error.to_string())?;
+            }
         }
     }
     let stats = astral_core::wire::decorate::astral_wire_stats();
