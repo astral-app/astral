@@ -53,6 +53,7 @@ fn switch_look(on: bool) -> (f64, u32) {
 }
 const SLIDER_ACTIVE: u32 = 0xFF58_65F2;
 const SLIDER_INACTIVE: u32 = 0xFF4E_5058;
+const CHIP_GAP: f64 = 8.0;
 const TRANSLUCENT_FILL: u32 = 0x1FFF_FFFF;
 const DESTRUCTIVE_FILL: u32 = 0xFFDA_373C;
 const SUBTLE_BORDER: u32 = 0x1F97_979F;
@@ -1257,10 +1258,14 @@ impl Builder<'_> {
 
     fn toolbar(&mut self, toolbar: &Toolbar) -> i32 {
         let properties = self.properties;
-        let mut children: Vec<i32> = toolbar.chips.iter().take(8).map(|chip| self.chip(chip)).collect();
-        let spacer = self.node(b"view", 1);
+        let chips: Vec<i32> = toolbar.chips.iter().take(8).map(|chip| self.chip(chip)).collect();
+        let flow = self.node(b"flow", 4);
+        self.out.prop_string(properties.direction, b"row");
         self.out.prop_number(properties.flex, 1.0);
-        children.push(spacer);
+        self.out.prop_number(properties.gap, CHIP_GAP);
+        self.out.prop_number(properties.shrink, 1.0);
+        self.children(flow, &chips);
+        let mut children = vec![flow];
         if let Some((key, icon)) = &toolbar.button {
             children.push(self.round_button(key, icon, 36.0));
         }
