@@ -10,6 +10,64 @@
 static UIView *gOverlay;
 static UIWindow *gWindow;
 static BOOL gInitialized;
+static id gHingeInteraction;
+static UIWindow *gHingeWindow;
+static BOOL gUnderDisplayCameraObserved;
+
+static void ShowOverlay(void);
+
+static void RemoveOverlay(void)
+{
+    [gOverlay removeFromSuperview];
+    gOverlay = nil;
+    gWindow = nil;
+}
+
+static BOOL OverlayAllowed(UIWindow *window, CGRect frame)
+{
+    if (@available(iOS 27.1, *)) {
+        NSArray<UIViewReservedRegion *> *regions = [window reservedRegionsOfKind:[UIViewReservedRegionKind occlusionRegionKind]
+                                                                         options:UIViewReservedRegionQueryOptionsIncludeInactive];
+        BOOL hasActiveOcclusion = NO;
+        BOOL hasInactiveOcclusion = NO;
+        for (UIViewReservedRegion *region in regions) {
+            if (!CGRectIntersectsRect(frame, region.frame)) continue;
+            if (region.isActive) {
+                hasActiveOcclusion = YES;
+            } else {
+                hasInactiveOcclusion = YES;
+                gUnderDisplayCameraObserved = YES;
+            }
+        }
+        return astral_ios_cutout_overlay_allowed(hasActiveOcclusion, hasInactiveOcclusion, gUnderDisplayCameraObserved) != 0;
+    }
+    return YES;
+}
+
+static void UpdateOverlayForReservedRegions(void)
+{
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (UIApplication.sharedApplication.applicationState == UIApplicationStateActive) {
+            ShowOverlay();
+        } else {
+            RemoveOverlay();
+        }
+    });
+}
+
+static void ObserveHinge(UIWindow *window)
+{
+    if (!window || gHingeWindow == window) return;
+    if (gHingeWindow && gHingeInteraction) [gHingeWindow removeInteraction:gHingeInteraction];
+    gHingeWindow = window;
+    if (@available(iOS 27.1, *)) {
+        gHingeInteraction = [[UIHingeInteraction alloc]
+            initWithUpdateHandler:^(__unused UIHingeInteraction *interaction, __unused UIHingeInteractionUpdate *update) {
+                UpdateOverlayForReservedRegions();
+            }];
+        [window addInteraction:gHingeInteraction];
+    }
+}
 
 static CGRect SystemCutout(void)
 {
@@ -37,10 +95,15 @@ static void CreateOverlay(void)
     CGRect frame = SystemCutout();
     UIWindow *window = KeyWindow();
     if (CGRectIsNull(frame) || !window) return;
+    ObserveHinge(window);
+    if (!OverlayAllowed(window, frame)) {
+        RemoveOverlay();
+        return;
+    }
     AstralCutout cutout = astral_ios_cutout((AstralRect){frame.origin.x, frame.origin.y, frame.size.width, frame.size.height});
     if (cutout.kind == AstralCutoutKind_Missing || !CGRectContainsRect(window.bounds, frame)) return;
-    if (gOverlay && gWindow == window) return;
-    [gOverlay removeFromSuperview];
+    if (gOverlay && gWindow == window && CGRectEqualToRect(gOverlay.frame, frame)) return;
+    RemoveOverlay();
     gWindow = window;
     gOverlay = [[UIView alloc] initWithFrame:frame];
     gOverlay.backgroundColor = UIColor.blackColor;
@@ -71,6 +134,7 @@ static void CreateOverlay(void)
 
 static void ShowOverlay(void)
 {
+    ObserveHinge(KeyWindow());
     CreateOverlay();
     if (!gOverlay || !gOverlay.hidden) return;
     gOverlay.hidden = NO;

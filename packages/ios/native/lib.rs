@@ -14,7 +14,9 @@ pub use crate::bridge::{
     AstralBridge, AstralReply, AstralReplyKind, AstralRequest, AstralRequestKind,
 };
 pub use crate::network::{AstralMediaKind, AstralRequestPlan, AstralRequestProbe};
-pub use crate::shapes::{AstralCutout, AstralCutoutKind, AstralRect};
+pub use crate::shapes::{
+    AstralCutout, AstralCutoutKind, AstralRect, astral_ios_cutout_overlay_allowed,
+};
 pub use crate::text::{AstralOwned, AstralText};
 
 #[repr(C)]
@@ -123,6 +125,16 @@ pub extern "C" fn astral_ios_mark_ready() {
 #[unsafe(no_mangle)]
 pub extern "C" fn astral_ios_emit_lifecycle(lifecycle: AstralLifecycle) {
     app::emit_event(lifecycle.event().value());
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn astral_ios_picture_in_picture_changed(active: bool) {
+    let event = if active {
+        Event::PictureInPictureStart
+    } else {
+        Event::PictureInPictureStop
+    };
+    app::emit_event(event.value());
 }
 
 #[unsafe(no_mangle)]

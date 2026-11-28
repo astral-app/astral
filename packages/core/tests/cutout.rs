@@ -1,4 +1,4 @@
-use astral_core::render::cutout::{AstralCutoutFrame, Kind, corner_radius, kind, logo_frame};
+use astral_core::render::cutout::{AstralCutoutFrame, Kind, corner_radius, kind, logo_frame, overlay_allowed};
 
 const TOLERANCE: f64 = 0.001;
 
@@ -21,6 +21,15 @@ fn classifies_cutouts_and_fits_the_logo() {
     assert!((logo.height - 24.0).abs() < TOLERANCE);
     assert!((logo.x - 8.0).abs() < 0.01);
     assert!((logo.y - 8.0).abs() < TOLERANCE);
+}
+
+#[test]
+fn enables_the_overlay_only_for_an_unambiguous_active_occlusion() {
+    assert!(overlay_allowed(true, false, false));
+    assert!(!overlay_allowed(false, true, false));
+    assert!(!overlay_allowed(false, false, false));
+    assert!(!overlay_allowed(true, true, false));
+    assert!(!overlay_allowed(true, false, true));
 }
 
 #[test]

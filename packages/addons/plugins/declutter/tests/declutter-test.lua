@@ -47,6 +47,17 @@ assert(patches["composer.gift"]().hidden)
 assert(patches["guild.action:server_boosts"]() == nil)
 values.serverBoosts = true
 assert(patches["guild.action:server_boosts"]().hidden)
+assert(patches["guild-premium-progress-bar"]() == nil)
+assert(patches["label:Boost Goal"]() == nil)
+assert(patches["label:Server Boost Goal"]() == nil)
+values.boostGoal = true
+assert(patches["guild-premium-progress-bar"]().hidden)
+assert(patches["label:Boost Goal"]().hidden)
+assert(patches["label:Server Boost Goal"]().hidden)
+assert(patches["label:Happening Now"]() == nil)
+values.dmActivityCards = true
+assert(patches["label:Happening Now"]().hidden)
+assert(patches["MessagesItemHappeningNow"]().hidden)
 assert(patches["label:Quests"]() == nil)
 values.quests = true
 assert(patches["label:Quests"]().hidden)

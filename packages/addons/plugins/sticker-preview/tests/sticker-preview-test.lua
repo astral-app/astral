@@ -1,5 +1,6 @@
 local interceptor, inserter, presser, composer, dispatched = nil, nil, nil, "", nil
 local sticker_reply
+local delayed = {}
 astral = {
 	log = function() end,
 	net = {
@@ -38,8 +39,12 @@ astral = {
 		end,
 	},
 	time = {
-		after = function(_, fn)
-			fn()
+		after = function(delay, fn)
+			if delay == 0 then
+				fn()
+			else
+				delayed[#delayed + 1] = fn
+			end
 		end,
 	},
 	gateway = {
@@ -71,6 +76,9 @@ local answer = interceptor.request({
 	body = "picker",
 })
 assert(answer.status == 200 and dispatched.data.id == "5")
+assert(composer == "")
+assert(#delayed == 1)
+delayed[1]()
 assert(composer == "\u{200B}")
 local preview = inserter.build({ channel_id = "9" })
 assert(preview.justify == astral.Justify.End and preview.children[1].action == "remove_1")
@@ -85,8 +93,11 @@ assert(sticker.animated and sticker.icon:find("/stickers/77.gif", 1, true))
 local rewritten = interceptor.request({ id = 2, path = "/api/v9/channels/9/messages", headers = {}, body = "typed" })
 assert(rewritten.body == "content=hi;stickers=77")
 assert(inserter.build({ channel_id = "9" }) == nil)
+composer = ""
 interceptor.response({ id = 2 }, { status = 500 })
 assert(#inserter.build({ channel_id = "9" }).children == 1)
+delayed[#delayed]()
+assert(composer == "\u{200B}")
 
 presser({ channel_id = "9" }, "remove_1")
 assert(inserter.build({ channel_id = "9" }) == nil and composer == "")

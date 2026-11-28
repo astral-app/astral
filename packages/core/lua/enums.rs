@@ -118,6 +118,8 @@ lua_enums! {
         MessageFilter = "message.filter",
         Gateway = "gateway",
         NotificationReply = "notification.reply",
+        PictureInPictureStart = "picture_in_picture.start",
+        PictureInPictureStop = "picture_in_picture.stop",
     }
     SheetItemType {
         Heading = "heading",

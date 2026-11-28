@@ -12,7 +12,7 @@ use crate::support::sqlite_api::{self as sqlite, Database};
 
 const FRESHNESS: Duration = Duration::from_secs(30);
 const MISS_FRESHNESS: Duration = Duration::from_secs(2);
-const MISS_RETRIES: u8 = 10;
+const MISS_RETRIES: u8 = 30;
 const MISS_TRACKED: usize = 1024;
 const MISS_RETRY_INTERVAL: Duration = Duration::from_millis(1500);
 const ADMINISTRATOR: u64 = 1 << 3;

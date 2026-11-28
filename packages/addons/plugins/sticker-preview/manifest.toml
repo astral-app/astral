@@ -1,7 +1,7 @@
 id = "astral.sticker-preview"
 name = "Sticker Preview"
 description = "Displays a preview of a selected sticker instead of sending it immediately."
-version = "0.0.2"
+version = "0.0.3"
 icon = "StickerIcon"
 main = "main.lua"
 permissions = ["net.discord", "messages.local", "ui.insert", "ui.composer", "discord.api"]

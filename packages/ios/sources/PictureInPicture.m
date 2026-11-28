@@ -3,10 +3,30 @@
 #import <AVFoundation/AVFoundation.h>
 #import <AVKit/AVKit.h>
 
+#import "AstralCore.h"
+
+@interface AstralPictureInPictureDelegate : NSObject <AVPictureInPictureControllerDelegate>
+@end
+
+@implementation AstralPictureInPictureDelegate
+
+- (void)pictureInPictureControllerDidStartPictureInPicture:(__unused AVPictureInPictureController *)controller
+{
+    astral_ios_picture_in_picture_changed(true);
+}
+
+- (void)pictureInPictureControllerDidStopPictureInPicture:(__unused AVPictureInPictureController *)controller
+{
+    astral_ios_picture_in_picture_changed(false);
+}
+
+@end
+
 static const NSTimeInterval kStartRetryInterval = 0.2;
 static const NSInteger kStartAttempts = 10;
 
 static AVPictureInPictureController *gController;
+static AstralPictureInPictureDelegate *gDelegate;
 
 static void CollectPlayerLayers(CALayer *layer, NSMutableArray<AVPlayerLayer *> *found)
 {
@@ -65,6 +85,8 @@ BOOL AstralStartPictureInPicture(__unused CGFloat width, __unused CGFloat height
         [session setActive:YES error:nil];
         if (gController.isPictureInPictureActive) [gController stopPictureInPicture];
         gController = [[AVPictureInPictureController alloc] initWithPlayerLayer:layer];
+        gDelegate = gDelegate ?: [AstralPictureInPictureDelegate new];
+        gController.delegate = gDelegate;
         StartWhenPossible(gController, kStartAttempts);
         started = YES;
     };

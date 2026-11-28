@@ -69,6 +69,19 @@ pub extern "C" fn astral_ios_cutout(system: AstralRect) -> AstralCutout {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn astral_ios_cutout_overlay_allowed(
+    has_active_occlusion: i32,
+    has_inactive_occlusion: i32,
+    previously_inactive_occlusion: i32,
+) -> i32 {
+    i32::from(cutout::overlay_allowed(
+        has_active_occlusion != 0,
+        has_inactive_occlusion != 0,
+        previously_inactive_occlusion != 0,
+    ))
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn astral_ios_render_svg(svg: AstralText, pixels: u32) -> AstralOwned {
     astral_core::render::svg::png(svg.bytes(), pixels, pixels)
         .map_or(AstralOwned::NONE, AstralOwned::new)

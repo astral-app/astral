@@ -50,7 +50,7 @@ const ICON_TAG_SIZE: f64 = 16.0;
 const CONTENT_PREFIX: &[u8] = b"message.content:";
 const BUBBLE_PADDING: [f32; 4] = [14.0, 10.0, 14.0, 10.0];
 const MEDIA_BLOCK_PADDING: [f32; 4] = [0.0, 8.0, 0.0, 0.0];
-const MEDIA_INSET: f32 = 4.0;
+const MEDIA_INSET: f32 = 8.0;
 const REPLY_PADDING: [f32; 4] = [8.0, 3.0, 8.0, 3.0];
 const NO_PADDING: [f32; 4] = [0.0; 4];
 const AVATAR_DECORATION_INSET: f32 = 4.0;
@@ -184,6 +184,7 @@ struct Block {
     accent: i32,
     accent_color: u32,
     padding: [f32; 4],
+    margin: [f32; 4],
     children: Vec<i32>,
     wide: bool,
 }
@@ -227,7 +228,7 @@ struct Row {
     group_end: bool,
     inner: i32,
     inner_padding: [f32; 4],
-    group_gap: Option<f32>,
+    inner_applied: Option<[f32; 4]>,
     merged: bool,
     column_flex: Option<f64>,
     time_shown: TimePlacement,
@@ -605,6 +606,16 @@ fn bubble_padding(style: &AstralMessageBackgroundStyle) -> [f32; 4] {
 fn write_block_update(out: &mut Out, block: &Block, shown: bool, merged: bool, color: u32, radius: f64, bubble_padding: [f32; 4]) {
     if block.card != 0 {
         write_card_update(out, block, shown, color);
+        if block.media {
+            let (padding, margin) = if shown && merged {
+                (NO_PADDING, merged_media_margin(block))
+            } else {
+                (block.padding, block.margin)
+            };
+            out.update(block.id, 2);
+            out.prop_quad(properties::current().padding, padding);
+            out.prop_quad(properties::current().margin, margin);
+        }
         return;
     }
     let properties = properties::current();
@@ -620,14 +631,23 @@ fn write_block_update(out: &mut Out, block: &Block, shown: bool, merged: bool, c
     };
     out.prop_quad(properties.padding, inner);
     if block.media {
-        let top = if shown && !merged {
-            block.padding[1] - MEDIA_INSET
-        } else if shown {
-            block.padding[1]
+        let margin = if shown {
+            let horizontal = if merged { MEDIA_INSET } else { 0.0 };
+            let vertical = if merged {
+                block.padding[1]
+            } else {
+                (block.padding[1] - MEDIA_INSET).max(0.0)
+            };
+            [
+                block.margin[0] + horizontal,
+                block.margin[1] + vertical,
+                block.margin[2] + horizontal,
+                block.margin[3] + horizontal,
+            ]
         } else {
-            0.0
+            block.margin
         };
-        out.prop_quad(properties.margin, [0.0, top, 0.0, 0.0]);
+        out.prop_quad(properties.margin, margin);
     }
     let fill = !shown || block.wide;
     if fill {
@@ -808,18 +828,35 @@ fn wanted_group_gap(state: &Row) -> Option<f32> {
     Some(if state.grouping == BubbleGrouping::Joined { 0.0 } else { GROUP_GAP })
 }
 
-fn write_group_gap(out: &mut Out, state: &mut Row) {
-    let wanted = wanted_group_gap(state);
-    if state.inner == 0 || wanted == state.group_gap {
+fn wanted_inner_padding(state: &Row) -> Option<[f32; 4]> {
+    let gap = wanted_group_gap(state);
+    if gap.is_none() && !state.merged {
+        return None;
+    }
+    let mut padding = state.inner_padding;
+    if let Some(gap) = gap {
+        padding[3] = gap;
+    }
+    Some(padding)
+}
+
+fn merged_media_margin(block: &Block) -> [f32; 4] {
+    [
+        block.margin[0] + MEDIA_INSET,
+        block.margin[1] + block.padding[1],
+        block.margin[2] + MEDIA_INSET,
+        block.margin[3] + MEDIA_INSET,
+    ]
+}
+
+fn write_inner_padding(out: &mut Out, state: &mut Row) {
+    let wanted = wanted_inner_padding(state);
+    if state.inner == 0 || wanted == state.inner_applied {
         return;
     }
-    let padding = state.inner_padding;
     out.update(state.inner, 1);
-    out.prop_quad(
-        properties::current().padding,
-        wanted.map_or(padding, |gap| [padding[0], padding[1], padding[2], gap]),
-    );
-    state.group_gap = wanted;
+    out.prop_quad(properties::current().padding, wanted.unwrap_or(state.inner_padding));
+    state.inner_applied = wanted;
 }
 
 fn is_media_block(batch: &Batch, span: &Span) -> bool {
@@ -1462,13 +1499,20 @@ fn reset_bubble_nodes(state: &mut Row, inside: &mut Vec<i32>) {
 
 fn remember_block(batch: &Batch, links: &HashMap<i32, i32>, state: &mut Row, id: i32, media: bool) {
     let Some(index) = add_block(state, id, media) else { return };
-    let padding = properties::current().padding;
+    let properties = properties::current();
     if media
         && let Some(quad) = batch
             .creation(id)
-            .and_then(|creation| quad_property(batch.bytes, creation, padding))
+            .and_then(|creation| quad_property(batch.bytes, creation, properties.padding))
     {
         state.blocks[index].padding = quad;
+    }
+    if media
+        && let Some(quad) = batch
+            .creation(id)
+            .and_then(|creation| quad_property(batch.bytes, creation, properties.margin))
+    {
+        state.blocks[index].margin = quad;
     }
     remember_block_children(batch, &mut state.blocks[index]);
     let column = parent_in(links, id);
@@ -1637,7 +1681,7 @@ fn apply_background_style(out: &mut Out, state: &mut Row, inside: &mut Vec<i32>,
         write_background_update(out, state.id, color, radius);
     }
     state.bubble = bubble;
-    write_group_gap(out, state);
+    write_inner_padding(out, state);
     state.shown_blocks = if bubble { state.blocks.len() } else { 0 };
     if active {
         state.applied_color = color;
@@ -1754,7 +1798,7 @@ fn remember_inner_views(batch: &Batch, rows: &mut HashMap<i32, Row>) {
         let Some(creation) = batch.creation(inner) else { continue };
         state.inner = inner;
         state.inner_padding = quad_property(batch.bytes, creation, padding).unwrap_or(NO_PADDING);
-        state.group_gap = None;
+        state.inner_applied = None;
     }
 }
 
@@ -1788,7 +1832,7 @@ fn group_rows(batch: &Batch, rows: &mut HashMap<i32, Row>, out: &mut Out, change
                 state.corners = corners;
                 continue;
             }
-            if corners == state.corners && wanted_group_gap(state) == state.group_gap {
+            if corners == state.corners && wanted_inner_padding(state) == state.inner_applied {
                 continue;
             }
             put_original_once(out, batch.bytes, changed);
@@ -1796,7 +1840,7 @@ fn group_rows(batch: &Batch, rows: &mut HashMap<i32, Row>, out: &mut Out, change
                 state.corners = corners;
                 write_corners(out, state, true, state.applied_radius);
             }
-            write_group_gap(out, state);
+            write_inner_padding(out, state);
         }
     }
 }
@@ -2480,5 +2524,24 @@ pub unsafe extern "C" fn wire_observe(bytes: *const u8, pointer: *const Span, co
         if span.op == Op::Create || span.op == Op::Update {
             observe_properties(super::format::batch_of(bytes, span), span);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Block, MEDIA_BLOCK_PADDING, MEDIA_INSET, merged_media_margin};
+
+    #[test]
+    fn merged_media_margins_leave_space_inside_the_bubble() {
+        let block = Block {
+            padding: MEDIA_BLOCK_PADDING,
+            margin: [1.0, 2.0, 3.0, 4.0],
+            ..Block::default()
+        };
+
+        assert_eq!(
+            merged_media_margin(&block),
+            [1.0 + MEDIA_INSET, 10.0, 3.0 + MEDIA_INSET, 4.0 + MEDIA_INSET]
+        );
     }
 }

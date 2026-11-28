@@ -1,5 +1,6 @@
 local STICKER_LOCATION = "sticker_reply"
 local SEND_PLACEHOLDER = "\u{200B}"
+local SEND_BUTTON_DELAY_MS = 150
 local PREVIEW_SIZE = 80
 local STICKER_SIZE = 76
 local FRAME_RADIUS = 12
@@ -97,7 +98,10 @@ local function stage(channel_id, sticker_ids)
 			stickers[#stickers + 1] = id
 		end
 	end
-	astral.time.after(0, function()
+	astral.time.after(SEND_BUTTON_DELAY_MS, function()
+		if #stickers_in(channel_id) == 0 then
+			return
+		end
 		show_send_button()
 		astral.ui.refresh()
 	end)

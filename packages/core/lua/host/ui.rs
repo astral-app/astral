@@ -1080,6 +1080,7 @@ const fn event_permission(event: Event) -> Capability {
         Event::MessageFilter => Capability::EventsMessagesFilter,
         Event::Gateway => Capability::EventsGateway,
         Event::NotificationReply => Capability::UiNotifications,
+        Event::PictureInPictureStart | Event::PictureInPictureStop => Capability::UiNavigate,
     }
 }
 

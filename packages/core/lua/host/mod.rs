@@ -1196,7 +1196,9 @@ pub fn complete_file_pick(request: u64, name: Option<&[u8]>, data: Option<&[u8]>
 }
 
 pub fn emit_event(name: &str) {
-    let Some(event @ (Event::AppForeground | Event::AppBackground)) = Event::parse(name) else {
+    let Some(event @ (Event::AppForeground | Event::AppBackground | Event::PictureInPictureStart | Event::PictureInPictureStop)) =
+        Event::parse(name)
+    else {
         return;
     };
     let _held = lock();

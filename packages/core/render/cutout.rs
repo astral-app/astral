@@ -8,7 +8,6 @@ const LOGO_ASPECT: f64 = 1.0;
 pub const KIND_ISLAND: c_int = 0;
 pub const KIND_NOTCH: c_int = 1;
 pub const KIND_HOLE: c_int = 2;
-
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct AstralCutoutFrame {
@@ -87,4 +86,8 @@ pub fn logo_frame(kind: Kind, frame: AstralCutoutFrame) -> AstralCutoutFrame {
         width,
         height: fitted_height,
     }
+}
+
+pub const fn overlay_allowed(has_active_occlusion: bool, has_inactive_occlusion: bool, previously_inactive_occlusion: bool) -> bool {
+    has_active_occlusion && !has_inactive_occlusion && !previously_inactive_occlusion
 }
