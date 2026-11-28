@@ -5,6 +5,7 @@
 #import "PhoenixImage.h"
 
 static NSString *const kTapPrefix = @"astral.tap.";
+static NSString *const kTagPrefix = @"astral.tag.";
 static const CGFloat kMaxTextWidth = 230;
 static const CGFloat kPaddingX = 14;
 static const CGFloat kPaddingY = 10;
@@ -15,6 +16,8 @@ static const CGFloat kEdgeInset = 8;
 static const CGFloat kRadius = 8;
 static const NSTimeInterval kVisible = 3.0;
 static const NSTimeInterval kKeyboardGuard = 0.6;
+static const CGFloat kNearbySlop = 16;
+static const NSUInteger kNearbySearchLimit = 400;
 
 static CGPoint gLastTouch;
 static __weak UIView *gAnchor;
@@ -25,12 +28,43 @@ static BOOL (*gTextViewResign)(id, SEL);
 static BOOL (*gTextFieldResign)(id, SEL);
 static BOOL (*gEndEditing)(id, SEL, BOOL);
 
+static BOOL IsPressable(UIView *view)
+{
+    NSString *identifier = view.accessibilityIdentifier;
+    return [identifier hasPrefix:kTapPrefix] || [identifier hasPrefix:kTagPrefix];
+}
+
 static UIView *TapAnchor(UIView *view)
 {
     for (UIView *current = view; current; current = current.superview) {
-        if ([current.accessibilityIdentifier hasPrefix:kTapPrefix]) return current;
+        if (IsPressable(current)) return current;
     }
     return nil;
+}
+
+static UIView *NearbyTapView(UIView *touched, CGPoint point)
+{
+    UIView *root = touched;
+    for (int level = 0; level < 3 && root.superview; level++) root = root.superview;
+    NSMutableArray<UIView *> *pending = [NSMutableArray arrayWithObject:root];
+    UIView *best = nil;
+    CGFloat bestArea = CGFLOAT_MAX;
+    NSUInteger visited = 0;
+    while (pending.count && visited < kNearbySearchLimit) {
+        UIView *view = pending.firstObject;
+        [pending removeObjectAtIndex:0];
+        visited++;
+        if (!view.hidden && IsPressable(view)) {
+            CGRect frame = [view convertRect:view.bounds toView:nil];
+            CGFloat area = frame.size.width * frame.size.height;
+            if (CGRectContainsPoint(CGRectInset(frame, -kNearbySlop, -kNearbySlop), point) && area < bestArea) {
+                best = view;
+                bestArea = area;
+            }
+        }
+        [pending addObjectsFromArray:view.subviews];
+    }
+    return best;
 }
 
 static void DismissTooltip(void)
@@ -52,10 +86,10 @@ void AstralNoteTouch(UITouch *touch)
     if (touch.phase == UITouchPhaseBegan) {
         if (gTooltipView && touch != gOpeningTouch) DismissTooltip();
         gLastTouch = [touch locationInView:nil];
-        gAnchor = TapAnchor(touch.view);
+        gAnchor = TapAnchor(touch.view) ?: NearbyTapView(touch.view, gLastTouch);
         gOpeningTouch = touch;
     }
-    if (gAnchor && TapAnchor(touch.view) == gAnchor) {
+    if (gAnchor && touch == gOpeningTouch) {
         gKeepKeyboardUntil = CFAbsoluteTimeGetCurrent() + kKeyboardGuard;
     }
 }
@@ -113,19 +147,29 @@ static UIColor *TextColor(UIView *window)
 static UIBezierPath *BubblePath(CGSize body, CGFloat arrowX, BOOL arrowUp)
 {
     CGFloat top = arrowUp ? kArrowHeight : 0;
-    UIBezierPath *path = [UIBezierPath bezierPathWithRoundedRect:CGRectMake(0, top, body.width, body.height) cornerRadius:kRadius];
-    UIBezierPath *arrow = [UIBezierPath bezierPath];
+    CGFloat bottom = top + body.height;
+    CGFloat right = body.width;
+    UIBezierPath *path = [UIBezierPath bezierPath];
+    [path moveToPoint:CGPointMake(kRadius, top)];
     if (arrowUp) {
-        [arrow moveToPoint:CGPointMake(arrowX - kArrowHalfWidth, kArrowHeight + 0.5)];
-        [arrow addLineToPoint:CGPointMake(arrowX, 0)];
-        [arrow addLineToPoint:CGPointMake(arrowX + kArrowHalfWidth, kArrowHeight + 0.5)];
-    } else {
-        [arrow moveToPoint:CGPointMake(arrowX - kArrowHalfWidth, body.height - 0.5)];
-        [arrow addLineToPoint:CGPointMake(arrowX, body.height + kArrowHeight)];
-        [arrow addLineToPoint:CGPointMake(arrowX + kArrowHalfWidth, body.height - 0.5)];
+        [path addLineToPoint:CGPointMake(arrowX - kArrowHalfWidth, top)];
+        [path addLineToPoint:CGPointMake(arrowX, 0)];
+        [path addLineToPoint:CGPointMake(arrowX + kArrowHalfWidth, top)];
     }
-    [arrow closePath];
-    [path appendPath:arrow];
+    [path addLineToPoint:CGPointMake(right - kRadius, top)];
+    [path addArcWithCenter:CGPointMake(right - kRadius, top + kRadius) radius:kRadius startAngle:-M_PI_2 endAngle:0 clockwise:YES];
+    [path addLineToPoint:CGPointMake(right, bottom - kRadius)];
+    [path addArcWithCenter:CGPointMake(right - kRadius, bottom - kRadius) radius:kRadius startAngle:0 endAngle:M_PI_2 clockwise:YES];
+    if (!arrowUp) {
+        [path addLineToPoint:CGPointMake(arrowX + kArrowHalfWidth, bottom)];
+        [path addLineToPoint:CGPointMake(arrowX, bottom + kArrowHeight)];
+        [path addLineToPoint:CGPointMake(arrowX - kArrowHalfWidth, bottom)];
+    }
+    [path addLineToPoint:CGPointMake(kRadius, bottom)];
+    [path addArcWithCenter:CGPointMake(kRadius, bottom - kRadius) radius:kRadius startAngle:M_PI_2 endAngle:M_PI clockwise:YES];
+    [path addLineToPoint:CGPointMake(0, top + kRadius)];
+    [path addArcWithCenter:CGPointMake(kRadius, top + kRadius) radius:kRadius startAngle:M_PI endAngle:-M_PI_2 clockwise:YES];
+    [path closePath];
     return path;
 }
 
