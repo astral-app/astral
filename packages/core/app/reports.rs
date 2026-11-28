@@ -113,16 +113,6 @@ pub fn list() -> Value {
 }
 
 pub fn plugin_reports() -> Value {
-    let plugins = lua_host::plugins_json();
-    for plugin in plugins.as_array().into_iter().flatten() {
-        if plugin.get("failed").and_then(Value::as_bool) != Some(true) {
-            continue;
-        }
-        let identifier = plugin.get("id").and_then(Value::as_str).unwrap_or_default();
-        let name = plugin.get("name").and_then(Value::as_str).unwrap_or(identifier);
-        let error = plugin.get("error").and_then(Value::as_str).unwrap_or_default();
-        crate::diagnostics::reports::plugin_failure(identifier, name, error, &report_environment());
-    }
     list()
 }
 
