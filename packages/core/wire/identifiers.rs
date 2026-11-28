@@ -48,8 +48,20 @@ pub fn note(bytes: &[u8]) {
     let Some(count) = scan(bytes, &mut spans) else { return };
     let Ok(mut named) = NAMED.lock() else { return };
     let named = named.get_or_insert_with(HashMap::new);
-    for span in spans[..count].iter().filter(|span| span.op == Op::Create || span.op == Op::Update) {
+    for span in &spans[..count] {
+        if span.op == Op::Remove {
+            for position in 0..span.child_count {
+                named.remove(&super::format::child(&bytes[..span.end], span, position));
+            }
+            continue;
+        }
+        if span.op != Op::Create && span.op != Op::Update {
+            continue;
+        }
         let Some(text) = accessibility_id(&bytes[..span.end], span) else {
+            if span.op == Op::Create {
+                named.remove(&span.id);
+            }
             continue;
         };
         if routable(text) && text.len() < MAX_IDENTIFIER {

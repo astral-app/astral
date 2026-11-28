@@ -225,6 +225,7 @@ end
 local RETRY_MS = 500
 local RETRIES = 6
 local retries = {}
+local refresh_pending = false
 
 local function retry_later(message_id)
 	local count = retries[message_id] or 0
@@ -232,7 +233,12 @@ local function retry_later(message_id)
 		return
 	end
 	retries[message_id] = count + 1
+	if refresh_pending then
+		return
+	end
+	refresh_pending = true
 	astral.time.after(RETRY_MS, function()
+		refresh_pending = false
 		astral.ui.refresh()
 	end)
 end

@@ -155,6 +155,25 @@ fn remembers_routable_identifiers() {
 }
 
 #[test]
+fn forgets_identifiers_of_reused_and_removed_nodes() {
+    let id = current().accessibility_id;
+    let mut text = [0 as c_char; 64];
+    let mut first = Out::batch();
+    creation(&mut first, 61, b"view", &[(id, b"astral.tap.1:open:2")]);
+    creation(&mut first, 62, b"view", &[(id, b"astral.tap.1:open:3")]);
+    let bytes = bytes_of(first);
+    unsafe { astral_wire_note_identifiers(bytes.as_ptr(), bytes.len()) };
+    assert_eq!(unsafe { astral_wire_identifier(61, text.as_mut_ptr(), text.len()) }, 1);
+    let mut second = Out::batch();
+    creation(&mut second, 61, b"image", &[]);
+    second.remove(&[62]);
+    let bytes = bytes_of(second);
+    unsafe { astral_wire_note_identifiers(bytes.as_ptr(), bytes.len()) };
+    assert_eq!(unsafe { astral_wire_identifier(61, text.as_mut_ptr(), text.len()) }, 0);
+    assert_eq!(unsafe { astral_wire_identifier(62, text.as_mut_ptr(), text.len()) }, 0);
+}
+
+#[test]
 fn refreshes_tracked_icons_with_a_generation() {
     let uri = current().uri;
     let mut out = Out::batch();
