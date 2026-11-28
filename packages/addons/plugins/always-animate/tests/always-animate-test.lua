@@ -30,4 +30,10 @@ assert(emojis("https://cdn.discordapp.com/emojis/5.webp") == "https://cdn.discor
 assert(emojis("https://cdn.discordapp.com/emojis/5.webp?animated=true") == nil)
 assert(emojis("https://cdn.discordapp.com/emojis/6.webp?size=48") == nil)
 assert(emojis("https://cdn.discordapp.com/emojis/7.webp?size=48") == nil)
+local collectibles = rewrites["https://cdn.discordapp.com/media/v1/collectibles-shop/"]
+assert(
+	collectibles("https://cdn.discordapp.com/media/v1/collectibles-shop/123/static")
+		== "https://cdn.discordapp.com/media/v1/collectibles-shop/123/animated?animated=true"
+)
+assert(collectibles("https://cdn.discordapp.com/media/v1/collectibles-shop/123/animated?animated=true") == nil)
 print("always-animate ok")
