@@ -39,7 +39,7 @@ runs:
           astral feed app-source --source site/app-repo.json --ipa "$IPA" --url "$IPA_URL" --date "$(date -u +%Y-%m-%d)" --description "$DESCRIPTION"
         fi
         gh release list --repo "$GITHUB_REPOSITORY" --limit 20 --json tagName,isPrerelease \
-          --jq '.[] | select(.isPrerelease and (.tagName | test("-alpha\\."))) | .tagName' | head -5 |
+          --jq '.[] | select(.isPrerelease and (.tagName | test("-alpha\\."))) | .tagName' | head -1 |
           while read -r tag; do
             gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern '*.deb' --dir site/repo/debs --clobber || true
           done
