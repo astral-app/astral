@@ -339,14 +339,16 @@ pub unsafe extern "C" fn wire_message_texts(
     super::content_views::observe(bytes, spans);
     let mut update = Out::default();
     let mut any = false;
+    let mut claimed: Vec<u64> = Vec::new();
     with_texts(|texts| {
         for span in spans {
             let data = batch_of(bytes, span);
             let message = if span.op == Op::Create && type_is(data, span, b"text") {
                 let message = content_message(bytes, spans, span.id);
-                if message == 0 {
+                if message == 0 || claimed.contains(&message) {
                     continue;
                 }
+                claimed.push(message);
                 let text = text_for(texts, message);
                 text.node = span.id;
                 text.applied = 0;
