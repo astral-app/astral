@@ -944,6 +944,11 @@ pub fn plugin_list() -> Value {
 
 pub fn set_enabled(identifier: &str, enabled: bool) {
     let _held = lock();
+    switch(identifier, enabled);
+    refresh_decorations();
+}
+
+fn switch(identifier: &str, enabled: bool) {
     let Some(plugin) = find(identifier) else { return };
     unsafe { (*plugin).enabled = enabled };
     store(&format!("{identifier}.enabled"), json!(enabled));
@@ -952,7 +957,6 @@ pub fn set_enabled(identifier: &str, enabled: bool) {
     } else {
         stop_plugin(plugin);
     }
-    refresh_decorations();
 }
 
 pub fn reset_settings(identifier: &str) {
@@ -1314,22 +1318,35 @@ fn restore_state(plugin: *mut Plugin, kept: &Value) {
 
 pub fn remove(identifier: &str) {
     let _held = lock();
+    discard(identifier);
+    refresh_decorations();
+}
+
+fn discard(identifier: &str) {
     let Some(existing) = find(identifier) else { return };
     stop_plugin(existing);
     host().plugins.retain(|plugin| *plugin != existing);
     drop(unsafe { Box::from_raw(existing) });
-    refresh_decorations();
 }
 
 pub fn reload(identifier: &str) {
+    reload_all(&[identifier.to_owned()]);
+}
+
+pub fn reload_all(identifiers: &[String]) {
     let _held = lock();
-    let kept = kept_state(find(identifier));
-    remove(identifier);
-    rescan();
-    set_enabled(identifier, true);
-    if let (Some(plugin), Some(kept)) = (find(identifier), kept) {
-        restore_state(plugin, &kept);
+    let kept: Vec<Option<Value>> = identifiers.iter().map(|identifier| kept_state(find(identifier))).collect();
+    for identifier in identifiers {
+        discard(identifier);
     }
+    rescan();
+    for (identifier, kept) in identifiers.iter().zip(kept) {
+        switch(identifier, true);
+        if let (Some(plugin), Some(kept)) = (find(identifier), kept) {
+            restore_state(plugin, &kept);
+        }
+    }
+    refresh_decorations();
 }
 
 pub(crate) fn plugin_of(state: *mut LuaState) -> *mut Plugin {

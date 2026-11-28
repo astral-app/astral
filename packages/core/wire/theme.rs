@@ -485,7 +485,11 @@ pub unsafe extern "C" fn wire_track_colors(bytes: *const u8, pointer: *const Spa
                 let tag = cursor.read8();
                 let at = cursor.offset();
                 cursor.skip_value(tag, 0);
-                if cursor.failed() || !tracked_property(&properties, property, tag) {
+                if cursor.failed() {
+                    break;
+                }
+                if !tracked_property(&properties, property, tag) {
+                    tracked.remove(&(span.id, property));
                     continue;
                 }
                 let value = &data[at..cursor.offset()];

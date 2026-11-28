@@ -715,12 +715,10 @@ pub(crate) fn soft_restart_without_reload(current: &App) {
     refresh_settings();
 }
 
-pub(crate) fn soft_restart(current: &App) {
-    current.invalidate_packs();
-    refresh_images(current);
-    theme::apply(current, &theme::active(current));
-    refresh_emoji();
-    reload_enabled_plugins();
+pub(crate) fn soft_restart(current: &App) -> usize {
+    let plugins = reload_enabled_plugins();
+    soft_restart_without_reload(current);
+    plugins
 }
 
 fn reload_enabled_plugins() -> usize {
@@ -732,9 +730,7 @@ fn reload_enabled_plugins() -> usize {
         .filter(|plugin| plugin.get("enabled").and_then(Value::as_bool) == Some(true))
         .filter_map(|plugin| plugin.get("id").and_then(Value::as_str).map(str::to_owned))
         .collect();
-    for identifier in &enabled {
-        lua_host::reload(identifier);
-    }
+    lua_host::reload_all(&enabled);
     enabled.len()
 }
 
@@ -758,14 +754,7 @@ pub fn refresh_settings() {
 }
 
 pub fn restart_softly() -> usize {
-    let Some(current) = app() else { return 0 };
-    current.invalidate_packs();
-    refresh_images(current);
-    theme::apply(current, &theme::active(current));
-    refresh_emoji();
-    let plugins = reload_enabled_plugins();
-    refresh_settings();
-    plugins
+    app().map_or(0, soft_restart)
 }
 
 pub fn page_category() -> String {
