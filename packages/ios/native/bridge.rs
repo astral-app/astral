@@ -51,6 +51,7 @@ pub enum AstralRequestKind {
     SyncForgetFolder,
     SyncRead,
     SyncWrite,
+    CloseToast,
 }
 
 #[repr(C)]
@@ -163,9 +164,10 @@ fn outgoing<'a>(request: &Request<'a>) -> Outgoing<'a> {
         Request::ShowAlert { title, message } => {
             Outgoing::new(Kind::ShowAlert).texts(&[title, message])
         }
-        Request::ShowToast { title, message } => {
-            Outgoing::new(Kind::ShowToast).texts(&[title, message])
-        }
+        Request::ShowToast { toast, spec } => Outgoing::new(Kind::ShowToast)
+            .identifier(toast)
+            .texts(&[spec]),
+        Request::CloseToast { toast } => Outgoing::new(Kind::CloseToast).identifier(toast),
         Request::ShowTooltip { text } => Outgoing::new(Kind::ShowTooltip).texts(&[text]),
         Request::TriggerHaptic { strength } => {
             Outgoing::new(Kind::TriggerHaptic).texts(&[strength])

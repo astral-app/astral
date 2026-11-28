@@ -51,10 +51,7 @@ fn prompt(url: &str) {
         return;
     };
     let Some(package) = link_package(&kind, &identifier) else {
-        host::request(Request::ShowToast {
-            title: tr("ASTRAL_LINK_UNKNOWN_ADDON"),
-            message: &identifier,
-        });
+        host::toast(tr("ASTRAL_LINK_UNKNOWN_ADDON"), &identifier);
         return;
     };
     *PENDING.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = Some((kind, identifier));
@@ -92,10 +89,7 @@ pub fn answered(install: bool) {
                 } else {
                     "ASTRAL_LINK_INSTALL_FAILED"
                 };
-                host::request(Request::ShowToast {
-                    title: &tr_with(key, &[("name", name.clone())]),
-                    message: "",
-                });
+                host::toast(&tr_with(key, &[("name", name.clone())]), "");
             });
             install_linked(&kind, &identifier, done);
         });

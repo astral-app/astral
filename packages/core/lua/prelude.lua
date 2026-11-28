@@ -803,3 +803,102 @@ function astral.ui.relabel(target, relabeler)
 		return relabeler(wrap_node(node))
 	end)
 end
+
+local toast_show, toast_update, toast_close = astral.ui.toast_show, astral.ui.toast_update, astral.ui.toast_close
+astral.ui.toast_show, astral.ui.toast_update, astral.ui.toast_close = nil, nil, nil
+local native_toasts = toast_show ~= nil
+
+local TOAST_FIELDS = { "title", "content", "icon", "duration", "tinted_icon" }
+
+local function toast_spec(options)
+	local spec = {}
+	for _, key in ipairs(TOAST_FIELDS) do
+		spec[key] = options[key]
+	end
+	if type(options.progress) == "number" then
+		spec.progress = options.progress
+	end
+	if type(options.buttons) == "table" then
+		spec.buttons = {}
+		for index, button in ipairs(options.buttons) do
+			spec.buttons[index] = { content = tostring(button.content or ""), variant = button.variant }
+		end
+	end
+	return spec
+end
+
+local Toast = astral.class("Toast")
+
+function Toast:init(options)
+	self.options = options
+	self.id = toast_show(toast_spec(options), function(action, value)
+		if action == "closed" then
+			self.closed = true
+			if type(self.options.on_close) == "function" then
+				self.options.on_close(self)
+			end
+			return
+		end
+		local button = self.options.buttons and self.options.buttons[tonumber(value)]
+		if button and type(button.on_press) == "function" then
+			button.on_press(self)
+		end
+	end)
+end
+
+function Toast:update(changes)
+	if self.closed then
+		return
+	end
+	for key, value in pairs(changes) do
+		self.options[key] = value
+	end
+	toast_update(self.id, toast_spec(self.options))
+end
+
+function Toast:close()
+	if not self.closed then
+		toast_close(self.id)
+	end
+end
+
+function Toast:describe()
+	return tostring(self.options.title or self.id)
+end
+
+astral.toasts = {}
+
+function astral.toasts.show(options)
+	if type(options) ~= "table" then
+		error("astral.toasts.show: give a table of toast options", 2)
+	end
+	if (options.title or "") == "" and (options.content or "") == "" then
+		error("astral.toasts.show: a toast needs a title or content", 2)
+	end
+	return Toast(options)
+end
+
+local TOAST_ICONS = {
+	success = "res://ic_mana_circle_check",
+	info = "res://ic_mana_circle_information",
+	warning = "res://ic_mana_warning",
+	error = "res://ic_mana_circle_x",
+}
+
+for kind, icon in pairs(TOAST_ICONS) do
+	astral.toasts[kind] = function(title, options)
+		local shown = {}
+		for key, value in pairs(options or {}) do
+			shown[key] = value
+		end
+		shown.title = title
+		shown.icon = shown.icon or icon
+		return astral.toasts.show(shown)
+	end
+end
+
+if native_toasts then
+	function astral.ui.toast(title, content)
+		return astral.toasts.show({ title = title, content = content })
+	end
+end

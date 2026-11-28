@@ -234,6 +234,7 @@ pub struct Plugin {
     pub web_auth_requests: BTreeMap<u64, c_int>,
     pub confirm_requests: BTreeMap<u64, c_int>,
     pub sheets: BTreeMap<u64, c_int>,
+    pub toasts: BTreeMap<u64, c_int>,
     pub file_picks: BTreeMap<u64, c_int>,
     pub event_callbacks: BTreeMap<u64, EventCallback>,
     pub http_hooks: Vec<HttpHook>,
@@ -552,6 +553,10 @@ pub(crate) fn stop_plugin(plugin: *mut Plugin) {
     }
     for (sheet, reference) in core::mem::take(&mut plugin_ref.sheets) {
         platform("closeSheet", &json!([sheet]));
+        unsafe { lua::release(state, reference) };
+    }
+    for (toast, reference) in core::mem::take(&mut plugin_ref.toasts) {
+        platform("closeToast", &json!([toast]));
         unsafe { lua::release(state, reference) };
     }
     release_all(state, core::mem::take(&mut plugin_ref.confirm_requests).into_values());
@@ -1099,11 +1104,12 @@ pub fn complete_network_request(request: u64, result: &Value) {
 pub fn sheet_event(sheet: u64, action: &str, value: &str, closed: bool) {
     let _held = lock();
     let Some((plugin, reference)) = take_callback(|plugin| {
-        if closed {
-            plugin.sheets.remove(&sheet)
+        let table = if plugin.sheets.contains_key(&sheet) {
+            &mut plugin.sheets
         } else {
-            plugin.sheets.get(&sheet).copied()
-        }
+            &mut plugin.toasts
+        };
+        if closed { table.remove(&sheet) } else { table.get(&sheet).copied() }
     }) else {
         return;
     };

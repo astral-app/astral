@@ -13,6 +13,7 @@ const PERMILLE: f64 = 1000.0;
 enum Method {
     Has,
     ShowToast,
+    CloseToast,
     ShowTooltip,
     ShowAlert,
     WriteClipboard,
@@ -57,6 +58,7 @@ impl Method {
         Some(match name {
             "has" => Method::Has,
             "showToast" => Method::ShowToast,
+            "closeToast" => Method::CloseToast,
             "showTooltip" => Method::ShowTooltip,
             "showAlert" => Method::ShowAlert,
             "writeClipboard" => Method::WriteClipboard,
@@ -246,9 +248,16 @@ fn dispatch(method: Method, arguments: &Arguments) -> Value {
     match method {
         Method::Has => value(json!(Method::advertised(arguments.text(0)))),
         Method::ShowToast => {
+            let spec = host::json_text(arguments.at(1));
             host::request(Request::ShowToast {
-                title: arguments.text(0),
-                message: arguments.text(1),
+                toast: arguments.identifier(0),
+                spec: &spec,
+            });
+            done()
+        }
+        Method::CloseToast => {
+            host::request(Request::CloseToast {
+                toast: arguments.identifier(0),
             });
             done()
         }
