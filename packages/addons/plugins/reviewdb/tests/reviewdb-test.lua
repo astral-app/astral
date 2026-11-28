@@ -157,7 +157,7 @@ assert(items[1].background and items[1].items[2].items[2].text == "Be nice")
 local review = items[2]
 assert(review.long_action == "actions:9" and review.items[1].round)
 assert(review.items[2].items[1].items[2].text == "Nov 25, 2025")
-assert(sheet.spec.header[1].buttons[1].label == "Sign in to leave a review")
+assert(sheet.spec.footer[1].buttons[1].label == "Sign in to leave a review")
 
 sheet.handler("up:9", "")
 assert(toasts[#toasts] == "AUTHORIZE_TO_VOTE")
@@ -178,7 +178,7 @@ assert(voted.options.url:find("/reviews/9/vote", 1, true) and voted.options.meth
 assert(voted.options.headers.Authorization == "secret")
 voted.callback({ ok = true, status = 200, json = {} })
 assert(sheets[#sheets].spec.items[2].items[2].items[3].items[2].text == "3")
-local header = sheets[#sheets].spec.header
+local header = sheets[#sheets].spec.footer
 assert(header[#header].type == astral.SheetItemType.Input and header[#header].action == "submit")
 
 sheet.handler("submit", "lovely person")

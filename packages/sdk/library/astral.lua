@@ -699,6 +699,7 @@ function astral.ui.confirm(spec, callback) end
 ---@field title string
 ---@field items astral.SheetItem[]
 ---@field header? astral.SheetItem[] pinned between the subtitle and the scrolling items
+---@field footer? astral.SheetItem[] pinned under the scrolling items, above the keyboard
 ---@field expanded? boolean open at full height
 ---@class astral.SheetHandle
 ---@field id integer

@@ -383,7 +383,7 @@ local function render(state)
 		title = title,
 		subtitle = count_text(state.count or #users),
 		expanded = true,
-		header = composer_items(state, users),
+		footer = composer_items(state, users),
 		items = items,
 	}
 end

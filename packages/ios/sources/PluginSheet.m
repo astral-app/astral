@@ -137,6 +137,8 @@ static NSArray<NSDictionary *> *ItemList(id value)
 @property (nonatomic) UIStackView *stack;
 @property (nonatomic) UIStackView *headerStack;
 @property (nonatomic) NSLayoutConstraint *headerGap;
+@property (nonatomic) UIStackView *footerStack;
+@property (nonatomic) NSLayoutConstraint *footerGap;
 @property (nonatomic) UILabel *titleLabel;
 @property (nonatomic) UILabel *subtitleLabel;
 @property (nonatomic) NSMutableDictionary<NSValue *, NSString *> *longActions;
@@ -183,6 +185,11 @@ static NSArray<NSDictionary *> *ItemList(id value)
     [self.view addSubview:self.titleLabel];
     [self.view addSubview:self.subtitleLabel];
     [self.view addSubview:self.headerStack];
+    self.footerStack = [UIStackView new];
+    self.footerStack.axis = UILayoutConstraintAxisVertical;
+    self.footerStack.spacing = 12;
+    self.footerStack.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:self.footerStack];
     [self.view addSubview:scroll];
     UILayoutGuide *safe = self.view.safeAreaLayoutGuide;
     [NSLayoutConstraint activateConstraints:@[
@@ -197,7 +204,9 @@ static NSArray<NSDictionary *> *ItemList(id value)
         [self.headerStack.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor constant:-kInset],
         [scroll.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor],
         [scroll.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor],
-        [scroll.bottomAnchor constraintEqualToAnchor:self.view.keyboardLayoutGuide.topAnchor],
+        [self.footerStack.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:kInset],
+        [self.footerStack.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor constant:-kInset],
+        [self.footerStack.bottomAnchor constraintEqualToAnchor:self.view.keyboardLayoutGuide.topAnchor constant:-kInset],
         [self.stack.topAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.topAnchor],
         [self.stack.bottomAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.bottomAnchor constant:-kInset],
         [self.stack.leadingAnchor constraintEqualToAnchor:scroll.frameLayoutGuide.leadingAnchor constant:kInset],
@@ -205,6 +214,8 @@ static NSArray<NSDictionary *> *ItemList(id value)
     ]];
     self.headerGap = [scroll.topAnchor constraintEqualToAnchor:self.headerStack.bottomAnchor];
     self.headerGap.active = YES;
+    self.footerGap = [scroll.bottomAnchor constraintEqualToAnchor:self.footerStack.topAnchor];
+    self.footerGap.active = YES;
     self.fillHeight = [self.stack.heightAnchor constraintGreaterThanOrEqualToAnchor:scroll.frameLayoutGuide.heightAnchor constant:-kInset];
     [self render];
 }
@@ -220,7 +231,7 @@ static NSArray<NSDictionary *> *ItemList(id value)
 
 - (BOOL)updateInPlace
 {
-    NSArray *shape = @[ ShapeOf(self.spec[@"header"]), ShapeOf(self.spec[@"items"]) ];
+    NSArray *shape = @[ ShapeOf(self.spec[@"header"]), ShapeOf(self.spec[@"items"]), ShapeOf(self.spec[@"footer"]) ];
     if (!self.renderedShape || ![self.renderedShape isEqual:shape]) {
         self.renderedShape = shape;
         return NO;
@@ -228,6 +239,7 @@ static NSArray<NSDictionary *> *ItemList(id value)
     NSMutableArray<NSDictionary *> *labels = [NSMutableArray array];
     [self collectLabelItems:self.spec[@"header"] into:labels];
     [self collectLabelItems:self.spec[@"items"] into:labels];
+    [self collectLabelItems:self.spec[@"footer"] into:labels];
     if (labels.count != self.itemLabels.count) return NO;
     self.titleLabel.text = TextValue(self.spec, @"title");
     self.subtitleLabel.text = TextValue(self.spec, @"subtitle");
@@ -267,6 +279,12 @@ static NSArray<NSDictionary *> *ItemList(id value)
         if (view) [self.headerStack addArrangedSubview:view];
     }
     self.headerGap.constant = self.headerStack.arrangedSubviews.count ? 14 : 0;
+    for (UIView *view in self.footerStack.arrangedSubviews) [view removeFromSuperview];
+    for (NSDictionary *item in ItemList(self.spec[@"footer"])) {
+        UIView *view = [self viewForItem:item];
+        if (view) [self.footerStack addArrangedSubview:view];
+    }
+    self.footerGap.constant = self.footerStack.arrangedSubviews.count ? -12 : kInset;
     for (UIView *view in self.stack.arrangedSubviews) [view removeFromSuperview];
     BOOL fills = NO;
     for (NSDictionary *item in ItemList(self.spec[@"items"])) {
