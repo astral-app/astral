@@ -1,5 +1,6 @@
 local callback
 local values = {}
+local listeners = {}
 
 local function color(value)
 	return {
@@ -44,6 +45,21 @@ astral = {
 	},
 	settings = {
 		values = values,
+		get = function(key, fallback)
+			if values[key] == nil then
+				return fallback
+			end
+			return values[key]
+		end,
+		set = function(key, value)
+			values[key] = value
+			if listeners[key] then
+				listeners[key](value, key)
+			end
+		end,
+		on_change = function(key, listener)
+			listeners[key] = listener
+		end,
 		option = function(value, title)
 			return { value = value, title = title }
 		end,
@@ -62,6 +78,9 @@ astral = {
 		end,
 	},
 	ui = {
+		confirm = function(_, done)
+			done(true)
+		end,
 		message_background = function(decorator)
 			callback = decorator
 		end,
@@ -96,5 +115,14 @@ assert(callback({ message_id = "m7", author_id = "other" }).color.value == 0x665
 messages.m8 = { mentions = { { id = "me" } } }
 local mentioned = callback({ message_id = "m8", channel_id = "c", author_id = "other" }).color
 assert(mentioned.value ~= 0x665865F2)
+
+assert(callback({ message_id = "m9" }).grouping == astral.BubbleGrouping.Grouped)
+astral.settings.set("preset", "joined")
+assert(values.grouping == astral.BubbleGrouping.Joined and values.color == "" and values.radius == 16)
+assert(callback({ message_id = "m10" }).grouping == astral.BubbleGrouping.Joined)
+astral.settings.set("grouping", astral.BubbleGrouping.Separate)
+assert(values.preset == "rounded")
+astral.settings.set("radius", 20)
+assert(values.preset == "")
 
 print("chat-bubbles ok")

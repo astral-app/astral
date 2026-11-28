@@ -1,5 +1,5 @@
 use super::tag::{Op, Tag};
-use crate::lua::enums::{ReplyPlacement, TimePlacement};
+use crate::lua::enums::{BubbleGrouping, ReplyPlacement, TimePlacement};
 use core::ffi::{c_char, c_int};
 use std::collections::{HashMap, HashSet};
 use std::os::unix::ffi::OsStrExt;
@@ -60,6 +60,7 @@ const CORNER_TOP_RIGHT: i32 = 2;
 const CORNER_BOTTOM_LEFT: i32 = 4;
 const CORNER_BOTTOM_RIGHT: i32 = 8;
 const CORNERS_ALL: i32 = 15;
+const GROUP_GAP: f32 = 4.0;
 const REPLY_RADIUS: f64 = 9.0;
 const QUOTE_PADDING: [f32; 4] = [8.0, 4.0, 8.0, 4.0];
 const QUOTE_COLOR: i64 = 0x2600_0000;
@@ -148,6 +149,7 @@ pub struct AstralMessageBackgroundStyle {
     pub time: TimePlacement,
     pub padding_x: f64,
     pub padding_y: f64,
+    pub grouping: BubbleGrouping,
 }
 
 pub type AstralDecorator = unsafe extern "C" fn(*const AstralDecorationContext, *mut AstralTag, usize) -> usize;
@@ -220,6 +222,12 @@ struct Row {
     avatar_margin: [f32; 4],
     avatar_shifted: bool,
     corners: i32,
+    grouping: BubbleGrouping,
+    group_start: bool,
+    group_end: bool,
+    inner: i32,
+    inner_padding: [f32; 4],
+    group_gap: Option<f32>,
     time_shown: TimePlacement,
     blocks: Vec<Block>,
     shown_blocks: usize,
@@ -633,7 +641,7 @@ fn put_corner(out: &mut Out, property: u16, shown: bool, rounded: bool, radius: 
 
 fn write_corners(out: &mut Out, state: &Row, shown: bool, radius: f64) {
     let properties = properties::current();
-    let corners = if state.corners != 0 { state.corners } else { CORNERS_ALL };
+    let corners = if state.corners >= 0 { state.corners } else { CORNERS_ALL };
     for block in state.blocks.iter().filter(|block| block.card == 0) {
         out.update(block.id, 4);
         put_corner(out, properties.radius_top_left, shown, corners & CORNER_TOP_LEFT != 0, radius);
@@ -724,7 +732,46 @@ fn capture_original(batch: &Batch, creation: Option<&Span>, state: &mut Row) {
     state.original_radius = creation
         .and_then(|creation| number_property(batch.bytes, creation, properties.radius))
         .unwrap_or(0.0);
+    state.inner = batch.child_of(state.id, 0);
+    state.inner_padding = batch
+        .creation(state.inner)
+        .and_then(|inner| quad_property(batch.bytes, inner, properties.padding))
+        .unwrap_or(NO_PADDING);
     state.has_original = true;
+}
+
+fn grouped_corners(state: &Row) -> i32 {
+    let (start, end) = (state.group_start, state.group_end);
+    match state.grouping {
+        BubbleGrouping::Separate => CORNERS_ALL,
+        BubbleGrouping::Grouped => {
+            CORNER_TOP_RIGHT | CORNER_BOTTOM_RIGHT | if start { CORNER_TOP_LEFT } else { 0 } | if end { CORNER_BOTTOM_LEFT } else { 0 }
+        }
+        BubbleGrouping::Joined => {
+            (if start { CORNER_TOP_LEFT | CORNER_TOP_RIGHT } else { 0 }) | if end { CORNER_BOTTOM_LEFT | CORNER_BOTTOM_RIGHT } else { 0 }
+        }
+    }
+}
+
+fn wanted_group_gap(state: &Row) -> Option<f32> {
+    if !state.bubble || state.group_end {
+        return None;
+    }
+    Some(if state.grouping == BubbleGrouping::Joined { 0.0 } else { GROUP_GAP })
+}
+
+fn write_group_gap(out: &mut Out, state: &mut Row) {
+    let wanted = wanted_group_gap(state);
+    if state.inner == 0 || wanted == state.group_gap {
+        return;
+    }
+    let padding = state.inner_padding;
+    out.update(state.inner, 1);
+    out.prop_quad(
+        properties::current().padding,
+        wanted.map_or(padding, |gap| [padding[0], padding[1], padding[2], gap]),
+    );
+    state.group_gap = wanted;
 }
 
 fn is_media_block(batch: &Batch, span: &Span) -> bool {
@@ -1361,7 +1408,7 @@ fn reset_bubble_nodes(state: &mut Row, inside: &mut Vec<i32>) {
     state.time_shown = TimePlacement::Header;
     state.avatar = 0;
     state.avatar_shifted = false;
-    state.corners = 0;
+    state.corners = -1;
     track_inside(inside, state, false);
 }
 
@@ -1503,12 +1550,17 @@ fn apply_background_style(out: &mut Out, state: &mut Row, inside: &mut Vec<i32>,
         && reply == state.reply_shown
         && name == state.name_shown
         && time == state.time_shown
+        && style.grouping == state.grouping
         && (!bubble || state.shown_blocks == state.blocks.len())
         && (!active || (color == state.applied_color && radius == state.applied_radius && bubble_padding(&style) == state.applied_padding))
     {
         return;
     }
     state.applied_padding = if active { bubble_padding(&style) } else { BUBBLE_PADDING };
+    if style.grouping != state.grouping || (bubble && !state.bubble) {
+        state.grouping = style.grouping;
+        state.corners = grouped_corners(state);
+    }
     match original {
         Some(original) => put_original_once(out, original, changed),
         None => *changed = 1,
@@ -1539,6 +1591,7 @@ fn apply_background_style(out: &mut Out, state: &mut Row, inside: &mut Vec<i32>,
         write_background_update(out, state.id, color, radius);
     }
     state.bubble = bubble;
+    write_group_gap(out, state);
     state.shown_blocks = if bubble { state.blocks.len() } else { 0 };
     if active {
         state.applied_color = color;
@@ -1638,13 +1691,29 @@ fn forget_removed_rows(batch: &Batch, backgrounds: &mut Backgrounds) {
     }
 }
 
-fn bubbled_header(rows: &HashMap<i32, Row>, id: i32) -> Option<i32> {
-    rows.get(&id)
-        .filter(|state| state.has_original && state.bubble)
-        .map(|state| state.header)
+fn listed_header(rows: &HashMap<i32, Row>, id: i32) -> Option<i32> {
+    rows.get(&id).filter(|state| state.has_original).map(|state| state.header)
+}
+
+fn remember_inner_views(batch: &Batch, rows: &mut HashMap<i32, Row>) {
+    let padding = properties::current().padding;
+    for span in batch.spans.iter().filter(|span| span.op == Op::SetChildren && span.child_count > 0) {
+        let Some(state) = rows.get_mut(&span.id).filter(|state| state.has_original) else {
+            continue;
+        };
+        let inner = batch.child(span, 0);
+        if inner == state.inner {
+            continue;
+        }
+        let Some(creation) = batch.creation(inner) else { continue };
+        state.inner = inner;
+        state.inner_padding = quad_property(batch.bytes, creation, padding).unwrap_or(NO_PADDING);
+        state.group_gap = None;
+    }
 }
 
 fn group_rows(batch: &Batch, rows: &mut HashMap<i32, Row>, out: &mut Out, changed: &mut c_int) {
+    remember_inner_views(batch, rows);
     for span in batch
         .spans
         .iter()
@@ -1653,27 +1722,35 @@ fn group_rows(batch: &Batch, rows: &mut HashMap<i32, Row>, out: &mut Out, change
         let mut previous = false;
         for position in 0..span.child_count {
             let id = batch.child(span, position);
-            let Some(header) = bubbled_header(rows, id) else {
+            let Some(header) = listed_header(rows, id) else {
                 previous = false;
                 continue;
             };
             let next = if position + 1 < span.child_count {
-                bubbled_header(rows, batch.child(span, position + 1))
+                listed_header(rows, batch.child(span, position + 1))
             } else {
                 None
             };
             let start = !previous || header != 0;
             let end = next.is_none_or(|header| header != 0);
-            let corners =
-                CORNER_TOP_RIGHT | CORNER_BOTTOM_RIGHT | if start { CORNER_TOP_LEFT } else { 0 } | if end { CORNER_BOTTOM_LEFT } else { 0 };
             previous = true;
             let Some(state) = rows.get_mut(&id) else { continue };
-            if corners == state.corners {
+            state.group_start = start;
+            state.group_end = end;
+            let corners = grouped_corners(state);
+            if !state.bubble {
+                state.corners = corners;
                 continue;
             }
-            state.corners = corners;
+            if corners == state.corners && wanted_group_gap(state) == state.group_gap {
+                continue;
+            }
             put_original_once(out, batch.bytes, changed);
-            write_corners(out, state, true, state.applied_radius);
+            if corners != state.corners {
+                state.corners = corners;
+                write_corners(out, state, true, state.applied_radius);
+            }
+            write_group_gap(out, state);
         }
     }
 }
@@ -1686,7 +1763,13 @@ fn row_state(rows: &mut HashMap<i32, Row>, id: i32) -> Option<&mut Row> {
         let evicted = rows.iter().find(|(_, state)| !state.has_original).map(|(key, _)| *key)?;
         rows.remove(&evicted);
     }
-    Some(rows.entry(id).or_insert_with(|| Row { id, ..Row::default() }))
+    Some(rows.entry(id).or_insert_with(|| Row {
+        id,
+        corners: -1,
+        group_end: true,
+        group_start: true,
+        ..Row::default()
+    }))
 }
 
 fn finish_backgrounds(
