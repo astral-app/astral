@@ -46,6 +46,7 @@ name = "astral-core"
 version = "0.0.1"
 dependencies = [
  "ed25519-dalek",
+ "flate2",
  "libc",
  "libsqlite3-sys",
  "plist",
