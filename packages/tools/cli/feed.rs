@@ -7,7 +7,6 @@ use crate::flags::Flags;
 use crate::ipa_archive::{Ipa, text};
 use crate::macho;
 
-const MAX_VERSIONS: usize = 30;
 const FIRST_PHOENIX_MAJOR: u64 = 357;
 const PRIVACY_SUFFIX: &str = "UsageDescription";
 const USAGE: &str = "usage: astral feed app-source --source <app-repo.json> --ipa <astral.ipa> --url <download URL> [--date <ISO date>] [--description <text>]";
@@ -109,17 +108,7 @@ pub fn add_version(
     }
     let permissions = merged_permissions(app.get("appPermissions"), facts);
     app.insert("appPermissions".into(), permissions);
-    let versions = app.entry("versions").or_insert_with(|| json!([]));
-    let list = versions.as_array_mut().ok_or("versions is not a list")?;
-    list.retain(|existing| {
-        existing.get("downloadURL").and_then(Value::as_str) != Some(url)
-            && existing
-                .get("version")
-                .and_then(Value::as_str)
-                .is_some_and(ships_phoenix)
-    });
-    list.insert(0, Value::Object(entry));
-    list.truncate(MAX_VERSIONS);
+    app.insert("versions".into(), json!([Value::Object(entry)]));
     Ok(())
 }
 

@@ -15,7 +15,7 @@ fn facts(build: &str, entitlement: &str) -> IpaFacts {
 }
 
 #[test]
-fn adds_newest_first_and_unions_permissions() {
+fn keeps_only_the_newest_build_and_unions_permissions() {
     let mut source = json!({ "apps": [{ "versions": [], "appPermissions": { "entitlements": ["old"], "privacy": {} } }] });
     add_version(
         &mut source,
@@ -42,7 +42,7 @@ fn adds_newest_first_and_unions_permissions() {
     )
     .unwrap();
     let app = &source["apps"][0];
-    assert_eq!(app["versions"].as_array().unwrap().len(), 2);
+    assert_eq!(app["versions"].as_array().unwrap().len(), 1);
     assert_eq!(app["versions"][0]["buildVersion"], "2");
     assert_eq!(app["versions"][0]["localizedDescription"], "two again");
     assert_eq!(
