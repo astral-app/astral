@@ -44,6 +44,13 @@ local function rewrite(url)
 	return nil
 end
 
+local COLLECTIBLES = CDN .. "media/v1/collectibles-shop/"
+
+astral.ui.image_rewrite(COLLECTIBLES, function(url)
+	local base = url:match("^(" .. COLLECTIBLES:gsub("%p", "%%%0") .. "%d+)/static$")
+	return base and (base .. "/animated?animated=true") or nil
+end)
+
 for _, path in ipairs({ "avatars/", "icons/", "banners/", "guilds/", "emojis/", "role-icons/" }) do
 	astral.ui.image_rewrite(CDN .. path, rewrite)
 	astral.ui.image_rewrite(MEDIA .. path, rewrite)

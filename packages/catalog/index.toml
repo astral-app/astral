@@ -47,7 +47,7 @@ authors = [
 [[plugins]]
 id = "astral.always-animate"
 name = "Always Animate"
-version = "0.0.2"
+version = "0.0.3"
 description = "Animates avatars, server icons, banners and emoji everywhere, not only when you tap them."
 icon = "ReactionIcon"
 base = "plugins/astral.always-animate/"
