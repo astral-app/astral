@@ -12,7 +12,7 @@ use crate::support::sqlite_api::{self as sqlite, Database};
 
 const FRESHNESS: Duration = Duration::from_secs(30);
 const MISS_FRESHNESS: Duration = Duration::from_secs(2);
-const MISS_RETRIES: u8 = 5;
+const MISS_RETRIES: u8 = 10;
 const MISS_TRACKED: usize = 1024;
 const MISS_RETRY_INTERVAL: Duration = Duration::from_millis(1500);
 const ADMINISTRATOR: u64 = 1 << 3;
@@ -453,7 +453,10 @@ impl State {
     }
 
     fn raw_message(&mut self, channel_id: &str, message_id: &str) -> Option<Value> {
-        let mut record = self.message_record(channel_id, message_id)?;
+        let Some(mut record) = self.message_record(channel_id, message_id) else {
+            self.note_lookup(&format!("raw-message:{channel_id}:{message_id}"), false);
+            return None;
+        };
         if let Some(author) = record.get_mut("author").and_then(Value::as_object_mut) {
             for field in ["email", "phone", "mfa_enabled", "verified", "personal_connection_id"] {
                 author.remove(field);
@@ -538,7 +541,9 @@ impl State {
         if let Some(hit) = self.hit(&cache_key) {
             return hit;
         }
-        let record = self.message_record(channel_id, message_id)?;
+        let Some(record) = self.message_record(channel_id, message_id) else {
+            return self.remember(cache_key, None);
+        };
         let author = record
             .get("author")
             .filter(|author| author.is_object())
