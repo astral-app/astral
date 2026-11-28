@@ -38,7 +38,6 @@ env:
   LSPATCH_JAR: lspatch-v1.2-487-release.jar
   LSPATCH_SHA256: d238fdc414d121b7fa454d8b4ccf420df3a8c97d563761861ff92bd9c5da2165
   RETENTION_DAYS: 14
-  DISCORD_IOS_ARTIFACT: bf78704e-69c0-4de3-a805-bf77f7580ba8
 
 jobs:
   deb:
@@ -124,13 +123,17 @@ jobs:
           name: astral-deb
           path: deb
 
+      - name: Read the pinned Discord build
+        id: pin
+        run: echo "artifact=$(jq -r .artifact packages/release/discord-ios.json)" >> "$GITHUB_OUTPUT"
+
       - name: Download Discord for iOS
         timeout-minutes: 42
         uses: castdrian/dkrypt@90e77358afff7fc913376dd732d30b222f922e0d
         with:
           api-url: ${{ vars.DKRYPT_BASE_URL || 'https://ipa.dylib.dev' }}
           api-key: ${{ secrets.DKRYPT_API_KEY }}
-          artifact-id: ${{ env.DISCORD_IOS_ARTIFACT }}
+          artifact-id: ${{ steps.pin.outputs.artifact }}
           output: discord.ipa
 
       - name: Inject astral

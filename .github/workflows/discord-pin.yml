@@ -1,0 +1,158 @@
+name: Discord pin
+
+on:
+  schedule:
+    - cron: "23 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: discord-pin
+  cancel-in-progress: false
+
+env:
+  BUNDLE_ID: com.hammerandchisel.discord
+  PIN_FILE: packages/release/discord-ios.json
+
+jobs:
+  resolve:
+    name: Find the newest TestFlight build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      build: ${{ steps.latest.outputs.build }}
+      version: ${{ steps.latest.outputs.version }}
+      due: ${{ steps.due.outputs.due }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          sparse-checkout: packages/release
+          persist-credentials: false
+
+      - name: Resolve the newest TestFlight build
+        id: latest
+        uses: castdrian/dkrypt@90e77358afff7fc913376dd732d30b222f922e0d
+        with:
+          api-url: ${{ vars.DKRYPT_BASE_URL || 'https://ipa.dylib.dev' }}
+          api-key: ${{ secrets.DKRYPT_API_KEY }}
+          bundle-id: ${{ env.BUNDLE_ID }}
+          channel: testflight
+          resolve-only: "true"
+
+      - name: Decide whether to pin it
+        id: due
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD: ${{ steps.latest.outputs.build }}
+          VERSION: ${{ steps.latest.outputs.version }}
+        run: |
+          set -euo pipefail
+          pinned=$(jq -r .build "$PIN_FILE")
+          due=false
+          if [ -n "$BUILD" ] && [ "$BUILD" != "$pinned" ]; then
+            title="pin: Discord $VERSION ($BUILD) is not supported"
+            known=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "\"$title\" in:title" --json number --jq 'length')
+            [ "$known" = "0" ] && due=true
+          fi
+          echo "Pinned $pinned, newest ${BUILD:-unknown}, pin: $due" >> "$GITHUB_STEP_SUMMARY"
+          echo "due=$due" >> "$GITHUB_OUTPUT"
+
+  pin:
+    name: Scan and pin it for alphas
+    needs: resolve
+    if: needs.resolve.outputs.due == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 75
+    permissions:
+      actions: write
+      contents: write
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BUILD: ${{ needs.resolve.outputs.build }}
+      VERSION: ${{ needs.resolve.outputs.version }}
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          submodules: true
+          persist-credentials: false
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0
+        with:
+          shared-key: astral
+          cache-targets: false
+
+      - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+
+      - name: Build the astral CLI
+        run: |
+          cargo build --quiet -p astral-tools
+          echo "$GITHUB_WORKSPACE/target/debug" >> "$GITHUB_PATH"
+
+      - name: Download the TestFlight build
+        id: ipa
+        timeout-minutes: 60
+        uses: castdrian/dkrypt@90e77358afff7fc913376dd732d30b222f922e0d
+        with:
+          api-url: ${{ vars.DKRYPT_BASE_URL || 'https://ipa.dylib.dev' }}
+          api-key: ${{ secrets.DKRYPT_API_KEY }}
+          bundle-id: ${{ env.BUNDLE_ID }}
+          channel: testflight
+          version: ${{ needs.resolve.outputs.version }}
+          output: discord.ipa
+          timeout-seconds: "3300"
+
+      - name: Restore the previous beta scan
+        run: |
+          set -euo pipefail
+          for run in $(gh run list --repo "$GITHUB_REPOSITORY" --workflow discord-compat.yml --status success --limit 20 --json databaseId --jq '.[].databaseId'); do
+            if gh run download "$run" --repo "$GITHUB_REPOSITORY" --name compat-beta --dir baseline 2>/dev/null; then
+              echo "Using the scan from run $run as the baseline"
+              break
+            fi
+          done
+
+      - name: Scan for breakage
+        id: scan
+        run: |
+          set +e
+          astral compat --ipa discord.ipa --channel beta --baseline baseline/compat.json --results compat.json --report report.md
+          status=$?
+          set -e
+          [ -f report.md ] && cat report.md >> "$GITHUB_STEP_SUMMARY"
+          if [ "$status" -eq 0 ]; then
+            echo "outcome=supported" >> "$GITHUB_OUTPUT"
+          else
+            echo "outcome=unsupported" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Pin it and build an alpha
+        if: steps.scan.outputs.outcome == 'supported'
+        env:
+          ARTIFACT: ${{ steps.ipa.outputs.artifact-id }}
+        run: |
+          set -euo pipefail
+          short=$(printf '%s' "$VERSION" | sed -E 's/[ _(].*//')
+          jq -n --arg artifact "$ARTIFACT" --arg version "$short" --arg build "$BUILD" \
+            '{artifact: $artifact, version: $version, build: $build}' > "$PIN_FILE"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$PIN_FILE"
+          git commit -m "chore(release): pin Discord $short ($BUILD) for alphas"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:main
+          gh workflow run alpha.yml --repo "$GITHUB_REPOSITORY" --ref main
+
+      - name: Report an unsupported build
+        if: steps.scan.outputs.outcome == 'unsupported'
+        run: |-
+          set -euo pipefail
+          [ -f report.md ] || echo "The scan failed before writing a report; see $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" > report.md
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "pin: Discord $VERSION ($BUILD) is not supported" --body-file report.md
+          exit 1
