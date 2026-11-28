@@ -1,10 +1,10 @@
 id = "astral.message-latency"
 name = "Message Latency"
 description = "Marks messages that took at least the selected time to send, beside their timestamp."
-version = "0.0.2"
+version = "0.0.3"
 icon = "BellIcon"
 main = "main.lua"
-permissions = ["events.gateway", "ui.insert"]
+permissions = ["events.gateway"]
 
 [[authors]]
 name = "arHSM"
