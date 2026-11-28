@@ -1,6 +1,7 @@
 [workspace]
 resolver = "3"
 members = ["packages/core", "packages/tools", "packages/ios/native", "packages/android/native"]
+exclude = ["packages/crash-intake"]
 
 [profile.dev]
 panic = "abort"

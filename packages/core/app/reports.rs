@@ -21,6 +21,8 @@ const ENVIRONMENT_KEYS: [&str; 9] = [
     "engine",
 ];
 const ENVIRONMENT_SCHEMA: i64 = 2;
+const CRASH_INTAKE_URL: &str = "https://astral-crash-intake.castdrian.workers.dev";
+const INTAKE_TIMEOUT_MS: u64 = 15_000;
 
 struct PreviousSession {
     started: i64,
@@ -68,6 +70,7 @@ pub fn record_unexpected_exit(opened: OpenedSession) {
         return;
     };
     crate::diagnostics::reports::unexpected_exit(&session.active, report_environment(), session.running);
+    send_pending();
 }
 
 fn previous_session() -> Option<PreviousSession> {
@@ -130,6 +133,7 @@ pub fn record_plugin_failure(identifier: &str, name: &str, error: &str) {
         sanitize(error.as_bytes())
     ));
     crate::diagnostics::reports::plugin_failure(identifier, name, error, &report_environment());
+    send_pending();
 }
 
 pub fn record_process_exit(kind: &str, timestamp: i64, reason: i64, description: &str, trace: &str) {
@@ -145,6 +149,7 @@ pub fn record_process_exit(kind: &str, timestamp: i64, reason: i64, description:
         _ => (String::new(), None),
     };
     crate::diagnostics::reports::process_exit(kind, timestamp, reason, &detail, report_environment(), &active, running);
+    send_pending();
 }
 
 fn report_text(report: &Value, key: &str) -> String {
@@ -157,11 +162,115 @@ fn report_text(report: &Value, key: &str) -> String {
     String::new()
 }
 
+fn intake_request(method: &str, path: &str, body: Option<String>) -> Option<Value> {
+    let mut options = json!({
+        "url": format!("{CRASH_INTAKE_URL}{path}"),
+        "method": method,
+        "timeout_ms": INTAKE_TIMEOUT_MS,
+        "headers": { "content-type": "application/json" },
+    });
+    if let Some(body) = body {
+        options["body"] = json!(body);
+    }
+    let response = crate::network::http::perform(&options);
+    if response.get("ok").and_then(Value::as_bool) != Some(true) {
+        host::log(&format!(
+            "Failed to reach the crash intake at {path}: {}",
+            response.get("status").and_then(Value::as_u64).unwrap_or(0)
+        ));
+        return None;
+    }
+    serde_json::from_str(response.get("body").and_then(Value::as_str).unwrap_or_default()).ok()
+}
+
+fn send(report: &Value) -> Option<Option<Value>> {
+    let answer = intake_request("POST", "/v1/reports", Some(report.to_string()))?;
+    let fingerprint = text(report, "fingerprint");
+    let issue = answer.get("issue").filter(|issue| issue.is_object()).cloned();
+    crate::diagnostics::reports::mark_sent(&fingerprint, issue.as_ref());
+    Some(issue)
+}
+
+fn issue_url(report: &Value) -> Option<String> {
+    report
+        .get("issue")
+        .and_then(|issue| issue.get("url"))
+        .and_then(Value::as_str)
+        .map(str::to_owned)
+}
+
+fn automatic_reports() -> bool {
+    app().is_some_and(|current| current.flag("astral", "crash-reports", false))
+}
+
+pub fn send_pending() {
+    if !automatic_reports() {
+        return;
+    }
+    std::thread::spawn(|| {
+        let unsent: Vec<Value> = list()
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|report| report.get("sent").and_then(Value::as_bool) != Some(true))
+            .cloned()
+            .collect();
+        for report in &unsent {
+            send(report);
+        }
+        if !unsent.is_empty() {
+            super::refresh_settings();
+        }
+    });
+}
+
+pub fn refresh_issue_links() {
+    std::thread::spawn(|| {
+        let mut found = false;
+        for report in list().as_array().into_iter().flatten() {
+            if report.get("sent").and_then(Value::as_bool) != Some(true) || report.get("issue").is_some() {
+                continue;
+            }
+            let fingerprint = text(report, "fingerprint");
+            let Some(answer) = intake_request("GET", &format!("/v1/reports/{fingerprint}"), None) else {
+                continue;
+            };
+            if let Some(issue) = answer.get("issue").filter(|issue| issue.is_object()) {
+                found |= crate::diagnostics::reports::mark_sent(&fingerprint, Some(issue));
+            }
+        }
+        if found {
+            super::refresh_settings();
+        }
+    });
+}
+
 pub fn open_report(index: usize) {
     let reports = plugin_reports();
-    let Some(report) = reports.as_array().and_then(|reports| reports.get(index)) else {
+    let Some(report) = reports.as_array().and_then(|reports| reports.get(index)).cloned() else {
         return;
     };
+    if let Some(url) = issue_url(&report) {
+        host::request(Request::OpenUrl { url: &url });
+        return;
+    }
+    std::thread::spawn(move || {
+        match send(&report) {
+            Some(Some(issue)) => {
+                let url = issue.get("url").and_then(Value::as_str).unwrap_or_default().to_owned();
+                host::request(Request::OpenUrl { url: &url });
+            }
+            Some(None) => host::toast(
+                crate::support::translations::tr("ASTRAL_CRASH_REPORTED"),
+                crate::support::translations::tr("ASTRAL_CRASH_REPORTED_SUBTITLE"),
+            ),
+            None => share_report(&report),
+        }
+        super::refresh_settings();
+    });
+}
+
+fn share_report(report: &Value) {
     let mut content = report_text(report, "title");
     if content.is_empty() {
         content = "Plugin failure".to_owned();
@@ -321,6 +430,9 @@ pub fn record_diagnostics(payload: &Value) -> usize {
             }));
             recorded += usize::from(added);
         }
+    }
+    if recorded > 0 {
+        send_pending();
     }
     recorded
 }

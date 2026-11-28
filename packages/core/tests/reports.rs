@@ -1,4 +1,4 @@
-use astral_core::diagnostics::reports::{add, issue_url, list, plugin_failure, process_exit, text, unexpected_exit};
+use astral_core::diagnostics::reports::{add, issue_url, list, mark_sent, plugin_failure, process_exit, text, unexpected_exit};
 use serde_json::json;
 
 #[test]
@@ -37,5 +37,25 @@ fn reports_dedupe_cap_and_render() {
     let url = issue_url(&reports[2]);
     assert!(url.starts_with("https://github.com/astral-app/astral/issues/new?title=A%20stopped%20after%20errors&body="));
     assert!(url.ends_with("&labels=plugin"));
+    let fingerprint = list()[0]["fingerprint"].as_str().unwrap().to_owned();
+    assert!(mark_sent(
+        &fingerprint,
+        Some(&json!({"number": 12, "url": "https://evil.example/12"}))
+    ));
+    let sent = list()
+        .into_iter()
+        .find(|report| report["fingerprint"] == fingerprint.as_str())
+        .unwrap();
+    assert_eq!(sent["sent"], true);
+    assert!(sent.get("issue").is_none());
+    assert!(mark_sent(
+        &fingerprint,
+        Some(&json!({"number": 12, "url": "https://github.com/astral-app/astral/issues/12"}))
+    ));
+    let linked = list()
+        .into_iter()
+        .find(|report| report["fingerprint"] == fingerprint.as_str())
+        .unwrap();
+    assert_eq!(linked["issue"]["number"], 12);
     std::fs::remove_dir_all(root).unwrap();
 }

@@ -1,0 +1,67 @@
+name: Crash issues
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: crash-issues
+  cancel-in-progress: false
+
+jobs:
+  file:
+    name: File reported crashes
+    if: vars.CRASH_INTAKE_URL != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      INTAKE: ${{ vars.CRASH_INTAKE_URL }}
+      SYNC_TOKEN: ${{ secrets.CRASH_SYNC_TOKEN }}
+    steps:
+      - name: File or update an issue per crash
+        run: |-
+          set -euo pipefail
+          gh label create crash --repo "$GITHUB_REPOSITORY" --color B60205 --description "Reported by astral" --force >/dev/null
+          curl --fail --silent --show-error -H "Authorization: Bearer $SYNC_TOKEN" "$INTAKE/v1/pending" > pending.json
+          jq -c '.reports[]' pending.json | while read -r entry; do
+            fingerprint=$(jq -r .fingerprint <<<"$entry")
+            platform=$(jq -r '.report.environment.platform' <<<"$entry")
+            label=$([ "$platform" = ios ] && echo iOS || echo Android)
+            gh label create "$label" --repo "$GITHUB_REPOSITORY" --force >/dev/null
+            jq -r '
+              "<!-- astral-crash:\(.fingerprint) -->",
+              "**\(.report.kind)** · reported \(.count) time(s) · astral \(.versions | join(", "))",
+              "",
+              (if .report.plugin != "" then "Plugin: `\(.report.plugin)`\n" else empty end),
+              "```",
+              .report.detail,
+              "```",
+              "",
+              "| | |",
+              "| --- | --- |",
+              (.report.environment | to_entries[] | "| \(.key) | \(.value | if type == "array" then join(", ") else tostring end) |")
+            ' <<<"$entry" > body.md
+            number=$(jq -r '.issue.number // empty' <<<"$entry")
+            if [ -z "$number" ]; then
+              number=$(gh issue list --repo "$GITHUB_REPOSITORY" --state all --label crash --search "\"astral-crash:$fingerprint\" in:body" --json number --jq '.[0].number // empty')
+            fi
+            if [ -z "$number" ]; then
+              title="crash: $(jq -r .report.title <<<"$entry")"
+              url=$(gh issue create --repo "$GITHUB_REPOSITORY" --title "${title:0:240}" --body-file body.md --label crash --label "$label")
+              number=${url##*/}
+            else
+              gh issue comment "$number" --repo "$GITHUB_REPOSITORY" --body-file body.md >/dev/null
+              url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/issues/$number"
+            fi
+            jq -n --arg fingerprint "$fingerprint" --argjson number "$number" --arg url "$url" \
+              '{fingerprint: $fingerprint, number: $number, url: $url}' |
+              curl --fail --silent --show-error -H "Authorization: Bearer $SYNC_TOKEN" -H "content-type: application/json" \
+                --data @- "$INTAKE/v1/synced" >/dev/null
+          done
