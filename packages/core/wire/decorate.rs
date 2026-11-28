@@ -903,6 +903,25 @@ fn write_text_direction(out: &mut Out, text: i32, inside: bool) {
     }
 }
 
+fn is_ancestor(node: i32, of: i32) -> bool {
+    let mut current = of;
+    for _ in 0..64 {
+        if current == 0 {
+            return false;
+        }
+        if current == node {
+            return true;
+        }
+        current = super::children::wire_discord_parent(current);
+    }
+    false
+}
+
+fn put_safe_children(out: &mut Out, parent: i32, children: &[i32]) {
+    let safe: Vec<i32> = children.iter().copied().filter(|child| !is_ancestor(*child, parent)).collect();
+    out.put_children(parent, &safe);
+}
+
 fn leading_children(state: &Row) -> Vec<i32> {
     let mut children = Vec::new();
     if state.name_shown && state.header != 0 {
@@ -928,7 +947,7 @@ fn write_host_layout(out: &mut Out, state: &Row, text: &Block) {
     if at_start == 0 {
         children.extend_from_slice(inserted);
     }
-    out.put_children(text.id, &children);
+    put_safe_children(out, text.id, &children);
     write_text_direction(out, text.id, !leading.is_empty());
 }
 
@@ -942,7 +961,7 @@ fn write_column_layout(out: &mut Out, state: &Row) {
         .copied()
         .filter(|node| !(state.name_shown && *node == state.header))
         .collect();
-    out.put_children(state.column, &children);
+    put_safe_children(out, state.column, &children);
 }
 
 fn write_quote_move(out: &mut Out, state: &mut Row, text: &Block, inside: bool, radius: f64) {
@@ -951,7 +970,7 @@ fn write_quote_move(out: &mut Out, state: &mut Row, text: &Block, inside: bool, 
     }
     write_bar_layout(out, state, inside);
     if inside {
-        out.put_children(state.quote_box, &[state.reply]);
+        put_safe_children(out, state.quote_box, &[state.reply]);
     }
     let quote_box = state.quote_box;
     if !inside {
@@ -972,7 +991,7 @@ fn write_time_parent_layout(out: &mut Out, state: &Row) {
         .copied()
         .filter(|node| !(state.time_shown != TimePlacement::Header && *node == state.timestamp))
         .collect();
-    out.put_children(state.time_parent, &children);
+    put_safe_children(out, state.time_parent, &children);
 }
 
 fn can_move_time(state: &Row) -> bool {
@@ -1150,29 +1169,65 @@ fn remember_avatar(batch: &Batch, links: &HashMap<i32, i32>, rows: &HashSet<i32>
     }
 }
 
+fn holds_author(node: i32, depth: u32) -> bool {
+    if tracked_value(node, TRACK_AUTHOR).is_some() {
+        return true;
+    }
+    depth < 4 && discord_children(node).into_iter().any(|child| holds_author(child, depth + 1))
+}
+
+fn header_is_current(state: &Row) -> bool {
+    state.header != 0 && state.column != 0 && discord_children(state.column).contains(&state.header)
+}
+
+fn remember_known_header(batch: &Batch, links: &HashMap<i32, i32>, state: &mut Row) {
+    if state.column == 0 {
+        return;
+    }
+    let column_children: Vec<i32> = discord_children(state.column).into_iter().take(BUBBLE_CHILDREN * 2).collect();
+    let text = text_block(state).map_or(0, |block| block.id);
+    let Some(header) = column_children
+        .iter()
+        .copied()
+        .find(|child| holds_author(*child, 0) && !is_ancestor(*child, text))
+    else {
+        return;
+    };
+    state.header = header;
+    state.column_children = column_children;
+    remember_timestamp(batch, links, state);
+}
+
 fn remember_header(batch: &Batch, links: &HashMap<i32, i32>, authors: &[i32], state: &mut Row) {
     if state.column == 0 {
         return;
     }
-    let Some(column_list) = batch.list(state.column) else { return };
+    let column_children = match batch.list(state.column) {
+        Some(list) => batch.children(list, BUBBLE_CHILDREN * 2),
+        None => discord_children(state.column).into_iter().take(BUBBLE_CHILDREN * 2).collect(),
+    };
+    if column_children.is_empty() {
+        return;
+    }
     for author in authors {
         let mut node = *author;
-        let mut parent = parent_in(links, node);
+        let mut parent = known_parent(links, node);
         for _ in 0..8 {
             if parent == 0 || parent == state.column {
                 break;
             }
             node = parent;
-            parent = parent_in(links, node);
+            parent = known_parent(links, node);
         }
         if parent != state.column {
             continue;
         }
         state.header = node;
-        state.column_children = batch.children(column_list, BUBBLE_CHILDREN * 2);
+        state.column_children = column_children;
         remember_timestamp(batch, links, state);
         return;
     }
+    remember_known_header(batch, links, state);
 }
 
 fn keep_quotes_inside(batch: &Batch, backgrounds: &mut Backgrounds, out: &mut Out, changed: &mut c_int) {
@@ -1314,7 +1369,16 @@ fn bubble_late_blocks(
             replace_text_block(state, block);
         }
         remember_block(batch, links, state, block, media);
-        if !state.bubble {
+        let header = state.header;
+        if !header_is_current(state) {
+            state.header = 0;
+            remember_known_header(batch, links, state);
+        }
+        let moved = state.header != header;
+        if moved {
+            state.name_shown = false;
+        }
+        if !state.bubble || moved {
             if state.has_original {
                 apply_background_style(out, state, inside, Some(batch.bytes), changed);
             }
@@ -1484,10 +1548,10 @@ fn span_sets(bytes: &[u8], span: &Span, wanted: u16) -> bool {
 fn release_reused_blocks(batch: &Batch, backgrounds: &mut Backgrounds, out: &mut Out, changed: &mut c_int) {
     let properties = properties::current();
     for span in batch.spans.iter().filter(|span| span.op == Op::Update) {
-        let Some(identifier) = find_string(batch.bytes, span, properties.accessibility_id) else {
+        if !span_sets(batch.bytes, span, properties.accessibility_id) {
             continue;
-        };
-        if identifier.starts_with(CONTENT_PREFIX) {
+        }
+        if find_string(batch.bytes, span, properties.accessibility_id).is_some_and(|identifier| identifier.starts_with(CONTENT_PREFIX)) {
             continue;
         }
         for state in backgrounds.rows.values_mut() {
@@ -1744,8 +1808,13 @@ fn message_backgrounds(batch: &Batch, out: &mut Out, changed: &mut c_int) {
                 remember_block(batch, &links, state, *block, true);
                 *block = 0;
             }
-            if state.header == 0 {
+            if !header_is_current(state) {
+                let header = state.header;
+                state.header = 0;
                 remember_header(batch, &links, &authors, state);
+                if state.header != header && state.name_shown {
+                    state.name_shown = false;
+                }
             }
             if state.avatar == 0 {
                 remember_avatar(batch, &links, &row_ids, state);

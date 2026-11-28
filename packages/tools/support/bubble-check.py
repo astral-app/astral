@@ -2,7 +2,11 @@ import json, os, subprocess, sys
 d = sys.argv[1]
 tool = sys.argv[2] if len(sys.argv) > 2 else os.path.join(d, '.wire-dump')
 names = sorted(f for f in os.listdir(d) if f.endswith('.bin'))
-files = [os.path.join(d, n + '.out') if os.path.exists(os.path.join(d, n + '.out')) else os.path.join(d, n) for n in names]
+files = []
+for n in names:
+    files.append(os.path.join(d, n + '.out') if os.path.exists(os.path.join(d, n + '.out')) else os.path.join(d, n))
+    if os.path.exists(os.path.join(d, n + '.refresh')):
+        files.append(os.path.join(d, n + '.refresh'))
 dump = subprocess.run([tool] + files, capture_output=True, text=True).stdout.splitlines()
 nodes, children, parent = {}, {}, {}
 def setp(nid, props):
@@ -25,6 +29,19 @@ for line in dump:
                     parent.pop(c)
             children[op[1]] = op[2]
             for c in op[2]:
+                parent[c] = op[1]
+        elif op[0] == 10:
+            previous, result, position = children.get(op[1], []), [], 0
+            for keep, drop, added in op[2]:
+                result.extend(previous[position:position + keep])
+                position += keep + drop
+                result.extend(added)
+            result.extend(previous[position:])
+            for c in previous:
+                if parent.get(c) == op[1]:
+                    parent.pop(c)
+            children[op[1]] = result
+            for c in result:
                 parent[c] = op[1]
         elif op[0] == 4:
             for c in op[1]:
@@ -94,3 +111,61 @@ for n, t, i, b, a in stray[:10]:
         chain.append(f"{m}:{nodes.get(m,{}).get('type')}:{ident(m)}")
     kids = [f"{c}:{nodes.get(c,{}).get('type')}:{ident(c)}" for c in children.get(n, [])][:3]
     print(n, t, 'kids', kids, '<-', ' <- '.join(chain[:4]))
+outside = 0
+for n, node in nodes.items():
+    i = ident(n)
+    if not (isinstance(i, str) and i.startswith('message.content:')) or not attached(n) or not node['p'].get(90):
+        continue
+    row = n
+    for _ in range(12):
+        row = parent.get(row)
+        if row is None or ident(row) == 'message-row':
+            break
+    if row is None:
+        continue
+    pass
+def inside(m, depth=0):
+    if depth > 8:
+        return False
+    if isinstance(ident(m), str) and ident(m).startswith('message.author:'):
+        return True
+    return any(inside(c, depth + 1) for c in children.get(m, []))
+def has_author(m, depth=0):
+    if depth > 10:
+        return False
+    if isinstance(ident(m), str) and ident(m).startswith('message.author:'):
+        return True
+    return any(has_author(c, depth + 1) for c in children.get(m, []))
+for n, node in nodes.items():
+    i = ident(n)
+    if not (isinstance(i, str) and i.startswith('message.content:')) or not attached(n) or not node['p'].get(90):
+        continue
+    row = n
+    for _ in range(12):
+        row = parent.get(row)
+        if row is None or ident(row) == 'message-row':
+            break
+    if row is None:
+        continue
+    if has_author(row) and not inside(n):
+        outside += 1
+print('names outside bubble', outside)
+if os.environ.get('SHOW_OUTSIDE'):
+    for n, node in nodes.items():
+        i = ident(n)
+        if isinstance(i, str) and i.startswith('message.content:') and attached(n) and node['p'].get(90):
+            row = n
+            for _ in range(12):
+                row = parent.get(row)
+                if row is None or ident(row) == 'message-row': break
+            if row is not None and has_author(row) and not inside(n):
+                print('outside row', row, 'content', n, 'children', children.get(n))
+cycles = 0
+for n in list(parent):
+    seen, m = set(), n
+    while m in parent and m not in seen:
+        seen.add(m)
+        m = parent[m]
+    if m in seen:
+        cycles += 1
+print('nodes in cycles', cycles)

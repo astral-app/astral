@@ -9,11 +9,45 @@ use super::out::Out;
 const MAX_LIST_CHILDREN: usize = 1 << 16;
 const EMPTY: i32 = 0;
 
-static LISTS: Mutex<Option<HashMap<i32, Vec<i32>>>> = Mutex::new(None);
+#[derive(Default)]
+struct Lists {
+    children: HashMap<i32, Vec<i32>>,
+    parents: HashMap<i32, i32>,
+}
 
-fn with_lists<T>(work: impl FnOnce(&mut HashMap<i32, Vec<i32>>) -> T) -> Option<T> {
+impl Lists {
+    fn get(&self, parent: &i32) -> Option<&Vec<i32>> {
+        self.children.get(parent)
+    }
+
+    fn insert(&mut self, parent: i32, children: Vec<i32>) {
+        self.remove(&parent);
+        for child in &children {
+            self.parents.insert(*child, parent);
+        }
+        self.children.insert(parent, children);
+    }
+
+    fn remove(&mut self, parent: &i32) {
+        let Some(children) = self.children.remove(parent) else { return };
+        for child in children {
+            if self.parents.get(&child) == Some(parent) {
+                self.parents.remove(&child);
+            }
+        }
+    }
+
+    fn clear(&mut self) {
+        self.children.clear();
+        self.parents.clear();
+    }
+}
+
+static LISTS: Mutex<Option<Lists>> = Mutex::new(None);
+
+fn with_lists<T>(work: impl FnOnce(&mut Lists) -> T) -> Option<T> {
     let mut lists = LISTS.lock().ok()?;
-    Some(work(lists.get_or_insert_with(HashMap::new)))
+    Some(work(lists.get_or_insert_with(Lists::default)))
 }
 
 fn children_at(bytes: &[u8], span: &Span) -> Vec<i32> {
@@ -48,7 +82,7 @@ pub fn apply_edits(bytes: &[u8], span: &Span, previous: &[i32]) -> Option<Vec<i3
     Some(children)
 }
 
-fn note(lists: &mut HashMap<i32, Vec<i32>>, bytes: &[u8], span: &Span) -> Option<Vec<i32>> {
+fn note(lists: &mut Lists, bytes: &[u8], span: &Span) -> Option<Vec<i32>> {
     match Op::parse(span.op) {
         Some(Op::Create) => {
             lists.remove(&span.id);
@@ -59,6 +93,7 @@ fn note(lists: &mut HashMap<i32, Vec<i32>>, bytes: &[u8], span: &Span) -> Option
         Some(Op::Remove) => {
             for removed in children_at(bytes, span) {
                 lists.remove(&removed);
+                lists.parents.remove(&removed);
             }
         }
         Some(Op::EditChildren) => {
@@ -148,16 +183,10 @@ pub unsafe extern "C" fn wire_discord_children(parent: i32, children: *mut *cons
 
 #[unsafe(export_name = "wireDiscordParent")]
 pub extern "C" fn wire_discord_parent(id: i32) -> i32 {
-    with_lists(|lists| {
-        lists
-            .iter()
-            .find(|(_, children)| children.contains(&id))
-            .map_or(0, |(parent, _)| *parent)
-    })
-    .unwrap_or(0)
+    with_lists(|lists| lists.parents.get(&id).copied().unwrap_or(0)).unwrap_or(0)
 }
 
 #[unsafe(export_name = "wireResetChildLists")]
 pub extern "C" fn wire_reset_child_lists() {
-    with_lists(HashMap::clear);
+    with_lists(Lists::clear);
 }
