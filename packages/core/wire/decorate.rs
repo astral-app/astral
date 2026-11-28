@@ -2253,6 +2253,18 @@ fn recycled_authors(batch: &Batch, handled: &[i32]) -> Vec<(i32, u64)> {
     recycled
 }
 
+fn without_moved_times(parent: i32, children: &[i32]) -> Vec<i32> {
+    let moved: Vec<i32> = with_backgrounds(|backgrounds| {
+        backgrounds
+            .rows
+            .values()
+            .filter(|state| state.time_parent == parent && state.timestamp != 0 && state.time_shown != TimePlacement::Header)
+            .map(|state| state.timestamp)
+            .collect()
+    });
+    children.iter().copied().filter(|child| !moved.contains(child)).collect()
+}
+
 fn apply_author_tags(
     batch: &Batch,
     decorator: AstralDecorator,
@@ -2262,6 +2274,7 @@ fn apply_author_tags(
     children: &[i32],
     message: u64,
 ) {
+    let children = &without_moved_times(parent, children);
     let Some((tags, count)) = decorate_author(decorator, message) else {
         keep_tags(batch, out, changed, parent, children, message);
         return;
@@ -2345,7 +2358,7 @@ pub unsafe extern "C" fn astral_wire_refresh_author_tags(buffer: *mut AstralWire
             .collect()
     });
     for (parent, message) in slots {
-        let children = discord_children(parent);
+        let children = without_moved_times(parent, &discord_children(parent));
         if children.is_empty() || children.len() > MAX_TAGGED_CHILDREN {
             continue;
         }
