@@ -353,6 +353,23 @@ pub extern "system" fn Java_app_astral_android_Native_sheetEvent<'local>(
 }
 
 #[unsafe(no_mangle)]
+pub extern "system" fn Java_app_astral_android_Native_notificationReply<'local>(
+    mut env: JNIEnv<'local>,
+    _: JClass<'local>,
+    plugin: JString<'local>,
+    channel: JString<'local>,
+    message: JString<'local>,
+    reply: JString<'local>,
+) {
+    app::notification_reply(
+        text(&mut env, &plugin),
+        text(&mut env, &channel),
+        text(&mut env, &message),
+        text(&mut env, &reply),
+    );
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_app_astral_android_Native_completeConfirm<'local>(
     _: JNIEnv<'local>,
     _: JClass<'local>,

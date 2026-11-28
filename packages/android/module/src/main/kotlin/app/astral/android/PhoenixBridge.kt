@@ -696,6 +696,7 @@ object PhoenixBridge {
                 val flags = android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT
                 builder.setContentIntent(android.app.PendingIntent.getActivity(context, id, open, flags))
             }
+            options.optJSONObject("reply")?.let { NotificationReplies.attach(context, builder, id, it) }
             val notification = builder.build()
             runCatching { manager.notify(id, notification) }
                 .onFailure { Log.warning("Failed to post notification $title: ${it.javaClass.simpleName}") }
