@@ -60,4 +60,10 @@ local stripped = gateway({
 assert(stripped and stripped.author.avatar_decoration_data == nil and stripped.author.primary_guild == nil)
 local response = intercepts[1].response({}, { status = 200, body = "{{author = {avatar_decoration_data = {}}}}" })
 assert(response and response.body[1].author.avatar_decoration_data == nil)
+values.profileFrames = true
+local profile = intercepts[2].response({}, {
+	status = 200,
+	body = "{user = {collectibles = {}}, user_profile = {collectibles = {{type = 1}}}}",
+})
+assert(profile and profile.body.user_profile.collectibles == nil and profile.body.user.collectibles ~= nil)
 print("declutter ok")
