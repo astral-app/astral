@@ -850,7 +850,8 @@ function astral.ui.relabel(target, relabeler) end
 ---@param styler fun(node: astral.Node): astral.TextRunStyle|astral.Color|integer|string|nil
 function astral.ui.style_text(styler) end
 ---@class astral.PatchSelector
----@field id string accessibilityId prefix, such as "message.content:"
+---@field id? string accessibilityId prefix, such as "message.content:"
+---@field label? string patches only: matches nodes without an accessibilityId whose accessibility label is exactly this text
 ---@field type? astral.PatchNodeType
 ---@field path? string inserts only: steps from each matching node to the one that gets the nodes, ">" for its first child and "^" for its parent
 

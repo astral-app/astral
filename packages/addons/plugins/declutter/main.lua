@@ -2,10 +2,16 @@ local t = astral.i18n.t
 
 local BUTTONS = {
 	{ key = "gift", label = "GIFT", default = true, ids = { "composer.gift" } },
+	{ key = "voiceMessage", label = "VOICE_MESSAGE", default = false, ids = { "Record Voice Message" } },
 	{ key = "voiceCall", label = "VOICE_CALL", default = false, ids = { "dm.call", "dm-call-button" } },
 	{ key = "videoCall", label = "VIDEO_CALL", default = false, ids = { "dm.video" } },
 	{ key = "serverBoosts", label = "SERVER_BOOSTS", default = false, ids = { "guild.action:server_boosts" } },
+	{ key = "quests", label = "QUESTS", default = false, labels = { "Quests" } },
+	{ key = "shop", label = "SHOP", default = false, labels = { "Shop" } },
+	{ key = "nitroButton", label = "NITRO_BUTTON", default = false, labels = { "Nitro" } },
+	{ key = "orbsBalance", label = "ORBS_BALANCE", default = false, ids = { "orbs-balance" } },
 	{ key = "questDock", label = "QUEST_DOCK", default = false, ids = { "quest-dock", "quest_dock" } },
+	{ key = "profileTabs", label = "PROFILE_TABS", default = false, labels = { "Activity", "Wishlist", "Board" } },
 	{ key = "paymentQuests", label = "PAYMENT_QUESTS", default = false, ids = { "Quests" } },
 	{ key = "paymentShop", label = "PAYMENT_SHOP", default = false, ids = { "Shop" } },
 	{ key = "paymentNitro", label = "PAYMENT_NITRO", default = false, ids = { "Nitro Home" } },
@@ -40,14 +46,21 @@ local function enabled(key, fallback)
 	return value
 end
 
+local function hide_when_enabled(button)
+	return function()
+		if enabled(button.key, button.default) then
+			return { hidden = true }
+		end
+		return nil
+	end
+end
+
 for _, button in ipairs(BUTTONS) do
-	for _, id in ipairs(button.ids) do
-		astral.ui.patch({ id = id }, function()
-			if enabled(button.key, button.default) then
-				return { hidden = true }
-			end
-			return nil
-		end)
+	for _, id in ipairs(button.ids or {}) do
+		astral.ui.patch({ id = id }, hide_when_enabled(button))
+	end
+	for _, label in ipairs(button.labels or {}) do
+		astral.ui.patch({ label = label }, hide_when_enabled(button))
 	end
 end
 

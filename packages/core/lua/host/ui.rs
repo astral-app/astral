@@ -1401,8 +1401,8 @@ pub unsafe fn register_node_insert(state: *mut LuaState) -> Outcome {
 pub unsafe fn register_node_patch(state: *mut LuaState) -> Outcome {
     let (prefix, kind) = unsafe { prefixed_registration(state, Capability::UiPatch, "astral.ui.patch") }?;
     let plugin = me(state);
-    if plugin.node_patches.len() >= 16 {
-        return Err("astral.ui.patch: at most 16 patches per plugin".into());
+    if plugin.node_patches.len() >= 32 {
+        return Err("astral.ui.patch: at most 32 patches per plugin".into());
     }
     let reference = unsafe { reference_at(state, 3) };
     plugin.node_patches.push(crate::lua::host::NodePatch { prefix, kind, reference });

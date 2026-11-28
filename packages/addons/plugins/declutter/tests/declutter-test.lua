@@ -20,7 +20,7 @@ astral = {
 	},
 	ui = {
 		patch = function(selector, fn)
-			patches[selector.id] = fn
+			patches[selector.id or ("label:" .. selector.label)] = fn
 		end,
 	},
 	events = {
@@ -47,6 +47,9 @@ assert(patches["composer.gift"]().hidden)
 assert(patches["guild.action:server_boosts"]() == nil)
 values.serverBoosts = true
 assert(patches["guild.action:server_boosts"]().hidden)
+assert(patches["label:Quests"]() == nil)
+values.quests = true
+assert(patches["label:Quests"]().hidden)
 assert(gateway({ type = "MESSAGE_CREATE", data = { author = { id = "1", avatar_decoration_data = {} } } }) == nil)
 values.avatarDecorations = true
 values.serverTags = true

@@ -729,6 +729,9 @@ function astral.ui.patch(selector, patcher)
 	local id, kind = selector, nil
 	if type(selector) == "table" then
 		id, kind = selector.id, selector.type
+		if selector.label then
+			id = "label:" .. tostring(selector.label) .. "\31"
+		end
 	end
 	return native.patch(id, kind, function(node)
 		local result = patcher(node)
