@@ -22,8 +22,9 @@ local BUTTONS = {
 
 local DECORATIONS = {
 	{ key = "avatarDecorations", label = "AVATAR_DECORATIONS", fields = { "avatar_decoration_data" } },
-	{ key = "nameplates", label = "NAMEPLATES", fields = { "collectibles" } },
+	{ key = "nameplates", label = "NAMEPLATES", fields = { "collectibles" }, profile_fields = {} },
 	{ key = "profileEffects", label = "PROFILE_EFFECTS", fields = { "profile_effect" } },
+	{ key = "profileFrames", label = "PROFILE_FRAMES", fields = {}, profile_fields = { "collectibles" } },
 	{ key = "badges", label = "BADGES", fields = { "badges" } },
 	{ key = "serverTags", label = "SERVER_TAGS", fields = { "primary_guild", "clan" } },
 	{ key = "displayNameStyles", label = "DISPLAY_NAME_STYLES", fields = { "display_name_styles" } },
@@ -64,11 +65,11 @@ for _, button in ipairs(BUTTONS) do
 	end
 end
 
-local function stripped_fields()
+local function stripped_fields(for_profile)
 	local fields = {}
 	for _, decoration in ipairs(DECORATIONS) do
 		if enabled(decoration.key, false) then
-			for _, field in ipairs(decoration.fields) do
+			for _, field in ipairs(for_profile and decoration.profile_fields or decoration.fields) do
 				fields[#fields + 1] = field
 			end
 		end
@@ -107,7 +108,7 @@ local function strip_message(message, fields)
 end
 
 astral.events.on(astral.Event.Gateway, function(event)
-	local fields = stripped_fields()
+	local fields = stripped_fields(false)
 	if #fields == 0 then
 		return nil
 	end
@@ -118,7 +119,7 @@ astral.net.intercept({
 	method = "GET",
 	path = "^/api/v%d+/channels/%d+/messages$",
 	response = function(_, response)
-		local fields = stripped_fields()
+		local fields = stripped_fields(false)
 		if #fields == 0 or response.status ~= 200 then
 			return nil
 		end
@@ -138,8 +139,9 @@ astral.net.intercept({
 	method = "GET",
 	path = "^/api/v%d+/users/%d+/profile$",
 	response = function(_, response)
-		local fields = stripped_fields()
-		if #fields == 0 or response.status ~= 200 then
+		local fields = stripped_fields(false)
+		local profile_fields = stripped_fields(true)
+		if (#fields == 0 and #profile_fields == 0) or response.status ~= 200 then
 			return nil
 		end
 		local profile = astral.json.decode(response.body)
@@ -147,12 +149,9 @@ astral.net.intercept({
 			return nil
 		end
 		local changed = strip_user(profile.user, fields)
-		changed = strip_user(profile.user_profile, fields) or changed
+		changed = strip_user(profile.user_profile, profile_fields) or changed
 		changed = strip_user(profile.guild_member, fields) or changed
-		if enabled("profileEffects", false) and type(profile.user_profile) == "table" then
-			profile.user_profile.profile_effect = nil
-			changed = true
-		end
+		changed = strip_user(profile.guild_member_profile, profile_fields) or changed
 		return changed and { body = astral.json.encode(profile) } or nil
 	end,
 })
