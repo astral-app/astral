@@ -103,6 +103,9 @@ fn install_category() {
             on: 0,
             steps: 0,
             position: 0,
+            button_key: core::ptr::null(),
+            button_title: core::ptr::null(),
+            button_destructive: 0,
         });
         strings.extend([key, title, icon]);
     }

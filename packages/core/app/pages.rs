@@ -35,6 +35,7 @@ enum Method {
     Rescan,
     PairingCode,
     CrashReports,
+    ClearCrashReports,
     BlockedRequests,
     Themes,
     ActiveTheme,
@@ -90,6 +91,7 @@ impl Method {
             "rescan" => Method::Rescan,
             "pairingCode" => Method::PairingCode,
             "crashReports" => Method::CrashReports,
+            "clearCrashReports" => Method::ClearCrashReports,
             "blockedRequests" => Method::BlockedRequests,
             "themes" => Method::Themes,
             "activeTheme" => Method::ActiveTheme,
@@ -253,6 +255,10 @@ fn dispatch(current: &App, method: Method, arguments: &Arguments, reply: Option<
         }
         Method::PairingCode => json!(crate::support::dev_server::pairing_code()),
         Method::CrashReports => reports::plugin_reports(),
+        Method::ClearCrashReports => {
+            crate::diagnostics::reports::clear();
+            Value::Null
+        }
         Method::BlockedRequests => json!(current.blocked_requests()),
         Method::Themes => theme::list(current),
         Method::ActiveTheme => json!(theme::active(current)),

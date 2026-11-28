@@ -54,6 +54,7 @@ fn switch_look(on: bool) -> (f64, u32) {
 const SLIDER_ACTIVE: u32 = 0xFF58_65F2;
 const SLIDER_INACTIVE: u32 = 0xFF4E_5058;
 const TRANSLUCENT_FILL: u32 = 0x1FFF_FFFF;
+const DESTRUCTIVE_FILL: u32 = 0xFFDA_373C;
 const SUBTLE_BORDER: u32 = 0x1F97_979F;
 const CRITICAL_TEXT: u32 = 0xFFF2_3F43;
 
@@ -111,6 +112,9 @@ pub struct AstralRowSpec {
     pub on: c_int,
     pub steps: i32,
     pub position: i32,
+    pub button_key: *const c_char,
+    pub button_title: *const c_char,
+    pub button_destructive: c_int,
 }
 
 #[repr(C)]
@@ -190,6 +194,14 @@ struct Row {
     on: bool,
     steps: i32,
     position: i32,
+    button: Option<RowButton>,
+}
+
+#[derive(Debug)]
+struct RowButton {
+    key: Vec<u8>,
+    title: Vec<u8>,
+    destructive: bool,
 }
 
 #[derive(Debug)]
@@ -246,6 +258,11 @@ fn row_of(spec: &AstralRowSpec) -> Row {
         on: spec.on != 0,
         steps: spec.steps,
         position: spec.position,
+        button: text(spec.button_key).zip(text(spec.button_title)).map(|(key, title)| RowButton {
+            key,
+            title,
+            destructive: spec.button_destructive != 0,
+        }),
     }
 }
 
@@ -1084,6 +1101,14 @@ impl Builder<'_> {
                 ],
             ));
         }
+        if let Some(button) = &row.button {
+            let fill = button.destructive.then_some(DESTRUCTIVE_FILL);
+            let pill = self.filled_pill(&button.key, &button.title, fill);
+            let spaced = self.node(b"view", 1);
+            self.out.prop_quad(properties.margin, [8.0, 0.0, 0.0, 0.0]);
+            self.children(spaced, &[pill]);
+            children.push(spaced);
+        }
         match row.kind {
             ROW_LINK => {
                 let trailing = self.clone_role(Role::RowTrailing, &[]);
@@ -1187,19 +1212,23 @@ impl Builder<'_> {
     }
 
     fn pill_button(&mut self, key: &[u8], label: &[u8], primary: bool) -> i32 {
+        self.filled_pill(key, label, primary.then_some(SWITCH_ON))
+    }
+
+    fn filled_pill(&mut self, key: &[u8], label: &[u8], fill: Option<u32>) -> i32 {
         let properties = self.properties;
         let identifier = [b"astral.row.".as_slice(), key].concat();
         let button = self.node(b"view", 9);
         self.out.prop_string(properties.accessibility_id, &identifier);
         self.out.prop_string(properties.align, b"center");
         self.out.prop_string(properties.justify, b"center");
-        self.long(properties.background, if primary { SWITCH_ON } else { TRANSLUCENT_FILL });
+        self.long(properties.background, fill.unwrap_or(TRANSLUCENT_FILL));
         self.out.prop_quad(properties.padding, [14.0, 7.0, 14.0, 7.0]);
         self.out.prop_number(properties.radius, 16.0);
         self.events(properties.on, b"press");
         self.out.prop_string(properties.role, b"button");
         self.out.prop_number(properties.shrink, 0.0);
-        let text = if primary {
+        let text = if fill.is_some() {
             self.colored_text(label, style(13.0, 600, 1.0, 1, false), 0xFFFF_FFFF)
         } else {
             self.text(label, style(13.0, 600, 1.0, 1, false))

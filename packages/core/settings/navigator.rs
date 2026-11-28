@@ -125,6 +125,7 @@ pub fn with_spec(model: &Value, body: impl FnOnce(&AstralPageSpec)) {
         for entry in objects(section.get("rows")) {
             let key = keep(optional_text(entry, "key"));
             let title = keep(optional_text(entry, "title"));
+            let button = entry.get("button").filter(|button| button.is_object());
             section_rows.push(AstralRowSpec {
                 key: if key.is_null() { empty.as_ptr() } else { key },
                 title: if title.is_null() { empty.as_ptr() } else { title },
@@ -135,6 +136,9 @@ pub fn with_spec(model: &Value, body: impl FnOnce(&AstralPageSpec)) {
                 on: boolean(entry, "on"),
                 steps: integer(entry, "steps") as i32,
                 position: integer(entry, "position") as i32,
+                button_key: keep(button.and_then(|button| optional_text(button, "key"))),
+                button_title: keep(button.and_then(|button| optional_text(button, "title"))),
+                button_destructive: button.map_or(0, |button| boolean(button, "destructive")),
             });
         }
         rows.push(section_rows);
