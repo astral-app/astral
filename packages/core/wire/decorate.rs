@@ -247,6 +247,7 @@ static AUTHORS: Mutex<Vec<(u64, u64)>> = Mutex::new(Vec::new());
 static DECORATED: Mutex<Option<HashMap<i32, Tags>>> = Mutex::new(None);
 static BACKGROUNDS: Mutex<Option<Backgrounds>> = Mutex::new(None);
 static INLINE_TIMES: Mutex<Option<InlineTimes>> = Mutex::new(None);
+static ENSURED_TIMES: Mutex<Option<HashMap<u64, Vec<u8>>>> = Mutex::new(None);
 static ICONS: Mutex<(Icons, usize)> = Mutex::new((Vec::new(), 0));
 
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -710,7 +711,7 @@ fn row_for_node(links: &HashMap<i32, i32>, rows: &HashSet<i32>, mut id: i32) -> 
         if rows.contains(&id) {
             return id;
         }
-        id = parent_in(links, id);
+        id = known_parent_of(links, id);
     }
     0
 }
@@ -1016,15 +1017,37 @@ fn unpublish_row(row: i32) {
     with_inline_times(|times| times.retain(|_, (owner, _)| *owner != row));
 }
 
-fn publish_times(backgrounds: &Backgrounds) {
-    with_inline_times(|times| {
+fn publish_times(backgrounds: &Backgrounds) -> Vec<u64> {
+    let published: HashMap<u64, Vec<u8>> = with_inline_times(|times| {
         times.clear();
         for state in backgrounds.inside.iter().filter_map(|id| backgrounds.rows.get(id)) {
             if state.time_shown == TimePlacement::Inline && !state.time_text.is_empty() && state.message != 0 {
                 times.insert(state.message, (state.id, state.time_text.clone()));
             }
         }
+        times.iter().map(|(message, (_, text))| (*message, text.clone())).collect()
     });
+    let mut guard = lock(&ENSURED_TIMES);
+    let ensured = guard.get_or_insert_with(HashMap::new);
+    let fresh = published
+        .iter()
+        .filter(|(message, text)| ensured.get(*message) != Some(*text))
+        .map(|(message, _)| *message)
+        .collect();
+    *ensured = published;
+    fresh
+}
+
+fn reapply_times(messages: &[u64], bytes: &[u8], out: &mut Out, changed: &mut c_int) {
+    if messages.is_empty() {
+        return;
+    }
+    let mut update = Out::default();
+    if super::message_text::reapply_message_texts(&mut update, messages) && update.failed == 0 {
+        put_original_once(out, bytes, changed);
+        out.put(unsafe { core::slice::from_raw_parts(update.bytes, update.length) });
+    }
+    update.discard();
 }
 
 fn track_inside(inside: &mut Vec<i32>, state: &Row, shown: bool) {
@@ -1077,10 +1100,14 @@ fn write_header_layout(out: &mut Out, state: &mut Row, inside: &mut Vec<i32>, te
 }
 
 fn content_message(batch: &Batch, content: i32) -> u64 {
-    batch
+    let created = batch
         .creation(content)
         .and_then(|creation| read_identifier(batch.bytes, creation))
-        .map_or(0, |(identifier, _)| message_of_identifier(identifier))
+        .map(|(identifier, _)| message_of_identifier(identifier))
+        .filter(|message| *message != 0);
+    created
+        .or_else(|| super::content_views::view_message(batch.bytes.as_ptr(), batch.spans, content))
+        .unwrap_or(0)
 }
 
 fn host_row(backgrounds: &Backgrounds, parent: i32) -> Option<i32> {
@@ -1131,27 +1158,45 @@ fn read_time_text(bytes: &[u8], span: &Span) -> Vec<u8> {
         .unwrap_or_default()
 }
 
+fn known_parent_of(links: &HashMap<i32, i32>, id: i32) -> i32 {
+    match parent_in(links, id) {
+        0 if id != 0 => super::children::wire_discord_parent(id),
+        parent => parent,
+    }
+}
+
 fn remember_timestamp(batch: &Batch, links: &HashMap<i32, i32>, state: &mut Row) {
-    for span in batch.spans.iter().filter(|span| span.op == Op::Create) {
+    let timestamps = batch.spans.iter().filter(|span| span.op == Op::Create || span.op == Op::Update);
+    for span in timestamps {
         if tracked_value(span.id, TRACK_TIMESTAMP).is_none() {
             continue;
         }
-        let parent = parent_in(links, span.id);
+        let parent = known_parent_of(links, span.id);
         let mut ancestor = parent;
         for _ in 0..6 {
             if ancestor == 0 || ancestor == state.header {
                 break;
             }
-            ancestor = parent_in(links, ancestor);
+            ancestor = known_parent_of(links, ancestor);
         }
-        let list = if parent != 0 { batch.list(parent) } else { None };
-        let Some(list) = list.filter(|_| ancestor == state.header) else {
+        if parent == 0 || ancestor != state.header {
             continue;
+        }
+        let children = match batch.list(parent) {
+            Some(list) => batch.children(list, BUBBLE_CHILDREN * 2),
+            None => super::children::discord_children(parent)
+                .into_iter()
+                .take(BUBBLE_CHILDREN * 2)
+                .collect(),
         };
+        let text = read_time_text(batch.bytes, span);
+        if children.is_empty() || (span.op == Op::Update && text.is_empty()) {
+            continue;
+        }
         state.timestamp = span.id;
         state.time_parent = parent;
-        state.time_text = read_time_text(batch.bytes, span);
-        state.time_parent_children = batch.children(list, BUBBLE_CHILDREN * 2);
+        state.time_text = text;
+        state.time_parent_children = children;
         return;
     }
 }
@@ -1520,7 +1565,13 @@ pub unsafe extern "C" fn astral_wire_refresh_message_backgrounds(buffer: *mut As
             }
             apply_background_style(&mut out, state, inside, None, &mut any);
         }
-        publish_times(backgrounds);
+        let fresh = publish_times(backgrounds);
+        let mut update = Out::default();
+        if super::message_text::reapply_message_texts(&mut update, &fresh) && update.failed == 0 {
+            out.put(unsafe { core::slice::from_raw_parts(update.bytes, update.length) });
+            any = 1;
+        }
+        update.discard();
     });
     if any == 0 {
         out.discard();
@@ -1653,15 +1704,13 @@ fn finish_backgrounds(
     keep_quotes_inside(batch, backgrounds, out, changed);
     group_rows(batch, &mut backgrounds.rows, out, changed);
     forget_removed_rows(batch, backgrounds);
-    let retimed = refresh_time_texts(batch, backgrounds);
-    publish_times(backgrounds);
-    if retimed.is_empty() {
-        return;
+    let mut retimed = refresh_time_texts(batch, backgrounds);
+    for message in publish_times(backgrounds) {
+        if !retimed.contains(&message) {
+            retimed.push(message);
+        }
     }
-    put_original_once(out, batch.bytes, changed);
-    for message in retimed {
-        unsafe { wire_apply_message_text(out, message) };
-    }
+    reapply_times(&retimed, batch.bytes, out, changed);
 }
 
 fn refresh_time_texts(batch: &Batch, backgrounds: &mut Backgrounds) -> Vec<u64> {
@@ -1768,8 +1817,9 @@ fn message_backgrounds(batch: &Batch, out: &mut Out, changed: &mut c_int) {
                 continue;
             };
             row.content = *content;
-            if row.message == 0 {
-                row.message = content_message(batch, *content);
+            let shown = content_message(batch, *content);
+            if shown != 0 {
+                row.message = shown;
             }
             *content = 0;
         }
@@ -1790,6 +1840,10 @@ fn message_backgrounds(batch: &Batch, out: &mut Out, changed: &mut c_int) {
                 state.user = row.user;
                 state.channel = current_channel();
             } else if row.message != 0 {
+                if state.message != row.message {
+                    state.time_text.clear();
+                    remember_timestamp(batch, &links, state);
+                }
                 state.message = row.message;
                 state.user = row.user;
                 state.channel = current_channel();

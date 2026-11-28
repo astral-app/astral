@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use super::format::{Span, batch_of, find_string, property_cursor, spans_of, type_is, wire_creation, wire_parent_of};
+use super::format::{Span, batch_of, property_cursor, spans_of, type_is};
 use super::out::{AstralWireBuffer, Out};
 use super::properties;
 use super::tween::wire_tween_fade;
@@ -92,17 +92,7 @@ fn text_for(texts: &mut HashMap<u64, TrackedText>, message: u64) -> &mut Tracked
 }
 
 fn content_message(bytes: *const u8, spans: &[Span], id: i32) -> u64 {
-    let parent = unsafe { wire_parent_of(bytes, spans.as_ptr(), spans.len(), id) };
-    if parent == 0 {
-        return 0;
-    }
-    let Some(creation) = (unsafe { wire_creation(spans.as_ptr(), spans.len(), parent).as_ref() }) else {
-        return 0;
-    };
-    let Some(identifier) = find_string(batch_of(bytes, creation), creation, properties::current().accessibility_id) else {
-        return 0;
-    };
-    super::ids::prefixed(identifier, b"message.content:").unwrap_or(0)
+    super::content_views::message_of(bytes, spans, id).unwrap_or(0)
 }
 
 fn spans_property(bytes: &[u8], span: &Span) -> Option<Vec<u8>> {
@@ -286,6 +276,33 @@ fn apply(out: &mut Out, text: &mut TrackedText, message: u64, force: bool) -> bo
     true
 }
 
+pub fn adopt_spans(node: i32, message: u64, spans: &[u8], out: &mut Out) -> bool {
+    with_texts(|texts| {
+        let Some(text) = texts.get_mut(&message).filter(|text| text.node == node) else {
+            return false;
+        };
+        text.original = spans.to_vec();
+        apply(out, text, message, true)
+    })
+    .unwrap_or(false)
+}
+
+pub fn reapply_message_texts(out: &mut Out, messages: &[u64]) -> bool {
+    with_texts(|texts| {
+        let mut any = false;
+        for message in messages {
+            if let Some(text) = texts.get_mut(message)
+                && text.node != 0
+                && !text.original.is_empty()
+            {
+                any |= apply(out, text, *message, false);
+            }
+        }
+        any
+    })
+    .unwrap_or(false)
+}
+
 #[unsafe(export_name = "wireApplyMessageText")]
 pub unsafe extern "C" fn wire_apply_message_text(out: *mut Out, message: u64) {
     let Some(out) = (unsafe { out.as_mut() }) else { return };
@@ -319,6 +336,7 @@ pub unsafe extern "C" fn wire_message_texts(
         return;
     };
     let spans = spans_of(pointer, count);
+    super::content_views::observe(bytes, spans);
     let mut update = Out::default();
     let mut any = false;
     with_texts(|texts| {
@@ -343,7 +361,12 @@ pub unsafe extern "C" fn wire_message_texts(
                 continue;
             };
             let Some(text) = texts.get_mut(&message) else { continue };
-            let Some(original) = spans_property(data, span) else { continue };
+            let mut unresolved = false;
+            let Some(original) =
+                super::mentions::decorated_spans(data, span, message, &mut unresolved).or_else(|| spans_property(data, span))
+            else {
+                continue;
+            };
             text.original = original;
             any |= apply(&mut update, text, message, true);
         }

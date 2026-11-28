@@ -4,9 +4,9 @@ use std::collections::HashMap;
 use std::ffi::CString;
 use std::sync::Mutex;
 
-use super::abi::{AstralMentionContext, AstralMentionDecoration, Callback, current_channel, prefixed};
+use super::abi::{AstralMentionContext, AstralMentionDecoration, Callback, current_channel};
 use super::cursor::Cursor;
-use super::format::{Span, batch_of, child, find_string, property_cursor, spans_of, type_is, wire_creation, wire_parent_of};
+use super::format::{Span, batch_of, child, property_cursor, spans_of, type_is};
 use super::out::{AstralWireBuffer, Out};
 use super::properties::{self, AstralWireProperties};
 
@@ -296,6 +296,27 @@ fn changes_for(items: &[Item], decorations: &[AstralMentionDecoration], text_col
 }
 
 fn decorate_text(bytes: &[u8], span: &Span, message: u64, out: &mut Out, unresolved: &mut bool) -> bool {
+    let Some(spans) = decorated_spans(bytes, span, message, unresolved) else {
+        return false;
+    };
+    out.update(span.id, 1);
+    out.put16(properties::current().spans);
+    out.put(&spans);
+    true
+}
+
+pub fn decorated_spans(bytes: &[u8], span: &Span, message: u64, unresolved: &mut bool) -> Option<Vec<u8>> {
+    if !active() {
+        return None;
+    }
+    let mut out = Out::default();
+    let written = write_decorated_spans(bytes, span, message, &mut out, unresolved) && out.failed == 0;
+    let spans = written.then(|| unsafe { core::slice::from_raw_parts(out.bytes, out.length) }.to_vec());
+    out.discard();
+    spans
+}
+
+fn write_decorated_spans(bytes: &[u8], span: &Span, message: u64, out: &mut Out, unresolved: &mut bool) -> bool {
     let properties = properties::current();
     let (mut cursor, count) = property_cursor(bytes, span);
     for _ in 0..count {
@@ -321,8 +342,6 @@ fn decorate_text(bytes: &[u8], span: &Span, message: u64, out: &mut Out, unresol
         }
         let changes = changes_for(&items, &decorations, color);
         let added = decorations.iter().filter(|decoration| !decoration.image().is_empty()).count() as u32;
-        out.update(span.id, 1);
-        out.put16(properties.spans);
         out.put_tag(Tag::Array);
         out.put32(items.len() as u32 + added);
         for (index, item) in items.iter().enumerate() {
@@ -347,13 +366,7 @@ fn decorate_text(bytes: &[u8], span: &Span, message: u64, out: &mut Out, unresol
 }
 
 fn content_message(bytes: *const u8, spans: &[Span], id: i32) -> Option<u64> {
-    let parent = unsafe { wire_parent_of(bytes, spans.as_ptr(), spans.len(), id) };
-    if parent == 0 {
-        return None;
-    }
-    let creation = unsafe { wire_creation(spans.as_ptr(), spans.len(), parent).as_ref() }?;
-    let identifier = find_string(batch_of(bytes, creation), creation, properties::current().accessibility_id)?;
-    prefixed(identifier, c"message.content:")
+    super::content_views::message_of(bytes, spans, id)
 }
 
 fn with_pending<T>(work: impl FnOnce(&mut HashMap<i32, Pending>) -> T) -> Option<T> {
@@ -404,7 +417,12 @@ pub unsafe extern "C" fn astral_wire_retry_mentions(buffer: *mut AstralWireBuffe
                 child_count: 0,
             };
             let mut unresolved = false;
-            if decorate_text(&entry.creation, &span, entry.message, &mut out, &mut unresolved) {
+            if let Some(spans) = decorated_spans(&entry.creation, &span, entry.message, &mut unresolved) {
+                if !super::message_text::adopt_spans(*id, entry.message, &spans, &mut out) {
+                    out.update(*id, 1);
+                    out.put16(properties::current().spans);
+                    out.put(&spans);
+                }
                 sent = true;
                 return false;
             }
@@ -437,6 +455,7 @@ pub unsafe extern "C" fn wire_decorate_mentions(
         return;
     };
     let spans = spans_of(pointer, count);
+    super::content_views::observe(bytes, spans);
     for span in spans {
         let data = batch_of(bytes, span);
         if span.op == Op::Remove {

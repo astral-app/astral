@@ -5,6 +5,7 @@ pub mod clone;
 pub mod code_blocks;
 pub mod commands;
 pub mod composer;
+pub mod content_views;
 pub mod cursor;
 pub mod decorate;
 pub mod emoji;
