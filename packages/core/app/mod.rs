@@ -512,6 +512,13 @@ pub fn complete_text_edit(request: u64, value: Option<String>) {
     pages::complete_text_edit(request, value);
 }
 
+pub fn notification_reply(plugin: String, channel: String, message: String, text: String) {
+    if plugin.is_empty() || channel.is_empty() || text.trim().is_empty() {
+        return;
+    }
+    std::thread::spawn(move || crate::lua::host::events::emit_notification_reply(&plugin, &channel, &message, &text));
+}
+
 pub fn emit_event(name: &str) {
     lua_host::emit_event(name);
     if Event::parse(name) == Some(Event::AppForeground) {

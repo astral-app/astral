@@ -2,6 +2,10 @@ local t = astral.i18n.t
 local MAXIMUM_BODY = 180
 
 local settings = astral.settings.section(t("NOTIFICATIONS"))
+settings:choice("mode", t("MODE"), {
+	astral.settings.option("automatic", t("MODE_AUTO")),
+	astral.settings.option("always", t("MODE_ALWAYS")),
+}, "automatic", t("MODE_SUBTITLE"))
 settings:switch("keep_alive", t("KEEP_ALIVE"), true, t("KEEP_ALIVE_SUBTITLE"))
 settings:switch("direct", t("DIRECT_MESSAGES"), true, t("DIRECT_MESSAGES_SUBTITLE"))
 settings:switch("mentions", t("MENTIONS"), true)
@@ -17,6 +21,13 @@ local function setting(key, fallback)
 		return fallback
 	end
 	return value
+end
+
+local function active()
+	if setting("mode", "automatic") == "always" then
+		return true
+	end
+	return not astral.background.push_registered()
 end
 
 local function mentions_me(data)
@@ -62,8 +73,8 @@ local function title_of(data)
 end
 
 astral.events.on(astral.Event.AppBackground, function()
-	in_background = true
-	if setting("keep_alive", true) then
+	in_background = active()
+	if in_background and setting("keep_alive", true) then
 		astral.background.keep_alive(true)
 	end
 end)
@@ -78,7 +89,22 @@ astral.events.on(astral.Event.Gateway, function(event)
 	if event.type == "READY" then
 		current_user = type(data.user) == "table" and data.user.id or nil
 	elseif in_background and wanted(data) then
-		astral.ui.notify(title_of(data), body_of(data), { channel_id = data.channel_id, message_id = data.id })
+		astral.ui.notify(title_of(data), body_of(data), {
+			channel_id = data.channel_id,
+			message_id = data.id,
+			reply = { title = t("REPLY"), placeholder = t("REPLY_PLACEHOLDER"), send = t("REPLY_SEND") },
+		})
 	end
 	return nil
 end, { "READY", "MESSAGE_CREATE" })
+
+astral.events.on(astral.Event.NotificationReply, function(event)
+	local body = { content = event.text }
+	if event.message_id then
+		body.message_reference = { message_id = event.message_id, channel_id = event.channel_id }
+	end
+	astral.discord.request(
+		{ method = "POST", path = "/channels/" .. event.channel_id .. "/messages", body = body },
+		function() end
+	)
+end)

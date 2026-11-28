@@ -293,7 +293,10 @@ pub(crate) fn install_api(plugin: *mut Plugin) {
             state,
             plugin,
             "background",
-            &[("keep_alive", api::astral_lua_background_keep_alive)],
+            &[
+                ("keep_alive", api::astral_lua_background_keep_alive),
+                ("push_registered", api::astral_lua_background_push_registered),
+            ],
         );
         group(
             state,

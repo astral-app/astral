@@ -572,6 +572,11 @@ unsafe fn background_keep_alive(state: *mut LuaState) -> Outcome {
     unsafe { push_flag(state, platform_flag("keepAlive", &serde_json::json!([on]))) }
 }
 
+unsafe fn background_push_registered(state: *mut LuaState) -> Outcome {
+    unsafe { require_permission(state, Capability::Background) }?;
+    unsafe { push_flag(state, platform_flag("pushRegistered", &serde_json::json!([]))) }
+}
+
 unsafe fn audio_speak(state: *mut LuaState) -> Outcome {
     unsafe { require_permission(state, Capability::Audio) }?;
     let text = unsafe { check_text(state, 1) }?;
@@ -631,6 +636,34 @@ unsafe fn audio_stop(state: *mut LuaState) -> Outcome {
 
 static NOTIFICATION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
 
+unsafe fn notification_reply(state: *mut LuaState, channel: &str, message: &str) -> Result<Value, String> {
+    if !unsafe { lua::is_table(state, 3) } {
+        return Ok(Value::Null);
+    }
+    unsafe { lua::get_field(state, 3, "reply") };
+    let asked = unsafe { lua::is_table(state, -1) };
+    let field = |key: &std::ffi::CStr| unsafe { table_text(state, -1, key) }.unwrap_or_default();
+    let labels = asked.then(|| (field(c"title"), field(c"placeholder"), field(c"send")));
+    unsafe { lua::lua_settop(state, -2) };
+    let Some((title, placeholder, send)) = labels else {
+        return Ok(Value::Null);
+    };
+    if channel.is_empty() {
+        return Err("astral.ui.notify: a reply needs channel_id".into());
+    }
+    if title.is_empty() || title.len() > 64 || placeholder.len() > 120 || send.len() > 64 {
+        return Err("astral.ui.notify: reply labels are too long or the title is empty".into());
+    }
+    Ok(serde_json::json!({
+        "plugin": unsafe { identifier(state) },
+        "channel_id": channel,
+        "message_id": message,
+        "title": title,
+        "placeholder": placeholder,
+        "send": send,
+    }))
+}
+
 unsafe fn ui_notify(state: *mut LuaState) -> Outcome {
     unsafe { require_permission(state, Capability::UiNotifications) }?;
     let (title, body) = (unsafe { check_text(state, 1) }?, unsafe { check_text(state, 2) }?);
@@ -656,7 +689,8 @@ unsafe fn ui_notify(state: *mut LuaState) -> Outcome {
         unsafe { identifier(state) },
         NOTIFICATION.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     );
-    match platform_call("notify", &serde_json::json!([identifier, title, body, delay, link])) {
+    let reply = unsafe { notification_reply(state, &channel, &message) }?;
+    match platform_call("notify", &serde_json::json!([identifier, title, body, delay, link, reply])) {
         Platform::Missing => Err("astral.ui.notify: notifications are unavailable on this build".into()),
         reply => unsafe { push_flag(state, matches!(reply, Platform::Value(Value::Bool(true)))) },
     }
@@ -817,6 +851,7 @@ lua_function!(astral_lua_ui_paste, ui_paste);
 lua_function!(astral_lua_ui_open, ui_open);
 lua_function!(astral_lua_ui_haptic, ui_haptic);
 lua_function!(astral_lua_background_keep_alive, background_keep_alive);
+lua_function!(astral_lua_background_push_registered, background_push_registered);
 lua_function!(astral_lua_audio_speak, audio_speak);
 lua_function!(astral_lua_audio_play, audio_play);
 lua_function!(astral_lua_audio_stop, audio_stop);

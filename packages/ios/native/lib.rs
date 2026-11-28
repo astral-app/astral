@@ -181,6 +181,16 @@ pub extern "C" fn astral_ios_sheet_event(
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn astral_ios_notification_reply(
+    plugin: AstralText,
+    channel: AstralText,
+    message: AstralText,
+    text: AstralText,
+) {
+    app::notification_reply(plugin.text(), channel.text(), message.text(), text.text());
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn astral_ios_complete_confirm(request: u64, accepted: bool) {
     app::complete_confirm(request, accepted);
 }

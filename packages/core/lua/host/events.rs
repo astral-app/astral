@@ -639,3 +639,30 @@ pub fn composer_styles(text: &[u8]) -> Value {
     }
     Value::Array(result)
 }
+
+pub fn emit_notification_reply(plugin_id: &str, channel: &str, message: &str, text: &str) {
+    let _held = host::lock();
+    for plugin in host::plugins() {
+        if !unsafe { (*plugin).running() } || unsafe { (*plugin).identifier() } != plugin_id {
+            continue;
+        }
+        for subscription in subscriptions(plugin, |callback| callback.event == Event::NotificationReply) {
+            let Some(reference) = reference_of(plugin, subscription) else {
+                continue;
+            };
+            let state = unsafe { (*plugin).state() };
+            unsafe {
+                lua::push_reference(state, reference);
+                lua::lua_createtable(state, 0, 3);
+                set_text(state, "channel_id", channel);
+                if !message.is_empty() {
+                    set_text(state, "message_id", message);
+                }
+                set_text(state, "text", text);
+            }
+            if !host::call_or_stop(plugin, 1, 0, Event::NotificationReply.value()) {
+                break;
+            }
+        }
+    }
+}
