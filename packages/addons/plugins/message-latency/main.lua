@@ -1,4 +1,5 @@
 local t = astral.i18n.t
+local Pill, Shape = astral.Pill, astral.Shape
 local MAXIMUM_TRACKED = 500
 local MUTED = 0xFFF0B232
 
@@ -72,10 +73,10 @@ astral.events.on(astral.Event.Gateway, function(event)
 	return nil
 end, { "READY", "MESSAGE_CREATE" })
 
-astral.ui.insert({ id = "message.timestamp:" }, function(node)
-	local latency = latencies[node.key]
+astral.ui.decorate(astral.Target.MessageAuthor, function(node)
+	local latency = node.message_id and latencies[node.message_id]
 	if not latency then
 		return nil
 	end
-	return { type = astral.InsertNodeType.Text, text = "  ⏳ " .. label(latency), color = MUTED, size = 12 }
+	return Pill("⏳ " .. label(latency)):shaped(Shape.Text):text_colored(MUTED)
 end)

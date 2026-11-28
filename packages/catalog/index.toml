@@ -173,7 +173,7 @@ authors = [
 [[plugins]]
 id = "astral.message-latency"
 name = "Message Latency"
-version = "0.0.2"
+version = "0.0.3"
 description = "Marks messages that took at least the selected time to send, beside their timestamp."
 icon = "BellIcon"
 base = "plugins/astral.message-latency/"
