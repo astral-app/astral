@@ -228,6 +228,8 @@ struct Row {
     inner: i32,
     inner_padding: [f32; 4],
     group_gap: Option<f32>,
+    merged: bool,
+    column_flex: Option<f64>,
     time_shown: TimePlacement,
     blocks: Vec<Block>,
     shown_blocks: usize,
@@ -642,8 +644,13 @@ fn put_corner(out: &mut Out, property: u16, shown: bool, rounded: bool, radius: 
 fn write_corners(out: &mut Out, state: &Row, shown: bool, radius: f64) {
     let properties = properties::current();
     let corners = if state.corners >= 0 { state.corners } else { CORNERS_ALL };
-    for block in state.blocks.iter().filter(|block| block.card == 0) {
-        out.update(block.id, 4);
+    let targets: Vec<i32> = if state.merged {
+        vec![state.column]
+    } else {
+        state.blocks.iter().filter(|block| block.card == 0).map(|block| block.id).collect()
+    };
+    for target in targets {
+        out.update(target, 4);
         put_corner(out, properties.radius_top_left, shown, corners & CORNER_TOP_LEFT != 0, radius);
         put_corner(out, properties.radius_top_right, shown, corners & CORNER_TOP_RIGHT != 0, radius);
         put_corner(out, properties.radius_bottom_left, shown, corners & CORNER_BOTTOM_LEFT != 0, radius);
@@ -657,9 +664,39 @@ fn write_corners(out: &mut Out, state: &Row, shown: bool, radius: f64) {
     }
 }
 
-fn write_bubble_update(out: &mut Out, state: &Row, shown: bool, color: u32, radius: f64) {
+fn mergeable(state: &Row, bubble: bool, header_outside: bool) -> bool {
+    bubble
+        && header_outside
+        && state.column != 0
+        && state.blocks.iter().all(|block| block.card == 0)
+        && state.blocks.iter().any(|block| block.media)
+        && state.blocks.iter().any(|block| !block.media)
+}
+
+fn write_column_bubble(out: &mut Out, state: &Row, merged: bool, color: u32, radius: f64) {
+    let properties = properties::current();
+    out.update(state.column, 3);
+    out.prop_long(properties.background, if merged { i64::from(color) } else { 0 });
+    out.prop_number(properties.radius, if merged { radius } else { 0.0 });
+    match (merged, state.column_flex) {
+        (true, _) | (false, None) => out.prop_unset(properties.flex),
+        (false, Some(flex)) => out.prop_number(properties.flex, flex),
+    }
+}
+
+fn write_bubble_update(out: &mut Out, state: &mut Row, shown: bool, merged: bool, color: u32, radius: f64) {
+    let was_merged = state.merged;
+    if was_merged && !merged {
+        write_corners(out, state, false, radius);
+    }
+    state.merged = merged;
+    let block_color = if merged { 0 } else { color };
+    let block_radius = if merged { 0.0 } else { radius };
     for block in &state.blocks {
-        write_block_update(out, block, shown, color, radius, state.applied_padding);
+        write_block_update(out, block, shown, block_color, block_radius, state.applied_padding);
+    }
+    if merged || was_merged {
+        write_column_bubble(out, state, merged, color, radius);
     }
     write_corners(out, state, shown, radius);
 }
@@ -1424,8 +1461,11 @@ fn remember_block(batch: &Batch, links: &HashMap<i32, i32>, state: &mut Row, id:
     }
     remember_block_children(batch, &mut state.blocks[index]);
     let column = parent_in(links, id);
-    if column != 0 {
+    if column != 0 && column != state.column {
         state.column = column;
+        state.column_flex = batch
+            .creation(column)
+            .and_then(|creation| number_property(batch.bytes, creation, properties::current().flex));
     }
 }
 
@@ -1480,16 +1520,9 @@ fn bubble_late_blocks(
             continue;
         }
         put_original_once(out, batch.bytes, changed);
-        for index in state.shown_blocks..state.blocks.len() {
-            write_block_update(
-                out,
-                &state.blocks[index],
-                true,
-                state.applied_color,
-                state.applied_radius,
-                state.applied_padding,
-            );
-        }
+        let merged = mergeable(state, true, state.header == 0 || state.name_shown);
+        let (color, radius) = (state.applied_color, state.applied_radius);
+        write_bubble_update(out, state, true, merged, color, radius);
         state.shown_blocks = state.blocks.len();
         if state.reply_shown == ReplyPlacement::Inside
             && let Some(quoted) = find_block(state, state.quoted_in)
@@ -1551,6 +1584,7 @@ fn apply_background_style(out: &mut Out, state: &mut Row, inside: &mut Vec<i32>,
         && name == state.name_shown
         && time == state.time_shown
         && style.grouping == state.grouping
+        && mergeable(state, bubble, state.header == 0 || name) == state.merged
         && (!bubble || state.shown_blocks == state.blocks.len())
         && (!active || (color == state.applied_color && radius == state.applied_radius && bubble_padding(&style) == state.applied_padding))
     {
@@ -1565,8 +1599,9 @@ fn apply_background_style(out: &mut Out, state: &mut Row, inside: &mut Vec<i32>,
         Some(original) => put_original_once(out, original, changed),
         None => *changed = 1,
     }
+    let merged = mergeable(state, bubble, state.header == 0 || name);
     if bubble || state.bubble {
-        write_bubble_update(out, state, bubble, color, radius);
+        write_bubble_update(out, state, bubble, merged, color, radius);
     }
     if reply != state.reply_shown {
         write_reply_style(out, state, inside, reply, color, radius);
