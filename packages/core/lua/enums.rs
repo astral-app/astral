@@ -117,6 +117,7 @@ lua_enums! {
         MessageCreate = "message.create",
         MessageFilter = "message.filter",
         Gateway = "gateway",
+        NotificationReply = "notification.reply",
     }
     SheetItemType {
         Heading = "heading",

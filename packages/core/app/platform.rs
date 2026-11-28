@@ -49,6 +49,7 @@ enum Method {
     PickedMedia,
     PickedVideoUrl,
     KeepAlive,
+    PushRegistered,
     OfferPick,
     DismissSheets,
 }
@@ -94,6 +95,7 @@ impl Method {
             "pickedMedia" => Method::PickedMedia,
             "pickedVideoURL" => Method::PickedVideoUrl,
             "keepAlive" => Method::KeepAlive,
+            "pushRegistered" => Method::PushRegistered,
             "offerPick" => Method::OfferPick,
             "dismissSheets" => Method::DismissSheets,
             _ => return None,
@@ -292,7 +294,11 @@ fn dispatch(method: Method, arguments: &Arguments) -> Value {
             done()
         }
         Method::Notify => {
-            let payload = host::json_text(&json!({ "body": arguments.text(2), "link": arguments.text(4) }));
+            let payload = host::json_text(&json!({
+                "body": arguments.text(2),
+                "link": arguments.text(4),
+                "reply": arguments.at(5),
+            }));
             flag(&host::request(Request::Notify {
                 delay_ms: scaled(arguments.number(3)),
                 title: arguments.text(1),
@@ -427,6 +433,7 @@ fn dispatch(method: Method, arguments: &Arguments) -> Value {
         Method::PickedMedia => picked_media(arguments.text(0)),
         Method::PickedVideoUrl => picked_video(arguments.text(0)),
         Method::KeepAlive => flag(&host::request(Request::KeepAlive { on: arguments.flag(0) })),
+        Method::PushRegistered => value(json!(push_registered())),
         Method::OfferPick => offer_pick(arguments),
         Method::DismissSheets => flag(&host::request(Request::DismissSheets)),
     }
@@ -442,6 +449,18 @@ pub unsafe extern "C" fn platform_call(
     let parsed: Value = serde_json::from_slice(bytes(arguments, arguments_length)).unwrap_or(Value::Null);
     let reply = Method::parse(&name).map_or_else(missing, |method| dispatch(method, &Arguments(&parsed)));
     AstralRustString::new(host::json_text(&reply).into_bytes())
+}
+
+fn push_registered() -> bool {
+    let facts: Value = host::request(Request::EnvironmentFacts)
+        .into_text()
+        .and_then(|text| serde_json::from_str(&text).ok())
+        .unwrap_or(Value::Null);
+    facts
+        .get("push")
+        .and_then(|push| push.get("registered"))
+        .and_then(Value::as_bool)
+        .unwrap_or(true)
 }
 
 #[cfg(test)]

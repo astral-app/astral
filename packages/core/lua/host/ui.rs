@@ -1079,6 +1079,7 @@ const fn event_permission(event: Event) -> Capability {
         Event::MessageCreate => Capability::EventsMessages,
         Event::MessageFilter => Capability::EventsMessagesFilter,
         Event::Gateway => Capability::EventsGateway,
+        Event::NotificationReply => Capability::UiNotifications,
     }
 }
 

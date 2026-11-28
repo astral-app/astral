@@ -328,14 +328,29 @@ static AstralReply Notify(const AstralRequest *request)
     content.body = [payload[@"body"] isKindOfClass:NSString.class] ? payload[@"body"] : @"";
     content.sound = UNNotificationSound.defaultSound;
     NSString *link = [payload[@"link"] isKindOfClass:NSString.class] ? payload[@"link"] : @"";
-    if (link.length) {
-        content.userInfo = @{AstralNotificationLinkKey : AppLink(link)};
+    NSDictionary *reply = [payload[@"reply"] isKindOfClass:NSDictionary.class] ? payload[@"reply"] : nil;
+    NSMutableDictionary *info = [NSMutableDictionary dictionary];
+    if (link.length) info[AstralNotificationLinkKey] = AppLink(link);
+    if (reply) info[AstralNotificationReplyKey] = reply;
+    if (info.count) {
+        content.userInfo = info;
         AstralRouteNotificationTaps();
     }
     double delay = request->number / kPermille;
     UNTimeIntervalNotificationTrigger *trigger =
         delay >= 1 ? [UNTimeIntervalNotificationTrigger triggerWithTimeInterval:delay repeats:NO] : nil;
-    PostNotificationWhenAuthorized([UNNotificationRequest requestWithIdentifier:NSUUID.UUID.UUIDString content:content trigger:trigger]);
+    if (!reply) {
+        PostNotificationWhenAuthorized([UNNotificationRequest requestWithIdentifier:NSUUID.UUID.UUIDString
+                                                                            content:content
+                                                                            trigger:trigger]);
+        return Flag(YES);
+    }
+    AstralWithReplyCategory(reply, ^(NSString *category) {
+        content.categoryIdentifier = category;
+        PostNotificationWhenAuthorized([UNNotificationRequest requestWithIdentifier:NSUUID.UUID.UUIDString
+                                                                            content:content
+                                                                            trigger:trigger]);
+    });
     return Flag(YES);
 }
 
@@ -524,9 +539,24 @@ static AstralReply EditText(const AstralRequest *request)
     return Flag(YES);
 }
 
+static BOOL gPushRegistered;
+
+static BOOL PushRegistered(void)
+{
+    if (NSThread.isMainThread) {
+        gPushRegistered = UIApplication.sharedApplication.isRegisteredForRemoteNotifications;
+    } else {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            gPushRegistered = UIApplication.sharedApplication.isRegisteredForRemoteNotifications;
+        });
+    }
+    return gPushRegistered;
+}
+
 static AstralReply EnvironmentFacts(void)
 {
     NSMutableDictionary *facts = AstralEnvironmentFacts();
+    facts[@"push"] = @{@"registered" : @(PushRegistered())};
     facts[@"compatibility"] = AstralPhoenixCompatibility() ?: @"";
     facts[@"phoenix"] = AstralPhoenixUUID() ?: @"";
     NSData *json = [NSJSONSerialization dataWithJSONObject:facts options:0 error:nil];
@@ -875,5 +905,8 @@ static void Log(AstralText line)
 
 void AstralAttachBridge(void)
 {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        PushRegistered();
+    });
     astral_ios_attach((AstralBridge){AstralPhoenixDeliver, HandleRequest, Log, AstralPhoenixLockWire, AstralPhoenixUnlockWire});
 }

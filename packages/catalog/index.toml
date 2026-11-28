@@ -56,7 +56,7 @@ authors = [{ name = "Fiery", id = "890228870559698955" }, { name = "adrian", id 
 [[plugins]]
 id = "astral.local-notifications"
 name = "Local Notifications"
-version = "0.0.2"
+version = "0.0.3"
 description = "Notifies you of mentions and DMs on installs where Discord's push notifications don't arrive, by keeping Discord connected in the background."
 icon = "BellIcon"
 base = "plugins/astral.local-notifications/"

@@ -106,6 +106,7 @@ local Event = {
 	MessageCreate = "message.create",
 	MessageFilter = "message.filter",
 	Gateway = "gateway",
+	NotificationReply = "notification.reply",
 }
 
 ---@enum astral.SheetItemType
@@ -817,7 +818,7 @@ function astral.ui.insert_text(text, options) end
 function astral.ui.focus_composer(focus) end
 ---@param title string
 ---@param body string
----@param options? { delay: number?, channel_id: string?, message_id: string? }
+---@param options? { delay: number?, channel_id: string?, message_id: string?, reply: { title: string, placeholder: string?, send: string? }? } `reply` adds a text reply action; the answer arrives as a `notification.reply` event with `channel_id`, `message_id` and `text`
 ---@return boolean
 function astral.ui.notify(title, body, options) end
 function astral.ui.haptic(strength) end
@@ -1016,6 +1017,9 @@ astral.background = {}
 ---@param on boolean
 ---@return boolean
 function astral.background.keep_alive(on) end
+---Whether this install registered for Discord's push notifications; Android installs always report true. Needs `background`.
+---@return boolean
+function astral.background.push_registered() end
 
 astral.diagnostics = {}
 ---Returns astral's sanitized environment: versions, platform, install mode, device, report count and every plugin's state.
