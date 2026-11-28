@@ -1,4 +1,5 @@
-local decorator
+local decorator, pressed
+local tooltip
 astral = {
 	log = function() end,
 	settings = {},
@@ -8,8 +9,11 @@ astral = {
 		end,
 	},
 	ui = {
-		decorate = function(_, fn)
-			decorator = fn
+		decorate = function(_, fn, on_press)
+			decorator, pressed = fn, on_press
+		end,
+		tooltip = function(text)
+			tooltip = text
 		end,
 	},
 	discord = {
@@ -26,4 +30,7 @@ local crown = decorator({ user_id = "owner", guild_id = "g" })
 assert(crown and #crown == 1 and crown[1].icon == "res://rn_ic_crown_16px" and crown[1].tint == 0xFFF0B232)
 assert(decorator({ user_id = "member", guild_id = "g" }) == nil)
 assert(decorator({ user_id = "owner" }) == nil)
+assert(crown[1].action == "crown")
+pressed({}, "crown")
+assert(tooltip == "SERVER_OWNER")
 print("force-owner-crown ok")

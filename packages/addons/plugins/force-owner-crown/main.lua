@@ -9,5 +9,7 @@ astral.ui.decorate(astral.Target.MessageAuthor, function(node)
 	if not guild or guild.owner_id ~= node.user_id then
 		return nil
 	end
-	return astral.Pill(astral.i18n.t("SERVER_OWNER"), { icon = CROWN, tint = GOLD })
+	return astral.Pill(astral.i18n.t("SERVER_OWNER"), { icon = CROWN, tint = GOLD }):on_press("crown")
+end, function()
+	astral.ui.tooltip(astral.i18n.t("SERVER_OWNER"))
 end)
