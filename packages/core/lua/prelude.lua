@@ -634,6 +634,9 @@ function astral.ui.message_background(decorator)
 			reply = style.reply,
 			name = style.name,
 			time = style.time,
+			grouping = style.grouping,
+			padding_x = style.padding_x,
+			padding_y = style.padding_y,
 		}
 	end)
 end

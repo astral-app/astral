@@ -1,5 +1,5 @@
 use crate::lua::enums::TextKind;
-use crate::lua::enums::{Align, InsertNodeType, InsertPosition, Justify, NamePlacement, ReplyPlacement, TimePlacement};
+use crate::lua::enums::{Align, BubbleGrouping, InsertNodeType, InsertPosition, Justify, NamePlacement, ReplyPlacement, TimePlacement};
 use crate::lua::host::text_style::{self, Field};
 use core::ffi::{c_char, c_int};
 use std::collections::{BTreeMap, VecDeque};
@@ -585,6 +585,10 @@ pub unsafe extern "C" fn astral_lua_message_background(
                     .as_deref()
                     .and_then(ReplyPlacement::parse)
                     .unwrap_or_default();
+                let grouping = unsafe { field_text(state, "grouping") }
+                    .as_deref()
+                    .and_then(BubbleGrouping::parse)
+                    .unwrap_or_default();
                 if let Some(color) = color
                     && radius.is_finite()
                     && (0.0..=32.0).contains(&radius)
@@ -595,6 +599,7 @@ pub unsafe extern "C" fn astral_lua_message_background(
                     style.reply = reply;
                     style.name_inside = c_int::from(name_inside);
                     style.time = time;
+                    style.grouping = grouping;
                     style.padding_x = unsafe { patch_number(state, "padding_x", 0.0, 32.0) }.unwrap_or(0.0);
                     style.padding_y = unsafe { patch_number(state, "padding_y", 0.0, 32.0) }.unwrap_or(0.0);
                     found = true;

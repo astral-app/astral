@@ -3,7 +3,7 @@
 ---@alias astral.Argb integer
 ---@alias astral.ColorLike astral.Color|astral.Argb|string
 ---@alias astral.Snowflake string
----@alias astral.SettingValue boolean|string
+---@alias astral.SettingValue boolean|string|number
 
 ---@class astral.Role
 ---@field id astral.Snowflake
@@ -217,6 +217,13 @@ local TimePlacement = {
 	Header = "header",
 	Inline = "inline",
 	Hidden = "hidden",
+}
+
+---@enum astral.BubbleGrouping
+local BubbleGrouping = {
+	Grouped = "grouped",
+	Separate = "separate",
+	Joined = "joined",
 }
 
 ---@enum astral.TextKind
@@ -503,6 +510,7 @@ astral.Align = Align
 astral.ReplyPlacement = ReplyPlacement
 astral.NamePlacement = NamePlacement
 astral.TimePlacement = TimePlacement
+astral.BubbleGrouping = BubbleGrouping
 astral.TextKind = TextKind
 astral.ImageItemType = ImageItemType
 astral.FontWeight = FontWeight
@@ -931,6 +939,7 @@ function astral.ui.insert(selector, build, on_press) end
 ---@field reply? astral.ReplyPlacement
 ---@field name? astral.NamePlacement where the author line sits on the first message of a group
 ---@field time? astral.TimePlacement where the time sits: in the author line, beside the text, or nowhere
+---@field grouping? astral.BubbleGrouping how one author's consecutive bubbles meet: corners squared by the avatar, all round, or touching
 ---@param decorator fun(node: astral.Node): astral.MessageBackgroundStyle?
 function astral.ui.message_background(decorator) end
 ---@class astral.CodeBlock : astral.PatchTarget

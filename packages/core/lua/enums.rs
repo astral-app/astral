@@ -201,6 +201,11 @@ lua_enums! {
         Inline = "inline",
         Hidden = "hidden",
     }
+    BubbleGrouping {
+        Grouped = "grouped",
+        Separate = "separate",
+        Joined = "joined",
+    }
     TextKind {
         Avatar = "avatar",
         Header = "header",

@@ -1,10 +1,10 @@
 id = "astral.chat-bubbles"
 name = "Chat Bubbles"
 description = "Draws a rounded bubble behind each message's text, media and embeds."
-version = "0.0.3"
+version = "0.0.4"
 icon = "ChatDotsIcon"
 main = "main.lua"
-permissions = ["discord.messages", "ui.message_background"]
+permissions = ["discord.messages", "ui.message_background", "ui.dialogs"]
 
 [[authors]]
 name = "eternal"
