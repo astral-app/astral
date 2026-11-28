@@ -14,6 +14,13 @@ static id gHingeInteraction;
 static UIWindow *gHingeWindow;
 static BOOL gUnderDisplayCameraObserved;
 
+typedef NSArray *(*ReservedRegionQuery)(id, SEL, id, NSUInteger);
+typedef void (^HingeUpdateHandler)(id, id);
+
+@protocol HingeInteractionInitializing
+- (instancetype)initWithUpdateHandler:(HingeUpdateHandler)handler;
+@end
+
 static void ShowOverlay(void);
 
 static void RemoveOverlay(void)
@@ -25,23 +32,40 @@ static void RemoveOverlay(void)
 
 static BOOL OverlayAllowed(UIWindow *window, CGRect frame)
 {
-    if (@available(iOS 27.1, *)) {
-        NSArray<UIViewReservedRegion *> *regions = [window reservedRegionsOfKind:[UIViewReservedRegionKind occlusionRegionKind]
-                                                                         options:UIViewReservedRegionQueryOptionsIncludeInactive];
-        BOOL hasActiveOcclusion = NO;
-        BOOL hasInactiveOcclusion = NO;
-        for (UIViewReservedRegion *region in regions) {
-            if (!CGRectIntersectsRect(frame, region.frame)) continue;
-            if (region.isActive) {
-                hasActiveOcclusion = YES;
-            } else {
-                hasInactiveOcclusion = YES;
-                gUnderDisplayCameraObserved = YES;
-            }
+    SEL querySelector = NSSelectorFromString(@"reservedRegionsOfKind:options:");
+    if (![window respondsToSelector:querySelector]) return YES;
+
+    Class kindClass = NSClassFromString(@"UIViewReservedRegionKind");
+    SEL kindSelector = NSSelectorFromString(@"occlusionRegionKind");
+    if (!kindClass || ![kindClass respondsToSelector:kindSelector]) return NO;
+
+    id kind = ((id (*)(id, SEL))objc_msgSend)(kindClass, kindSelector);
+    if (!kind) return NO;
+
+    NSArray *regions = ((ReservedRegionQuery)objc_msgSend)(window, querySelector, kind, 1);
+    BOOL hasActiveOcclusion = NO;
+    BOOL hasInactiveOcclusion = NO;
+    SEL frameSelector = NSSelectorFromString(@"frame");
+    SEL activeSelector = NSSelectorFromString(@"isActive");
+    for (id region in regions) {
+        if (![region respondsToSelector:frameSelector] || ![region respondsToSelector:activeSelector]) {
+            hasInactiveOcclusion = YES;
+            gUnderDisplayCameraObserved = YES;
+            continue;
         }
-        return astral_ios_cutout_overlay_allowed(hasActiveOcclusion, hasInactiveOcclusion, gUnderDisplayCameraObserved) != 0;
+
+        CGRect regionFrame = ((CGRect (*)(id, SEL))objc_msgSend)(region, frameSelector);
+        if (!CGRectIntersectsRect(frame, regionFrame)) continue;
+        BOOL active = ((BOOL (*)(id, SEL))objc_msgSend)(region, activeSelector);
+        if (active) {
+            hasActiveOcclusion = YES;
+        } else {
+            hasInactiveOcclusion = YES;
+            gUnderDisplayCameraObserved = YES;
+        }
     }
-    return YES;
+
+    return astral_ios_cutout_overlay_allowed(hasActiveOcclusion, hasInactiveOcclusion, gUnderDisplayCameraObserved) != 0;
 }
 
 static void UpdateOverlayForReservedRegions(void)
@@ -60,13 +84,16 @@ static void ObserveHinge(UIWindow *window)
     if (!window || gHingeWindow == window) return;
     if (gHingeWindow && gHingeInteraction) [gHingeWindow removeInteraction:gHingeInteraction];
     gHingeWindow = window;
-    if (@available(iOS 27.1, *)) {
-        gHingeInteraction = [[UIHingeInteraction alloc]
-            initWithUpdateHandler:^(__unused UIHingeInteraction *interaction, __unused UIHingeInteractionUpdate *update) {
-                UpdateOverlayForReservedRegions();
-            }];
-        [window addInteraction:gHingeInteraction];
-    }
+    Class hingeClass = NSClassFromString(@"UIHingeInteraction");
+    SEL initializer = NSSelectorFromString(@"initWithUpdateHandler:");
+    if (!hingeClass || ![hingeClass instancesRespondToSelector:initializer]) return;
+
+    HingeUpdateHandler handler = ^(__unused id interaction, __unused id update) {
+        UpdateOverlayForReservedRegions();
+    };
+    id<HingeInteractionInitializing> interaction = (id<HingeInteractionInitializing>)[hingeClass alloc];
+    gHingeInteraction = [interaction initWithUpdateHandler:handler];
+    if (gHingeInteraction) [window addInteraction:gHingeInteraction];
 }
 
 static CGRect SystemCutout(void)
