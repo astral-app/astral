@@ -485,6 +485,65 @@ authors = [
 	{ name = "adrian", id = "224617799434108928" },
 ]
 
+[[plugins]]
+id = "astral.expression-tools"
+name = "Expression Tools"
+version = "0.0.2"
+description = "Useful tools for custom emojis."
+icon = "ReactionIcon"
+base = "plugins/astral.expression-tools/"
+authors = [
+	{ name = "V", id = "343383572805058560" },
+	{ name = "Nuckyz", id = "235834946571337729" },
+	{ name = "Amelia", id = "1098234477626544180" },
+	{ name = "adrian", id = "224617799434108928" },
+	{ name = "eternal", id = "263689920210534400" },
+]
+
+[[plugins]]
+id = "astral.file-size-on-picker"
+name = "File Size On Picker"
+version = "0.0.2"
+description = "Shows file sizes on media picker thumbnails."
+icon = "ImageIcon"
+base = "plugins/astral.file-size-on-picker/"
+authors = [{ name = "mafu", id = "519760564755365888" }, { name = "adrian", id = "224617799434108928" }]
+
+[[plugins]]
+id = "astral.irc-colors"
+name = "IRC Colors"
+version = "0.0.2"
+description = "Gives everyone in chat their own username color, picked from their user id like in IRC clients."
+icon = "PaintPaletteIcon"
+base = "plugins/astral.irc-colors/"
+authors = [
+	{ name = "Grzesiek11", id = "368475654662127616" },
+	{ name = "jamesbt365", id = "158567567487795200" },
+	{ name = "adrian", id = "224617799434108928" },
+]
+
+[[plugins]]
+id = "astral.picker-video-previews"
+name = "Picker Video Previews"
+version = "0.0.1"
+description = "Plays videos when you long-press them in the media picker, instead of showing a still frame."
+icon = "VideoIcon"
+base = "plugins/astral.picker-video-previews/"
+authors = [{ name = "adrian", id = "224617799434108928" }]
+
+[[plugins]]
+id = "astral.shiki-codeblocks"
+name = "Shiki Codeblocks"
+version = "0.0.2"
+description = "Highlights code blocks with VS Code-style syntax colors."
+icon = "TextIcon"
+base = "plugins/astral.shiki-codeblocks/"
+authors = [
+	{ name = "Vap0r1ze", id = "454072114492866560" },
+	{ name = "eternal", id = "263689920210534400" },
+	{ name = "adrian", id = "224617799434108928" },
+]
+
 [[themes]]
 id = "astral"
 name = "astral"
