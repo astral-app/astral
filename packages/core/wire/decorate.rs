@@ -678,6 +678,30 @@ fn parent_in(links: &HashMap<i32, i32>, id: i32) -> i32 {
     links.get(&id).copied().unwrap_or(0)
 }
 
+fn known_parent(links: &HashMap<i32, i32>, id: i32) -> i32 {
+    match parent_in(links, id) {
+        0 if id != 0 => super::children::wire_discord_parent(id),
+        parent => parent,
+    }
+}
+
+fn ancestor_row(rows: &HashMap<i32, Row>, links: &HashMap<i32, i32>, block: i32) -> Option<i32> {
+    let mut node = known_parent(links, block);
+    for _ in 0..24 {
+        if node == 0 {
+            return None;
+        }
+        if rows.contains_key(&node) {
+            return Some(node);
+        }
+        if let Some(row) = row_for_column(rows, node) {
+            return Some(row);
+        }
+        node = known_parent(links, node);
+    }
+    None
+}
+
 fn row_for_node(links: &HashMap<i32, i32>, rows: &HashSet<i32>, mut id: i32) -> i32 {
     for _ in 0..24 {
         if id == 0 {
@@ -1274,21 +1298,29 @@ fn replace_text_block(state: &mut Row, id: i32) {
 fn bubble_late_blocks(
     batch: &Batch,
     links: &HashMap<i32, i32>,
-    rows: &mut HashMap<i32, Row>,
+    backgrounds: &mut Backgrounds,
     blocks: &[i32],
     media: bool,
     out: &mut Out,
     changed: &mut c_int,
 ) {
     for block in blocks.iter().copied().filter(|block| *block != 0) {
-        let Some(state) = row_for_column(rows, parent_in(links, block)).and_then(|row| rows.get_mut(&row)) else {
+        let Some(row) = ancestor_row(&backgrounds.rows, links, block) else {
             continue;
         };
+        let Backgrounds { rows, inside } = backgrounds;
+        let Some(state) = rows.get_mut(&row) else { continue };
         if !media {
             replace_text_block(state, block);
         }
         remember_block(batch, links, state, block, media);
-        if !state.bubble || state.shown_blocks == state.blocks.len() {
+        if !state.bubble {
+            if state.has_original {
+                apply_background_style(out, state, inside, Some(batch.bytes), changed);
+            }
+            continue;
+        }
+        if state.shown_blocks == state.blocks.len() {
             continue;
         }
         put_original_once(out, batch.bytes, changed);
@@ -1433,6 +1465,53 @@ pub unsafe extern "C" fn astral_wire_refresh_message_backgrounds(buffer: *mut As
     c_int::from(out.finish(buffer))
 }
 
+fn span_sets(bytes: &[u8], span: &Span, wanted: u16) -> bool {
+    let (mut cursor, count) = property_cursor(bytes, span);
+    for _ in 0..count {
+        if cursor.failed() {
+            return false;
+        }
+        let property = cursor.read16();
+        let tag = cursor.read8();
+        if property == wanted {
+            return true;
+        }
+        cursor.skip_value(tag, 0);
+    }
+    false
+}
+
+fn release_reused_blocks(batch: &Batch, backgrounds: &mut Backgrounds, out: &mut Out, changed: &mut c_int) {
+    let properties = properties::current();
+    for span in batch.spans.iter().filter(|span| span.op == Op::Update) {
+        let Some(identifier) = find_string(batch.bytes, span, properties.accessibility_id) else {
+            continue;
+        };
+        if identifier.starts_with(CONTENT_PREFIX) {
+            continue;
+        }
+        for state in backgrounds.rows.values_mut() {
+            let Some(index) = state.blocks.iter().position(|block| block.id == span.id) else {
+                continue;
+            };
+            state.blocks.remove(index);
+            state.shown_blocks = state.shown_blocks.min(state.blocks.len());
+            let reset: Vec<u16> = [properties.background, properties.radius, properties.padding]
+                .into_iter()
+                .filter(|property| !span_sets(batch.bytes, span, *property))
+                .collect();
+            if reset.is_empty() {
+                continue;
+            }
+            put_original_once(out, batch.bytes, changed);
+            out.update(span.id, reset.len() as u16);
+            for property in reset {
+                out.prop_unset(property);
+            }
+        }
+    }
+}
+
 fn forget_removed_rows(batch: &Batch, backgrounds: &mut Backgrounds) {
     for span in batch.spans.iter().filter(|span| span.op == Op::Remove) {
         for position in 0..span.child_count {
@@ -1504,8 +1583,9 @@ fn finish_backgrounds(
     out: &mut Out,
     changed: &mut c_int,
 ) {
-    bubble_late_blocks(batch, links, &mut backgrounds.rows, contents, false, out, changed);
-    bubble_late_blocks(batch, links, &mut backgrounds.rows, media, true, out, changed);
+    release_reused_blocks(batch, backgrounds, out, changed);
+    bubble_late_blocks(batch, links, backgrounds, contents, false, out, changed);
+    bubble_late_blocks(batch, links, backgrounds, media, true, out, changed);
     keep_quotes_inside(batch, backgrounds, out, changed);
     group_rows(batch, &mut backgrounds.rows, out, changed);
     forget_removed_rows(batch, backgrounds);
@@ -1557,7 +1637,7 @@ fn message_backgrounds(batch: &Batch, out: &mut Out, changed: &mut c_int) {
                     links.insert(node, span.id);
                 }
             }
-        } else if span.op == Op::Create
+        } else if (span.op == Op::Create || span.op == Op::Update)
             && contents.len() < ROW_CAPACITY
             && find_string(batch.bytes, span, properties.accessibility_id).is_some_and(|text| text.starts_with(CONTENT_PREFIX))
         {
