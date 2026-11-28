@@ -67,6 +67,7 @@ pub enum Method {
     SyncForgetFolder,
     SyncRead,
     SyncWrite,
+    PictureInPicture,
 }
 
 #[derive(Clone, Copy)]
@@ -77,7 +78,7 @@ enum Returns {
 }
 
 impl Method {
-    const ALL: [Method; 38] = [
+    const ALL: [Method; 39] = [
         Method::Deliver,
         Method::DiscordRequest,
         Method::ExportBackup,
@@ -116,6 +117,7 @@ impl Method {
         Method::SyncForgetFolder,
         Method::SyncRead,
         Method::SyncWrite,
+        Method::PictureInPicture,
     ];
 
     const fn name(self) -> &'static str {
@@ -140,6 +142,7 @@ impl Method {
             Method::PasteText => "pasteText",
             Method::OpenUrl => "openURL",
             Method::Notify => "notify",
+            Method::PictureInPicture => "pictureInPicture",
             Method::Speak => "speak",
             Method::PlaySound => "playSound",
             Method::StopAudio => "stopAudio",
@@ -198,6 +201,7 @@ impl Method {
             | Method::SyncFolderName
             | Method::SyncRead => "()Ljava/lang/String;",
             Method::SyncWrite => "(Ljava/lang/String;)Z",
+            Method::PictureInPicture => "(JJ)Z",
             Method::PressNode | Method::InsertComposerText => "(Ljava/lang/String;Z)Z",
         }
     }
@@ -206,6 +210,7 @@ impl Method {
         !matches!(
             self,
             Method::DispatchGateway
+                | Method::PictureInPicture
                 | Method::PressNode
                 | Method::InsertComposerText
                 | Method::ShowConfirm
@@ -223,7 +228,10 @@ impl Method {
 
     const fn returns(self) -> Returns {
         match self {
-            Method::PressNode | Method::InsertComposerText | Method::SyncWrite => Returns::Flag,
+            Method::PressNode
+            | Method::InsertComposerText
+            | Method::SyncWrite
+            | Method::PictureInPicture => Returns::Flag,
             Method::PasteText
             | Method::EnvironmentFacts
             | Method::SyncFolderName
@@ -553,6 +561,13 @@ impl Bridge for JniBridge {
             Request::SyncWrite { contents } => {
                 into_reply(self.call(Method::SyncWrite, &[Argument::Text(contents)]))
             }
+            Request::PictureInPicture { width, height } => into_reply(self.locked(
+                Method::PictureInPicture,
+                &[
+                    Argument::Long(signed(width)),
+                    Argument::Long(signed(height)),
+                ],
+            )),
             Request::AppIcons
             | Request::SetAppIcon { .. }
             | Request::KeepAlive { .. }

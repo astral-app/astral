@@ -1,6 +1,6 @@
 # Plugins
 
-47 first-party plugins for astral, each in its own folder here.
+48 first-party plugins for astral, each in its own folder here.
 
 <!-- Generated from each manifest.toml by `astral readme`. Do not edit by hand. -->
 
@@ -35,6 +35,7 @@
 - <img src="../../assets/readme-icons/user-plus-icon.svg" width="20" height="20" align="absmiddle" alt=""> [New Member Sprout](new-member-sprout/): Shows desktop's new member sprout beside people who joined the server in the last week.
 - <img src="../../assets/readme-icons/arrow-angle-left-up-icon.svg" width="20" height="20" align="absmiddle" alt=""> [No Reply Mention](no-reply-mention/): Turns off the reply ping by default, or only pings the people you list.
 - <img src="../../assets/readme-icons/video-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Picker Video Previews](picker-video-previews/): Plays videos when you long-press them in the media picker, instead of showing a still frame.
+- <img src="../../assets/readme-icons/video-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Picture In Picture](picture-in-picture/): Adds a picture in picture button to the media viewer, so videos keep playing in a floating window.
 - <img src="../../assets/readme-icons/chat-dots-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Preview Message](preview-message/): Adds a button to the chat input that shows how your message will look before you send it.
 - <img src="../../assets/readme-icons/user-circle-icon.svg" width="20" height="20" align="absmiddle" alt=""> [PronounDB](pronoundb/): Shows people's pronouns from PronounDB beside their name in messages.
 - <img src="../../assets/readme-icons/reaction-icon.svg" width="20" height="20" align="absmiddle" alt=""> [Reaction Avatars](reaction-avatars/): Shows the people who reacted beside each message reaction.

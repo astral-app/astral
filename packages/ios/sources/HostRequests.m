@@ -1,4 +1,5 @@
 #import "HostRequests.h"
+#import "PictureInPicture.h"
 
 #import "AstralRequestKinds.h"
 
@@ -777,6 +778,12 @@ static AstralReply HandleKeepAlive(const AstralRequest *request)
 static AstralReply HandleOfferPick(const AstralRequest *request)
 {
     return Flag(AstralOfferPick(AstralDataOfText(request->second), AstralStringOfText(request->first)));
+}
+
+static AstralReply HandlePictureInPicture(const AstralRequest *request)
+{
+    uint64_t packed = (uint64_t)request->number;
+    return Flag(AstralStartPictureInPicture((CGFloat)(packed >> 32), (CGFloat)(packed & 0xffffffffu)));
 }
 
 static AstralReply HandleDismissSheets(__unused const AstralRequest *request)

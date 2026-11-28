@@ -759,6 +759,26 @@ unsafe fn ui_dismiss(state: *mut LuaState) -> Outcome {
     unsafe { push_flag(state, platform_flag("dismissSheets", &serde_json::json!([]))) }
 }
 
+unsafe fn ui_picture_in_picture(state: *mut LuaState) -> Outcome {
+    unsafe { require_permission(state, Capability::UiNavigate) }?;
+    let size = if unsafe { lua::is_table(state, 1) } {
+        let read = |field: &str| unsafe {
+            lua::get_field(state, 1, field);
+            let value = if lua::lua_isnumber(state, -1) != 0 {
+                lua::to_number(state, -1)
+            } else {
+                0.0
+            };
+            lua::pop(state, 1);
+            value.clamp(0.0, 100_000.0).round() as u64
+        };
+        (read("width"), read("height"))
+    } else {
+        (0, 0)
+    };
+    unsafe { push_flag(state, platform_flag("pictureInPicture", &serde_json::json!([size.0, size.1]))) }
+}
+
 unsafe fn ui_insert_text(state: *mut LuaState) -> Outcome {
     unsafe { require_permission(state, Capability::UiComposer) }?;
     let text = unsafe { check_bytes(state, 1) }?;
@@ -860,6 +880,7 @@ lua_function!(astral_lua_ui_open_channel, ui_open_channel);
 lua_function!(astral_lua_ui_scroll_to, ui_scroll_to);
 lua_function!(astral_lua_ui_focus_composer, ui_focus_composer);
 lua_function!(astral_lua_ui_dismiss, ui_dismiss);
+lua_function!(astral_lua_ui_picture_in_picture, ui_picture_in_picture);
 lua_function!(astral_lua_ui_insert_text, ui_insert_text);
 lua_function!(astral_lua_ui_composer_text, ui_composer_text);
 lua_function!(astral_lua_ui_refresh, ui_refresh);

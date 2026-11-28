@@ -259,6 +259,7 @@ pub(crate) fn install_api(plugin: *mut Plugin) {
                 ("scroll_to", api::astral_lua_ui_scroll_to),
                 ("focus_composer", api::astral_lua_ui_focus_composer),
                 ("dismiss", api::astral_lua_ui_dismiss),
+                ("picture_in_picture", api::astral_lua_ui_picture_in_picture),
                 ("press", press_node),
                 ("insert_text", api::astral_lua_ui_insert_text),
                 ("refresh", api::astral_lua_ui_refresh),
