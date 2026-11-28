@@ -242,6 +242,16 @@ fn blamed_plugin(report: &Value, installed: &[Value]) -> Option<Value> {
         .cloned()
 }
 
+fn crash_status(report: &Value) -> String {
+    if let Some(number) = report.get("issue").and_then(|issue| issue.get("number")).and_then(Value::as_u64) {
+        return tr_with("ASTRAL_CRASH_ISSUE", &[("number", number.to_string())]);
+    }
+    if flag(report, "sent") {
+        return tr("ASTRAL_CRASH_REPORT_SENT").to_owned();
+    }
+    tr("ASTRAL_CRASH_TAP_TO_REPORT").to_owned()
+}
+
 fn crash_row(index: usize, report: &Value, installed: &[Value]) -> Value {
     let icon = if string(report, "kind") == "plugin" {
         "res://ic_mana_puzzle_piece_retry"
@@ -253,7 +263,7 @@ fn crash_row(index: usize, report: &Value, installed: &[Value]) -> Value {
     if let Some(plugin) = &plugin {
         details.push(string(plugin, "name"));
     }
-    details.push(tr("ASTRAL_CRASH_TAP_TO_REPORT").to_owned());
+    details.push(crash_status(report));
     let mut result = with(
         row(&format!("report.{index}"), &string(report, "title"), icon, ROW_LINK),
         json!({"subtitle": details.join(" · ")}),
@@ -284,7 +294,11 @@ fn crashes_page() -> Value {
             ROW_INFO,
         ));
     }
-    let mut sections = vec![section("", rows)];
+    let automatic = with(
+        row("crash-reports", tr("ASTRAL_CRASH_AUTO_REPORT"), "res://ic_mana_bug", ROW_SWITCH),
+        json!({"on": setting("crash-reports"), "subtitle": tr("ASTRAL_CRASH_AUTO_REPORT_SUBTITLE")}),
+    );
+    let mut sections = vec![section("", vec![automatic]), section("", rows)];
     if !reports.is_empty() {
         sections.push(section(
             "",
@@ -1557,7 +1571,12 @@ pub fn action(route: &str, key: &str, changed: Changed) -> Option<String> {
         return Some("marketplace".into());
     }
     if key == "crashes" {
+        host("refreshCrashIssues", &json!([]));
         return Some("crashes".into());
+    }
+    if key == "switch.crash-reports" {
+        toggle("crash-reports");
+        return simple("sendPendingCrashes", &json!([]));
     }
     if key == "crash-clear" {
         return simple("clearCrashReports", &json!([]));

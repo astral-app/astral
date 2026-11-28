@@ -1,0 +1,11 @@
+name = "astral-crash-intake"
+main = "build/worker/shim.mjs"
+compatibility_date = "2026-11-01"
+account_id = "c0cf01be76d8a95ddd959cbe5d880869"
+
+[build]
+command = "worker-build --release"
+
+[[kv_namespaces]]
+binding = "REPORTS"
+id = "98ec1aab2d9d465387f25790ce3c8525"

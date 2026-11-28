@@ -93,8 +93,24 @@ fn normalized(saved: &Value) -> Option<Value> {
     if let Some(reason) = saved.get("reason").filter(|reason| reason.is_i64()) {
         report.insert("reason".into(), reason.clone());
     }
+    if saved.get("sent").and_then(Value::as_bool) == Some(true) {
+        report.insert("sent".into(), json!(true));
+    }
+    if let Some(issue) = issue_link(saved.get("issue")) {
+        report.insert("issue".into(), issue);
+    }
     report.insert("environment".into(), environment(saved.get("environment")));
     Some(Value::Object(report))
+}
+
+fn issue_link(value: Option<&Value>) -> Option<Value> {
+    let value = value?;
+    let number = value.get("number").and_then(Value::as_u64)?;
+    let url = value
+        .get("url")
+        .and_then(Value::as_str)
+        .filter(|url| url.starts_with("https://github.com/"))?;
+    Some(json!({ "number": number, "url": url }))
 }
 
 fn load(file: &Path) -> Vec<Value> {
@@ -117,6 +133,23 @@ fn load(file: &Path) -> Vec<Value> {
 pub fn list() -> Vec<Value> {
     let guard = FILE.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     guard.as_deref().map(load).unwrap_or_default()
+}
+
+pub fn mark_sent(fingerprint: &str, issue: Option<&Value>) -> bool {
+    let guard = FILE.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let Some(file) = guard.as_ref() else { return false };
+    let mut reports = load(file);
+    let Some(report) = reports
+        .iter_mut()
+        .find(|report| report.get("fingerprint").and_then(Value::as_str) == Some(fingerprint))
+    else {
+        return false;
+    };
+    report["sent"] = json!(true);
+    if let Some(issue) = issue_link(issue) {
+        report["issue"] = issue;
+    }
+    write_atomically(file, Value::Array(reports).to_string().as_bytes())
 }
 
 pub fn clear() -> bool {
