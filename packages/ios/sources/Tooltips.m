@@ -151,9 +151,9 @@ static UIView *TooltipView(NSString *text, UIWindow *window)
     CGFloat left = kEdgeInset;
     CGFloat right = window.bounds.size.width - body.width - kEdgeInset;
     CGFloat x = MAX(left, MIN(CGRectGetMidX(anchor) - body.width / 2, right));
-    CGFloat belowY = CGRectGetMaxY(anchor) + kAnchorGap;
-    BOOL below = belowY + height <= window.bounds.size.height - safe.bottom - kEdgeInset;
-    CGFloat y = below ? belowY : MAX(safe.top + kEdgeInset, CGRectGetMinY(anchor) - height - kAnchorGap);
+    CGFloat aboveY = CGRectGetMinY(anchor) - height - kAnchorGap;
+    BOOL below = aboveY < safe.top + kEdgeInset;
+    CGFloat y = below ? CGRectGetMaxY(anchor) + kAnchorGap : aboveY;
     CGFloat arrowX = MAX(kRadius + kArrowHalfWidth, MIN(CGRectGetMidX(anchor) - x, body.width - kRadius - kArrowHalfWidth));
     UIView *bubble = [[UIView alloc] initWithFrame:CGRectMake(x, y, body.width, height)];
     bubble.userInteractionEnabled = NO;
