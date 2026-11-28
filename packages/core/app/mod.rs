@@ -1,4 +1,5 @@
 pub mod debug;
+pub mod debug_alt;
 mod dev;
 mod discord;
 pub mod exchange;

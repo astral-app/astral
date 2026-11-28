@@ -7,7 +7,7 @@ use serde_json::{Map, Value, json};
 use super::host::{self, Request};
 use super::reports;
 use super::state::{Platform, app};
-use crate::lua::enums::{FontWeight, ImageItemType, OptionType, TextAlign};
+use crate::lua::enums::{FontWeight, ImageItemType, OptionType};
 use crate::lua::host::http::{Attachment, CommandContext, CommandReply, NativeCommand, register_native};
 
 const WIDTH: f64 = 432.0;
@@ -29,8 +29,9 @@ const VALUE_SIZE: f64 = 11.0;
 const LABEL_GAP: f64 = 8.0;
 const WRAP_LINE: f64 = 14.0;
 const MAX_TILE_LINES: usize = 4;
-const PILL_HEIGHT: f64 = 18.0;
-const PILL_PADDING: f64 = 8.0;
+const FOOTER_HEIGHT: f64 = 30.0;
+const ALT_BADGE_ROOM: f64 = 64.0;
+const FOOTER: u32 = 0xFF15_181E;
 const MAX_ALT_TEXT: usize = 1024;
 const SHORT_PHOENIX: usize = 8;
 const ALT_DROP_ORDER: [&str; 9] = [
@@ -67,10 +68,8 @@ const VALUE: u32 = 0xFFF3_F4F6;
 const DIM: u32 = 0xFF9C_A3AF;
 const COMMIT: u32 = 0xFFA7_8BFA;
 const GOOD: u32 = 0xFF34_D399;
-const GOOD_BACKGROUND: u32 = 0xFF11_231B;
 const WARN: u32 = 0xFFFB_BF24;
 const BAD: u32 = 0xFFF8_7171;
-const BAD_BACKGROUND: u32 = 0xFF2A_1215;
 
 #[derive(Clone)]
 struct Span {
@@ -248,12 +247,6 @@ fn rows(environment: &Value) -> Vec<(&'static str, Vec<Span>)> {
         injection.push(span(format!(" · {}", framework_version(&framework)), DIM));
     }
     add("injection", injection);
-    add(
-        "jailbreak",
-        present(environment, "jailbreak")
-            .map(|jailbreak| vec![span(jailbreak.to_lowercase(), VALUE)])
-            .unwrap_or_default(),
-    );
     let details: Vec<String> = [discord.channel.clone(), discord.build.clone()].into_iter().flatten().collect();
     let mut discord_row = vec![
         span(discord.version.clone(), VALUE),
@@ -464,26 +457,21 @@ fn draw_tile(items: &mut Vec<Value>, tile: &Tile, x: f64, top: f64, height: f64)
         LABEL_SIZE,
         LABEL,
     ));
-    if let [single] = tile.lines.as_slice() {
-        let start = x + width - TILE_PADDING - spans_width(single);
-        put_spans(items, single, start, line_top(top, VALUE_SIZE));
-        return;
-    }
     let start = x + TILE_PADDING + tile.label_width + LABEL_GAP;
     for (index, line) in tile.lines.iter().enumerate() {
         put_spans(items, line, start, line_top(top, VALUE_SIZE) + index as f64 * WRAP_LINE);
     }
 }
 
-fn status(environment: &Value) -> (String, u32, u32) {
+fn status(environment: &Value) -> (String, u32) {
     let failed = plugin_counts(environment).failed.len();
     let crashes = environment.get("crashes_24h").and_then(Value::as_i64).unwrap_or(0);
     if failed > 0 {
-        (format!("● {failed} failing"), BAD, BAD_BACKGROUND)
+        (format!("● {failed} failing"), BAD)
     } else if crashes > 0 {
-        ("● crashing".to_owned(), BAD, BAD_BACKGROUND)
+        ("● crashing".to_owned(), BAD)
     } else {
-        ("● healthy".to_owned(), GOOD, GOOD_BACKGROUND)
+        ("● healthy".to_owned(), GOOD)
     }
 }
 
@@ -492,22 +480,6 @@ fn draw_header(items: &mut Vec<Value>, environment: &Value, stamp: &str) {
     let mut title = text_item(PADDING + TILE_PADDING / 2.0, title_top, "astral", TITLE_SIZE, VALUE);
     title["weight"] = json!(FontWeight::Bold.value());
     items.push(title);
-    let (label, color, background) = status(environment);
-    let pill_width = measure(&label, META_SIZE, FontWeight::Semibold) + PILL_PADDING * 2.0;
-    let pill_x = WIDTH - PADDING - pill_width;
-    let pill_top = (HEADER_HEIGHT - PILL_HEIGHT) / 2.0 + PADDING / 2.0;
-    items.push(rect(pill_x, pill_top, pill_width, PILL_HEIGHT, PILL_HEIGHT / 2.0, background));
-    let mut pill = text_item(
-        pill_x,
-        pill_top + (PILL_HEIGHT - META_SIZE * LINE_BOX) / 2.0,
-        &label,
-        META_SIZE,
-        color,
-    );
-    pill["width"] = json!(pill_width);
-    pill["weight"] = json!(FontWeight::Semibold.value());
-    pill["align"] = json!(TextAlign::Center.value());
-    items.push(pill);
     let version = present(environment, "astral").unwrap_or_else(|| "?".to_owned());
     let mut meta = vec![span(version, DIM)];
     if let Some(commit) = present(environment, "commit") {
@@ -515,7 +487,7 @@ fn draw_header(items: &mut Vec<Value>, environment: &Value, stamp: &str) {
     }
     meta.push(span(format!(" · {stamp}"), DIM));
     let x = PADDING + TILE_PADDING / 2.0 + measure("astral", TITLE_SIZE, FontWeight::Bold) + LABEL_GAP;
-    let room = pill_x - LABEL_GAP - x;
+    let room = WIDTH - PADDING - TILE_PADDING / 2.0 - x;
     let meta_width = |meta: &[Span]| -> f64 { meta.iter().map(|span| measure(&span.text, META_SIZE, FontWeight::Regular)).sum() };
     while meta.len() > 1 && meta_width(&meta) > room {
         meta.pop();
@@ -525,6 +497,18 @@ fn draw_header(items: &mut Vec<Value>, environment: &Value, stamp: &str) {
     for span in &meta {
         items.push(text_item(item_x, meta_top, &span.text, META_SIZE, span.color));
         item_x += measure(&span.text, META_SIZE, FontWeight::Regular);
+    }
+}
+
+fn draw_footer(items: &mut Vec<Value>, environment: &Value, top: f64) {
+    items.push(rect(0.0, top, WIDTH, FOOTER_HEIGHT, 0.0, FOOTER));
+    let (label, color) = status(environment);
+    let y = top + (FOOTER_HEIGHT - META_SIZE * LINE_BOX) / 2.0;
+    let mut x = ALT_BADGE_ROOM;
+    items.push(text_item(x, y, &label, META_SIZE, color));
+    x += measure(&label, META_SIZE, FontWeight::Regular);
+    if let Some(jailbreak) = present(environment, "jailbreak") {
+        items.push(text_item(x, y, &format!("{SEPARATOR}{}", jailbreak.to_lowercase()), META_SIZE, DIM));
     }
 }
 
@@ -545,7 +529,9 @@ pub fn card(environment: &Value, stamp: &str) -> Value {
         }
         top += height + GAP;
     }
-    let height = top - GAP + PADDING;
+    let footer_top = top - GAP + PADDING;
+    draw_footer(&mut items, environment, footer_top);
+    let height = footer_top + FOOTER_HEIGHT;
     items.insert(0, rect(0.0, 0.0, WIDTH, height, CARD_RADIUS, CARD));
     json!({"width": WIDTH, "height": height, "scale": SCALE, "items": items})
 }
@@ -589,19 +575,15 @@ fn alt_payload(environment: &Value) -> Map<String, Value> {
 
 fn alt_text(environment: &Value) -> String {
     let mut payload = alt_payload(environment);
-    let mut text = Value::Object(payload.clone()).to_string();
+    let mut text = super::debug_alt::pack(&Value::Object(payload.clone()).to_string());
     for key in ALT_DROP_ORDER {
-        if text.len() <= MAX_ALT_TEXT {
+        if text.chars().count() <= MAX_ALT_TEXT {
             break;
         }
         payload.remove(key);
-        text = Value::Object(payload.clone()).to_string();
+        text = super::debug_alt::pack(&Value::Object(payload.clone()).to_string());
     }
-    let end = (0..=MAX_ALT_TEXT.min(text.len()))
-        .rev()
-        .find(|end| text.is_char_boundary(*end))
-        .unwrap_or(0);
-    text[..end].to_owned()
+    text.chars().take(MAX_ALT_TEXT).collect()
 }
 
 fn stamp() -> String {
