@@ -18,7 +18,7 @@ use super::properties::{self, AstralWireProperties};
 
 pub type NodePatcher = unsafe extern "C" fn(*const AstralPatchTarget, *mut AstralNodePatch) -> c_int;
 
-const MAX_PREFIXES: usize = 32;
+const MAX_PREFIXES: usize = 128;
 const MAX_PREFIX_LENGTH: usize = 96;
 const PATCHED_CAPACITY: usize = 512;
 const SEEN_CAPACITY: usize = 4096;
@@ -39,10 +39,12 @@ enum Slot {
     Height,
     Clip,
     Gradient,
+    Flex,
+    MinWidth,
 }
 
 impl Slot {
-    const ALL: [Slot; 12] = [
+    const ALL: [Slot; 14] = [
         Slot::Background,
         Slot::Radius,
         Slot::Opacity,
@@ -55,6 +57,8 @@ impl Slot {
         Slot::Height,
         Slot::Clip,
         Slot::Gradient,
+        Slot::Flex,
+        Slot::MinWidth,
     ];
 
     const fn index(self) -> usize {
@@ -78,6 +82,8 @@ impl Slot {
             Slot::Width => properties.width,
             Slot::Height => properties.height,
             Slot::Clip => properties.clip,
+            Slot::Flex => properties.flex,
+            Slot::MinWidth => properties.min_width,
             Slot::Gradient => properties.background_gradient,
         }
     }
@@ -262,6 +268,40 @@ pub fn read_identifier<'a>(bytes: &'a [u8], span: &Span) -> Option<(&'a [u8], &'
         cursor.skip_value(tag, 0);
     }
     None
+}
+
+pub const LABEL_PREFIX: &[u8] = b"label:";
+pub const LABEL_END: u8 = 0x1f;
+
+fn patch_identifier<'a>(bytes: &'a [u8], span: &Span) -> Option<(Vec<u8>, &'a [u8])> {
+    let properties = properties::current();
+    let mut cursor = Cursor::new(bytes, span.start + 5);
+    let type_length = cursor.read16() as usize;
+    if type_length >= TYPE_LENGTH {
+        return None;
+    }
+    let kind = cursor.take(type_length)?;
+    let count = cursor.read16();
+    let mut label = None;
+    for _ in 0..count {
+        if cursor.failed() {
+            break;
+        }
+        let property = cursor.read16();
+        let tag = cursor.read8();
+        if tag == Tag::String && (property == properties.accessibility_id || property == properties.accessibility_label) {
+            let length = cursor.read32() as usize;
+            let text = cursor.take(length)?;
+            if property == properties.accessibility_id {
+                return (length < IDENTIFIER_LENGTH).then(|| (text.to_vec(), kind));
+            }
+            label = Some(text);
+            continue;
+        }
+        cursor.skip_value(tag, 0);
+    }
+    let label = label.filter(|label| label.len() + LABEL_PREFIX.len() + 1 < IDENTIFIER_LENGTH)?;
+    Some(([LABEL_PREFIX, label, &[LABEL_END]].concat(), kind))
 }
 
 fn copy_c(text: &[u8], out: *mut c_char, capacity: usize) {
@@ -534,7 +574,10 @@ fn slot_mask(fields: u32) -> u32 {
         (PATCH_MARGIN, Slot::Margin.bit()),
         (PATCH_BORDER, Slot::BorderColor.bit() | Slot::BorderWidth.bit()),
         (PATCH_TEXT_COLOR, Slot::TextColor.bit()),
-        (PATCH_HIDDEN, Slot::Width.bit() | Slot::Height.bit() | Slot::Clip.bit()),
+        (
+            PATCH_HIDDEN,
+            Slot::Width.bit() | Slot::Height.bit() | Slot::Clip.bit() | Slot::Flex.bit() | Slot::MinWidth.bit(),
+        ),
         (PATCH_GRADIENT, Slot::Gradient.bit()),
     ]
     .iter()
@@ -560,7 +603,7 @@ fn put_patched(out: &mut Out, slot: Slot, patch: &AstralNodePatch, properties: &
         Slot::BorderColor => put_long(out, property, patch.border_color),
         Slot::BorderWidth => out.prop_number(property, patch.border_width),
         Slot::TextColor => put_long(out, property, patch.text_color),
-        Slot::Width | Slot::Height => out.prop_number(property, 0.0),
+        Slot::Width | Slot::Height | Slot::Flex | Slot::MinWidth => out.prop_number(property, 0.0),
         Slot::Clip => {
             out.put16(property);
             out.put_tag(Tag::True);
@@ -918,9 +961,10 @@ pub unsafe extern "C" fn wire_patch_nodes(
             if span.op != Op::Create {
                 continue;
             }
-            let Some((identifier, kind)) = read_identifier(data, span) else {
+            let Some((identifier, kind)) = patch_identifier(data, span) else {
                 continue;
             };
+            let identifier = identifier.as_slice();
             let Some(prefix) = key_offset(&state.prefixes, identifier) else {
                 remember_seen(state, (bytes, spans), span, identifier, kind);
                 continue;

@@ -899,7 +899,8 @@ static void nodePatchTest(void)
     gPatchMode = 0;
     assert(astral_wire_refresh_node_patches(&out));
     assert(astral_wire_summarise(out.bytes, out.length, sink, NULL) > 0);
-    assert(strstr(line, "[2,900,[[322,0,null],[332,0,null],[287,0,null],[553,0,null],[235,0,null],[123,0,null]]]"));
+    assert(
+        strstr(line, "[2,900,[[322,0,null],[332,0,null],[287,0,null],[553,0,null],[235,0,null],[123,0,null],[198,0,null],[301,0,null]]]"));
     astral_wire_buffer_free(&out);
     assert(astral_wire_refresh_node_patches(&out) == 0);
     astral_wire_set_node_patcher(NULL);
