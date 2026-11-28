@@ -510,7 +510,9 @@ fn native_ui_platform(state: &Arc<Mutex<NativeUi>>) {
     on(
         "showToast",
         with(state, |ui, arguments| {
-            ui.toast = (text_at(arguments, 0), text_at(arguments, 1));
+            let spec = arguments.get(1).cloned().unwrap_or_default();
+            let field = |key: &str| spec.get(key).and_then(Value::as_str).unwrap_or_default().to_owned();
+            ui.toast = (field("title"), field("content"));
             Value::Null
         }),
     );
@@ -682,6 +684,18 @@ fn file_picker_and_dialogs(work: &Path) {
         "false"
     );
     assert_eq!(ui().toast, ("Status".to_owned(), "Ready".to_owned()));
+    let toast = number(&eval(
+        "astral.native-ui-test",
+        "local toast = astral.toasts.success('Saved', { buttons = { { content = 'Undo', on_press = function(shown) astral.storage.set('undo', shown.options.title); shown:close() end } }, on_close = function() astral.storage.set('toast_closed', true) end }); return toast.id",
+    ));
+    assert_eq!(ui().toast, ("Saved".to_owned(), String::new()));
+    lua_host::sheet_event(toast, "button", "1", false);
+    assert_eq!(eval("astral.native-ui-test", "return astral.storage.get('undo')"), "Saved");
+    lua_host::sheet_event(toast, "", "", true);
+    assert_eq!(
+        eval("astral.native-ui-test", "return tostring(astral.storage.get('toast_closed'))"),
+        "true"
+    );
     assert_eq!(ui().clipboard, "exported rules");
     let authorized = ui().authorized;
     assert!(authorized > 0);

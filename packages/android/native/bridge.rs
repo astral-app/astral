@@ -61,6 +61,7 @@ pub enum Method {
     OpenSheet,
     UpdateSheet,
     CloseSheet,
+    CloseToast,
     SyncFolderName,
     SyncChooseFolder,
     SyncForgetFolder,
@@ -76,7 +77,7 @@ enum Returns {
 }
 
 impl Method {
-    const ALL: [Method; 37] = [
+    const ALL: [Method; 38] = [
         Method::Deliver,
         Method::DiscordRequest,
         Method::ExportBackup,
@@ -109,6 +110,7 @@ impl Method {
         Method::OpenSheet,
         Method::UpdateSheet,
         Method::CloseSheet,
+        Method::CloseToast,
         Method::SyncFolderName,
         Method::SyncChooseFolder,
         Method::SyncForgetFolder,
@@ -150,6 +152,7 @@ impl Method {
             Method::OpenSheet => "openSheet",
             Method::UpdateSheet => "updateSheet",
             Method::CloseSheet => "closeSheet",
+            Method::CloseToast => "closeToast",
             Method::SyncFolderName => "syncFolderName",
             Method::SyncChooseFolder => "syncChooseFolder",
             Method::SyncForgetFolder => "syncForgetFolder",
@@ -162,12 +165,15 @@ impl Method {
         match self {
             Method::Deliver => "([B)V",
             Method::DiscordRequest => "(JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
-            Method::PickFile | Method::ShowConfirm | Method::OpenSheet | Method::UpdateSheet => {
-                "(JLjava/lang/String;)V"
-            }
+            Method::PickFile
+            | Method::ShowConfirm
+            | Method::OpenSheet
+            | Method::UpdateSheet
+            | Method::ShowToast => "(JLjava/lang/String;)V",
             Method::CancelFilePick
             | Method::CancelWebAuth
             | Method::CloseSheet
+            | Method::CloseToast
             | Method::FetchPickedMedia => "(J)V",
             Method::ExportBackup
             | Method::ImportBackup
@@ -182,7 +188,7 @@ impl Method {
             | Method::OpenUrl
             | Method::ShowTooltip
             | Method::DispatchGateway => "(Ljava/lang/String;)V",
-            Method::ShowAlert | Method::ShowToast => "(Ljava/lang/String;Ljava/lang/String;)V",
+            Method::ShowAlert => "(Ljava/lang/String;Ljava/lang/String;)V",
             Method::OpenWebAuth | Method::Notify | Method::Speak | Method::PlaySound => {
                 "(JLjava/lang/String;Ljava/lang/String;)V"
             }
@@ -384,10 +390,13 @@ impl Bridge for JniBridge {
                 Method::ShowAlert,
                 &[Argument::Text(title), Argument::Text(message)],
             )),
-            Request::ShowToast { title, message } => into_reply(self.locked(
+            Request::ShowToast { toast, spec } => into_reply(self.locked(
                 Method::ShowToast,
-                &[Argument::Text(title), Argument::Text(message)],
+                &[Argument::Long(signed(toast)), Argument::Text(spec)],
             )),
+            Request::CloseToast { toast } => {
+                into_reply(self.locked(Method::CloseToast, &[Argument::Long(signed(toast))]))
+            }
             Request::ShowTooltip { text } => {
                 into_reply(self.locked(Method::ShowTooltip, &[Argument::Text(text)]))
             }

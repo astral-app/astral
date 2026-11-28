@@ -695,6 +695,54 @@ pub unsafe fn close_sheet(state: *mut LuaState) -> Outcome {
     Ok(0)
 }
 
+unsafe fn toast_spec(state: *mut LuaState, index: c_int, function: &str) -> Result<Value, String> {
+    unsafe { check_type(state, index, lua::TTABLE) }?;
+    let Some(spec) = (unsafe { to_json(state, index, 0) }).filter(Value::is_object) else {
+        return Err(format!("{function}: give a toast table"));
+    };
+    if spec.to_string().len() > 8 * 1024 {
+        return Err(format!("{function}: the toast exceeds 8 KiB"));
+    }
+    Ok(spec)
+}
+
+unsafe fn toast_id(state: *mut LuaState) -> Result<Option<u64>, String> {
+    let value = unsafe { check_integer(state, 1) }?;
+    let toast = if value > 0 { value as u64 } else { 0 };
+    Ok(me(state).toasts.contains_key(&toast).then_some(toast))
+}
+
+pub unsafe fn show_toast(state: *mut LuaState) -> Outcome {
+    let plugin = me(state);
+    unsafe { require_permission(state, Capability::UiToasts) }?;
+    let spec = unsafe { toast_spec(state, 1, "astral.toasts.show") }?;
+    unsafe { check_type(state, 2, lua::TFUNCTION) }?;
+    if plugin.toasts.len() >= 8 {
+        return Err("astral.toasts.show: at most 8 toasts per plugin".into());
+    }
+    let toast = start_request(|plugin| &mut plugin.toasts, plugin, state, 2);
+    host::platform("showToast", &json!([toast, spec]));
+    unsafe { lua::lua_pushinteger(state, toast as i64) };
+    Ok(1)
+}
+
+pub unsafe fn update_toast(state: *mut LuaState) -> Outcome {
+    let Some(toast) = (unsafe { toast_id(state) })? else {
+        return Ok(0);
+    };
+    let spec = unsafe { toast_spec(state, 2, "astral.toasts.update") }?;
+    host::platform("showToast", &json!([toast, spec]));
+    Ok(0)
+}
+
+pub unsafe fn close_toast(state: *mut LuaState) -> Outcome {
+    let Some(toast) = (unsafe { toast_id(state) })? else {
+        return Ok(0);
+    };
+    host::platform("closeToast", &json!([toast]));
+    Ok(0)
+}
+
 pub unsafe fn press_node(state: *mut LuaState) -> Outcome {
     unsafe { require_permission(state, Capability::UiPress) }?;
     let raw = unsafe { check_bytes(state, 1) }?;

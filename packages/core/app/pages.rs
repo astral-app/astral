@@ -348,10 +348,7 @@ fn dispatch(current: &App, method: Method, arguments: &Arguments, reply: Option<
             Value::Null
         }
         Method::Notify => {
-            host::request(Request::ShowToast {
-                title: arguments.text(0),
-                message: arguments.text(1),
-            });
+            host::toast(arguments.text(0), arguments.text(1));
             Value::Null
         }
     }

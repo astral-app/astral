@@ -8,8 +8,11 @@ pub enum Request<'a> {
         message: &'a str,
     },
     ShowToast {
-        title: &'a str,
-        message: &'a str,
+        toast: u64,
+        spec: &'a str,
+    },
+    CloseToast {
+        toast: u64,
     },
     ShowTooltip {
         text: &'a str,
@@ -180,6 +183,11 @@ fn current() -> Option<Arc<dyn Bridge>> {
 
 pub fn request(request: Request) -> Reply {
     current().map_or(Reply::Unsupported, |bridge| bridge.request(request))
+}
+
+pub fn toast(title: &str, content: &str) {
+    let spec = serde_json::json!({ "title": title, "content": content }).to_string();
+    request(Request::ShowToast { toast: 0, spec: &spec });
 }
 
 pub fn deliver(bytes: &[u8]) {

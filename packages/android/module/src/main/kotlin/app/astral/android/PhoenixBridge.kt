@@ -435,12 +435,21 @@ object PhoenixBridge {
     }
 
     @JvmStatic
-    fun showToast(title: String, message: String) {
-        mainHandler.post {
-            val activity = activeActivity() ?: return@post
-            val text = if (title.isEmpty()) message else "$title\n$message"
-            Toast.makeText(activity, text, Toast.LENGTH_LONG).show()
+    fun showToast(toast: Long, spec: String) {
+        val options = runCatching { org.json.JSONObject(spec) }.getOrNull()
+        val event: ((String, String, Boolean) -> Unit)? =
+            if (toast != 0L) { action, value, closed -> Native.sheetEvent(toast, action, value, closed) } else null
+        val activity = activeActivity()
+        if (options == null || activity == null) {
+            event?.invoke("", "", true)
+            return
         }
+        Toasts.show(activity, toast, options, event)
+    }
+
+    @JvmStatic
+    fun closeToast(toast: Long) {
+        Toasts.close(toast)
     }
 
     @JvmStatic

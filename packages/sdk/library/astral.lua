@@ -710,7 +710,50 @@ function astral.ui.confirm(spec, callback) end
 ---@param handler fun(action: string, value: string)
 ---@return astral.SheetHandle
 function astral.ui.sheet(spec, handler) end
-function astral.ui.toast(title, message) end
+---Shows a toast with a title and body; shorthand for `astral.toasts.show`. Needs `ui.toasts`.
+---@param title string
+---@param content? string
+---@return astral.Toast
+function astral.ui.toast(title, content) end
+---@class astral.ToastButton
+---@field content string
+---@field variant? "primary"|"secondary"|"tertiary"
+---@field on_press? fun(toast: astral.Toast) the toast stays open; call `toast:close()` to dismiss it
+---@class astral.ToastOptions
+---@field title? string
+---@field content? string
+---@field icon? string a `res://` asset such as `res://ic_mana_circle_check`
+---@field tinted_icon? boolean tints the icon with the theme's icon colour; defaults to true
+---@field duration? integer milliseconds before it closes; 0 keeps it until dismissed; defaults to 5000
+---@field progress? number|false fills a bar to this fraction and holds the toast open; `false` clears it so the duration runs
+---@field buttons? astral.ToastButton[]
+---@field on_close? fun(toast: astral.Toast) runs once when the toast closes
+---@class astral.Toast
+---@field id integer
+---@field options astral.ToastOptions
+---@field update fun(self: astral.Toast, changes: astral.ToastOptions)
+---@field close fun(self: astral.Toast)
+astral.toasts = {}
+---Shows a toast at the top of the screen like Unbound's; up to three show at once. Needs `ui.toasts`.
+---@param options astral.ToastOptions
+---@return astral.Toast
+function astral.toasts.show(options) end
+---@param title string
+---@param options? astral.ToastOptions
+---@return astral.Toast
+function astral.toasts.success(title, options) end
+---@param title string
+---@param options? astral.ToastOptions
+---@return astral.Toast
+function astral.toasts.info(title, options) end
+---@param title string
+---@param options? astral.ToastOptions
+---@return astral.Toast
+function astral.toasts.warning(title, options) end
+---@param title string
+---@param options? astral.ToastOptions
+---@return astral.Toast
+function astral.toasts.error(title, options) end
 ---Shows a short tooltip above the point the user last touched; needs `ui.toasts`.
 ---@param text string
 function astral.ui.tooltip(text) end

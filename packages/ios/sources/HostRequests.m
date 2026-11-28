@@ -23,6 +23,7 @@
 #import "PickOffer.h"
 #import "PickedMedia.h"
 #import "PluginSheet.h"
+#import "Toasts.h"
 
 static const double kPermille = 1000;
 static const uint32_t kSilenceSampleRate = 8000;
@@ -561,7 +562,18 @@ static AstralReply HandleShowAlert(const AstralRequest *request)
 
 static AstralReply HandleShowToast(const AstralRequest *request)
 {
-    AstralShowToast(AstralStringOfText(request->first), AstralStringOfText(request->second));
+    NSDictionary *spec = DictionaryOf(request->first);
+    if (!spec) return Done();
+    uint64_t toast = request->identifier;
+    AstralShowToast(toast, spec, toast ? ^(NSString *action, NSString *value, BOOL closed) {
+        astral_ios_sheet_event(toast, AstralTextOf(action), AstralTextOf(value), closed);
+    } : nil);
+    return Done();
+}
+
+static AstralReply HandleCloseToast(const AstralRequest *request)
+{
+    AstralCloseToast(request->identifier);
     return Done();
 }
 

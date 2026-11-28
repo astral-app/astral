@@ -505,19 +505,6 @@ fn channel_link(channel: &str, message: &str) -> String {
     link
 }
 
-unsafe fn ui_toast(state: *mut LuaState) -> Outcome {
-    unsafe { require_permission(state, Capability::UiToasts) }?;
-    let (title, message) = (unsafe { check_text(state, 1) }?, unsafe { check_text(state, 2) }?);
-    if title.len() > 120 || message.len() > 2048 {
-        return Err("astral.ui.toast: text exceeds its limit".into());
-    }
-    match platform_call("showToast", &serde_json::json!([title, message])) {
-        Platform::Missing => Err("astral.ui.toast: notifications are unavailable on this build".into()),
-        Platform::Threw => Err("astral.ui.toast: could not show the notification".into()),
-        Platform::Value(_) => Ok(0),
-    }
-}
-
 unsafe fn ui_tooltip(state: *mut LuaState) -> Outcome {
     unsafe { require_permission(state, Capability::UiToasts) }?;
     let text = unsafe { check_text(state, 1) }?;
@@ -824,7 +811,6 @@ lua_function!(astral_lua_discord_muted, discord_muted);
 lua_function!(astral_lua_discord_message, discord_message);
 lua_function!(astral_lua_discord_raw_message, discord_raw_message);
 lua_function!(astral_lua_discord_permissions, discord_permissions);
-lua_function!(astral_lua_ui_toast, ui_toast);
 lua_function!(astral_lua_ui_tooltip, ui_tooltip);
 lua_function!(astral_lua_ui_copy, ui_copy);
 lua_function!(astral_lua_ui_paste, ui_paste);
