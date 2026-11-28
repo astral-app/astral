@@ -1,0 +1,15 @@
+id = "astral.picture-in-picture"
+name = "Picture In Picture"
+description = "Adds a picture in picture button to the media viewer, so videos keep playing in a floating window."
+version = "0.0.1"
+icon = "VideoIcon"
+main = "main.lua"
+permissions = ["ui.insert", "ui.navigate", "ui.toasts"]
+
+[[authors]]
+name = "Lumap"
+id = "585278686291427338"
+
+[[authors]]
+name = "adrian"
+id = "224617799434108928"

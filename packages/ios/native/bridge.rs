@@ -41,6 +41,7 @@ pub enum AstralRequestKind {
     KeepAlive,
     OfferPick,
     DismissSheets,
+    PictureInPicture,
     RefreshDecorations,
     RefreshSettings,
     InjectGateway,
@@ -272,6 +273,9 @@ fn outgoing<'a>(request: &Request<'a>) -> Outgoing<'a> {
             Outgoing::new(Kind::OfferPick).texts(&[name]).data(data)
         }
         Request::DismissSheets => Outgoing::new(Kind::DismissSheets),
+        Request::PictureInPicture { width, height } => {
+            Outgoing::new(Kind::PictureInPicture).number(packed_size(width, height))
+        }
         Request::RefreshDecorations => Outgoing::new(Kind::RefreshDecorations),
         Request::RefreshSettings => Outgoing::new(Kind::RefreshSettings),
         Request::InjectGateway { message } => Outgoing::new(Kind::InjectGateway).texts(&[message]),
@@ -337,4 +341,9 @@ impl Bridge for CallbackBridge {
 pub fn attach(bridge: AstralBridge) {
     astral_core::app::state::share_wire_lock(bridge.lock_wire, bridge.unlock_wire);
     astral_core::app::set_bridge(Arc::new(CallbackBridge(bridge)));
+}
+
+fn packed_size(width: u64, height: u64) -> i64 {
+    let clamp = |value: u64| i64::try_from(value.min(u64::from(u32::MAX))).unwrap_or(0);
+    (clamp(width) << 32) | clamp(height)
 }

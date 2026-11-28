@@ -544,6 +544,15 @@ authors = [
 	{ name = "adrian", id = "224617799434108928" },
 ]
 
+[[plugins]]
+id = "astral.picture-in-picture"
+name = "Picture In Picture"
+version = "0.0.1"
+description = "Adds a picture in picture button to the media viewer, so videos keep playing in a floating window."
+icon = "VideoIcon"
+base = "plugins/astral.picture-in-picture/"
+authors = [{ name = "Lumap", id = "585278686291427338" }, { name = "adrian", id = "224617799434108928" }]
+
 [[themes]]
 id = "astral"
 name = "astral"

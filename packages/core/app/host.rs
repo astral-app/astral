@@ -126,6 +126,10 @@ pub enum Request<'a> {
         data: &'a [u8],
     },
     DismissSheets,
+    PictureInPicture {
+        width: u64,
+        height: u64,
+    },
     RefreshDecorations,
     RefreshSettings,
     InjectGateway {

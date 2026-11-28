@@ -52,6 +52,7 @@ enum Method {
     PushRegistered,
     OfferPick,
     DismissSheets,
+    PictureInPicture,
 }
 
 impl Method {
@@ -98,6 +99,7 @@ impl Method {
             "pushRegistered" => Method::PushRegistered,
             "offerPick" => Method::OfferPick,
             "dismissSheets" => Method::DismissSheets,
+            "pictureInPicture" => Method::PictureInPicture,
             _ => return None,
         })
     }
@@ -436,6 +438,10 @@ fn dispatch(method: Method, arguments: &Arguments) -> Value {
         Method::PushRegistered => value(json!(push_registered())),
         Method::OfferPick => offer_pick(arguments),
         Method::DismissSheets => flag(&host::request(Request::DismissSheets)),
+        Method::PictureInPicture => flag(&host::request(Request::PictureInPicture {
+            width: arguments.number(0).max(0.0) as u64,
+            height: arguments.number(1).max(0.0) as u64,
+        })),
     }
 }
 

@@ -676,6 +676,15 @@ object PhoenixBridge {
     }
 
     @JvmStatic
+    fun pictureInPicture(width: Long, height: Long): Boolean {
+        val activity = activeActivity() ?: return false
+        if (Looper.myLooper() == Looper.getMainLooper()) return PictureInPicture.enter(activity, width, height)
+        val entered = java.util.concurrent.CompletableFuture<Boolean>()
+        mainHandler.post { entered.complete(PictureInPicture.enter(activity, width, height)) }
+        return runCatching { entered.get(2, java.util.concurrent.TimeUnit.SECONDS) }.getOrDefault(false)
+    }
+
+    @JvmStatic
     fun notify(delayMs: Long, title: String, payload: String) {
         val options = runCatching { org.json.JSONObject(payload) }.getOrNull() ?: return
         val body = options.optString("body")
