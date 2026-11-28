@@ -24,6 +24,7 @@
 #import "PhoenixSettings.h"
 #import "SettingsEntry.h"
 #import "SettingsPages.h"
+#import "Tooltips.h"
 #import "VirtualCamera.h"
 #import "VirtualSession.h"
 
@@ -166,6 +167,7 @@ static void StartPlugins(void)
     AstralInitializeDynamicCutout();
     astral_ios_start();
     AstralInstallMessageMenu();
+    AstralInstallTooltips();
     AstralInstallEmojiComposer();
     AstralInstallLuaComposer();
     AstralStartCrashReports();

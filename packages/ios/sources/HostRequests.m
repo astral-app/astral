@@ -24,6 +24,7 @@
 #import "PickedMedia.h"
 #import "PluginSheet.h"
 #import "Toasts.h"
+#import "Tooltips.h"
 
 static const double kPermille = 1000;
 static const uint32_t kSilenceSampleRate = 8000;
