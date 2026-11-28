@@ -119,6 +119,11 @@ pub fn list() -> Vec<Value> {
     guard.as_deref().map(load).unwrap_or_default()
 }
 
+pub fn clear() -> bool {
+    let guard = FILE.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    guard.as_ref().is_some_and(|file| write_atomically(file, b"[]"))
+}
+
 pub fn add(report: &Value) -> bool {
     let Some(report) = normalized(report) else { return false };
     let guard = FILE.lock().unwrap_or_else(|poisoned| poisoned.into_inner());

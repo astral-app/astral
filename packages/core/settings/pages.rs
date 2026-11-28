@@ -22,6 +22,7 @@ const ROW_INFO: i64 = 2;
 const ROW_SELECTED: i64 = 4;
 const ROW_CHOICE: i64 = 5;
 const ROW_NUMBER: i64 = 6;
+const ROW_ACTION: i64 = 7;
 
 pub type HostCall = unsafe extern "C" fn(
     method: *const c_char,
@@ -223,21 +224,57 @@ fn report_time(report: &Value) -> String {
 }
 
 fn reports_section() -> Value {
-    let mut rows: Vec<Value> = host_list("crashReports")
+    let count = host_list("crashReports").len();
+    section(
+        tr("ASTRAL_REPORTS"),
+        vec![with(
+            row("crashes", tr("ASTRAL_RECENT_CRASHES"), "res://ic_mana_bug", ROW_LINK),
+            json!({"detail": count.to_string()}),
+        )],
+    )
+}
+
+fn blamed_plugin(report: &Value, installed: &[Value]) -> Option<Value> {
+    let identifier = string(report, "plugin");
+    installed
         .iter()
-        .take(5)
+        .find(|plugin| !identifier.is_empty() && string(plugin, "id") == identifier)
+        .cloned()
+}
+
+fn crash_row(index: usize, report: &Value, installed: &[Value]) -> Value {
+    let icon = if string(report, "kind") == "plugin" {
+        "res://ic_mana_puzzle_piece_retry"
+    } else {
+        "res://ic_mana_bug"
+    };
+    let plugin = blamed_plugin(report, installed);
+    let mut details = vec![report_time(report)];
+    if let Some(plugin) = &plugin {
+        details.push(string(plugin, "name"));
+    }
+    details.push(tr("ASTRAL_CRASH_TAP_TO_REPORT").to_owned());
+    let mut result = with(
+        row(&format!("report.{index}"), &string(report, "title"), icon, ROW_LINK),
+        json!({"subtitle": details.join(" · ")}),
+    );
+    if plugin.as_ref().is_some_and(plugin_enabled) {
+        result["button"] = json!({
+            "key": format!("crash-disable.{index}"),
+            "title": tr("ASTRAL_CRASH_DISABLE_PLUGIN"),
+            "destructive": true,
+        });
+    }
+    result
+}
+
+fn crashes_page() -> Value {
+    let reports = host_list("crashReports");
+    let installed = plugins();
+    let mut rows: Vec<Value> = reports
+        .iter()
         .enumerate()
-        .map(|(index, report)| {
-            let icon = if string(report, "kind") == "plugin" {
-                "res://ic_mana_puzzle_piece_retry"
-            } else {
-                "res://ic_mana_bug"
-            };
-            with(
-                row(&format!("report.{index}"), &string(report, "title"), icon, ROW_LINK),
-                json!({"subtitle": tr_with("ASTRAL_REPORT_TAP_TO_COPY", &[("time", report_time(report))])}),
-            )
-        })
+        .map(|(index, report)| crash_row(index, report, &installed))
         .collect();
     if rows.is_empty() {
         rows.push(row(
@@ -247,7 +284,22 @@ fn reports_section() -> Value {
             ROW_INFO,
         ));
     }
-    section(tr("ASTRAL_REPORTS"), rows)
+    let mut sections = vec![section("", rows)];
+    if !reports.is_empty() {
+        sections.push(section(
+            "",
+            vec![row("crash-clear", tr("ASTRAL_CRASH_CLEAR"), "res://ic_mana_trash", ROW_ACTION)],
+        ));
+    }
+    page(tr("ASTRAL_RECENT_CRASHES"), sections)
+}
+
+fn disable_blamed_plugin(index: usize) {
+    let reports = host_list("crashReports");
+    let Some(plugin) = reports.get(index).and_then(|report| blamed_plugin(report, &plugins())) else {
+        return;
+    };
+    set_enabled(&string(&plugin, "id"), false);
 }
 
 struct Context {
@@ -1481,6 +1533,7 @@ pub fn model(route: &str) -> Value {
         "design" => design_page(),
         "marketplace" => marketplace_page(),
         "updates" => updates_page(&context),
+        "crashes" => crashes_page(),
         _ => page("astral", Vec::new()),
     }
 }
@@ -1502,6 +1555,16 @@ pub fn action(route: &str, key: &str, changed: Changed) -> Option<String> {
     }
     if key == "browse" {
         return Some("marketplace".into());
+    }
+    if key == "crashes" {
+        return Some("crashes".into());
+    }
+    if key == "crash-clear" {
+        return simple("clearCrashReports", &json!([]));
+    }
+    if let Some(index) = key.strip_prefix("crash-disable.") {
+        disable_blamed_plugin(leading_integer(index).max(0) as usize);
+        return None;
     }
     if let Some(identifier) = key.strip_prefix("switch.plugin.") {
         if let Some(plugin) = plugin_with_id(identifier) {

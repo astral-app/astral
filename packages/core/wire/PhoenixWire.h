@@ -29,6 +29,7 @@ typedef enum {
     kAstralRowSelected,
     kAstralRowChoice,
     kAstralRowNumber,
+    kAstralRowAction,
 } AstralRowKind;
 
 typedef struct {
@@ -41,6 +42,9 @@ typedef struct {
     int on;
     int32_t steps;
     int32_t position;
+    const char *button_key;
+    const char *button_title;
+    int button_destructive;
 } AstralRowSpec;
 
 typedef struct {
