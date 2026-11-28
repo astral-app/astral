@@ -353,6 +353,14 @@ pub extern "system" fn Java_app_astral_android_Native_sheetEvent<'local>(
 }
 
 #[unsafe(no_mangle)]
+pub extern "system" fn Java_app_astral_android_Native_fontFaces<'local>(
+    mut env: JNIEnv<'local>,
+    _: JClass<'local>,
+) -> jstring {
+    java_text(&mut env, &app::font_faces())
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_app_astral_android_Native_notificationReply<'local>(
     mut env: JNIEnv<'local>,
     _: JClass<'local>,
