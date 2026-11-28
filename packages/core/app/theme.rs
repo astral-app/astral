@@ -93,11 +93,15 @@ pub fn apply(current: &App, identifier: &str) {
     });
     let bytes = {
         let _held = wire();
+        let themed_before = crate::wire::theme::wire_theme_active() != 0;
         if style.is_object() {
             apply_style(&style);
         }
+        let themed_after = crate::wire::theme::wire_theme_active() != 0;
         let mut bytes = Vec::new();
-        collect(&mut bytes, |buffer| unsafe { crate::wire::theme::astral_wire_recolor(buffer) });
+        if themed_before || themed_after {
+            collect(&mut bytes, |buffer| unsafe { crate::wire::theme::astral_wire_recolor(buffer) });
+        }
         collect(&mut bytes, |buffer| unsafe {
             crate::wire::backdrop::astral_wire_refresh_backdrop(buffer)
         });
