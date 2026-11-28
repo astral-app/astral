@@ -63,6 +63,7 @@ fn drift() -> Result<Vec<String>, String> {
         ]))?)
         .map_err(|error| error.to_string())?;
         let Some(entry) = listed.get(&manifest.id) else {
+            drift.push(format!("{} is missing from the catalog", manifest.id));
             continue;
         };
         let want_icon = if manifest.icon.ends_with("Icon") {
