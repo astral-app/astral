@@ -1,7 +1,7 @@
 id = "astral.force-owner-crown"
 name = "Force Owner Crown"
 description = "Always show the owner crown on the server owner's messages."
-version = "0.0.2"
+version = "0.0.3"
 icon = "CrownIcon"
 main = "main.lua"
 permissions = ["discord.guilds", "ui.toasts"]

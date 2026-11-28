@@ -191,7 +191,7 @@ authors = [{ name = "adrian", id = "224617799434108928" }]
 [[plugins]]
 id = "astral.force-owner-crown"
 name = "Force Owner Crown"
-version = "0.0.2"
+version = "0.0.3"
 description = "Always show the owner crown on the server owner's messages."
 icon = "CrownIcon"
 base = "plugins/astral.force-owner-crown/"
@@ -392,7 +392,7 @@ authors = [
 [[plugins]]
 id = "astral.role-color-everywhere"
 name = "Role Color Everywhere"
-version = "0.0.1"
+version = "0.0.2"
 description = "Colors mentions, message text, role headers and names beside avatars with members' role colors."
 icon = "PaintPaletteIcon"
 base = "plugins/astral.role-color-everywhere/"
