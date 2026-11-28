@@ -602,7 +602,7 @@ fn bubble_padding(style: &AstralMessageBackgroundStyle) -> [f32; 4] {
     [x, y, x, y]
 }
 
-fn write_block_update(out: &mut Out, block: &Block, shown: bool, color: u32, radius: f64, bubble_padding: [f32; 4]) {
+fn write_block_update(out: &mut Out, block: &Block, shown: bool, merged: bool, color: u32, radius: f64, bubble_padding: [f32; 4]) {
     if block.card != 0 {
         write_card_update(out, block, shown, color);
         return;
@@ -614,12 +614,19 @@ fn write_block_update(out: &mut Out, block: &Block, shown: bool, color: u32, rad
     out.prop_number(properties.radius, if shown { radius } else { 0.0 });
     let inner = match (shown, block.media) {
         (false, _) => padding,
+        (true, true) if merged => NO_PADDING,
         (true, true) => [MEDIA_INSET; 4],
         (true, false) => bubble_padding,
     };
     out.prop_quad(properties.padding, inner);
     if block.media {
-        let top = if shown { block.padding[1] - MEDIA_INSET } else { 0.0 };
+        let top = if shown && !merged {
+            block.padding[1] - MEDIA_INSET
+        } else if shown {
+            block.padding[1]
+        } else {
+            0.0
+        };
         out.prop_quad(properties.margin, [0.0, top, 0.0, 0.0]);
     }
     let fill = !shown || block.wide;
@@ -678,7 +685,8 @@ fn mergeable(state: &Row, bubble: bool, header_outside: bool) -> bool {
 
 fn write_column_bubble(out: &mut Out, state: &Row, merged: bool, color: u32, radius: f64) {
     let properties = properties::current();
-    out.update(state.column, 3);
+    out.update(state.column, 4);
+    out.prop_bool(properties.clip, merged);
     out.prop_long(properties.background, if merged { i64::from(color) } else { 0 });
     out.prop_number(properties.radius, if merged { radius } else { 0.0 });
     match (merged, state.column_flex) {
@@ -696,7 +704,7 @@ fn write_bubble_update(out: &mut Out, state: &mut Row, shown: bool, merged: bool
     let block_color = if merged { 0 } else { color };
     let block_radius = if merged { 0.0 } else { radius };
     for block in &state.blocks {
-        write_block_update(out, block, shown, block_color, block_radius, state.applied_padding);
+        write_block_update(out, block, shown, merged, block_color, block_radius, state.applied_padding);
     }
     if merged || was_merged {
         write_column_bubble(out, state, merged, color, radius);
