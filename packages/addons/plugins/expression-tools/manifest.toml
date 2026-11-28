@@ -1,7 +1,7 @@
 id = "astral.expression-tools"
 name = "Expression Tools"
 description = "Useful tools for custom emojis."
-version = "0.0.1"
+version = "0.0.2"
 icon = "ReactionIcon"
 main = "main.lua"
 permissions = [

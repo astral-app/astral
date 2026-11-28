@@ -1,7 +1,7 @@
 id = "astral.shiki-codeblocks"
 name = "Shiki Codeblocks"
 description = "Highlights code blocks with VS Code-style syntax colors."
-version = "0.0.1"
+version = "0.0.2"
 icon = "TextIcon"
 main = "main.lua"
 permissions = [
