@@ -51,6 +51,7 @@ object PluginSheet {
         val title: TextView,
         val subtitle: TextView,
         val header: LinearLayout,
+        val footer: LinearLayout,
         val content: LinearLayout,
         val event: (String, String, Boolean) -> Unit,
     ) {
@@ -92,6 +93,10 @@ object PluginSheet {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(activity, INSET_DP), 0, dp(activity, INSET_DP), 0)
         }
+        val footer = LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(activity, INSET_DP), 0, dp(activity, INSET_DP), dp(activity, INSET_DP))
+        }
         val content = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(activity, INSET_DP), 0, dp(activity, INSET_DP), dp(activity, INSET_DP))
@@ -105,6 +110,7 @@ object PluginSheet {
         root.addView(subtitle)
         root.addView(header)
         root.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        root.addView(footer)
         dialog.setContentView(root)
         dialog.window?.apply {
             setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
@@ -114,7 +120,7 @@ object PluginSheet {
             setLayout(ViewGroup.LayoutParams.MATCH_PARENT, (height * fraction).toInt())
             setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         }
-        val rendered = Rendered(activity, dialog, title, subtitle, header, content, event)
+        val rendered = Rendered(activity, dialog, title, subtitle, header, footer, content, event)
         dialog.setOnDismissListener { finish(sheet, rendered) }
         sheets[sheet] = rendered
         render(rendered, spec)
@@ -160,7 +166,7 @@ object PluginSheet {
     }
 
     private fun updateInPlace(rendered: Rendered, spec: JSONObject): Boolean {
-        val shape = JSONArray().put(shapeOf(spec.optJSONArray("header"))).put(shapeOf(spec.optJSONArray("items"))).toString()
+        val shape = JSONArray().put(shapeOf(spec.optJSONArray("header"))).put(shapeOf(spec.optJSONArray("items"))).put(shapeOf(spec.optJSONArray("footer"))).toString()
         if (rendered.renderedShape != shape) {
             rendered.renderedShape = shape
             return false
@@ -168,6 +174,7 @@ object PluginSheet {
         val labels = mutableListOf<JSONObject>()
         labelItems(spec.optJSONArray("header"), labels)
         labelItems(spec.optJSONArray("items"), labels)
+        labelItems(spec.optJSONArray("footer"), labels)
         if (labels.size != rendered.itemLabels.size) return false
         val palette = palette(rendered.activity)
         rendered.title.text = spec.optString("title")
@@ -195,6 +202,8 @@ object PluginSheet {
         fillStack(rendered, rendered.header, spec.optJSONArray("header"), allowFill = false)
         rendered.header.visibility = if (rendered.header.childCount == 0) View.GONE else View.VISIBLE
         fillStack(rendered, rendered.content, spec.optJSONArray("items"), allowFill = true)
+        fillStack(rendered, rendered.footer, spec.optJSONArray("footer"), allowFill = false)
+        rendered.footer.visibility = if (rendered.footer.childCount == 0) View.GONE else View.VISIBLE
         rendered.keptTexts = emptyMap()
         val refocus = focusedKey?.let { rendered.keyedInputs[it] } ?: return
         refocus.requestFocus()
