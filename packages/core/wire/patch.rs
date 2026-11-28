@@ -41,10 +41,11 @@ enum Slot {
     Gradient,
     Flex,
     MinWidth,
+    Hidden,
 }
 
 impl Slot {
-    const ALL: [Slot; 14] = [
+    const ALL: [Slot; 15] = [
         Slot::Background,
         Slot::Radius,
         Slot::Opacity,
@@ -59,6 +60,7 @@ impl Slot {
         Slot::Gradient,
         Slot::Flex,
         Slot::MinWidth,
+        Slot::Hidden,
     ];
 
     const fn index(self) -> usize {
@@ -84,6 +86,7 @@ impl Slot {
             Slot::Clip => properties.clip,
             Slot::Flex => properties.flex,
             Slot::MinWidth => properties.min_width,
+            Slot::Hidden => properties.hidden,
             Slot::Gradient => properties.background_gradient,
         }
     }
@@ -96,6 +99,7 @@ const LABEL_FIELDS: u32 = PATCH_LABEL_TEXT | PATCH_LABEL_COLOR | PATCH_LABEL_TIN
 const SCALE_DEPTH: u32 = 8;
 const SCALE_NODES: usize = 256;
 const OWNER_DEPTH: usize = 32;
+const WRAPPER_DEPTH: usize = 4;
 pub const IDENTIFIER_LENGTH: usize = 128;
 pub const TYPE_LENGTH: usize = 16;
 
@@ -142,6 +146,7 @@ struct State {
     seen: HashMap<i32, Patched>,
     scaled: HashMap<i32, ScaledText>,
     labeled: HashMap<i32, Labeled>,
+    wrappers: HashMap<i32, Vec<(i32, Patched)>>,
 }
 
 static STATE: Mutex<Option<State>> = Mutex::new(None);
@@ -576,7 +581,7 @@ fn slot_mask(fields: u32) -> u32 {
         (PATCH_TEXT_COLOR, Slot::TextColor.bit()),
         (
             PATCH_HIDDEN,
-            Slot::Width.bit() | Slot::Height.bit() | Slot::Clip.bit() | Slot::Flex.bit() | Slot::MinWidth.bit(),
+            Slot::Width.bit() | Slot::Height.bit() | Slot::Clip.bit() | Slot::Flex.bit() | Slot::MinWidth.bit() | Slot::Hidden.bit(),
         ),
         (PATCH_GRADIENT, Slot::Gradient.bit()),
     ]
@@ -604,7 +609,7 @@ fn put_patched(out: &mut Out, slot: Slot, patch: &AstralNodePatch, properties: &
         Slot::BorderWidth => out.prop_number(property, patch.border_width),
         Slot::TextColor => put_long(out, property, patch.text_color),
         Slot::Width | Slot::Height | Slot::Flex | Slot::MinWidth => out.prop_number(property, 0.0),
-        Slot::Clip => {
+        Slot::Clip | Slot::Hidden => {
             out.put16(property);
             out.put_tag(Tag::True);
         }
@@ -858,6 +863,44 @@ fn label_differs(first: &AstralNodePatch, second: &AstralNodePatch) -> bool {
         || first.label_tint != second.label_tint
 }
 
+fn only_child_count(spans: &[Span], parent: i32) -> Option<u32> {
+    spans
+        .iter()
+        .rev()
+        .find(|span| span.op == Op::SetChildren && span.id == parent)
+        .map(|span| span.child_count)
+}
+
+fn collect_wrappers(bytes: *const u8, spans: &[Span], id: i32, properties: &AstralWireProperties) -> Vec<(i32, Patched)> {
+    let mut wrappers = Vec::new();
+    let mut current = id;
+    while wrappers.len() < WRAPPER_DEPTH {
+        let parent = unsafe { super::format::wire_parent_of(bytes, spans.as_ptr(), spans.len(), current) };
+        if parent <= 0 || only_child_count(spans, parent) != Some(1) {
+            break;
+        }
+        let creation = unsafe { super::format::wire_creation(spans.as_ptr(), spans.len(), parent).as_ref() };
+        let Some(creation) = creation else { break };
+        let mut patched = Patched::default();
+        capture_originals(batch_of(bytes, creation), creation, &mut patched, properties);
+        wrappers.push((parent, patched));
+        current = parent;
+    }
+    wrappers
+}
+
+fn write_wrappers(out: &mut Out, wrappers: Option<&mut Vec<(i32, Patched)>>, patch: &AstralNodePatch) -> bool {
+    let hidden_only = AstralNodePatch {
+        fields: patch.fields & PATCH_HIDDEN,
+        ..AstralNodePatch::default()
+    };
+    let mut wrote = false;
+    for (id, patched) in wrappers.into_iter().flatten() {
+        wrote |= write_patch(out, *id, patched, &hidden_only);
+    }
+    wrote
+}
+
 fn begin_output(out: &mut Out, changed: &mut c_int, bytes: *const u8, length: usize) {
     if *changed == 0 {
         out.put(unsafe { core::slice::from_raw_parts(bytes, length) });
@@ -878,6 +921,7 @@ fn repatch_checked(state: &mut State, id: i32, checked: bool, bytes: *const u8, 
     begin_output(out, changed, bytes, length);
     patched.written = None;
     write_patch(out, id, patched, &patch);
+    write_wrappers(out, state.wrappers.get_mut(&id), &patch);
     write_scaled(out, &mut state.scaled, id, &patch);
     write_labels(out, &mut state.labeled, id, &patch, true);
 }
@@ -943,6 +987,7 @@ pub unsafe extern "C" fn wire_patch_nodes(
                     state.seen.remove(&removed);
                     state.scaled.remove(&removed);
                     state.labeled.remove(&removed);
+                    state.wrappers.remove(&removed);
                 }
                 continue;
             }
@@ -986,6 +1031,10 @@ pub unsafe extern "C" fn wire_patch_nodes(
             }
             collect_texts(&mut state.scaled, bytes, spans, span.id);
             collect_labels(&mut state.labeled, bytes, spans, span.id);
+            let wrappers = collect_wrappers(bytes, spans, span.id, &properties);
+            if !wrappers.is_empty() {
+                state.wrappers.insert(span.id, wrappers);
+            }
             let mut patch = AstralNodePatch::default();
             let result = call_patcher(prefix, span.id, &patched, &mut patch);
             if result < 0 {
@@ -997,6 +1046,7 @@ pub unsafe extern "C" fn wire_patch_nodes(
                 }
                 *changed = 1;
                 write_patch(out, span.id, &mut patched, &patch);
+                write_wrappers(out, state.wrappers.get_mut(&span.id), &patch);
                 write_scaled(out, &mut state.scaled, span.id, &patch);
                 write_labels(out, &mut state.labeled, span.id, &patch, true);
             }
@@ -1020,6 +1070,7 @@ pub unsafe extern "C" fn astral_wire_refresh_node_patches(buffer: *mut AstralWir
     let any = with_state(|state| {
         let mut any = false;
         let prefixes = state.prefixes.clone();
+        let wrappers = &mut state.wrappers;
         for (id, patched) in state.patched.iter_mut() {
             let mut patch = AstralNodePatch::default();
             let prefix = key_offset(&prefixes, &patched.identifier).unwrap_or(0);
@@ -1028,7 +1079,7 @@ pub unsafe extern "C" fn astral_wire_refresh_node_patches(buffer: *mut AstralWir
                 continue;
             }
             let labels_changed = patched.written.is_none_or(|written| label_differs(&written, &patch));
-            let wrote = write_patch(&mut out, *id, patched, &patch);
+            let wrote = write_patch(&mut out, *id, patched, &patch) | write_wrappers(&mut out, wrappers.get_mut(id), &patch);
             let relabeled = write_labels(&mut out, &mut state.labeled, *id, &patch, labels_changed);
             any |= write_scaled(&mut out, &mut state.scaled, *id, &patch) || wrote || relabeled;
         }

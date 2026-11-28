@@ -55,6 +55,7 @@ extern "C" {
     X(fullScreenBack, 218)                                                                                                                 \
     X(gap, 220)                                                                                                                            \
     X(height, 235)                                                                                                                         \
+    X(hidden, 236)                                                                                                                         \
     X(image, 249)                                                                                                                          \
     X(includeFontPadding, 251)                                                                                                             \
     X(italic, 257)                                                                                                                         \
