@@ -7,6 +7,7 @@ use super::identifiers::accessibility_id;
 
 const CONTENT_PREFIX: &[u8] = b"message.content:";
 const MAX_CONTENT_VIEWS: usize = 4096;
+const CONTENT_DEPTH: usize = 3;
 
 static CONTENT_VIEWS: Mutex<Option<HashMap<i32, u64>>> = Mutex::new(None);
 
@@ -68,10 +69,23 @@ pub(crate) fn view_message(bytes: *const u8, spans: &[Span], view: i32) -> Optio
     }
 }
 
-pub(crate) fn message_of(bytes: *const u8, spans: &[Span], id: i32) -> Option<u64> {
-    let parent = unsafe { wire_parent_of(bytes, spans.as_ptr(), spans.len(), id) };
-    if parent == 0 {
-        return None;
+fn parent_of(bytes: *const u8, spans: &[Span], id: i32) -> i32 {
+    match unsafe { wire_parent_of(bytes, spans.as_ptr(), spans.len(), id) } {
+        0 => super::children::wire_discord_parent(id),
+        parent => parent,
     }
-    view_message(bytes, spans, parent)
+}
+
+pub(crate) fn message_of(bytes: *const u8, spans: &[Span], id: i32) -> Option<u64> {
+    let mut view = parent_of(bytes, spans, id);
+    for _ in 0..CONTENT_DEPTH {
+        if view == 0 {
+            return None;
+        }
+        if let Some(message) = view_message(bytes, spans, view) {
+            return Some(message);
+        }
+        view = parent_of(bytes, spans, view);
+    }
+    None
 }
